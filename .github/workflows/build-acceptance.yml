@@ -40,6 +40,17 @@ jobs:
           path: apps/desktop/release/*.deb
           if-no-files-found: error
 
+  desktop-macos-app:
+    name: Desktop macOS app (Linux host)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Assemble the macOS app, as a release does
+        env:
+          CONTAINER_RUNTIME: docker
+        run: make desktop-macos-app
+
   codegen-drift:
     name: Codegen drift and regeneration (all groups)
     runs-on: ubuntu-latest

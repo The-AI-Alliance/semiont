@@ -193,7 +193,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
 
       wire.emit('match:search-failed', ({
         referenceId: 'ref-x',
-        error: 'inference provider down',
+        message: 'inference provider down',
       }) as never, { correlationId: cid });
 
       await expect(searchP).rejects.toThrow(/inference provider down/);

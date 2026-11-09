@@ -208,6 +208,7 @@ func generatePassword() (string, error) {
 		}
 		out[i] = alphabet[n.Int64()]
 	}
+	noteSecret(string(out))
 	return string(out), nil
 }
 

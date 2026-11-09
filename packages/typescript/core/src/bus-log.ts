@@ -26,7 +26,7 @@
  *   - Node:     `SEMIONT_BUS_LOG=1` in the process env (read at module load)
  */
 
-import { BRIDGED_CHANNELS } from './bridged-channels';
+import { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS } from './bridged-channels';
 import { isObject } from './type-guards';
 
 const NODE_BUS_LOG =
@@ -172,10 +172,12 @@ const unobservedReplyWarned = new Set<string>();
  * out 30 s later with no error logged anywhere.
  *
  * Emits one WARN per channel naming the likely fix. Ignored (no warning):
- * non-reply emits (no `correlationId`), emits with observers, and — crucially —
- * channels already in `BRIDGED_CHANNELS`: a 0-observer emit there is a redundant
- * copy, not a gap. So the detector fires only
- * for a genuine missing forwarder, and its remediation text is always correct.
+ * non-reply emits (no `correlationId`), emits with observers, the channels of
+ * a resource's scope (an event of the record carries the correlationId of the
+ * request that caused it, and is no reply), and — crucially — channels already
+ * in `BRIDGED_CHANNELS`: a 0-observer emit there is a redundant copy, not a
+ * gap. So the detector fires only for a genuine missing forwarder, and its
+ * remediation text is always correct.
  */
 export function warnIfUnobservedReply(
   channel: string,
@@ -192,6 +194,7 @@ export function warnIfUnobservedReply(
   // into `BRIDGED_CHANNELS`; this runtime check covers non-`Bus.request`
   // correlation emits.)
   if ((BRIDGED_CHANNELS as readonly string[]).includes(channel)) return;
+  if ((RESOURCE_SCOPED_CHANNELS as readonly string[]).includes(channel)) return;
   if (unobservedReplyWarned.has(channel)) return;
   unobservedReplyWarned.add(channel);
   // eslint-disable-next-line no-console

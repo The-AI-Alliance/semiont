@@ -36,6 +36,34 @@ func writeDiscovery(ss *StackSet) {
 	if dir == "" {
 		return
 	}
+	kbs := []DiscoveredKB{}
+	for _, p := range publishedKBs(ss) {
+		kbs = append(kbs, p.kb)
+	}
+	b, err := json.MarshalIndent(DiscoveryDocument{Version: 1, Kbs: kbs}, "", "  ")
+	if err != nil {
+		return
+	}
+	ddir := filepath.Join(dir, "discovery")
+	if os.MkdirAll(ddir, 0o755) != nil {
+		return
+	}
+	tmp := filepath.Join(ddir, ".kbs.json.tmp")
+	if os.WriteFile(tmp, append(b, '\n'), 0o644) != nil {
+		return
+	}
+	_ = os.Rename(tmp, filepath.Join(ddir, "kbs.json"))
+}
+
+// publishedKB: an entry of the discovery document, and the stack it is of.
+type publishedKB struct {
+	stack *StackState
+	kb    DiscoveredKB
+}
+
+// publishedKBs: the entries the discovery document publishes for ss, each
+// with the stack it is of.
+func publishedKBs(ss *StackSet) []publishedKB {
 	opt := func(v string) *string {
 		if v == "" {
 			return nil
@@ -60,7 +88,7 @@ func writeDiscovery(ss *StackSet) {
 	// the last resort that keeps a malformed document off disk if a record
 	// without one is in the set.
 	claimed := map[int]bool{}
-	kbs := []DiscoveredKB{}
+	var kbs []publishedKB
 	roots := loadRoots().Roots
 	for _, st := range localStacks(ss) {
 		if st.KBDid == "" {
@@ -86,7 +114,7 @@ func writeDiscovery(ss *StackSet) {
 			}
 		}
 		claimed[e.Port] = true
-		kbs = append(kbs, e)
+		kbs = append(kbs, publishedKB{stack: st, kb: e})
 	}
 	for _, c := range codespaceStacks(ss) {
 		if c.Codespace.ForwardPort == 0 {
@@ -113,24 +141,12 @@ func writeDiscovery(ss *StackSet) {
 			continue // someone with a better claim already published it
 		}
 		claimed[c.Codespace.ForwardPort] = true
-		kbs = append(kbs, DiscoveredKB{
+		kbs = append(kbs, publishedKB{stack: c, kb: DiscoveredKB{
 			Host: "localhost", Port: c.Codespace.ForwardPort, Placement: DiscoveredKBPlacementCodespace,
 			Repo: opt(c.Codespace.Repo), Did: c.KBDid, ManagedBy: "semiont-launcher",
-		})
+		}})
 	}
-	b, err := json.MarshalIndent(DiscoveryDocument{Version: 1, Kbs: kbs}, "", "  ")
-	if err != nil {
-		return
-	}
-	ddir := filepath.Join(dir, "discovery")
-	if os.MkdirAll(ddir, 0o755) != nil {
-		return
-	}
-	tmp := filepath.Join(ddir, ".kbs.json.tmp")
-	if os.WriteFile(tmp, append(b, '\n'), 0o644) != nil {
-		return
-	}
-	_ = os.Rename(tmp, filepath.Join(ddir, "kbs.json"))
+	return kbs
 }
 
 // portFromEndpoint digs the port out of a recorded health endpoint

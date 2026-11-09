@@ -139,6 +139,7 @@
     "save": "Uložit",
     "cancel": "Zrušit",
     "edit": "Upravit",
+    "saveFailed": "Komentář se nepodařilo uložit: {{detail}}",
     "annotateComments": "Anotovat komentáře",
     "instructions": "Pokyny",
     "optional": "(volitelné)",

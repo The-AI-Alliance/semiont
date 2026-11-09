@@ -28,9 +28,10 @@
  * path asks the one question it answers.
  *
  * **Deadlines beat budgets.** `retryWithBackoff` takes an optional `AbortSignal`
- * so a caller racing its own timeout can stop the retry, instead of the two
- * numbers having to be kept compatible by hand across packages. That is the
- * `context.Context` / gRPC-deadline move, with the platform's own primitive.
+ * so a caller with its own deadline stops the retry when it falls due, instead
+ * of the two numbers having to be kept compatible by hand across packages. That
+ * is the `context.Context` / gRPC-deadline move, with the platform's own
+ * primitive.
  */
 
 import { RETRY_RULES } from './retry-rules';
@@ -164,11 +165,38 @@ export function isRetryableRequestError(error: unknown): boolean {
 }
 
 /**
+ * Resolves `true` once `ms` have passed, or `false` as soon as `signal`
+ * aborts, letting go of the wait it no longer needs.
+ */
+function waited(ms: number, signal: AbortSignal | undefined): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
+    const cutShort = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', cutShort);
+      resolve(true);
+    }, ms);
+    signal?.addEventListener('abort', cutShort, { once: true });
+  });
+}
+
+/**
  * Run `fn`, retrying on errors `isRetryable` accepts, with equal-jitter
  * exponential backoff per `policy`. `onRetry` fires before each wait — the
  * caller's hook for logging the attempt, and it reports the actual jittered
  * delay. The final error (retryable budget exhausted, or the first
  * non-retryable one) is rethrown verbatim.
+ *
+ * `signal` is the caller's deadline. Once it aborts no attempt is made: an
+ * aborted signal rejects with its reason before the first, and a wait between
+ * attempts ends at once, rethrowing the error that began it. The attempt in
+ * flight is the caller's to give up, by giving its own call the signal.
  */
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
@@ -177,6 +205,7 @@ export async function retryWithBackoff<T>(
   onRetry?: (info: RetryAttemptInfo) => void,
   signal?: AbortSignal,
 ): Promise<T> {
+  signal?.throwIfAborted();
   let cap = policy.initialDelayMs;
   for (let attempt = 1; ; attempt++) {
     try {
@@ -186,12 +215,6 @@ export async function retryWithBackoff<T>(
       // races its own timeout against work that retries has two numbers it must
       // keep compatible by hand — and the day they stop being compatible, the
       // race kills a retry that was about to succeed.
-      //
-      // Checked BETWEEN attempts, not during one: the in-flight call carries its
-      // own deadline (`/bus/emit`'s EMIT_TIMEOUT_MS, the providers'
-      // EMBED_ROUND_TRIP_TIMEOUT_MS), so the worst overshoot is that one bound rather than
-      // unbounded. Threading the signal into every leaf call would close that gap
-      // and is not worth its plumbing.
       if (signal?.aborted) throw error;
       if (attempt >= policy.attempts || !isRetryable(error)) throw error;
       // `delayMs` reported to `onRetry` is the ACTUAL wait, not the ceiling —
@@ -201,7 +224,7 @@ export async function retryWithBackoff<T>(
       const stated = (error as { retryAfterMs?: unknown }).retryAfterMs;
       const delayMs = Math.max(equalJitter(cap), typeof stated === 'number' ? stated : 0);
       onRetry?.({ attempt, attempts: policy.attempts, delayMs, error });
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (!(await waited(delayMs, signal))) throw error;
       cap = Math.min(cap * 2, policy.maxDelayMs);
     }
   }

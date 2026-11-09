@@ -1,0 +1,24 @@
+{
+  "title": "RootsForgetResult",
+  "type": "object",
+  "description": "A forgotten registry row. Only the row is removed: no file of the clone, and none of its persistent stack state.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "The forgotten root's path."
+    },
+    "directoryMissing": {
+      "type": "boolean",
+      "description": "Whether its directory was already gone."
+    },
+    "persistentState": {
+      "type": "string",
+      "description": "The key whose persistent stack state remains, when some does and no surviving root shares its DID: semiont clean --root <key> removes it."
+    }
+  },
+  "required": [
+    "path",
+    "directoryMissing"
+  ],
+  "additionalProperties": false
+}

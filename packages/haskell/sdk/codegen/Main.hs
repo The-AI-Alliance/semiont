@@ -355,10 +355,11 @@ busDescriptors original registry = do
     properties <- maybe (Left "operation failure has no properties") fieldsOf (KM.lookup "properties" schema)
     requiredNames <- arrayAt "required" schema >>= traverse stringValue
     when ("code" `elem` requiredNames) (Left "failure codes became required: update typed error classification")
-    let messages = [key | key <- ["message","error"], Key.toText key `elem` requiredNames,
-                    Just (Object definition) <- [KM.lookup key properties], textAt "type" definition == Just "string"]
-    message <- case messages of [one] -> Right one; _ -> Left "operation failure has no single required diagnostic string"
-    pure (request,lower typ <> identifier (Key.toText message))
+    let wordsAreText = case KM.lookup "message" properties of
+          Just (Object definition) -> textAt "type" definition == Just "string"
+          _ -> False
+    unless ("message" `elem` requiredNames && wordsAreText) (Left "operation failure does not require its words as a string `message`")
+    pure (request,lower typ <> identifier "message")
   let limits = [request | ((request,input,_),(_,output,_),(_,failure,_)) <- ops,
                 output == "InferenceLimitsResult", input == "InferenceLimitsRequest", failure == "CommandError"]
       namedLimits = [constructor | (name,constructor,_,_,_) <- typed, ":limits-requested" `T.isSuffixOf` name]

@@ -4,24 +4,20 @@ How a program comes to hold a token a knowledge base accepts.
 
 Sign-in happens at the knowledge base's identity provider, never at the gateway, and no password passes through your program. Which way a program signs in follows from who is signing in.
 
+For OCaml installation, sign-in, and live queries, see the [OCaml builder guide](./OCAML.md).
+
 ## Which way
 
-| Who is signing in | The way | TypeScript | Python | Rust | Go | Kotlin | .NET | Swift |
-|---|---|---|---|---|---|---|---|---|
-| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice`, then `SemiontSession.fromKept` | `sign_in_device` | `sign_in_device`, then `session_from_kept` | `SignInWithDevice` | `signInDevice` | `Issuer.SignInDeviceAsync`, then `KeptSession` | `signInDevice`, then `sessionFromKept` |
-| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | `SignInStore.entry` and `SemiontSession.fromKept` | `session_from_kept` | `SignInStore::entry` and `session_from_kept` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `KeptSession` | `SignInStore` and `sessionFromKept` |
-| A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` | `ServiceToken` and `AgentToken.SignInAsync` | `ServiceToken` and `AgentToken` |
-| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` | `BrowserSignIn.BeginSignInAsync` and `CompleteSignInAsync` | `SemiontBrowser.beginSignIn` and `completeSignIn` |
-| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `MemorySignIn` and `SemiontSession.fromKept`, or `SemiontSession.fromHttp` | its README | `MemorySignIn` and `session_from_kept` | its README | its README | `KeptSession` or `SemiontClient` | `SemiontClient.fromHttp` or `sessionFromKept` |
-| Every way above | [The HTTP client you give it](#the-http-client): its requests go through that client | `fetch` | `http=` | `http` | `HTTP` | `http` | `HttpClient` | `HTTPClient` |
+| Who is signing in | The way | TypeScript | Python | Rust | Go | Kotlin | .NET | Swift | Haskell | OCaml |
+|---|---|---|---|---|---|---|---|---|---|---|
+| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice`, then `SemiontSession.fromKept` | `sign_in_device` | `sign_in_device`, then `session_from_kept` | `SignInWithDevice` | `signInDevice` | `Issuer.SignInDeviceAsync`, then `SemiontSession.FromKeptAsync` | `signInDevice`, then `sessionFromKept` | `Session.signInDevice` | `OAuth.begin_device` and `OAuth.await_device` |
+| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | `SignInStore.entry` and `SemiontSession.fromKept` | `session_from_kept` | `SignInStore::entry` and `session_from_kept` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `SemiontSession.FromKeptAsync` | `SignInStore` and `sessionFromKept` | `SignInStore.entry` and `Session.fromKeptSession` | `Sign_in_store.make` and `Sign_in_store.session` |
+| A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` | `ServiceToken` and `AgentToken.SignInAsync` | `ServiceToken` and `AgentToken` | `ServiceToken` and `Session.signInAgent` | `Agent.sign_in` or `Service_token` |
+| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` | `BrowserSignIn.BeginSignInAsync` and `CompleteSignInAsync` | `SemiontBrowser.beginSignIn` and `completeSignIn` | `Registry.beginSignIn` and `completeSignIn` | `Registry.begin_sign_in` and `Registry.complete_sign_in` |
+| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `MemorySignIn` and `SemiontSession.fromKept`, or `SemiontSession.fromHttp` | its README | `MemorySignIn` and `session_from_kept` | its README | its README | `SemiontSession.FromKeptAsync` or `SemiontClient` | `SemiontClient.fromHttp` or `sessionFromKept` | `Session.fromIssuedSession` or `Client.fromHttp` | `Session.start`, then `Client.connect` |
+| Every way above | [The HTTP client you give it](#the-http-client): its requests go through that client | `fetch` | `http=` | `http` | `HTTP` | `http` | `HttpClient` | `HTTPClient` | `HttpClient` | `OAuth.http` and the gateway adapter passed to `Client.connect` |
 
-See the SDK guides for [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), [Rust](../../packages/rust/http-transport/README.md), [.NET](../../packages/csharp/sdk/README.md#signing-in), and [Swift](../../packages/swift/sdk/README.md#connect).
-
-[Haskell sign-in](../../packages/haskell/sdk/README.md#signing-in) uses
-`Session.signInDevice`, `SignInStore.entry` with `Session.fromKeptSession`,
-`ServiceToken` with `Session.signInAgent`, and `Registry.beginSignIn` /
-`Registry.completeSignIn`. `Session.fromIssuedSession` accepts an issued grant.
-Each HTTP flow uses the caller's `HttpClient`, clock and retry settings.
+See the SDK guides for [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), [Rust](../../packages/rust/http-transport/README.md), [.NET](../../packages/csharp/sdk/README.md#signing-in), [Swift](../../packages/swift/sdk/README.md#connect), [Haskell](../../packages/haskell/sdk/README.md#signing-in), and [OCaml](../../packages/ocaml/README.md#sign-in-and-connect).
 
 ## What every way has in common
 
@@ -42,6 +38,8 @@ Every way makes its requests, of the gateway and of the identity provider, with 
 | Go | a `*http.Client` | `HTTP` in the `Issuer` that `SignInWithDevice`, `NewServiceToken`, `BeginSignIn` and `CompleteSignIn` take, and in `AgentConfig`, `SessionFromKeptConfig` and `registry.HttpSessionFactory` | none: it is required |
 | Kotlin | a `java.net.http.HttpClient` | the last argument `http` of `sessionFromKept`, `beginSignIn`, `completeSignIn`, `ServiceToken`, `AgentToken` and `HttpSessionFactory`, and of `signInDevice` before its `onCode` | the JDK's, with its default proxy selector and trust store |
 | .NET | a `System.Net.Http.HttpClient` | `httpClient` on `Issuer`, `KeptSession`, `ServiceToken`, `AgentToken`, `HttpSessionFactory`, and the client and transport constructors. The redirect helpers also accept it. | an SDK-owned HTTP handler with proxy use disabled |
+| Haskell | an `HttpClient`, which `Http.newHttpClient` builds from `http-client` `ManagerSettings` and a proxy policy | `httpClient` in the `HttpOptions` that `Session.signInDevice`, `fromKeptSession`, `fromIssuedSession` and `signInAgent`, `Client.fromHttp`, `newHttpSessionFactory` and the registry take, and `issuerHttpClient` in the `IssuerOptions` of `Issuer` and `ServiceToken` | none: it is required |
+| OCaml | an `OAuth.http` callback for the issuer and a streaming HTTP adapter for the gateway | the issuer callback goes to the sign-in functions, and the gateway adapter goes to `Client.connect` | both are supplied by the application |
 
 An SDK never closes a client it is given: the program that built it closes it.
 

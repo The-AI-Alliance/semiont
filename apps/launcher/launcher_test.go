@@ -592,13 +592,13 @@ func (s *scenario) argv(t *testing.T) string {
 // either can never bake a tmp dir into a golden that greens on refresh and
 // reds on every later run.
 func (s *scenario) norm(text string) string {
-	// A directory before the one it is under: the staging dir and both homes
-	// are under the scenario's home.
-	out := strings.ReplaceAll(text, s.stagingPattern(), "<config-stages>")
-	out = withPlaceholder(out, s.stageRe(), "<config-stage>")
+	// A directory before the one it is under: the staging dir is under the
+	// temporary directory, and it and both homes are under the scenario's home.
+	out := withPlaceholder(text, s.stageRe(), "<config-stage>")
 	for _, d := range []struct{ dir, placeholder string }{
 		{dataHomeFor(s.home), "<data-home>"},
 		{stateHomeFor(s.home), "<state-home>"},
+		{s.stagingParent(), "<temp-dir>"},
 		{s.kb, "<kb-root>"},
 		{s.home, "<home>"},
 	} {
@@ -9999,7 +9999,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"--env SEMIONT_OIDC_CLIENT_KEY",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
-		filepath.Join("shared", "worker.json")+":/etc/semiont/worker.json:ro",
+		asThisSystemRuns("<state-home>/shared/worker.json:/etc/semiont/worker.json:ro"),
 	)
 	for _, absent := range []string{"run -d --name semiont-example.github.io-test-kb-neo4j", "run -d --name semiont-example.github.io-test-kb-gateway", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
@@ -10523,12 +10523,12 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d", code)
 	}
-	mustContain(t, "stdout", stdout,
+	mustContain(t, "stdout", s.norm(stdout),
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"# write <data-home>/shared/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local)",
-		"--volume <state-home>/shared/worker.json:/etc/semiont/worker.json:ro",
+		asThisSystemRuns("--volume <state-home>/shared/worker.json:/etc/semiont/worker.json:ro"),
 		"wait: http://<host-addr>:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-example.github.io-test-kb-neo4j") {

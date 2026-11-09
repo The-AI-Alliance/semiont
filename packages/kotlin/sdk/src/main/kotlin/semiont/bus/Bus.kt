@@ -15,11 +15,13 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import semiont.Timings
 import semiont.channels.Channel
 import semiont.channels.ScopedChannel
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
+import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
@@ -89,14 +91,18 @@ private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.
 private fun notTheChannels(channel: String, fault: Fault): String = "a payload on $channel is not that channel's: $fault"
 
 /**
- * Send `payload` as the request of `operation`, and wait up to `timeoutMs`,
- * measured by `clock`, for its reply: the payload of the reply on the
- * operation's result channel. For what relays requests it does not read;
- * `Bus.request` types them.
+ * Send `payload` as the request of `operation`, and wait for its reply, all
+ * within `timeoutMs` of the call, measured by `clock`: the payload of the
+ * reply on the operation's result channel. The deadline covers the wait for
+ * the stream to open, the emit with its retries and the waits between them,
+ * and the wait for the reply; when it falls due, what is still in flight is
+ * given up. For what relays requests it does not read; `Bus.request` types
+ * them.
  * Throws `BusRequestError` when it is answered with a failure, when no reply
  * comes in time, when the transport is closed, and when its stream does not
  * carry the operation's replies; and `TransportError` when the emit itself is
- * refused, and at once when its reply is.
+ * refused, at once when its reply is, and when the failure it is answered
+ * with is not its channel's.
  */
 public suspend fun request(
     transport: Transport,
@@ -119,13 +125,13 @@ public fun requestFuture(
 
 /**
  * A request of the bus, as far as the frame that answers it on its
- * operation's result channel; a failure is the request's error. Its deadline
- * is measured by `clock`. It is not sent before its reply can arrive: it
- * waits, inside its own deadline, for the
- * stream to be open. Its reply is tracked before it is emitted, and the emit
- * is not cut short by the deadline: a request half sent is one nobody can
- * account for. Cancelled, it reports nothing more, and a reply that comes
- * anyway settles nothing.
+ * operation's result channel; a failure is the request's error. Its one
+ * deadline is taken at the call and measured by `clock`, and covers all of
+ * it: it is not sent before its reply can arrive, so it waits, inside the
+ * deadline, for the stream to be open; its reply is tracked before it is
+ * emitted; and the emit, its retries and the waits between them are inside
+ * the deadline too, and are given up when it falls due. Cancelled, it
+ * reports nothing more, and a reply that comes anyway settles nothing.
  */
 internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long, clock: TimeSource): Frame {
     val asked = operation.request.name
@@ -148,16 +154,32 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
 
     val correlationId = UUID.randomUUID().toString()
     transport.trackReply(correlationId, listOf(result, failure)).use { pending ->
-        transport.emit(asked, payload, correlationId = correlationId)
-        val came = withTimeoutOrNull(left()) { listOf(pending.frame()) } ?: throw timedOut()
+        val came = withTimeoutOrNull(left()) {
+            transport.emit(asked, payload, correlationId = correlationId)
+            listOf(pending.frame())
+        } ?: throw timedOut()
         when (val reply = came.single() ?: throw BusRequestError(BusRequestErrorCode.Closed, "Bus closed before a reply on $result")) {
             is FrameRefusal -> throw TransportError(TransportErrorCode.Error, "a frame on ${reply.channel} is not that channel's: ${Fault(reply.member, reply.reason)}")
             is Frame -> {
                 if (reply.channel == result) return reply
-                throw BusRequestError.answered(reply.payload)
+                throw answered(operation.failure, reply.payload)
             }
         }
     }
+}
+
+/**
+ * The failure a request was answered with on `channel`, its operation's
+ * failure channel. It is held to its channel's shape before it is read, as a
+ * result is: one with a fault is refused, naming the fault. One the shape
+ * passes is the request's `BusRequestError`, in its own words, under the code
+ * its own code becomes; the shape holds the code to no list.
+ */
+private fun answered(channel: Channel<*>, failure: JsonObject): SemiontError {
+    val declared = declared(channel.stamps, failure)
+    val fault = faultOf(channel.payload.descriptor, declared)
+        ?: return BusRequestError.answered(declared.getValue("message").jsonPrimitive.content, failure)
+    return TransportError(TransportErrorCode.Error, notTheChannels(channel.name, fault))
 }
 
 private fun <P> delivered(frame: Frame, payload: P): Delivered<P> =
@@ -274,8 +296,8 @@ public class Bus @JvmOverloads constructor(
     }
 
     /**
-     * Send `payload` as the request of `operation`, and wait up to
-     * `timeoutMs` for its result. Throws as the free `request` does, and
+     * Send `payload` as the request of `operation`, and wait for its result,
+     * all within `timeoutMs` of the call. Throws as the free `request` does, and
      * `TransportError` when the result that came is not the operation's.
      */
     public suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): R =

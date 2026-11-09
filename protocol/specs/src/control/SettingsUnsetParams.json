@@ -1,0 +1,30 @@
+{
+  "title": "SettingsUnsetParams",
+  "type": "object",
+  "description": "settings.unset's params.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json",
+      "description": "The version of the control API the request is written to."
+    },
+    "name": {
+      "type": "string",
+      "description": "The setting, as semiont settings names it.",
+      "minLength": 1
+    },
+    "default": {
+      "type": "boolean",
+      "description": "The machine-wide form of a knowledge-base setting: --default."
+    },
+    "root": {
+      "type": "string",
+      "description": "A knowledge base's clone, by path or by the basename of a registered root, as --root takes it. Absent: the clone the control server was started in.",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "apiVersion",
+    "name"
+  ],
+  "additionalProperties": false
+}

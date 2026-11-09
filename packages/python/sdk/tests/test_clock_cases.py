@@ -28,14 +28,16 @@ from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import token
 
 from semiont import retry, timing
+from semiont.bus import request
 from semiont.cache import Cache, CachePersister
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.claims import ClaimRefusal
 from semiont.client import SemiontClient
 from semiont.discovery import DiscoveryRead, DiscoveryTransport, Managed, Unchanged, subscribe_discovery
-from semiont.errors import TransportError
+from semiont.errors import BusRequestError, TransportError
 from semiont.http.oauth import sign_in_with_device_grant
 from semiont.http.transport import HttpTransport
+from semiont.operations import BROWSE_EVENTS_REQUESTED
 from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.testing import FaultyTransport, InMemoryContent, StubGateway, create_test_client, refuse_unscripted_operation
 from semiont.transport import Frame
@@ -243,12 +245,20 @@ class HeldOpen(httpx.AsyncByteStream):
 
 @final
 class Gateway:
-    """A gateway in this process. It answers each request at once, as the subject has it answer, and counts what it is asked."""
+    """A gateway in this process. It answers each request at once, as the subject has it answer, and counts what it is asked.
 
-    def __init__(self, stream: StreamAnswer, *, retry_after_seconds: int | None, unanswered: frozenset[str]) -> None:
+    It answers a subscribe as `stream` says, a request of a path `refused`
+    names with a 503, and one of a path `unanswered` names never. Its
+    refusals carry a `Retry-After` of `retry_after_seconds`, when it states one.
+    """
+
+    def __init__(
+        self, stream: StreamAnswer, *, retry_after_seconds: int | None, unanswered: frozenset[str], refused: frozenset[str] = frozenset()
+    ) -> None:
         self._stream: Final = stream
         self._retry_after_seconds: Final = retry_after_seconds
         self._unanswered: Final = unanswered
+        self._refused: Final = refused
         self.asked: Final = Counter[str]()
         """How many requests of each path it has been asked."""
         self.closed = 0
@@ -259,14 +269,19 @@ class Gateway:
         self.asked[path] += 1
         if path in self._unanswered:
             await never_answered()
+        if path in self._refused:
+            return self._refusal()
         if path != SUBSCRIBE:
             raise AssertionError(f"the gateway was asked {request.method} {path}, which this subject does not have it answer")
         if self._stream == "holds":
             return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=HeldOpen(self._closed_one))
         if self._stream == "refuses":
-            stated = {} if self._retry_after_seconds is None else {"retry-after": str(self._retry_after_seconds)}
-            return httpx.Response(503, headers=stated, json={"error": "The gateway is not ready"})
+            return self._refusal()
         return await never_answered()
+
+    def _refusal(self) -> httpx.Response:
+        stated = {} if self._retry_after_seconds is None else {"retry-after": str(self._retry_after_seconds)}
+        return httpx.Response(503, headers=stated, json={"error": "The gateway is not ready"})
 
     def _closed_one(self) -> None:
         self.closed += 1
@@ -350,6 +365,41 @@ async def unanswered_emit(given: JsonObject, held: AsyncExitStack) -> Subject:
     # Its attempts are cut before the transport closes, which waits for every emit under way to end.
     running(held, transport.emit("beckon:hover", {"annotationId": "ann-1"}))
     return Subject(counted=lambda: gateway.asked[EMIT], act=None)
+
+
+async def refused_request(given: JsonObject, held: AsyncExitStack) -> tuple[Gateway, asyncio.Task[object]]:
+    """A bus request of a resource's events, made as the case begins, over a gateway that holds its stream open and refuses every emit."""
+    gateway = Gateway(
+        "holds", retry_after_seconds=given_seconds(given, "retryAfterSeconds"), unanswered=frozenset(), refused=frozenset({EMIT})
+    )
+    transport = await gateway.transport(held)
+    return gateway, running(held, request(transport, BROWSE_EVENTS_REQUESTED, {"resourceId": RESOURCE}))
+
+
+async def refused_bus_request(given: JsonObject, held: AsyncExitStack) -> Subject:
+    gateway, asked = await refused_request(given, held)
+
+    def attempts() -> int:
+        # How it fails is what timedOutBusRequest counts.
+        if asked.done() and not asked.cancelled():
+            assert asked.exception() is not None, "the request was answered"
+        return gateway.asked[EMIT]
+
+    return Subject(counted=attempts, act=None)
+
+
+async def timed_out_bus_request(given: JsonObject, held: AsyncExitStack) -> Subject:
+    _, asked = await refused_request(given, held)
+
+    def timed_out() -> int:
+        if not asked.done():
+            return 0
+        error = asked.exception()
+        assert isinstance(error, BusRequestError), f"the request ended otherwise: {asked!r}"
+        assert error.code == "bus.timeout", f"the request ended otherwise: {error!r}"
+        return 1
+
+    return Subject(counted=timed_out, act=None)
 
 
 # ── The issuer ──────────────────────────────────────────────────────────
@@ -625,6 +675,8 @@ SUBJECTS: Final[Mapping[str, Build]] = {
     "jobFollower": job_follower,
     "unansweredRequest": unanswered_request,
     "unansweredEmit": unanswered_emit,
+    "refusedBusRequest": refused_bus_request,
+    "timedOutBusRequest": timed_out_bus_request,
 }
 """How this SDK builds each subject the table names."""
 

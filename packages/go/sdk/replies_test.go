@@ -118,6 +118,51 @@ func TestAWrappedResponseIsHeldToItsSchemaFromTheResponse(t *testing.T) {
 	refusedAs(t, "no response", err, "a payload on job:cancel-ok is not that channel's: it has no `response`")
 }
 
+// failed is what a browse:resource-requested its gateway answers with failure
+// fails with: asked by type, and asked by its request channel.
+func failed(t *testing.T, failure string) (byType, byChannel error) {
+	t.Helper()
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	defer transport.Close()
+	transport.RefuseWhen(func(bus.Channel, json.RawMessage) json.RawMessage { return json.RawMessage(failure) })
+	resource, err := api.ParseResourceId("res-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	within := semiont.DefaultTiming().BusRequestTimeout
+	wire := semiont.NewWire(transport)
+	_, byType = semiont.Request(context.Background(), wire, bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: resource}, within)
+	_, byChannel = wire.RequestOf(context.Background(), bus.BrowseResourceRequested.Request().Channel(), map[string]any{"resourceId": "res-1"}, within)
+	return byType, byChannel
+}
+
+// A failure is held to its channel's schema as a result is: one with no
+// words, or with a code that is no text, is not its channel's, and is refused
+// naming its first fault. It is given no words.
+func TestAFailureWithAFaultIsRefusedNamingIt(t *testing.T) {
+	for _, c := range []struct{ why, failure, said string }{
+		{"no words", `{}`, "it has no `message`"},
+		{"a code but no words", `{"code":"not-found"}`, "it has no `message`"},
+		{"a code that is no text", `{"message":"refused","code":7}`, "its `code` is malformed"},
+	} {
+		byType, byChannel := failed(t, c.failure)
+		refusedAs(t, c.why+", asked by type", byType, "a payload on browse:resource-failed is not that channel's: "+c.said)
+		refusedAs(t, c.why+", asked by channel", byChannel, "a payload on browse:resource-failed is not that channel's: "+c.said)
+	}
+}
+
+// A failure whose code the wire does not list is a rejection that keeps the
+// failure's words, as protocol/specs/src/errors/codes.json says.
+func TestAFailureWhoseCodeTheWireDoesNotListIsRejectedInItsOwnWords(t *testing.T) {
+	byType, byChannel := failed(t, `{"message":"a code from a later peer","code":"not-a-code-yet"}`)
+	for _, err := range []error{byType, byChannel} {
+		var rejected *semiont.BusRequestError
+		if !errors.As(err, &rejected) || rejected.Code != semiont.BusRequestErrorCodeRejected || rejected.Message != "a code from a later peer" {
+			t.Errorf("failed with %v, not as a rejection in the failure's words", err)
+		}
+	}
+}
+
 func TestAnAnswerWithAFaultIsRefusedNamingIt(t *testing.T) {
 	for _, c := range []struct{ why, answer, said string }{
 		{"a user with no domain", `{"did":"did:web:example.org:users:alice","email":null,"name":null,"image":null}`, "it has no `domain`"},

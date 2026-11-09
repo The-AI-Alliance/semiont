@@ -56,7 +56,7 @@ func (u *MatchStateUnit) search(request api.MatchSearchRequest, correlationID st
 	}
 	answer := semiont.Envelope{CorrelationID: correlationID}
 	if err != nil {
-		_ = semiont.Publish(u.client.Bus, bus.MatchSearchFailed, api.MatchSearchFailed{ReferenceId: request.ReferenceId, Error: err.Error()}, answer)
+		_ = semiont.Publish(u.client.Bus, bus.MatchSearchFailed, api.MatchSearchFailed{ReferenceId: request.ReferenceId, Message: err.Error()}, answer)
 		return
 	}
 	_ = semiont.Publish(u.client.Bus, bus.MatchSearchResults, found, answer)

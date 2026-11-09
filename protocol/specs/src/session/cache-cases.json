@@ -27,6 +27,9 @@
       "packages/haskell/sdk/test/CacheDocumentCases.hs"
     ]
   },
+  "notYetReached": {
+    "ocaml": "OCaml's Storage_persister keeps every query's values and the stream's places in one document under one key: it is to keep one document per persisted query, as stored.json's `cacheDocument`, and the places as its `lastEventIds`, under the keys these cases name, and to run every case through it."
+  },
   "cases": [
     {
       "name": "a resource's document",

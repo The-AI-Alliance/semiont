@@ -47,7 +47,10 @@ re-converges N peers on the same instant.
 it once and sends the emit again with the renewed one, which starts a fresh `emitRetry` budget,
 its backoff begun again. So an emit spans at most two budgets, as
 [TRANSPORT-HTTP.md § Emitting](../../protocol/contract/TRANSPORT-HTTP.md#emitting) states, and the
-SDK conformance suite holds every SDK to it.
+SDK conformance suite holds every SDK to it. The emit a bus request makes is inside that
+request's deadline too: when the deadline falls due first, the attempt in flight is cancelled
+and no attempt is made after it
+([TRANSPORT-CONTRACT.md § Requests](../../protocol/contract/TRANSPORT-CONTRACT.md#requests)).
 
 **The budgets chain.** A projector waits on the archivist, whose own start can take minutes.
 The catalog reader's policy is sized by that, at about five and a half minutes in all, so that

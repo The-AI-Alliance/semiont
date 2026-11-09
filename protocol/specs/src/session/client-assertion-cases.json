@@ -11,7 +11,8 @@
     ],
     "rust": ["packages/rust/http-transport/tests/client_assertion_cases.rs"],
     "go": ["packages/go/sdk/clientassertion_test.go"],
-    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/ClientAssertionCasesTest.kt"]
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/ClientAssertionCasesTest.kt"],
+    "ocaml": ["packages/ocaml/sdk/test/sign_in.ml"]
   },
   "form": ["grant_type", "client_assertion_type", "client_assertion"],
   "grantType": "client_credentials",

@@ -29,7 +29,7 @@ public final class MatchStateUnit: StateUnit {
       } catch {
         self?.emit(
           Channels.matchSearchFailed,
-          MatchSearchFailed(error: String(describing: error), referenceId: payload.referenceId),
+          MatchSearchFailed(message: String(describing: error), referenceId: payload.referenceId),
           correlationId: id)
       }
     }

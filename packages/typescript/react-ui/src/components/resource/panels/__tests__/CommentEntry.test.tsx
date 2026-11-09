@@ -5,19 +5,22 @@ import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
+import { BindNamespace } from '@semiont/sdk';
 import type { SemiontSession } from '@semiont/sdk';
 
 import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
-  useTranslations: vi.fn(() => (key: string) => {
+  useTranslations: vi.fn(() => (key: string, params?: Record<string, string>) => {
     const translations: Record<string, string> = {
       edit: 'Edit',
       save: 'Save',
       cancel: 'Cancel',
+      saveFailed: 'Couldn’t save the comment: {{detail}}',
     };
-    return translations[key] || key;
+    const text = translations[key] || key;
+    return params?.detail === undefined ? text : text.replace('{{detail}}', params.detail);
   }),
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -378,6 +381,12 @@ describe('CommentEntry Component', () => {
       expect(screen.getByText('Edit')).toBeInTheDocument();
     });
 
+    it('offers no edit without a session to save it through', () => {
+      renderWithProviders(<CommentEntry session={null} {...defaultProps} />);
+
+      expect(screen.queryByText('Edit')).not.toBeInTheDocument();
+    });
+
     it('should enter edit mode when edit button is clicked', async () => {
       renderWithProviders(<CommentEntry session={session} {...defaultProps} />);
 
@@ -453,33 +462,58 @@ describe('CommentEntry Component', () => {
       expect(textarea).toHaveAttribute('maxLength', '2000');
     });
 
-    it('should update textarea value and exit edit mode when save is clicked', async () => {
+    it('saves an edit as the replace of the comment body item it was made from', async () => {
+      const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockResolvedValue(undefined);
       renderWithProviders(<CommentEntry session={session} {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       const textarea = screen.getByRole('textbox');
-
       await userEvent.clear(textarea);
       await userEvent.type(textarea, 'Updated comment');
-
-      expect(textarea).toHaveValue('Updated comment');
-
       await userEvent.click(screen.getByText('Save'));
 
-      // Edit mode should exit (textarea should no longer be in document)
+      // The old item is the body item exactly as the annotation holds it, so
+      // the replace finds it; only its words change.
+      expect(bindSpy).toHaveBeenCalledWith('resource-1', 'comment-1', [{
+        op: 'replace',
+        oldItem: { type: 'TextualBody', value: 'This is a test comment', purpose: 'commenting' },
+        newItem: { type: 'TextualBody', value: 'Updated comment', purpose: 'commenting' },
+      }]);
       await waitFor(() => {
         expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       });
+
+      bindSpy.mockRestore();
     });
 
-    it('should exit edit mode after save', async () => {
+    it('keeps the editor open with the edit when the save is refused, and says why', async () => {
+      const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockRejectedValue(new Error('the annotation is gone'));
+      renderWithProviders(<CommentEntry session={session} {...defaultProps} />);
+
+      await userEvent.click(screen.getByText('Edit'));
+      const textarea = screen.getByRole('textbox');
+      await userEvent.clear(textarea);
+      await userEvent.type(textarea, 'Updated comment');
+      await userEvent.click(screen.getByText('Save'));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save the comment: the annotation is gone');
+      expect(screen.getByRole('textbox')).toHaveValue('Updated comment');
+
+      bindSpy.mockRestore();
+    });
+
+    it('closes without sending anything when the text is unchanged', async () => {
+      const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockResolvedValue(undefined);
       renderWithProviders(<CommentEntry session={session} {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       await userEvent.click(screen.getByText('Save'));
 
+      expect(bindSpy).not.toHaveBeenCalled();
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       expect(screen.getByText('Edit')).toBeInTheDocument();
+
+      bindSpy.mockRestore();
     });
 
     it('should discard changes when cancel is clicked', async () => {

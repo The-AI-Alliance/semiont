@@ -133,6 +133,10 @@ type serviceDescriptor struct {
 	// health: the probe a start gates on and status reports. One home.
 	health healthProbe
 
+	// page: the path of the page a person opens, on the port its health is
+	// asked at; "" for a service a person opens no page of.
+	page string
+
 	display     string     // product name for banners, status and messages
 	defaultPort int        // config default AND the container-side listen port
 	portLabel   string     // the primary port's name in conflict errors
@@ -185,7 +189,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// its container. What runs is the document's. An empty ports list keeps
 	// the Browser's port out of every stack-level claim and sweep: flowBrowser
 	// claims the one its document names, and status reports it from its record.
-	{role: "browser", driver: driverSemiont, name: "browser", mem: "1G", defaultPort: 3000},
+	{role: "browser", driver: driverSemiont, name: "browser", mem: "1G", defaultPort: 3000, page: "/"},
 
 	{role: "identity-store", driver: "postgres", name: "postgres", image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", mem: "1G",
 		ports: []portNeed{{5432, "PostgreSQL"}}, display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL",
@@ -265,16 +269,16 @@ var serviceDescriptors = []serviceDescriptor{
 	// is disposable in a dev stack.
 	{role: "traces", driver: "jaeger", name: "jaeger", image: "jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac", mem: "1G",
 		ports:   []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}},
-		display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI", health: healthProbe{}},
+		display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI", health: healthProbe{}, page: "/"},
 	// Prometheus keeps its product port (tier 2).
 	{role: "metrics", driver: "prometheus", name: "prometheus", image: "prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702", mem: "1G",
 		ports: []portNeed{{9090, "Prometheus UI"}}, display: "Prometheus", defaultPort: 9090, portLabel: "Prometheus UI",
-		health: healthProbe{path: "/-/healthy"}},
+		health: healthProbe{path: "/-/healthy"}, page: "/"},
 	{role: "collector", driver: "otel", name: "otel-collector", image: "otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c", mem: "1G",
 		ports:   []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}},
 		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: []string{"traces"},
 		// The collector's readout port, not the OTLP port services target.
-		health: healthProbe{port: 24110, path: "/metrics"}},
+		health: healthProbe{port: 24110, path: "/metrics"}, page: "/metrics"},
 }
 
 // descriptorIndex: (role, driver) → descriptor. Built once; the slice above

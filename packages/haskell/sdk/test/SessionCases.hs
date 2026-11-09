@@ -256,7 +256,7 @@ externalCases target person = do
     require "forgotten grant retained its old person" . (==Nothing) =<< atomically (State.current (Session.user missing))
     Session.dispose missing
 
-sessionClockCases :: FilePath -> Map.Map Text Value -> IO ()
+sessionClockCases :: FilePath -> Map.Map Text Value -> IO [Text]
 sessionClockCases root fixtures = clockCasesFor root ["renewal"] $ \time row -> do
   target <- kb
   person <- maybe (ioError (userError "session clock lacks UserResponse")) readValue (Map.lookup "UserResponse" fixtures)

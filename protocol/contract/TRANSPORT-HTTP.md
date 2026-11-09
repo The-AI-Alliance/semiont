@@ -202,19 +202,22 @@ is its mechanism over HTTP.
   Claims live in a table every gateway replica on one broker shares, so a
   reply reaches its requester whichever replica each is connected to.
 - **The count.** `subscribers` is how many connections the frame's channel
-  and scope reached, and is present only when the signal plane can count.
+  and scope reached. A broker plane cannot count them, so there it is
+  absent, except for a request that reached none (below), where it is 0.
 - **Profile.** When the channel is one whose registry `effect` writes and
   the principal's token carries `name`, a person's or an agent's, the
   gateway also publishes `principal:profile` `{_userId, name}` — how the
   record learns what a principal is called. A principal may emit
   `principal:profile` itself, as an agent whose token carries no name does;
   it is stamped as every emit is, so it names only the sender.
-- **An unanswerable request fails fast.** When the plane can count
-  observers (the in-process plane) and a request with a `correlationId`
-  reaches none, the gateway publishes the operation's own failure channel
-  with the request's fields, `code: "peer-unavailable"` and a message, to
-  the requester only. A broker plane cannot count, so there the caller
-  waits out its deadline.
+- **An unanswerable request fails fast.** When an operation's request
+  with a `correlationId` reaches no observer, the gateway publishes the
+  operation's own failure channel with the request's fields,
+  `code: "peer-unavailable"` and a message, to the requester only. It
+  does so on either plane: the in-process plane counts the zero, and a
+  broker answers a request nothing subscribes to with its own
+  no-responders status. Every subscription on a request's subject is some
+  replica's client stream, so on a broker the zero holds across replicas.
 - **A broker that is down refuses.** While the signal plane's broker is
   not connected an emit is refused 503, never accepted and lost.
 

@@ -465,6 +465,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
+    signal?: AbortSignal,
   ): Promise<number | undefined> {
     busLog('EMIT', channel as string, payload, envelope?.scope, envelope?.correlationId);
     recordBusSent(channel as string, envelope?.scope);
@@ -472,11 +473,12 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       `bus.emit:${channel as string}`,
       async () => {
         try {
-          return await this.actor.emit(channel, payload, envelope);
+          return await this.actor.emit(channel, payload, envelope, signal);
         } catch (error) {
           // A refused emit is a transport failure like any other, so it is
-          // reported where the others are before its caller hears it.
-          if (error instanceof SemiontError) this.pushError(error);
+          // reported where the others are before its caller hears it. One
+          // its caller gave up is not the transport's failure.
+          if (error instanceof SemiontError && !signal?.aborted) this.pushError(error);
           throw error;
         }
       },

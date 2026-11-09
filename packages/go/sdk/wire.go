@@ -64,8 +64,9 @@ func (w *Wire) RequestOf(ctx context.Context, request bus.Channel, payload map[s
 
 // result is a request, as far as the frame that answers it on its result
 // channel. A failure answered is a *BusRequestError carrying it, and a reply
-// its transport refused is a *TransportError saying so, at once. asking, when
-// it is not nil, is called as the request is sent.
+// its transport refused, or a failure that is not its channel's, is a
+// *TransportError saying so, at once. asking, when it is not nil, is called
+// as the request is sent.
 func (w *Wire) result(ctx context.Context, request bus.Channel, payload map[string]any, within time.Duration, asking func()) (Frame, error) {
 	operation, ok := bus.Operations[request]
 	if !ok {
@@ -140,15 +141,27 @@ func (w *Wire) result(ctx context.Context, request bus.Channel, payload map[stri
 	if reply.Channel == operation.Result {
 		return reply, nil
 	}
-	var failure struct {
-		Code    *api.CommandErrorCode `json:"code"`
-		Message *string               `json:"message"`
+	return Frame{}, failureOf(reply, operation.FailurePayload)
+}
+
+// failureOf is what a request answered on its operation's failure channel,
+// which carries a payload, fails with: a *BusRequestError under the code the
+// failure's own code becomes, in the failure's words, a code the wire does
+// not list being a rejection. A failure with a fault as its channel's is
+// refused, as a result with one is.
+func failureOf(reply Frame, payload reflect.Type) error {
+	fault, faulty := required.FaultOfFramePayload(reply.Payload, payload)
+	if !faulty {
+		var failure struct {
+			Code    *api.CommandErrorCode `json:"code"`
+			Message string                `json:"message"`
+		}
+		if json.Unmarshal(reply.Payload, &failure) == nil {
+			return &BusRequestError{Code: BusRequestErrorCodeOfWire(failure.Code), Message: failure.Message, Failure: reply.Payload}
+		}
+		fault = required.Undecoded
 	}
-	message := "Bus request rejected"
-	if json.Unmarshal(reply.Payload, &failure) == nil && failure.Message != nil {
-		message = *failure.Message
-	}
-	return Frame{}, &BusRequestError{Code: BusRequestErrorCodeOfWire(failure.Code), Message: message, Failure: reply.Payload}
+	return transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: %s", reply.Channel, fault), TransportErrorCodeError)
 }
 
 // ── By type ─────────────────────────────────────────────────────────────

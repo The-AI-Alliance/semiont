@@ -8,6 +8,7 @@ import Semiont.ErrorCodes
 roundTripError :: Text -> Value -> Either String Value
 roundTripError family value = case family of
   "busRequest" -> toJSON <$> (parseEither parseJSON value :: Either String BusRequestCode)
+  "control" -> toJSON <$> (parseEither parseJSON value :: Either String ControlCode)
   "job" -> toJSON <$> (parseEither parseJSON value :: Either String JobCode)
   "kbIdentity" -> toJSON <$> (parseEither parseJSON value :: Either String KbIdentityCode)
   "session" -> toJSON <$> (parseEither parseJSON value :: Either String SessionCode)

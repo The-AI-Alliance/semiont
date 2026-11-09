@@ -3,12 +3,12 @@
  * lint:transport-contract — the contract documents and the conformance
  * corpus name each other truthfully. The documents are the two transport
  * ones, the worker contract, the Worker service's, the Weaver's, the
- * Smelter's, the Librarian's, and the selectors' page, for its rules of what
- * text a resource's bytes are.
+ * Smelter's, the Librarian's, the selectors' page, for its rules of what
+ * text a resource's bytes are, and the launcher's control API's.
  *
  * - Every rule's `*Held by …*` in protocol/contract/TRANSPORT-CONTRACT.md,
  *   TRANSPORT-HTTP.md, WORKER-CONTRACT.md, WORKER-SERVICE.md, WEAVER.md,
- *   SMELTER.md, LIBRARIAN.md and W3C-SELECTORS.md names cases
+ *   SMELTER.md, LIBRARIAN.md, W3C-SELECTORS.md and LAUNCHER-CONTROL.md names cases
  *   that exist: `sdk/wire/<case>`, `sdk/live/<case>` (a file, or a case built
  *   from a row of protocol/specs/src/client/refresh.json), `worker/<case>`,
  *   `worker-service/<case>`, `weaver/<case>`, `smelter/<case>`,
@@ -46,7 +46,7 @@ const SERVICE_SUITES = [
   { doc: 'protocol/contract/SMELTER.md', dir: 'protocol/conformance/smelter', token: 'smelter', service: 'a Smelter', counted: 'smelter' },
   { doc: 'protocol/contract/LIBRARIAN.md', dir: 'protocol/conformance/librarian', token: 'librarian', service: 'a Librarian', counted: 'librarian' },
 ];
-const DOCS = ['protocol/contract/TRANSPORT-CONTRACT.md', 'protocol/contract/TRANSPORT-HTTP.md', 'protocol/contract/WORKER-CONTRACT.md', ...SERVICE_SUITES.map((suite) => suite.doc), 'protocol/contract/W3C-SELECTORS.md'];
+const DOCS = ['protocol/contract/TRANSPORT-CONTRACT.md', 'protocol/contract/TRANSPORT-HTTP.md', 'protocol/contract/WORKER-CONTRACT.md', ...SERVICE_SUITES.map((suite) => suite.doc), 'protocol/contract/W3C-SELECTORS.md', 'protocol/contract/LAUNCHER-CONTROL.md'];
 const SDK = 'protocol/conformance/sdk';
 const WORKER = 'protocol/conformance/worker/cases';
 const failures = [];

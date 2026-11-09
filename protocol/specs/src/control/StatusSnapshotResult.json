@@ -1,0 +1,26 @@
+{
+  "title": "StatusSnapshotResult",
+  "type": "object",
+  "description": "What semiont status reports: each knowledge base with its own services, and each service the knowledge bases share, once, with the knowledge bases it serves.",
+  "properties": {
+    "knowledgeBases": {
+      "type": "array",
+      "items": {
+        "$ref": "./KnowledgeBaseStatus.json"
+      },
+      "description": "The target's stack; with no target, the stack of the knowledge base the control server stands in, else every recorded one."
+    },
+    "shared": {
+      "type": "array",
+      "items": {
+        "$ref": "./ServiceStatus.json"
+      },
+      "description": "The services every knowledge base shares, group by group, and those the machine serves for the knowledge bases that name them."
+    }
+  },
+  "required": [
+    "knowledgeBases",
+    "shared"
+  ],
+  "additionalProperties": false
+}

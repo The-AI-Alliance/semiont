@@ -10,7 +10,8 @@
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs"]
   },
   "notYetReached": {
-    "haskell": "Haskell's registry is to run these cases over a scripted knowledge base, as the others do."
+    "haskell": "Haskell's registry is to run these cases over a scripted knowledge base, as the others do.",
+    "ocaml": "OCaml's registry is to run these cases over a scripted knowledge base, as the others do."
   },
   "cases": [
     {

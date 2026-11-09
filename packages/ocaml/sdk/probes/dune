@@ -1,0 +1,60 @@
+(test
+ (name transport)
+ (modules transport subscription_timing)
+ (libraries semiont eio_main eio.mock cohttp-eio tls-eio mirage-crypto-rng.unix
+  x509 uri mtime ptime cstruct domain-name alcotest)
+ (deps peer-cert.pem peer-key.pem))
+
+(rule
+ (targets subscription_timing.ml)
+ (deps ../lib/client_timing.ml)
+ (action (copy %{deps} %{targets})))
+
+(rule
+ (targets peer-cert.pem peer-key.pem)
+ (action
+  (run openssl req -x509 -newkey rsa:2048 -nodes
+   -keyout peer-key.pem -out peer-cert.pem -days 2
+   -subj /CN=localhost
+   -addext subjectAltName=DNS:localhost
+   -addext basicConstraints=critical,CA:TRUE)))
+
+(library
+ (name native_lock)
+ (wrapped false)
+ (modules native_lock)
+ (libraries unix)
+ (foreign_stubs (language c) (names native_lock_stubs)))
+
+(test
+ (name storage)
+ (modules storage store_policy)
+ (libraries native_lock unix eio_main eio.mock alcotest)
+ (deps lock_holder.py))
+
+(test
+ (name runtime)
+ (modules runtime)
+ (libraries semiont eio_main eio.mock mtime alcotest))
+
+(executable
+ (name api_inventory)
+ (modules api_inventory)
+ (libraries compiler-libs.common yojson))
+
+(test
+ (name capabilities)
+ (modules capabilities unicode_cases)
+ (libraries eio_main ambient-context-eio opentelemetry x509 uutf cstruct
+  mirage-crypto-rng.unix alcotest)
+ (deps peer-key.pem))
+
+(test
+ (name json_boundary)
+ (modules json_boundary)
+ (libraries semiont yojson uutf qcheck alcotest))
+
+(test
+ (name body_lifetime)
+ (modules body_lifetime scoped_body)
+ (libraries eio_main cstruct alcotest))

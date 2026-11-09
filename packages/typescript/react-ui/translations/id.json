@@ -139,6 +139,7 @@
     "save": "Simpan",
     "cancel": "Batal",
     "edit": "Ubah",
+    "saveFailed": "Tidak dapat menyimpan komentar: {{detail}}",
     "annotateComments": "Anotasi Komentar",
     "instructions": "Instruksi",
     "optional": "(opsional)",

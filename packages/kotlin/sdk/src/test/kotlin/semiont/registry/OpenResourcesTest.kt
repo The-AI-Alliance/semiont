@@ -331,8 +331,11 @@ class OpenResourcesTest {
             assertEquals("main", checkNotNull(entry.lastRead).gitBranch)
             entry
         }
-        // And a new registry on the storage reads what was recorded.
-        world.browser().use { reopened -> assertEquals(entry, reopened.kbs.value[0]) }
+        // And a new registry on the storage reads what was recorded. Its own session is held, since that session's
+        // arrival would ask the knowledge base again and record a later read over this one.
+        SemiontBrowser(SemiontBrowserConfig(world.storage, HeldSessions(world.factory.sessions))).use { reopened ->
+            assertEquals(entry, reopened.kbs.value[0])
+        }
     }
 
     /**

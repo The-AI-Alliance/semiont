@@ -143,7 +143,7 @@ func TestABrokenWorkerDocumentIsShownRefused(t *testing.T) {
 	if len(lines) != 1 || lines[0].value != path || !strings.Contains(lines[0].source, "refused, and so is every start that runs a worker") {
 		t.Errorf("a broken document is shown as %+v, want it at %s, refused", lines, path)
 	}
-	if code := workerPoolDocumentPathCmd(); code != 1 {
+	if code := Settings([]string{"worker", "--path"}); code != 1 {
 		t.Errorf("settings worker --path on a broken document exits %d, want 1", code)
 	}
 }

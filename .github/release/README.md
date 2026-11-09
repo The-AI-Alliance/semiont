@@ -14,6 +14,7 @@ Release lifecycle scripts. `version-bump.sh` runs on the host with just `jq` and
 | `version-bump.sh` | Bump version across all packages, commit, push the branch | `jq`, `git` |
 | `packages/rust/scripts/cargo-version.sh` | Write the version to the crates published to crates.io | `awk` |
 | `packages/rust/scripts/published-crates.sh` | Name the crates published to crates.io | `awk` |
+| `packages/haskell/scripts/cabal-version.sh` | Write the version to the Haskell SDK's manifest | `awk` |
 | `packages/go/scripts/published-go-modules.sh` | Name the Go modules a release tags | `awk`, `grep` |
 | `version.mjs` | Show, sync, or set version | `node` |
 
@@ -114,8 +115,8 @@ moved" and "moved somewhere unexpected" are different failures.
 ./.github/release/version-bump.sh          # Interactive prompt
 ```
 
-Bumps the version in `version.json`, syncs to all `package.json` files,
-commits (signed), and pushes the current branch with `-u origin HEAD`. Bumps go
+Bumps the version in `version.json`, syncs to all `package.json` files, the
+published crates and the Haskell SDK's manifest, commits (signed), and pushes the current branch with `-u origin HEAD`. Bumps go
 through a branch and PR; direct pushes to main are disabled.
 
 ## version.mjs

@@ -8,10 +8,12 @@ using Semiont.Discovery;
 using Semiont.Errors;
 using Semiont.Http;
 using Semiont.Identifiers;
+using Semiont.Protocol;
 using Semiont.Registry;
 using Semiont.SignIn;
 using Semiont.Storage;
 using Semiont.State;
+using Semiont.Testing;
 using Semiont.Types;
 using Xunit;
 
@@ -385,6 +387,46 @@ public sealed partial class TransportTests
         var otherTabs = RegistryStorage.Read<Dictionary<string, OpenResource[]>>(store.Get(RegistryStorage.OpenResourcesByKbKey));
         Assert.Equal(tab, Assert.Single(Assert.IsType<Dictionary<string, OpenResource[]>>(otherTabs)[two.Id]));
         Assert.Equal(one.Did, browser.State.Kbs.Single(kb => kb.Id == one.Id).Did);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NoAnswerAndARefusalToSayAreNoVerdictAndVoidNothing(bool refusing)
+    {
+        var store = new MemoryStorage();
+        var kb = RegistryKb("one", "one.test");
+        RegistryStorage.SaveKnowledgeBases(store, [kb]);
+        // A stored token with no expiry is renewed before its session starts, and these sessions script no renewal.
+        RegistryStorage.StoreSession(store, kb.Id, RegistryTokens() with { Access = TokenTests.Jwt(new { exp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 3600 }) });
+        var resource = SourceResource();
+        var tab = new OpenResource(resource.Id, "Old tab", 0, 0);
+        store.Set(RegistryStorage.OpenResourcesByKbKey, RegistryStorage.Write(new Dictionary<string, OpenResource[]> { [kb.Id] = [tab] }));
+        var factory = new ScriptedSessions((_, operation, _) => operation == BusOperations.BrowseResourceRequested.Request.Name
+            ? JsonSerializer.SerializeToElement(new { resource, lastSequence = 1 })
+            : throw new TransportError(ProtocolFacts.Error(503), "the knowledge base does not answer"));
+        factory.SaysWho(Required<UserResponse>(JsonSerializer.Deserialize<JsonElement>(
+            """{"did":"did:web:one.test:users:alice","domain":"one.test","email":null,"name":null,"image":null}""")));
+        if (refusing)
+            factory.RefuseWhen((_, operation, _) => operation == BusOperations.BrowseKbRequested.Request.Name
+                ? JsonSerializer.SerializeToElement(new { message = "this knowledge base cannot say what it is" })
+                : null);
+        await using var browser = new SemiontBrowser(new SemiontBrowserConfig(store, factory));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await browser.SetActiveKbAsync(kb.Id, deadline.Token);
+        // The resources were checked all the same.
+        await foreach (var state in browser.States(deadline.Token))
+            if (state.OpenResources.Any(open => open.Name == resource.Name)) break;
+        var asked = Assert.Single(factory.Transports(kb.Id)).RequestLog
+            .Where(logged => logged.Operation == BusOperations.BrowseResourceRequested.Request.Name)
+            .Select(logged => logged.Payload.GetProperty("resourceId").GetString());
+        Assert.Equal([resource.Id.Value], asked);
+        Assert.Equal(tab.Id, Assert.Single(browser.State.OpenResources).Id);
+        Assert.Null(Assert.IsType<SessionSignals>(browser.State.ActiveSignals).KbIdentityConflict.Value);
+        var entry = browser.State.Kbs.Single();
+        Assert.Equal(kb.Label, entry.Label);
+        Assert.Null(entry.LastRead);
+        Assert.Equal(new KbReadVerdict(KbReadKind.NoVerdict), await browser.ReadActiveKbAsync(deadline.Token));
     }
 
     [Fact]

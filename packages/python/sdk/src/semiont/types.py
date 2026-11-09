@@ -1604,15 +1604,6 @@ class MarkUpdateEntityTypesCommand(WireModel, frozen=True):
     updated_entity_types: Annotated[list[str], Field(alias="updatedEntityTypes")]
 
 
-class MatchSearchFailed(WireModel, frozen=True):
-    """
-    Error payload emitted on match:search-failed SSE channel.
-    """
-
-    reference_id: Annotated[AnnotationId, Field(alias="referenceId")]
-    error: str
-
-
 class MatchResourcesRequest(WireModel, frozen=True):
     """
     Request to search the knowledge base's resources by text. The Librarian answers: it matches the text lexically, and when nothing matches, by meaning.
@@ -4544,6 +4535,17 @@ class MarkDeleteOk(WireModel, frozen=True):
     """
 
     response: MarkDeleteOkResponse
+
+
+class MatchSearchFailed(CommandError, frozen=True):
+    """
+    The payload of `match:search-failed`: a CommandError that names the reference whose candidates could not be searched for.
+    """
+
+    reference_id: Annotated[
+        AnnotationId,
+        Field(alias="referenceId", description="The reference the search was asked for."),
+    ]
 
 
 class Representation(WireModel, frozen=True, extra="allow"):

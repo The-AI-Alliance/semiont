@@ -2,7 +2,7 @@
   "name": "semiont-desktop",
   "productName": "Semiont",
   "desktopName": "Semiont",
-  "version": "0.7.1",
+  "version": "0.7.3",
   "description": "Semiont",
   "author": "The AI Alliance",
   "homepage": "https://github.com/The-AI-Alliance/semiont",
@@ -36,14 +36,14 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.2",
-    "electron": "45.0.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "electron": "45.2.2",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.1",
     "jsdom": "^30.1.3",
     "typescript": "^6.0.2",
-    "vite": "^8.0.16",
-    "vitest": "^5.0.5"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
   },
   "keywords": [],
   "license": "ISC"

@@ -12,6 +12,7 @@ package launcher
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -24,20 +25,27 @@ var errLockHeld = errors.New("the lock is held by another process")
 // (file + ".lock"). Every knowledge base's commands read, change and rewrite
 // the machine's stack record and roots registry, and two starts of different
 // knowledge bases run at once, so each read-modify-write holds it: without
-// it, one start's write drops what the other wrote since it read. With no
-// lock to be had (no home to keep it in, a lock file that cannot be made),
-// change runs anyway: what these files hold is best-effort belief, written
-// that way throughout.
-func exclusively(file string, change func()) {
+// it, one start's write drops what the other wrote since it read. A lock that
+// cannot be made or taken is an error, and change does not run. With no home
+// (file is ""), there is nothing to lock and nowhere to write, and change
+// runs.
+func exclusively(file string, change func()) error {
 	if file == "" {
 		change()
-		return
+		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(file), 0o755); err == nil {
-		if f, err := os.OpenFile(file+".lock", os.O_RDONLY|os.O_CREATE, ownerOnlyFileMode); err == nil {
-			defer f.Close()
-			_ = lockFile(f, true)
-		}
+	lock := file + ".lock"
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return fmt.Errorf("cannot make the lock %s: %w", lock, err)
+	}
+	f, err := os.OpenFile(lock, os.O_RDONLY|os.O_CREATE, ownerOnlyFileMode)
+	if err != nil {
+		return fmt.Errorf("cannot make the lock %s: %w", lock, err)
+	}
+	defer f.Close()
+	if err := lockFile(f, true); err != nil {
+		return fmt.Errorf("cannot take the lock %s: %w", lock, err)
 	}
 	change()
+	return nil
 }

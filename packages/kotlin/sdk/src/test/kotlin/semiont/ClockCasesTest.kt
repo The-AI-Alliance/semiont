@@ -3,6 +3,7 @@
 package semiont
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -34,6 +35,8 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import org.junit.jupiter.api.assertThrows
+import semiont.bus.Operations
+import semiont.bus.request
 import semiont.cache.Cache
 import semiont.cache.CachePersister
 import semiont.cache.CacheRefreshTrigger
@@ -42,6 +45,8 @@ import semiont.discovery.DiscoveryTransport
 import semiont.discovery.Managed
 import semiont.discovery.Unchanged
 import semiont.discovery.subscribeDiscovery
+import semiont.errors.BusRequestError
+import semiont.errors.BusRequestErrorCode
 import semiont.errors.TransportError
 import semiont.http.HttpTransport
 import semiont.http.signInDevice
@@ -260,8 +265,17 @@ private const val HEALTH = "/api/health"
 /** How a gateway answers a subscribe: with a stream it holds open, with a 503, or never. */
 private enum class Streams { HOLDS, REFUSES, NEVER }
 
-/** A gateway in this process. It answers a subscribe as `streams` says, never answers what `unanswered` names, and counts what it is asked. */
-private class Gateway(private val streams: Streams, private val retryAfterSeconds: Long?, private val unanswered: Set<String>) {
+/**
+ * A gateway in this process. It answers a subscribe as `streams` says, refuses what `refused` names with a 503, never
+ * answers what `unanswered` names, and counts what it is asked. Its refusals carry a `Retry-After` of
+ * `retryAfterSeconds`, when it states one.
+ */
+private class Gateway(
+    private val streams: Streams,
+    private val retryAfterSeconds: Long?,
+    private val unanswered: Set<String>,
+    private val refused: Set<String> = emptySet(),
+) {
     private val asked = mutableMapOf<String, Int>()
 
     /** How many of the streams it held open their readers have closed. */
@@ -275,18 +289,21 @@ private class Gateway(private val streams: Streams, private val retryAfterSecond
         val path = request.uri().path
         asked.merge(path, 1, Int::plus)
         if (path in unanswered) return null
+        if (path in refused) return refusal()
         if (path != SUBSCRIBE) throw AssertionError("the gateway was asked ${request.method()} $path, which this subject does not have it answer")
         return when (streams) {
             Streams.HOLDS -> Reply(200, mapOf("content-type" to listOf("text/event-stream")), "") { closed += 1 }
-            Streams.REFUSES -> Reply(
-                503,
-                if (retryAfterSeconds == null) mapOf("content-type" to listOf("application/json")) else mapOf("content-type" to listOf("application/json"), "retry-after" to listOf("$retryAfterSeconds")),
-                """{"error":"The gateway is not ready"}""",
-                null,
-            )
+            Streams.REFUSES -> refusal()
             Streams.NEVER -> null
         }
     }
+
+    private fun refusal() = Reply(
+        503,
+        if (retryAfterSeconds == null) mapOf("content-type" to listOf("application/json")) else mapOf("content-type" to listOf("application/json"), "retry-after" to listOf("$retryAfterSeconds")),
+        """{"error":"The gateway is not ready"}""",
+        null,
+    )
 
     /** A transport to this gateway, holding a token, so its stream is set going. */
     fun transport(bench: Bench): HttpTransport = bench.held(
@@ -357,6 +374,42 @@ private suspend fun unansweredEmit(given: JsonObject, bench: Bench): Subject {
     // Its attempts are cut, with the subject's work, before the transport closes.
     bench.work.launch { transport.emit("beckon:hover", JsonObject(mapOf("annotationId" to JsonPrimitive("ann-1"))), null, null) }
     return Subject({ gateway.asked(EMIT) }, null)
+}
+
+/** A bus request of a resource's events, made as the case begins, over a gateway that holds its stream open and refuses every emit. */
+private fun refusedRequest(given: JsonObject, bench: Bench): Pair<Gateway, Deferred<JsonObject>> {
+    val gateway = Gateway(Streams.HOLDS, retryAfter(given), emptySet(), refused = setOf(EMIT))
+    val transport = gateway.transport(bench)
+    val payload = JsonObject(mapOf("resourceId" to JsonPrimitive(RESOURCE.value)))
+    return gateway to bench.work.async { request(transport, Operations.BROWSE_EVENTS_REQUESTED, payload, clock = bench.clock) }
+}
+
+private suspend fun refusedBusRequest(given: JsonObject, bench: Bench): Subject {
+    val (gateway, asked) = refusedRequest(given, bench)
+    return Subject(
+        {
+            // How it fails is what timedOutBusRequest counts.
+            assertTrue(!asked.isCompleted || asked.getCompletionExceptionOrNull() != null, "the request was answered")
+            gateway.asked(EMIT)
+        },
+        null,
+    )
+}
+
+private suspend fun timedOutBusRequest(given: JsonObject, bench: Bench): Subject {
+    val (_, asked) = refusedRequest(given, bench)
+    return Subject(
+        {
+            if (!asked.isCompleted) {
+                0
+            } else {
+                val failure = asked.getCompletionExceptionOrNull()
+                assertTrue(failure is BusRequestError && failure.reason == BusRequestErrorCode.Timeout, "the request ended otherwise: $failure")
+                1
+            }
+        },
+        null,
+    )
 }
 
 // ── An issuer ───────────────────────────────────────────────────────────
@@ -539,6 +592,8 @@ private val SUBJECTS: Map<String, suspend (JsonObject, Bench) -> Subject> = mapO
     "jobFollower" to ::jobFollower,
     "unansweredRequest" to ::unansweredRequest,
     "unansweredEmit" to ::unansweredEmit,
+    "refusedBusRequest" to ::refusedBusRequest,
+    "timedOutBusRequest" to ::timedOutBusRequest,
 )
 
 // ── A case, played ──────────────────────────────────────────────────────

@@ -110,6 +110,8 @@ that generation through Cargo. Ordinary local builds check committed drift and n
 make launcher
 make desktop
 make desktop-macos
+make desktop-macos-app
+make desktop-macos-dmg
 make desktop-linux
 ```
 
@@ -118,6 +120,10 @@ Go container. It runs no unrelated package or image work.
 
 `desktop` selects by caller OS: macOS builds an arm64 DMG, Linux builds an x64 Debian package.
 The explicit targets select the installer platform; macOS packaging requires macOS's `hdiutil`.
+`desktop-macos` is `desktop-macos-app`, which assembles the app in the Node container on any
+host, then `desktop-macos-dmg`, which makes its DMG with `hdiutil` and needs no container
+runtime. A release runs the two on separate runners: GitHub's arm64 macOS runners support no
+nested virtualization, which a container runtime needs.
 Linux packaging works from Linux or macOS; macOS cross-packaging with Apple Container uses
 Rosetta on Apple Silicon. An ARM Linux host needs its runtime to support amd64 emulation.
 The desktop helper uses the selected available runtime, builds its

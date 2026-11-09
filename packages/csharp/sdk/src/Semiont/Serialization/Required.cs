@@ -36,6 +36,13 @@ internal static partial class Required
     /// pattern and not its prefix alone. Only such an id is a place a scope resumes from.</summary>
     internal static bool IsPersistedEventId(JsonElement id) => FaultOf("PersistedEventId", id) is null;
 
+    /// <summary><paramref name="schema"/>, once the table is read and found to state it.</summary>
+    internal static string Stated(string schema)
+    {
+        Component(schema);
+        return schema;
+    }
+
     private enum Kind { Object, Array, String, Integer, Number, Boolean, Null }
 
     /// <summary>One step of a pattern: at least <c>Min</c> of a text's next code points, and at most <c>Max</c> (null:

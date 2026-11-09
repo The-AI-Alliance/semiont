@@ -8,7 +8,8 @@
     "python": ["packages/python/sdk/tests/test_sign_in_store.py", "packages/python/sdk/tests/test_state_dir.py"],
     "go": ["packages/go/sdk/signinstore_test.go", "packages/go/sdk/statedir_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/signin/SignInStoreTest.kt"],
-    "typescript": ["packages/typescript/sdk/src/session/__tests__/sign-in-store.test.ts"]
+    "typescript": ["packages/typescript/sdk/src/session/__tests__/sign-in-store.test.ts"],
+    "ocaml": ["packages/ocaml/sdk/test/sign_in.ml"]
   },
   "cases": [
     {

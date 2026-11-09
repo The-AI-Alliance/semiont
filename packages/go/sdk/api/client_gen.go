@@ -1604,6 +1604,30 @@ func (e MatchResourcesResponseMatchKind) Valid() bool {
 	}
 }
 
+// Defines values for MatchSearchFailedCode.
+const (
+	MatchSearchFailedCodeNonePending     MatchSearchFailedCode = "none-pending"
+	MatchSearchFailedCodeNotFound        MatchSearchFailedCode = "not-found"
+	MatchSearchFailedCodePeerUnavailable MatchSearchFailedCode = "peer-unavailable"
+	MatchSearchFailedCodeUnauthorized    MatchSearchFailedCode = "unauthorized"
+)
+
+// Valid indicates whether the value is a known member of the MatchSearchFailedCode enum.
+func (e MatchSearchFailedCode) Valid() bool {
+	switch e {
+	case MatchSearchFailedCodeNonePending:
+		return true
+	case MatchSearchFailedCodeNotFound:
+		return true
+	case MatchSearchFailedCodePeerUnavailable:
+		return true
+	case MatchSearchFailedCodeUnauthorized:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MemoryGraphConfigType.
 const (
 	MemoryGraphConfigTypeMemory MemoryGraphConfigType = "memory"
@@ -5473,13 +5497,23 @@ type MatchResourcesResult struct {
 	Response MatchResourcesResponse `json:"response"`
 }
 
-// MatchSearchFailed Error payload emitted on match:search-failed SSE channel.
+// MatchSearchFailed defines model for MatchSearchFailed.
 type MatchSearchFailed struct {
-	Error string `json:"error"`
+	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+	Code *MatchSearchFailedCode `json:"code,omitempty"`
 
-	// ReferenceId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// Details Optional additional context (stack trace, field name, etc.)
+	Details *string `json:"details,omitempty"`
+
+	// Message Human-readable error message
+	Message string `json:"message"`
+
+	// ReferenceId The reference the search was asked for.
 	ReferenceId AnnotationId `json:"referenceId"`
 }
+
+// MatchSearchFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+type MatchSearchFailedCode string
 
 // MatchSearchRequest Request payload sent on the match:search-request bus channel to find candidate matches.
 type MatchSearchRequest struct {

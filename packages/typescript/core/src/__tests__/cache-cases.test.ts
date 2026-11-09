@@ -4,7 +4,7 @@
  * protocol/specs/src/session/stored.json's `wholeKey`, `cacheDocument` and `lastEventIds`.
  *
  * Every SDK runs the table against its own persister, so a case whose expectation is not the spec's
- * would hold all eight to a wrong rule. Here each expectation is derived from the spec alone: a
+ * would hold every SDK to a wrong rule. Here each expectation is derived from the spec alone: a
  * document's structure by stored.json's own `cacheDocument`, each key by the query's `per` and each
  * value by its `value` in refresh.json. A load keeps exactly the entries whose key and value both hold,
  * of a document whose structure holds; a load of places keeps exactly the pairs of a resource's id and

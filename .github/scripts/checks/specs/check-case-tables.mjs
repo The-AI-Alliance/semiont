@@ -55,6 +55,7 @@ const IMPLEMENTATIONS = {
   csharp: ['packages/csharp/sdk'],
   swift: ['packages/swift/sdk'],
   haskell: ['packages/haskell/sdk'],
+  ocaml: ['packages/ocaml/sdk'],
   launcher: ['apps/launcher', 'packages/go/launcher'],
   archivist: ['images/archivist'],
   librarian: ['images/librarian'],
@@ -95,7 +96,7 @@ function filesUnder(directory) {
   const out = [];
   const walk = (at) => {
     for (const name of readdirSync(resolve(REPO, at))) {
-      if (name === 'node_modules' || name === 'target' || name === 'build' || name === 'bin' || name === 'obj' || name.startsWith('.')) continue;
+      if (name === '_build' || name === 'node_modules' || name === 'target' || name === 'build' || name === 'bin' || name === 'obj' || name.startsWith('.')) continue;
       const path = join(at, name);
       if (statSync(resolve(REPO, path)).isDirectory()) walk(path);
       else out.push(path);

@@ -3,6 +3,11 @@
   "dispatcher": ["../../packages/rust/target/release/semiont-dispatcher"],
   "archivist": ["../../packages/rust/target/release/semiont-archivist"],
   "sdks": {
+    "ocaml": {
+      "wire": ["../../packages/ocaml/sdk/_build/default/conformance/wire_driver.exe"],
+      "worker": ["../../packages/ocaml/sdk/_build/default/conformance/wire_driver.exe", "--worker"],
+      "live": { "command": ["../../packages/ocaml/sdk/_build/default/conformance/wire_driver.exe", "--live"], "tier": "parity" }
+    },
     "haskell": {
       "wire": [
         "../../packages/haskell/sdk/conformance/bin/semiont-haskell-wire-driver"

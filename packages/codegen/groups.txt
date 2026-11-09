@@ -4,8 +4,10 @@ python
 go
 stack-go
 mcp-tools-go
+control
 required
 discovery-go
 encoding-cases
 model-catalogue
 haskell
+ocaml

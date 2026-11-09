@@ -16,6 +16,8 @@ import {
   accessToken,
   annotationId,
   baseUrl,
+  Bus,
+  BusRequestError,
   jobId,
   resourceId,
   userId,
@@ -209,7 +211,11 @@ function heldOpen(signal: AbortSignal | null | undefined, closed: () => void): R
 const json = (status: number, body: Json, headers: Record<string, string> = {}): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 
-/** A gateway in this process. It answers each request at once, as the subject has it answer, and counts what it is asked. */
+/**
+ * A gateway in this process. It answers each request at once, as the subject has it answer, and counts what it is asked:
+ * a subscribe as `stream` says, a request of a path `refused` names with a 503, and one of a path `unanswered` names never.
+ * Its refusals carry a `Retry-After` of `retryAfterSeconds`, when it states one.
+ */
 class Gateway {
   /** How many requests of each path it has been asked. */
   readonly asked: Record<GatewayPath, number> = { [SUBSCRIBE]: 0, [EMIT]: 0, [HEALTH]: 0 };
@@ -221,7 +227,12 @@ class Gateway {
     private readonly stream: StreamAnswer,
     private readonly unanswered: ReadonlySet<GatewayPath>,
     private readonly retryAfterSeconds?: number,
+    private readonly refused: ReadonlySet<GatewayPath> = new Set(),
   ) {}
+
+  private refusal(): Response {
+    return json(503, { error: 'The gateway is not ready' }, this.retryAfterSeconds === undefined ? {} : { 'retry-after': String(this.retryAfterSeconds) });
+  }
 
   readonly fetch = async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
     const { url, signal } = requestOf(input, init);
@@ -232,6 +243,7 @@ class Gateway {
     }
     this.asked[path] += 1;
     if (this.unanswered.has(path)) return neverAnswered(signal);
+    if (this.refused.has(path)) return this.refusal();
     if (path !== SUBSCRIBE) {
       this.held.wrong.push(`the gateway was asked ${path}, which this subject does not have it answer`);
       return neverAnswered(signal);
@@ -240,7 +252,7 @@ class Gateway {
       case 'holds':
         return new Response(heldOpen(signal, () => { this.closed += 1; }), { status: 200, headers: { 'content-type': 'text/event-stream' } });
       case 'refuses':
-        return json(503, { error: 'The gateway is not ready' }, this.retryAfterSeconds === undefined ? {} : { 'retry-after': String(this.retryAfterSeconds) });
+        return this.refusal();
       case 'never':
         return neverAnswered(signal);
     }
@@ -331,6 +343,36 @@ async function unansweredEmit(_given: JsonObject | undefined, held: Held): Promi
   const gateway = new Gateway(held, 'holds', new Set([EMIT]));
   held.running(gateway.transport().emit('beckon:hover', { annotationId: annotationId('ann-1') }), 'the emit');
   return { counted: () => gateway.asked[EMIT] };
+}
+
+/** A bus request of a resource's events, made as the case begins, over a gateway that holds its stream open and refuses every emit. */
+function refusedRequest(given: JsonObject | undefined, held: Held): { gateway: Gateway; asked: Promise<unknown> } {
+  const gateway = new Gateway(held, 'holds', new Set(), givenSeconds(given, 'retryAfterSeconds'), new Set([EMIT]));
+  const asked = new Bus(gateway.transport()).request('browse:events-requested', { resourceId: RESOURCE });
+  return { gateway, asked };
+}
+
+async function refusedBusRequest(given: JsonObject | undefined, held: Held): Promise<Subject> {
+  const { gateway, asked } = refusedRequest(given, held);
+  // How it fails is what timedOutBusRequest counts.
+  asked.then(
+    () => held.wrong.push('the request was answered'),
+    () => {},
+  );
+  return { counted: () => gateway.asked[EMIT] };
+}
+
+async function timedOutBusRequest(given: JsonObject | undefined, held: Held): Promise<Subject> {
+  const { asked } = refusedRequest(given, held);
+  let timedOut = 0;
+  asked.then(
+    () => held.wrong.push('the request was answered'),
+    (error: unknown) => {
+      if (error instanceof BusRequestError && error.code === 'bus.timeout') timedOut += 1;
+      else held.wrong.push(`the request failed otherwise: ${said(error)}`);
+    },
+  );
+  return { counted: () => timedOut };
 }
 
 // ── The issuer ──────────────────────────────────────────────────────────
@@ -619,6 +661,8 @@ const SUBJECTS: Record<string, Build> = {
   jobFollower,
   unansweredRequest,
   unansweredEmit,
+  refusedBusRequest,
+  timedOutBusRequest,
 };
 
 // ── A case, played ──────────────────────────────────────────────────────

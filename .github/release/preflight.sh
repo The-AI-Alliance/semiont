@@ -10,7 +10,6 @@
 set -uo pipefail
 
 REPO=The-AI-Alliance/semiont
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
 PASS=0; FAIL=0; PENDING=0
@@ -34,13 +33,14 @@ ok "version.json at origin/main says $VERSION"
 
 # release.yml fails the tag job on a mismatch. Catching it here costs seconds
 # instead of a dispatched run that dies after tagging nothing.
+# The packages a release covers are version.json's list.
 mismatch=0
-while read -r path; do
+while read -r dir; do
+  path="$dir/package.json"
   v=$(gh api "repos/$REPO/contents/$path?ref=$SHA" --jq .content 2>/dev/null | base64 -d | jq -r .version)
   [ "$v" = "$VERSION" ] || { bad "$path is at $v, expected $VERSION"; mismatch=1; }
-done < <(cd "$ROOT" && git ls-tree -r --name-only "origin/main" 2>/dev/null | grep -E '^(packages/typescript|apps|images)/[^/]+/package\.json$' \
-         || ls -d "$ROOT"/packages/typescript/*/package.json "$ROOT"/apps/*/package.json "$ROOT"/images/*/package.json | sed "s|$ROOT/||")
-[ "$mismatch" -eq 0 ] && ok "all package.json files at $VERSION"
+done < <(jq -r '.packages[].dir' "$WORK/version.json")
+[ "$mismatch" -eq 0 ] && ok "every package version.json lists is at $VERSION"
 
 # ----------------------------------------------------------------- tags are free
 # The release tags the commit v<version>, and each Go module it publishes

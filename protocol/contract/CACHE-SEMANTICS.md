@@ -376,7 +376,7 @@ and where its stream was as `lastEventIds` under `lastEventIdKeyPrefix`.
 Every SDK writes and reads them alike, so a client in any SDK finds what
 one in another kept over the same storage;
 [`protocol/specs/src/session/cache-cases.json`](../specs/src/session/cache-cases.json)
-holds all eight to it, case by case.
+holds every SDK to it, case by case.
 
 1. **Load-on-construct, or on attach.** When the client is made knowing
    its person (its stored sign-in names them), a kept query's document

@@ -139,6 +139,7 @@
     "save": "保存",
     "cancel": "取消",
     "edit": "编辑",
+    "saveFailed": "无法保存评论：{{detail}}",
     "annotateComments": "注释评论",
     "instructions": "说明",
     "optional": "（可选）",

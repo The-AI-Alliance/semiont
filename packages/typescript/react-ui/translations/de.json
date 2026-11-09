@@ -139,6 +139,7 @@
     "save": "Speichern",
     "cancel": "Abbrechen",
     "edit": "Bearbeiten",
+    "saveFailed": "Kommentar konnte nicht gespeichert werden: {{detail}}",
     "annotateComments": "Kommentare annotieren",
     "instructions": "Anweisungen",
     "optional": "(optional)",

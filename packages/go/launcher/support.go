@@ -26,14 +26,53 @@ const (
 	AnsiReset   = "\033[0m"
 )
 
+// UI is how a command speaks: to a person at a terminal, or, for a request of
+// `semiont control`, as that request's progress (control.go).
 type UI struct {
 	quiet bool
 	color bool
+	// said: where a control request's lines go, each with its kind (a
+	// Progress kind), in place of the terminal. nil for a person's UI.
+	said func(kind, text string)
+	// refused: what a control request's operation refused with, which its
+	// error states. Shared by every UI derived from the request's.
+	refused *refusal
+}
+
+// refusal: the first refusal an operation made: the control code a Refuse
+// named ("" for a Fail, which names none), the message it said, and the
+// targets a person could have meant.
+type refusal struct {
+	made          bool
+	code, message string
+	choices       []ControlTarget
+}
+
+// record keeps the first refusal said through u, whole.
+func (u *UI) record(code string, choices []ControlTarget, line string) {
+	if u.refused != nil && !u.refused.made {
+		*u.refused = refusal{made: true, code: code, message: line, choices: choices}
+	}
 }
 
 func NewUI(quiet bool) *UI {
 	fi, err := os.Stdout.Stat()
 	return &UI{quiet: quiet, color: err == nil && fi.Mode()&os.ModeCharDevice != 0}
+}
+
+// quieted: u, saying what it says to the same place, but quiet when quiet.
+func (u *UI) quieted(quiet bool) *UI {
+	return &UI{quiet: quiet, color: u.color, said: u.said, refused: u.refused}
+}
+
+// say prints line as format prints it to w, or, for a control request, says
+// it as kind.
+func (u *UI) say(w io.Writer, kind, format, line string) {
+	if u.said != nil {
+		u.said(kind, line)
+		return
+	}
+	fmt.Fprintf(w, format, line)
 }
 
 func (u *UI) Wrap(code, s string) string {
@@ -50,7 +89,7 @@ func (u *UI) Log(format string, a ...any) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("%s %s\n", u.Wrap(AnsiCyan, "▸"), fmt.Sprintf(format, a...))
+	u.say(os.Stdout, "log", u.Wrap(AnsiCyan, "▸")+" %s\n", fmt.Sprintf(format, a...))
 }
 
 // Note is Log's stderr twin: narration a verb owes the user that must not
@@ -60,29 +99,50 @@ func (u *UI) Note(format string, a ...any) {
 	if u.quiet {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "%s %s\n", u.Wrap(AnsiCyan, "▸"), fmt.Sprintf(format, a...))
+	u.say(os.Stderr, "note", u.Wrap(AnsiCyan, "▸")+" %s\n", fmt.Sprintf(format, a...))
 }
 
 func (u *UI) Ok(format string, a ...any) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("%s %s\n", u.Wrap(AnsiGreen, "✓"), fmt.Sprintf(format, a...))
+	u.say(os.Stdout, "ok", u.Wrap(AnsiGreen, "✓")+" %s\n", fmt.Sprintf(format, a...))
 }
 
 func (u *UI) Warn(format string, a ...any) {
-	fmt.Printf("%s  %s\n", u.Wrap(AnsiYellow, "⚠️"), fmt.Sprintf(format, a...))
+	u.say(os.Stdout, "warn", u.Wrap(AnsiYellow, "⚠️")+"  %s\n", fmt.Sprintf(format, a...))
 }
 
 func (u *UI) Fail(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, "%s %s\n", u.Wrap(AnsiRed, "✗"), fmt.Sprintf(format, a...))
+	u.RefuseChoosing("", nil, format, a...)
+}
+
+// Refuse says a refusal as Fail does, and records code, a code of
+// codes.json's control group, as the reason a control request fails.
+func (u *UI) Refuse(code, format string, a ...any) {
+	u.RefuseChoosing(code, nil, format, a...)
+}
+
+// RefusePlain is Refuse for a refusal a person reads on stderr as it is, with
+// no mark before it.
+func (u *UI) RefusePlain(code, format string, a ...any) {
+	line := fmt.Sprintf(format, a...)
+	u.record(code, nil, line)
+	u.say(os.Stderr, "fail", "%s\n", line)
+}
+
+// RefuseChoosing is Refuse naming the targets a person could have meant.
+func (u *UI) RefuseChoosing(code string, choices []ControlTarget, format string, a ...any) {
+	line := fmt.Sprintf(format, a...)
+	u.record(code, choices, line)
+	u.say(os.Stderr, "fail", u.Wrap(AnsiRed, "✗")+" %s\n", line)
 }
 
 func (u *UI) Banner(s string) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("\n%s\n", u.Bold(s))
+	u.say(os.Stdout, "banner", "\n%s\n", u.Bold(s))
 }
 
 // treeItem carries a name through treePrint: full is what the caller keys its
@@ -175,11 +235,15 @@ func treePrint(u *UI, items []treeItem, depth int, leaf func(treeItem, int)) {
 // LAUNCHER PATHS under --verbose) must be findable at a glance in a report
 // whose content lines are all indented and dense.
 func (u *UI) Section(title string) {
+	if u.said != nil {
+		u.said("section", title)
+		return
+	}
 	fmt.Printf("\n%s\n%s\n", u.Bold(title), u.Dim(strings.Repeat("─", 60)))
 }
 
 func (u *UI) Stamp(event string) {
-	fmt.Println(u.Dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
+	u.say(os.Stdout, "stamp", "%s\n", u.Dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
 }
 
 // injectedCredentials: the launcher-injected variables (support.go's
@@ -245,7 +309,7 @@ func (u *UI) EchoCmd(name string, args ...string) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("  %s\n", u.Dim("$ "+name+" "+strings.Join(args, " ")))
+	u.say(os.Stdout, "command", "  %s\n", u.Dim("$ "+name+" "+strings.Join(args, " ")))
 }
 
 // --- Subprocess helpers ---

@@ -21,8 +21,8 @@
  * - `request` sends an operation's request and awaits its reply.
  */
 
-import { Observable, firstValueFrom, merge, race, throwError, TimeoutError } from 'rxjs';
-import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
+import { Observable, firstValueFrom, merge, race } from 'rxjs';
+import { defaultIfEmpty, filter, map, take } from 'rxjs/operators';
 import { CHANNEL_PAYLOADS, CHANNEL_STAMPS, type EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame, TraceCarrier } from './event-bus';
 import type { ConnectionState } from './transport';
@@ -30,6 +30,7 @@ import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
 import { SemiontError } from './errors';
 import { faultOfShape, said, within, type Fault, type Shape } from './required';
+import type { components } from './types';
 import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isResourceScopedChannel, type ResourceScopedChannel, type UnscopedChannel } from './bridged-channels';
 import { uuidV4 } from './id-generation';
@@ -44,12 +45,15 @@ export interface BusPrimitive {
   /**
    * Matches `ITransport.emit`'s return: the subscriber count, absent when
    * there is none. A request ignores it — the reply channel is its ack — but
-   * the primitive must stay assignable from every ITransport.
+   * the primitive must stay assignable from every ITransport. A request gives
+   * its emit a `signal` that aborts when its deadline falls due or its caller
+   * abandons it, and the emit is given up then.
    */
   emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
+    signal?: AbortSignal,
   ): Promise<number | undefined>;
   /**
    * The ENVELOPE view: every frame the transport delivers on a channel,
@@ -238,8 +242,8 @@ function heard<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K]
   };
 }
 
-/** Fails with the signal's reason when its owner abandons the request; says nothing until then. */
-function abandonment(signal: AbortSignal): Observable<never> {
+/** Fails with the signal's reason when it aborts; says nothing until then. */
+function onAbort(signal: AbortSignal): Observable<never> {
   return new Observable<never>((subscriber) => {
     const abandon = () => subscriber.error(signal.reason);
     signal.addEventListener('abort', abandon, { once: true });
@@ -326,14 +330,23 @@ export class Bus {
    * A result reply is a frame whose envelope carries the request's
    * `correlationId` and whose payload is `{ response: T }` (data) or `{}`
    * (void); the request matches on the envelope and reads `payload.response`.
-   * A result that lacks a member its schema requires (`CHANNEL_PAYLOADS`)
-   * rejects, as a `SemiontError` coded `error` naming the member. So does a
+   * A result or a failure that lacks a member its schema requires
+   * (`CHANNEL_PAYLOADS`) rejects, as a `SemiontError` coded `error` naming
+   * the member; a failure's code is held to no list, and one the wire does
+   * not declare is `bus.rejected`, in the failure's words. So does a
    * reply its transport refused that carries the request's `correlationId`,
    * at once, naming the frame's fault.
    *
+   * `timeoutMs` is the request's one deadline, counted from the call. It
+   * covers the wait for the stream to open, the emit with its retries and the
+   * waits between them, and the wait for the reply. When it falls due the
+   * request rejects `bus.timeout`, and an emit still in flight is given up:
+   * the attempt in progress is cancelled, and no attempt is made after it.
+   *
    * `signal` lets the caller ABANDON the request. Abandoned, it rejects with
    * the signal's reason, as an abortable API does, and that is all it does:
-   * what was already sent stays sent, the reply stops being tracked, and a
+   * what was already sent stays sent, an emit still in flight is given up as
+   * it is when the deadline falls due, the reply stops being tracked, and a
    * reply that arrives later is reported to nobody. Abandoned before the
    * stream that carries its reply opened, it sends nothing. The rejection
    * carries no `BusRequestErrorCode`: it states the caller's own act, not a
@@ -366,9 +379,9 @@ export class Bus {
 
     // Matched on the ENVELOPE. The payload is read only for what it means —
     // the response, or the failure's message and code — never for routing. A
-    // result with a fault as its schema's is refused, as every other SDK
-    // refuses it, and so is a reply its transport refused, which carries the
-    // correlation id in its refusal.
+    // result or a failure with a fault as its schema's is refused, as every
+    // other SDK refuses it, and so is a reply its transport refused, which
+    // carries the correlation id in its refusal.
     const refused$ = merge(bus.frames(resultChannel as keyof EventMap), bus.frames(failureChannel as keyof EventMap)).pipe(
       map(({ payload }) => payload),
       filter((payload): payload is FrameRefusal => payload instanceof FrameRefusal && payload.correlationId === correlationId),
@@ -398,32 +411,31 @@ export class Bus {
       bus.frames(failureChannel as keyof EventMap).pipe(
         filter(isDelivered),
         filter((frame) => frame.correlationId === correlationId),
-        map(({ payload: p }) => p as Record<string, unknown>),
-        map((e) => ({
-          ok: false as const,
-          error: new BusRequestError((e.message as string) ?? 'Bus request rejected', classifyFailureCode(e.code), {
-            channel: failureChannel,
-            correlationId,
-            payload: e,
-          }),
-        })),
+        map(({ payload: e }) => {
+          const read = readAs(failureChannel as keyof EventMap, e);
+          if ('fault' in read) {
+            return {
+              ok: false as const,
+              error: new SemiontError(notTheChannels(failureChannel, read.fault), 'error', {
+                channel: failureChannel,
+                correlationId,
+              }),
+            };
+          }
+          // Every failure channel carries a CommandError, or one that extends it.
+          const failure = read.payload as components['schemas']['CommandError'];
+          return {
+            ok: false as const,
+            error: new BusRequestError(failure.message, classifyFailureCode(failure.code), {
+              channel: failureChannel,
+              correlationId,
+              payload: e,
+            }),
+          };
+        }),
       ),
     ).pipe(
       take(1),
-      timeout(timeoutMs),
-      catchError((err) => {
-        if (err instanceof TimeoutError) {
-          return throwError(
-            () =>
-              new BusRequestError(
-                `Bus request timed out after ${timeoutMs}ms on ${resultChannel}`,
-                'bus.timeout',
-                { channel: operation, resultChannel, correlationId, timeoutMs },
-              ),
-          );
-        }
-        return throwError(() => err);
-      }),
       // If the stream completes with no value — the bus was disposed before a
       // reply (e.g. during `semiont.dispose()` with a request in flight) —
       // resolve to a typed `bus.closed` result instead of letting
@@ -441,21 +453,42 @@ export class Bus {
       }),
     );
 
+    // The request's one deadline, from the call: a timer global, which a
+    // test's fake timers move. It ends the request, as its caller's
+    // abandonment does: either rejects the reply, and gives up the emit if
+    // the emit is still in flight.
+    const due = new AbortController();
+    const dueAt = setTimeout(() => {
+      due.abort(
+        new BusRequestError(`Bus request timed out after ${timeoutMs}ms on ${resultChannel}`, 'bus.timeout', {
+          channel: operation,
+          resultChannel,
+          correlationId,
+          timeoutMs,
+        }),
+      );
+    }, timeoutMs);
+    const ended = signal === undefined ? due.signal : AbortSignal.any([due.signal, signal]);
+
     // Subscribe before emitting so we don't miss an instantaneous reply
     // (which can happen with an in-process bus).
-    const resultPromise = firstValueFrom(signal ? race(settled$, abandonment(signal)) : settled$);
-    // It rejects on a timeout or an abandonment, and is read only where it is
-    // awaited, at the tail. Every path that leaves before then — a closed
-    // bus, a refused emit — leaves it rejected with nobody holding it, which a
-    // Node process treats as fatal. Marked handled once, here; the await at
-    // the tail still throws what it rejected with.
-    resultPromise.catch(() => {});
+    const resultPromise = firstValueFrom(race(settled$, onAbort(ended)));
+    // Settled, it needs its deadline no more. It rejects on the deadline or
+    // an abandonment, and is read only where it is awaited, at the tail.
+    // Every path that leaves before then — a closed bus, a refused emit —
+    // leaves it rejected with nobody holding it, which a Node process treats
+    // as fatal. Handled once, here; the await at the tail still throws what
+    // it rejected with.
+    resultPromise.then(
+      () => clearTimeout(dueAt),
+      () => clearTimeout(dueAt),
+    );
 
     // ── Attach gate ─────────────────────────────────────────────────────────
     // No correlated emit before the reply path exists: an emit accepted (202)
     // and answered while the session's subscribe stream has not attached
-    // publishes its reply to nobody. Wait, inside the SAME deadline (the
-    // timeout operator above is already ticking), for the transport to report
+    // publishes its reply to nobody. Wait, inside the SAME deadline (it is
+    // already ticking), for the transport to report
     // the one deliverable state. Only `'open'` delivers; `'degraded'` is a
     // dropped stream by definition and waits like `connecting`/`reconnecting`.
     // `'closed'` fails fast — a request against a closed bus should not burn a
@@ -491,9 +524,9 @@ export class Bus {
       const outcome = await Promise.race([
         gate,
         // Either settlement of the reply machinery means "stop waiting, never
-        // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (one
-        // deadline, measured from the call), or its streams completing into
-        // the `bus.closed` default above. The shared tail below carries it.
+        // emit": the deadline rejecting `bus.timeout` at `timeoutMs`, or its
+        // streams completing into the `bus.closed` default above. The shared
+        // tail below carries it.
         resultPromise.then(
           () => 'settled' as const,
           () => 'settled' as const,
@@ -509,7 +542,10 @@ export class Bus {
       emitAllowed = outcome === 'open';
     }
 
-    // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller.
+    // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller. An
+    // emit given up because the request ended rejects as the request ended:
+    // `bus.timeout` when the deadline fell due, the caller's reason when it
+    // abandoned the request.
     //
     // Reply tracking, the client side of correlated-reply retention: register
     // the cid BEFORE the emit — a reconnect body built while the emit is in
@@ -524,10 +560,11 @@ export class Bus {
       try {
         // The key goes on the ENVELOPE. A responder reads it from there and
         // echoes it back on one; no channel's domain type ever carries it.
-        await bus.emit(operation as keyof EventMap, payload as EventMap[keyof EventMap], { correlationId });
+        await bus.emit(operation as keyof EventMap, payload as EventMap[keyof EventMap], { correlationId }, ended);
       } catch (emitError) {
         releaseTracking?.();
         releaseTracking = undefined;
+        if (ended.aborted) throw ended.reason;
         throw emitError;
       }
     }

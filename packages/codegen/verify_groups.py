@@ -6,6 +6,7 @@ from operations import GROUPS, ROOT
 
 # Generation restoring these bytes gates this representative-output inventory to its owner.
 OUTPUTS = {
+    "ocaml": "packages/ocaml/sdk/lib/identifiers.ml",
     "haskell": "packages/haskell/sdk/generated/Semiont/Internal/Generated/CacheRefresh.hs",
     "bus": "packages/typescript/core/src/bus-protocol.ts",
     "typescript": "packages/typescript/core/src/bus-protocol.ts",
@@ -13,6 +14,7 @@ OUTPUTS = {
     "go": "packages/go/sdk/api/client_gen.go",
     "stack-go": "packages/go/launcher/stack/types_gen.go",
     "mcp-tools-go": "packages/go/launcher/verbs/mcp_tools_gen.go",
+    "control": "packages/go/launcher/control_types_gen.go",
     "required": "packages/rust/sdk/src/required-schemas.json",
     "discovery-go": "packages/go/launcher/discovery_types_gen.go",
     "encoding-cases": "protocol/specs/src/text/encoding-cases.json",

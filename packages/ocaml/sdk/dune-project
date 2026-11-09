@@ -1,0 +1,40 @@
+(lang dune 3.24)
+(name semiont)
+(generate_opam_files true)
+(source (github The-AI-Alliance/semiont))
+(license Apache-2.0)
+(authors "The AI Alliance")
+(maintainers "Semiont maintainers")
+(package
+ (name semiont)
+ (synopsis "Typed Eio client for Semiont knowledge bases")
+ (description "Semiont's OCaml SDK, held to its shared protocol and client contracts.")
+ (depends
+  (ocaml (= 5.5.2))
+  (eio (>= 1.6))
+  eio_main
+  (cohttp-eio (>= 6.3.0))
+  tls-eio
+  x509
+  mirage-crypto-pk
+  mirage-crypto-rng
+  (yojson (>= 3.0.0))
+  base64
+  zarith
+  decimal
+  digestif
+  uri
+  uutf
+  uucp
+  re
+  mtime
+  ptime
+  cstruct
+  ipaddr
+  domain-name
+  (opentelemetry (>= 0.92))
+  (ambient-context-eio :with-test)
+  (alcotest :with-test)
+  (qcheck :with-test)
+  (ocamlformat (and :with-test (= 0.29.0)))
+  (odoc :with-doc)))

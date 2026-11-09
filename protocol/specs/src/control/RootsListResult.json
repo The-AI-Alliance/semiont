@@ -1,0 +1,25 @@
+{
+  "title": "RootsListResult",
+  "type": "object",
+  "description": "Every knowledge base this machine knows, as semiont roots lists them: the local roots first, then the codespace stacks.",
+  "properties": {
+    "roots": {
+      "type": "array",
+      "items": {
+        "$ref": "./Root.json"
+      },
+      "description": "Each root."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "What semiont roots warns of without failing: an invalid SEMIONT_ROOT, a clone whose project file is refused."
+    }
+  },
+  "required": [
+    "roots"
+  ],
+  "additionalProperties": false
+}

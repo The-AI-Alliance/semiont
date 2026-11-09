@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name: semiont
-version: 0.7.1
+version: 0.7.3
 synopsis: Typed Semiont SDK for Haskell
 description: Protocol-derived models for the Semiont knowledge platform.
 license: Apache-2.0

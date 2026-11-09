@@ -81,13 +81,18 @@ async def request(
     *,
     timeout_ms: int = BUS_REQUEST_TIMEOUT_MS,
 ) -> Mapping[str, JsonValue]:
-    """Send `payload` as the request of `operation`, and wait up to `timeout_ms` for its reply.
+    """Send `payload` as the request of `operation`, and wait for its reply, all within `timeout_ms` of the call.
+
+    The deadline covers the wait for the stream to open, the emit with its
+    retries and the waits between them, and the wait for the reply; when it
+    falls due, what is still in flight is given up.
 
     Returns the payload of the reply on the operation's result channel.
     Raises `BusRequestError` when it is answered with a failure, when no
     reply comes in time, when the transport is closed, and when the
     transport's stream does not carry the operation's replies; and
-    `TransportError` when the emit itself is refused.
+    `TransportError` when the emit itself is refused, and when the failure
+    it is answered with is not its channel's.
     """
     return (await _result_of(transport, operation, payload, timeout_ms)).payload
 
@@ -103,36 +108,34 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
                 "Add this operation's reply channels to the transport's channels.",
             )
 
-    deadline = asyncio.get_running_loop().time() + timeout_ms / 1000
-
-    def timed_out() -> BusRequestError:
-        return BusRequestError("bus.timeout", f"Bus request timed out after {timeout_ms}ms on {result}")
-
-    # No request before its reply can arrive: wait, inside the request's own
-    # deadline, for the stream to be open. Only `open` delivers. A closed bus
-    # fails at once, and does not spend the deadline.
+    # One deadline, taken at the call, over the whole request: the wait for
+    # the stream, the emit with its retries and the waits between them, and
+    # the wait for the reply. What is in flight when it falls due is given up.
+    due = asyncio.timeout_at(asyncio.get_running_loop().time() + timeout_ms / 1000)
     try:
-        async with asyncio.timeout_at(deadline):
-            state = await reached(transport.state, _settled)
-    except TimeoutError:
-        raise timed_out() from None
-    except NeverReached:
-        # A state that will change no more, and is not open, will not deliver.
-        state = "closed"
-    if state != "open":
-        raise BusRequestError("bus.closed", f"Bus closed before emit on {asked}")
+        async with due:
+            # No request before its reply can arrive: wait for the stream to
+            # be open. Only `open` delivers. A closed bus fails at once, and
+            # does not spend the deadline.
+            try:
+                state = await reached(transport.state, _settled)
+            except NeverReached:
+                # A state that will change no more, and is not open, will not deliver.
+                state = "closed"
+            if state != "open":
+                raise BusRequestError("bus.closed", f"Bus closed before emit on {asked}")
 
-    # Tracked before the emit, so a stream opened while the emit is in flight
-    # already names the reply. The emit is not cut short by the deadline: a
-    # request half sent is one nobody can account for.
-    correlation_id = str(uuid.uuid4())
-    with transport.track_reply(correlation_id, (result, failure)) as pending:
-        await transport.emit(asked, payload, correlation_id=correlation_id)
-        try:
-            async with asyncio.timeout_at(deadline):
+            # Tracked before the emit, so a stream opened while the emit is in
+            # flight already names the reply.
+            correlation_id = str(uuid.uuid4())
+            with transport.track_reply(correlation_id, (result, failure)) as pending:
+                await transport.emit(asked, payload, correlation_id=correlation_id)
                 reply = await pending.frame()
-        except TimeoutError:
-            raise timed_out() from None
+    except TimeoutError:
+        # Only this request's own deadline times it out.
+        if not due.expired():
+            raise
+        raise BusRequestError("bus.timeout", f"Bus request timed out after {timeout_ms}ms on {result}") from None
 
     if reply is None:
         raise BusRequestError("bus.closed", f"Bus closed before a reply on {result}")
@@ -142,7 +145,25 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
         )
     if reply.channel == result:
         return reply
-    raise BusRequestError.answered(reply.payload)
+    raise _answered(operation.failure, reply.payload)
+
+
+def _answered(channel: AnyChannel, failure: Mapping[str, JsonValue]) -> BusRequestError | TransportError:
+    """The failure a request was answered with on `channel`, its operation's failure channel.
+
+    A failure is held to its channel's shape before it is read, as a result
+    is: one with a fault is refused, naming the fault. A failure the shape
+    passes is a `BusRequestError` in its own words, under the code its own
+    code becomes; the shape holds the code to no list.
+    """
+    fault = fault_of(channel.payload, _unstamped(channel, failure))
+    if fault is None:
+        match failure:
+            case {"message": str(said)}:
+                return BusRequestError.answered(said, failure)
+            case _:
+                fault = UNDECODED
+    return TransportError("error", f"a payload on {channel.name} is not that channel's: {fault}")
 
 
 # ── By type ─────────────────────────────────────────────────────────────
@@ -335,7 +356,7 @@ class Bus:
     async def request[Q: WireModel, R: WireModel, F: WireModel](
         self, operation: Operation[Q, R, F], payload: Q, *, timeout_ms: int = BUS_REQUEST_TIMEOUT_MS
     ) -> R:
-        """Send `payload` as the request of `operation`, and wait up to `timeout_ms` for its result.
+        """Send `payload` as the request of `operation`, and wait for its result, all within `timeout_ms` of the call.
 
         Raises as `request` does, and `TransportError` when the result that
         came is not the operation's.

@@ -1,4 +1,4 @@
-module ControlledTime (ControlledTime, newTime, now, waitUntil, settle, advance) where
+module ControlledTime (ControlledTime, newTime, now, waitUntil, awaitDue, settle, advance) where
 
 import Control.Concurrent (myThreadId, yield)
 import Control.Concurrent.STM
@@ -22,6 +22,11 @@ waitUntil (ControlledTime clock counter waiting) due = bracket
     pure key)
   (\key -> atomically (modifyTVar' waiting (Map.delete key)))
   (\_ -> atomically (readTVar clock >>= check . (>=due)))
+
+-- Wait until some worker waits for exactly this instant. Unlike settle, this
+-- does not depend on how the worker's threads look on the way there.
+awaitDue :: ControlledTime -> Integer -> IO ()
+awaitDue (ControlledTime _ _ waiting) due = atomically (readTVar waiting >>= check . elem due . Map.elems)
 
 -- Settle the real IO runtime; no elapsed time and no fixed number of yields
 -- stand in for a worker reaching its next blocking wait.

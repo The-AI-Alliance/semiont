@@ -139,6 +139,7 @@
     "save": "저장",
     "cancel": "취소",
     "edit": "편집",
+    "saveFailed": "댓글을 저장하지 못했습니다: {{detail}}",
     "annotateComments": "댓글 주석",
     "instructions": "지시사항",
     "optional": "(선택 사항)",

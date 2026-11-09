@@ -36,9 +36,11 @@ use futures::FutureExt;
 use futures::future::LocalBoxFuture;
 use futures::stream::Stream;
 use rand_core::{Rng, TryRng};
+use semiont::bus::{Bus, operation};
 use semiont::cache::{Cache, CachePersister};
 use semiont::claims::ClaimOptions;
 use semiont::discovery::{DiscoveryRead, DiscoveryState, DiscoveryTransport, subscribe_discovery};
+use semiont::errors::{BusRequestErrorCode, SemiontError};
 use semiont::session::{
     SemiontSession, SemiontSessionConfig, StoredSession, kept_in, store_session,
 };
@@ -362,16 +364,37 @@ impl Ledger {
 #[derive(Clone, Copy)]
 enum StreamAnswer {
     Holds,
-    Refuses { retry_after_seconds: Option<u64> },
+    Refuses,
     Never,
 }
 
 /// A gateway in this process. It answers each request at once, as the subject
-/// has it answer, but those of the paths it leaves unanswered.
+/// has it answer: a subscribe as `stream` says, a request of the paths it
+/// refuses with a 503, and one of the paths it leaves unanswered never. Its
+/// refusals carry a `Retry-After` of `retry_after_seconds`, when it states
+/// one.
 struct Gateway {
     ledger: Arc<Ledger>,
     stream: StreamAnswer,
+    retry_after_seconds: Option<u64>,
+    refused: &'static [&'static str],
     unanswered: &'static [&'static str],
+}
+
+impl Gateway {
+    fn refusal(&self) -> Response {
+        let mut refused = (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({ "error": "The gateway is not ready" })),
+        )
+            .into_response();
+        if let Some(seconds) = self.retry_after_seconds {
+            refused
+                .headers_mut()
+                .insert(header::RETRY_AFTER, HeaderValue::from(seconds));
+        }
+        refused
+    }
 }
 
 /// The body of a stream a gateway holds open and says nothing on. Its reader
@@ -402,6 +425,9 @@ async fn gateway_answer(State(gateway): State<Arc<Gateway>>, request: Request) -
     if gateway.unanswered.contains(&path.as_str()) {
         return std::future::pending().await;
     }
+    if gateway.refused.contains(&path.as_str()) {
+        return gateway.refusal();
+    }
     if path != SUBSCRIBE {
         return gateway.ledger.stray(format!("{method} {path}"));
     }
@@ -411,21 +437,7 @@ async fn gateway_answer(State(gateway): State<Arc<Gateway>>, request: Request) -
             Body::from_stream(HeldOpen(gateway.ledger.clone())),
         )
             .into_response(),
-        StreamAnswer::Refuses {
-            retry_after_seconds,
-        } => {
-            let mut refused = (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({ "error": "The gateway is not ready" })),
-            )
-                .into_response();
-            if let Some(seconds) = retry_after_seconds {
-                refused
-                    .headers_mut()
-                    .insert(header::RETRY_AFTER, HeaderValue::from(seconds));
-            }
-            refused
-        }
+        StreamAnswer::Refuses => gateway.refusal(),
         StreamAnswer::Never => std::future::pending().await,
     }
 }
@@ -454,16 +466,21 @@ fn lowest() -> Arc<Mutex<dyn Rng + Send>> {
     Arc::new(Mutex::new(LowestDraw))
 }
 
-/// A gateway that answers as `stream` and `unanswered` say, and a transport
-/// to it, open and holding a token, so its stream is set going.
+/// A gateway that answers as `stream`, `retry_after_seconds`, `refused` and
+/// `unanswered` say, and a transport to it, open and holding a token, so its
+/// stream is set going.
 async fn over_a_gateway(
     stream: StreamAnswer,
+    retry_after_seconds: Option<u64>,
+    refused: &'static [&'static str],
     unanswered: &'static [&'static str],
 ) -> (Arc<HttpTransport>, Network) {
     let ledger = Arc::new(Ledger::default());
     let gateway = Arc::new(Gateway {
         ledger: ledger.clone(),
         stream,
+        retry_after_seconds,
+        refused,
         unanswered,
     });
     let network = Network::serve(ledger, |_| {
@@ -493,11 +510,10 @@ fn http() -> reqwest::Client {
 
 fn refused_stream(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let retry_after_seconds = given_seconds(&given, "retryAfterSeconds");
         let (transport, network) = over_a_gateway(
-            StreamAnswer::Refuses {
-                retry_after_seconds,
-            },
+            StreamAnswer::Refuses,
+            given_seconds(&given, "retryAfterSeconds"),
+            &[],
             &[],
         )
         .await;
@@ -514,7 +530,7 @@ fn refused_stream(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject>
 
 fn unanswered_stream(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let (transport, network) = over_a_gateway(StreamAnswer::Never, &[]).await;
+        let (transport, network) = over_a_gateway(StreamAnswer::Never, None, &[], &[]).await;
         let ledger = network.ledger.clone();
         Subject {
             counted: Box::new(move || ledger.asked(SUBSCRIBE)),
@@ -528,11 +544,10 @@ fn unanswered_stream(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> 
 
 fn degraded_stream(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let retry_after_seconds = given_seconds(&given, "retryAfterSeconds");
         let (transport, network) = over_a_gateway(
-            StreamAnswer::Refuses {
-                retry_after_seconds,
-            },
+            StreamAnswer::Refuses,
+            given_seconds(&given, "retryAfterSeconds"),
+            &[],
             &[],
         )
         .await;
@@ -561,7 +576,7 @@ fn taking(transport: &Arc<HttpTransport>) -> Box<dyn Fn() -> LocalBoxFuture<'sta
 
 fn scope_taken(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let (transport, network) = over_a_gateway(StreamAnswer::Holds, &[]).await;
+        let (transport, network) = over_a_gateway(StreamAnswer::Holds, None, &[], &[]).await;
         let ledger = network.ledger.clone();
         Subject {
             counted: Box::new(move || ledger.asked(SUBSCRIBE)),
@@ -575,7 +590,7 @@ fn scope_taken(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
 
 fn scope_let_go(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let (transport, network) = over_a_gateway(StreamAnswer::Holds, &[]).await;
+        let (transport, network) = over_a_gateway(StreamAnswer::Holds, None, &[], &[]).await;
         settle(Some(&network)).await;
         assert_eq!(
             *transport.state().borrow(),
@@ -600,7 +615,7 @@ fn scope_let_go(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
 
 fn handoff_linger(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let (transport, network) = over_a_gateway(StreamAnswer::Holds, &[]).await;
+        let (transport, network) = over_a_gateway(StreamAnswer::Holds, None, &[], &[]).await;
         let ledger = network.ledger.clone();
         Subject {
             counted: Box::new(move || ledger.closed.load(Ordering::SeqCst)),
@@ -614,7 +629,7 @@ fn handoff_linger(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
 
 fn unanswered_request(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let (transport, network) = over_a_gateway(StreamAnswer::Holds, &[HEALTH]).await;
+        let (transport, network) = over_a_gateway(StreamAnswer::Holds, None, &[], &[HEALTH]).await;
         let failed = Arc::new(Mutex::new(None));
         let (asking, telling) = (transport.clone(), failed.clone());
         tokio::spawn(async move {
@@ -640,7 +655,7 @@ fn unanswered_request(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject>
 
 fn unanswered_emit(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let (transport, network) = over_a_gateway(StreamAnswer::Holds, &[EMIT]).await;
+        let (transport, network) = over_a_gateway(StreamAnswer::Holds, None, &[], &[EMIT]).await;
         let emitting = transport.clone();
         tokio::spawn(async move {
             let payload = json!({ "annotationId": "ann-1" });
@@ -655,6 +670,78 @@ fn unanswered_emit(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
         let ledger = network.ledger.clone();
         Subject {
             counted: Box::new(move || ledger.asked(EMIT)),
+            act: None,
+            network: Some(network),
+            _held: vec![Box::new(transport)],
+        }
+    }
+    .boxed_local()
+}
+
+/// How a bus request ended, once it has.
+type Ended = Arc<Mutex<Option<Result<Option<Value>, SemiontError>>>>;
+
+/// A bus request of a resource's events, made as the case begins, over a
+/// gateway that holds its stream open and refuses every emit; and how it
+/// ended, once it has.
+async fn refused_request(given: &Map<String, Value>) -> (Arc<HttpTransport>, Network, Ended) {
+    let (transport, network) = over_a_gateway(
+        StreamAnswer::Holds,
+        given_seconds(given, "retryAfterSeconds"),
+        &[EMIT],
+        &[],
+    )
+    .await;
+    let ended: Ended = Arc::new(Mutex::new(None));
+    let (bus, telling) = (Bus::new(transport.clone()), ended.clone());
+    tokio::spawn(async move {
+        let events = operation("browse:events-requested").expect("an operation of the registry");
+        let payload = json!({ "resourceId": "res-1" });
+        let asked = bus
+            .request_of(
+                events,
+                payload.as_object().cloned().expect("an object"),
+                semiont::timing::BUS_REQUEST_TIMEOUT,
+            )
+            .await;
+        *telling.lock().expect("the outcome") = Some(asked);
+    });
+    (transport, network, ended)
+}
+
+fn refused_bus_request(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
+    async move {
+        let (transport, network, ended) = refused_request(&given).await;
+        let ledger = network.ledger.clone();
+        Subject {
+            counted: Box::new(move || {
+                // How it fails is what timedOutBusRequest counts.
+                if let Some(Ok(answer)) = &*ended.lock().expect("the outcome") {
+                    panic!("the request was answered: {answer:?}");
+                }
+                ledger.asked(EMIT)
+            }),
+            act: None,
+            network: Some(network),
+            _held: vec![Box::new(transport)],
+        }
+    }
+    .boxed_local()
+}
+
+fn timed_out_bus_request(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
+    async move {
+        let (transport, network, ended) = refused_request(&given).await;
+        Subject {
+            counted: Box::new(move || match &*ended.lock().expect("the outcome") {
+                None => 0,
+                Some(Err(SemiontError::Bus(failed)))
+                    if failed.code == BusRequestErrorCode::Timeout =>
+                {
+                    1
+                }
+                Some(other) => panic!("the request ended otherwise: {other:?}"),
+            }),
             act: None,
             network: Some(network),
             _held: vec![Box::new(transport)],
@@ -1100,7 +1187,7 @@ fn job_follower(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
 }
 
 /// How this SDK builds each subject the table names.
-const SUBJECTS: [(&str, Build); 15] = [
+const SUBJECTS: [(&str, Build); 17] = [
     ("refusedStream", refused_stream),
     ("unansweredStream", unanswered_stream),
     ("degradedStream", degraded_stream),
@@ -1116,6 +1203,8 @@ const SUBJECTS: [(&str, Build); 15] = [
     ("jobFollower", job_follower),
     ("unansweredRequest", unanswered_request),
     ("unansweredEmit", unanswered_emit),
+    ("refusedBusRequest", refused_bus_request),
+    ("timedOutBusRequest", timed_out_bus_request),
 ];
 
 // ── A case, played ──────────────────────────────────────────────────────

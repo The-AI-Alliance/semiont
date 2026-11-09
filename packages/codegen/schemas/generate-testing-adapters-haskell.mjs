@@ -90,7 +90,20 @@ const scenario={outputs:'[IO ()]',settlements:'[IO ()]'};
 const spec={setup:'FaultyTransport -> (LivenessScenario -> IO ()) -> IO ()',timeout_ms:'Integer',retry_budget:'Integer',cases:'Int',schedules:'Gen [FaultAction]',make_response:'Respond'};
 const log={channel:'Text',action:'FaultAction',correlation_id:'Maybe Text',retry_key:'Text',payload:'Object'};
 const record=(name,fields,types,extra=[])=>`data ${name} = ${name}\n  { ${[...fields.map(field=>`${name[0].toLowerCase()+name.slice(1)}${capitalize(camel(field))} :: ${types[field]??fail('unread native '+name+' field '+field)}`),...extra].join('\n  , ')}\n  }`;
-writeOrCheck(root,resolve(root,'packages/haskell/sdk/generated/Semiont/Internal/Generated/Testing.hs'),`-- Generated from Python testing/transport.py and testing/liveness.py; do not edit.
+if (process.argv.includes('--ocaml')) {
+  const name = value => value.replace(/([a-z])([A-Z])/g, '$1_$2').replace(/_(.)/g, (_, letter) => '_' + letter.toLowerCase());
+  const variants = facts.actions.map(row => name(row.name) + (row.fields.length ? ' of int' : '')).join(' | ');
+  const action = facts.actions.map((row, index) =>
+    `  | ${index} -> ${name(row.name)}${row.fields.length ? ` (${facts.delayMin} + Random.State.int random ${facts.delayMax - facts.delayMin + 1})` : ''}`).join('\n');
+  writeOrCheck(root,resolve(root,'packages/ocaml/sdk/lib/testing_facts.ml'),
+    `(* Generated from Python testing/transport.py and testing/liveness.py. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+    `type fault_action = ${variants}\n` +
+    `type delivery_op = ${facts.ops.map(capitalize).join(' | ')}\n` +
+    `let fault_actions random =\n  match Random.State.int random ${facts.actions.length} with\n${action}\n  | _ -> assert false\n` +
+    `let fault_schedules random =\n  List.init (${facts.scheduleMin} + Random.State.int random ${facts.scheduleMax - facts.scheduleMin + 1}) (fun _ -> fault_actions random)\n` +
+    `let slack = ${facts.slack}\n`,
+    process.argv.includes('--check'));
+} else writeOrCheck(root,resolve(root,'packages/haskell/sdk/generated/Semiont/Internal/Generated/Testing.hs'),`-- Generated from Python testing/transport.py and testing/liveness.py; do not edit.
 {-# LANGUAGE OverloadedStrings #-}
 module Semiont.Internal.Generated.Testing where
 import Data.Aeson (Object, Value)

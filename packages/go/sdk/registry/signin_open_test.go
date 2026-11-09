@@ -616,9 +616,15 @@ func TestTheKnowledgeBaseAnsweringAsItselfChangesNothingAndIsRecorded(t *testing
 			t.Errorf("the entry is %+v", entry)
 		}
 
-		// And a new registry on the storage reads what was recorded.
+		// And a new registry on the storage reads what was recorded. Its
+		// session is held behind a gate never opened, since that session's
+		// arrival would ask the knowledge base again and record a later read
+		// over this one.
 		must(t, browser.Close())
-		if !same(t, w.browser().KnowledgeBases().Value()[0], entry) {
+		reopened, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: gated{SessionFactory: w.factory.sessions, open: make(chan struct{})}})
+		must(t, err)
+		closedAtTheEnd(t, reopened)
+		if !same(t, reopened.KnowledgeBases().Value()[0], entry) {
 			t.Error("a new registry does not read what was recorded")
 		}
 	})

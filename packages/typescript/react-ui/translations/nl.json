@@ -139,6 +139,7 @@
     "save": "Opslaan",
     "cancel": "Annuleren",
     "edit": "Bewerken",
+    "saveFailed": "Kon de opmerking niet opslaan: {{detail}}",
     "annotateComments": "Opmerkingen annoteren",
     "instructions": "Instructies",
     "optional": "(optioneel)",

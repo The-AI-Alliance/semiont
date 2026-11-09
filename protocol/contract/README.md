@@ -113,6 +113,7 @@ For product framing and getting a knowledge base running, see the **[project REA
 | [LIBRARIAN.md](LIBRARIAN.md) | The Librarian, the process a librarian image runs: its configuration document and what it refuses to start on, the eight requests it answers from the graph, the vector index and its models, how each candidate of a reference is scored, the context it gathers around an annotation and around a resource, and the two waits it makes for the Weaver and the Smelter |
 | [TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md) | What every transport promises a client, in any language |
 | [TRANSPORT-HTTP.md](TRANSPORT-HTTP.md) | The HTTP transport: `/bus/emit`, the `/bus/subscribe` stream, content, limits |
+| [LAUNCHER-CONTROL.md](LAUNCHER-CONTROL.md) | `semiont control`, the launcher's API for a program that drives it: framing, versions, params, errors, progress, turns, cancellation, shutdown, secrets, and how each command's options map to it |
 | [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) | The numbered behaviors every SDK's live queries are held to |
 | [RBAC.md](RBAC.md) | Roles: the one authorization decision, and the two roles that mark services |
 | [W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md), [W3C-SELECTORS.md](W3C-SELECTORS.md) | The annotation model, and which selectors apply to which media |
