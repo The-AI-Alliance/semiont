@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { ControlProgress, ControlRoot, ControlRootsInitParams, ControlServiceStatus } from '../../electron/control-types.gen';
+import { localRootTabId } from './WorkspaceTabs';
 
 export type KnowledgeBaseRuntimeStatus = 'checking' | 'starting' | 'running' | 'stopped' | 'attention' | 'unknown';
 
@@ -39,6 +40,7 @@ export function KnowledgeBasesModal({
   focusSearchOnOpen,
   openTabUris,
   activeTabUri,
+  initialSelectedPath,
   onOpenTab,
   onClose,
 }: {
@@ -54,6 +56,7 @@ export function KnowledgeBasesModal({
   focusSearchOnOpen: boolean;
   openTabUris: string[];
   activeTabUri: string | null;
+  initialSelectedPath: string | null;
   onOpenTab: (root: KnowledgeBaseRow) => void;
   onClose: () => void;
 }) {
@@ -81,10 +84,14 @@ export function KnowledgeBasesModal({
   }), [normalizedFilter, roots]);
   useEffect(() => {
     if (state.status !== 'result') return;
+    if (initialSelectedPath !== null && filteredRoots.some((root) => root.path === initialSelectedPath)) {
+      setSelectedPath(initialSelectedPath);
+      return;
+    }
     setSelectedPath((current) => current !== null && filteredRoots.some((root) => root.path === current)
       ? current
       : filteredRoots[0]?.path ?? null);
-  }, [filteredRoots, state.status]);
+  }, [filteredRoots, initialSelectedPath, state.status]);
   const selected = filteredRoots.find((root) => root.path === selectedPath) ?? filteredRoots[0];
   const selectedTabUri = selected?.configuredUri ?? selected?.gatewayUrl;
   useEffect(() => {
@@ -162,9 +169,11 @@ export function KnowledgeBasesModal({
                         onLogout={onLogout}
                         onForget={onForget}
                         onFollowLogs={onFollowLogs}
-                        openTab={selectedTabUri !== undefined && openTabUris.includes(selectedTabUri)}
-                        activeTab={selectedTabUri === activeTabUri}
-                        canOpenTab={selectedTabUri !== undefined}
+                        openTab={(selectedTabUri !== undefined && openTabUris.includes(selectedTabUri)) || openTabUris.includes(localRootTabId(selected.path))}
+                        activeTab={selectedTabUri === undefined
+                          ? localRootTabId(selected.path) === activeTabUri
+                          : selectedTabUri === activeTabUri}
+                        hasGateway={selectedTabUri !== undefined}
                         onOpenTab={() => onOpenTab(selected)}
                       />
                     )}
@@ -313,7 +322,7 @@ function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
   );
 }
 
-function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, openTab, activeTab, canOpenTab, onOpenTab }: {
+function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, openTab, activeTab, hasGateway, onOpenTab }: {
   root: KnowledgeBaseRow;
   onStart: (root: KnowledgeBaseRow) => void;
   onStop: (root: KnowledgeBaseRow) => void;
@@ -323,7 +332,7 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
   onFollowLogs: (root: KnowledgeBaseRow) => void;
   openTab: boolean;
   activeTab: boolean;
-  canOpenTab: boolean;
+  hasGateway: boolean;
   onOpenTab: () => void;
 }) {
   const [confirmForget, setConfirmForget] = useState(false);
@@ -360,11 +369,11 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-workspace-heading">
         <h3 id="knowledge-bases-workspace-heading">Desktop workspace</h3>
         <div className="knowledge-bases__controls">
-          <button type="button" className="kb__connect" disabled={!canOpenTab || activeTab} onClick={onOpenTab}>
+          <button type="button" className="kb__connect" disabled={activeTab} onClick={onOpenTab}>
             {activeTab ? 'Current tab' : openTab ? 'Switch to tab' : 'Open as tab'}
           </button>
         </div>
-        {!canOpenTab && <p className="knowledge-bases__action-note">Start this KB to discover its gateway address before opening it in Desktop.</p>}
+        {!hasGateway && <p className="knowledge-bases__action-note">This opens a workspace tab now. Connect it after the launcher starts the KB.</p>}
       </section>
 
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-services-heading">

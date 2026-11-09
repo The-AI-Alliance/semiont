@@ -9,6 +9,8 @@ import type { McpProcessStatus } from '../lib/launcher-bridge';
  *  App owns all state; this renders + dispatches. */
 export interface KbNavProps {
   kbs: KbEntry[];
+  hasLocalRootTab: boolean;
+  onOpenKnowledgeBasesForRoot: () => void;
   connections: Record<string, KbConnection>;
   sessions: AppChatSession[];
   activeSessionId: string | null;
@@ -32,7 +34,7 @@ export interface KbNavProps {
   mcpStatus: McpProcessStatus;
   onOpenTheme: () => void;
   onOpenLauncherStatus: () => void;
-  onOpenKnowledgeBases: () => void;
+  onOpenKnowledgeBases: (path?: string) => void;
   onOpenTelemetry: () => void;
   onOpenRuntime: () => void;
   onOpenGit: () => void;
@@ -54,8 +56,10 @@ export function KbNav(props: KbNavProps) {
       <div className="nav__content">
         {kbs.length === 0 ? (
           <div className="nav__empty">
-            <p>No Knowledge Base tab is open.</p>
-            <button type="button" onClick={props.onOpenKnowledgeBases}>Open a Knowledge Base</button>
+            <p>{props.hasLocalRootTab ? 'This Knowledge Base is not connected yet.' : 'No Knowledge Base tab is open.'}</p>
+            <button type="button" onClick={props.hasLocalRootTab ? props.onOpenKnowledgeBasesForRoot : () => props.onOpenKnowledgeBases()}>
+              {props.hasLocalRootTab ? 'View Knowledge Base' : 'Open a Knowledge Base'}
+            </button>
           </div>
         ) : (
           kbs.map((kb) => <KbNavItem key={kb.uri} kb={kb} {...props} />)

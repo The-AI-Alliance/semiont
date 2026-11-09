@@ -2066,6 +2066,20 @@ body.resizing {
 .main__connect:hover:not(:disabled) {
   background: var(--accent-hover);
 }
+.main__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.main__connect--secondary {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.main__connect--secondary:hover:not(:disabled) {
+  background: var(--hover);
+}
 .main__error {
   margin: 0;
   color: var(--danger);
