@@ -15,7 +15,8 @@ interface Window {
    *  Absent in the browser, which falls back to localStorage. */
   configBridge?: {
     read(): Promise<string | null>;
-    write(toml: string): Promise<{ policyStale: boolean }>;
+    write(toml: string): Promise<void>;
+    kbRoute(gatewayUrl: string): Promise<string>;
   };
   /** Electron preload bridge to the per-KB chat history (the XDG history.json file).
    *  Absent in the browser, which falls back to localStorage. */

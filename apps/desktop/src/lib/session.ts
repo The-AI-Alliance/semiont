@@ -73,10 +73,16 @@ export async function connect(
   else if (resumed.kind === 'none') return null;
   else throw new Error(`The issuer refused to renew the stored session (${resumed.reason}). Connect to sign in again.`);
 
+  const gatewayUrl = kbGatewayUrl(kb.endpoint);
+  const baseUrl = window.location.protocol === 'semiont-app:'
+    ? await window.configBridge?.kbRoute(gatewayUrl)
+    : gatewayUrl;
+  if (baseUrl === undefined) throw new Error('Desktop could not resolve the configured Knowledge Base route.');
+
   const opened = SemiontSession.fromHttp({
     kb,
     storage: new InMemorySessionStorage(),
-    baseUrl: kbGatewayUrl(kb.endpoint),
+    baseUrl,
     token: access,
     refresh: (holding) => bridge.refresh(kb.id, holding),
     onAuthFailed: options.onEnded,

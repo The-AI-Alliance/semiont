@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { delimiter, dirname, join, relative, resolve, sep } from 'node:path';
@@ -25,8 +26,6 @@ let mcpChild: ChildProcess | null = null;
 let mcpStartedAt: number | null = null;
 let mcpStopping = false;
 let mcpError: string | null = null;
-let documentPolicyOrigins = new Set<string>();
-
 function configuredKbOrigins(toml: string | null): Set<string> {
   const origins = new Set<string>();
   if (toml === null) return origins;
@@ -41,17 +40,24 @@ function configuredKbOrigins(toml: string | null): Set<string> {
   return origins;
 }
 
-function rendererCsp(origins: Set<string>): string {
-  const kbOrigins = [...origins].sort().join(' ');
+function kbRouteId(origin: string): string {
+  return createHash('sha256').update(origin).digest('hex').slice(0, 32);
+}
+
+function configuredKbRoutes(toml: string | null): Map<string, string> {
+  return new Map([...configuredKbOrigins(toml)].map((origin) => [kbRouteId(origin), origin]));
+}
+
+function rendererCsp(): string {
   return [
     "default-src 'self'",
     "script-src 'self' 'wasm-unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: ${kbOrigins}`.trim(),
+    "img-src 'self' data: blob:",
     "font-src 'self' data:",
-    `connect-src 'self' ${kbOrigins}`.trim(),
+    "connect-src 'self'",
     "worker-src 'self' blob:",
-    `media-src 'self' blob: ${kbOrigins}`.trim(),
+    "media-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -62,7 +68,9 @@ function rendererCsp(origins: Set<string>): string {
 function registerRendererProtocol(): void {
   protocol.handle('semiont-app', async (request) => {
     const url = new URL(request.url);
-    if (url.hostname !== 'desktop' || request.method !== 'GET') return new Response('Not found', { status: 404 });
+    if (url.hostname !== 'desktop') return new Response('Not found', { status: 404 });
+    if (url.pathname.startsWith('/kb/')) return proxyKnowledgeBaseRequest(request, url);
+    if (request.method !== 'GET') return new Response('Not found', { status: 404 });
     let requestPath: string;
     try {
       requestPath = decodeURIComponent(url.pathname);
@@ -82,8 +90,7 @@ function registerRendererProtocol(): void {
       headers.set('X-Content-Type-Options', 'nosniff');
       headers.set('Referrer-Policy', 'no-referrer');
       if (fileRelative === 'index.html') {
-        documentPolicyOrigins = configuredKbOrigins(readConfigText());
-        headers.set('Content-Security-Policy', rendererCsp(documentPolicyOrigins));
+        headers.set('Content-Security-Policy', rendererCsp());
         headers.set('Cache-Control', 'no-store');
       }
       return new Response(fileResponse.body, { status: fileResponse.status, headers });
@@ -91,6 +98,87 @@ function registerRendererProtocol(): void {
       return new Response('Not found', { status: 404 });
     }
   });
+}
+
+const KB_REQUEST_HEADERS = new Set([
+  'accept', 'authorization', 'content-type', 'if-match', 'if-none-match',
+  'if-modified-since', 'if-unmodified-since', 'idempotency-key', 'last-event-id',
+  'range', 'traceparent', 'tracestate', 'baggage',
+]);
+const KB_RESPONSE_HEADERS = new Set([
+  'accept-ranges', 'cache-control', 'content-disposition', 'content-length',
+  'content-range', 'content-type', 'etag', 'last-modified', 'vary',
+]);
+
+async function proxyKnowledgeBaseRequest(request: Request, appUrl: URL): Promise<Response> {
+  const initiatorOrigin = (request as Request & { initiatorOrigin?: string }).initiatorOrigin;
+  if (initiatorOrigin !== undefined && initiatorOrigin !== 'semiont-app://desktop') {
+    return new Response('Forbidden', { status: 403 });
+  }
+  const match = /^\/kb\/([a-f0-9]{32})(\/.*)?$/u.exec(appUrl.pathname);
+  if (match === null) return new Response('Not found', { status: 404 });
+  const origin = configuredKbRoutes(readConfigText()).get(match[1]!);
+  if (origin === undefined) return new Response('Knowledge Base route is not configured', { status: 404 });
+  const upstreamUrl = new URL(`${match[2] ?? '/'}${appUrl.search}`, origin);
+  if (!['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  const headers = new Headers();
+  request.headers.forEach((value, name) => {
+    if (KB_REQUEST_HEADERS.has(name.toLowerCase())) headers.set(name, value);
+  });
+  const init: RequestInit & { duplex?: 'half' } = {
+    method: request.method,
+    headers,
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+    redirect: 'manual',
+    signal: request.signal,
+  };
+  if (!['GET', 'HEAD'].includes(request.method) && request.body !== null) {
+    init.body = request.body;
+    init.duplex = 'half';
+  }
+
+  try {
+    let response = await net.fetch(upstreamUrl.toString(), init);
+    // Follow only safe, bodyless redirects which remain inside this configured KB.
+    for (let redirects = 0; [301, 302, 303, 307, 308].includes(response.status); redirects += 1) {
+      const location = response.headers.get('location');
+      if (location === null) break;
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return new Response('Knowledge Base redirect refused for a request with a body', { status: 502 });
+      }
+      if (redirects >= 5) return new Response('Too many Knowledge Base redirects', { status: 502 });
+      const destination = new URL(location, upstreamUrl);
+      if (destination.origin !== origin) return new Response('Cross-origin Knowledge Base redirect refused', { status: 502 });
+      await response.body?.cancel();
+      response = await net.fetch(destination.toString(), {
+        method: request.method,
+        headers,
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        redirect: 'manual',
+        signal: request.signal,
+      });
+      upstreamUrl.href = destination.href;
+    }
+    const safeHeaders = new Headers();
+    response.headers.forEach((value, name) => {
+      if (KB_RESPONSE_HEADERS.has(name.toLowerCase())) safeHeaders.set(name, value);
+    });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: safeHeaders,
+    });
+  } catch (error) {
+    if (request.signal.aborted) return new Response(null, { status: 499 });
+    // Avoid logging request URLs, query tokens, auth headers, or response data.
+    appendLog(`${new Date().toISOString()} [kb-proxy] ${request.method} ${appUrl.pathname} failed (${error instanceof Error ? error.name : 'unknown error'})`);
+    return new Response('Knowledge Base request failed', { status: 502 });
+  }
 }
 
 function launcherPath(): string {
@@ -424,8 +512,20 @@ ipcMain.handle('config:write', (_event, toml: string) => {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, toml, { mode: 0o600 });
   chmodSync(path, 0o600); // enforce 0600 on an existing file too
-  const currentOrigins = configuredKbOrigins(toml);
-  return { policyStale: currentOrigins.size !== documentPolicyOrigins.size || [...currentOrigins].some((origin) => !documentPolicyOrigins.has(origin)) };
+});
+
+ipcMain.handle('config:kb-route', (_event, gatewayUrl: string) => {
+  let origin: string;
+  try {
+    parseKbUri(gatewayUrl);
+    origin = new URL(gatewayUrl).origin;
+  } catch {
+    throw new Error('Invalid Knowledge Base gateway URL');
+  }
+  if (!configuredKbOrigins(readConfigText()).has(origin)) {
+    throw new Error('Knowledge Base gateway is not in the saved Desktop configuration');
+  }
+  return `semiont-app://desktop/kb/${kbRouteId(origin)}`;
 });
 
 // Chat history — same XDG dir, a JSON file. localStorage isn't reliably persisted for

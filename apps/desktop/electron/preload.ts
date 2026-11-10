@@ -22,7 +22,8 @@ async function answer<T>(pending: Promise<{ value: T } | { error: string }>): Pr
 // the actual file I/O happens in the main process (config:read / config:write).
 contextBridge.exposeInMainWorld('configBridge', {
   read: (): Promise<string | null> => ipcRenderer.invoke('config:read'),
-  write: (toml: string): Promise<{ policyStale: boolean }> => ipcRenderer.invoke('config:write', toml),
+  write: (toml: string): Promise<void> => ipcRenderer.invoke('config:write', toml),
+  kbRoute: (gatewayUrl: string): Promise<string> => ipcRenderer.invoke('config:kb-route', gatewayUrl),
 });
 
 // Chat history bridge — same pattern, backed by the XDG history.json (file:// localStorage

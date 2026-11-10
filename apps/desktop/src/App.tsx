@@ -179,17 +179,6 @@ function normalizeGatewayUri(uri: string): string {
 
 export function App() {
   const [config, setConfig] = useState<UserConfig | null>(null); // null = still loading
-  const [networkPolicyStale, setNetworkPolicyStale] = useState(false);
-  const [showPolicyReloadPrompt, setShowPolicyReloadPrompt] = useState(false);
-  const networkPolicyStaleRef = useRef(false);
-  useEffect(() => {
-    if (!showPolicyReloadPrompt) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowPolicyReloadPrompt(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [showPolicyReloadPrompt]);
   // One live connection per connected KB (its own token-refreshing SemiontSession).
   const [connections, setConnections] = useState<Record<string, KbConnection>>({});
   const [sessions, setSessions] = useState<AppChatSession[]>([]);
@@ -543,10 +532,7 @@ export function App() {
 
   const saveConfig = async (next: UserConfig) => {
     setConfig(next);
-    const result = await saveUserConfig(next);
-    networkPolicyStaleRef.current = result.policyStale;
-    setNetworkPolicyStale(result.policyStale);
-    return result;
+    await saveUserConfig(next);
   };
 
   // Connect to one KB and hold its live session. Multiple KBs can be connected at once,
@@ -554,10 +540,6 @@ export function App() {
   // `interactive` is whether the person may be sent to the issuer to sign in: the Connect
   // button's yes, a launch's no (a launch resumes stored sessions and opens nothing).
   const connectKb = async (kbUri: string, interactive: boolean, override?: KbEntry) => {
-    if (networkPolicyStaleRef.current) {
-      setShowPolicyReloadPrompt(true);
-      return;
-    }
     const kb = override ?? config?.kbs.find((k) => k.uri === kbUri);
     if (!kb) return;
     const target = kbTargetFor(kb);
@@ -1108,28 +1090,6 @@ export function App() {
       {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
       {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
-      {networkPolicyStale && !showPolicyReloadPrompt && (
-        <div className="policy-reload-notice" role="status">
-          Knowledge Base network settings changed. Reload to enable connections to new addresses.
-          <button type="button" onClick={() => setShowPolicyReloadPrompt(true)}>Reload</button>
-        </div>
-      )}
-      {showPolicyReloadPrompt && (
-        <div className="modal modal--policy-reload" role="presentation" onClick={() => setShowPolicyReloadPrompt(false)}>
-          <section className="config config--modal policy-reload-modal" role="alertdialog" aria-modal="true" aria-labelledby="policy-reload-title" onClick={(event) => event.stopPropagation()}>
-            <header className="config__head">
-              <h1 id="policy-reload-title">Reload to connect</h1>
-              <button type="button" className="config__close" aria-label="Close" onClick={() => setShowPolicyReloadPrompt(false)}>×</button>
-            </header>
-            <p>The configured Knowledge Base network addresses changed. Reload Semiont Desktop to apply the updated network access policy before connecting.</p>
-            <p>Open tabs and saved chat history will be restored. Unsaved chat text or modal edits may be lost.</p>
-            <footer className="policy-reload-modal__actions">
-              <button type="button" className="button button--secondary" onClick={() => setShowPolicyReloadPrompt(false)}>Later</button>
-              <button type="button" className="button" onClick={() => window.location.reload()}>Reload now</button>
-            </footer>
-          </section>
-        </div>
-      )}
       {composeTarget !== null && (
         <ResourceComposeModal
           session={composeTarget.session}
