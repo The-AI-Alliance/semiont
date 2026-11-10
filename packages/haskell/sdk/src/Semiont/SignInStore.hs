@@ -122,7 +122,7 @@ writeDocument store document = do
 asStored :: SignIn -> Maybe StoredSession
 asStored value = do
   refresh <- signInRefreshToken value
-  if Text.null refresh then Nothing else pure (StoredSession (signInToken value) OAuth.scriptClientId refresh
+  if Text.null refresh then Nothing else pure (StoredSession (signInToken value) OAuth.scriptClientId Nothing refresh
     (signInRevocationEndpoint value) (signInTokenEndpoint value) KM.empty)
 
 writtenTimes :: SignInStoreOptions -> Text -> IO (Text,Maybe Text)

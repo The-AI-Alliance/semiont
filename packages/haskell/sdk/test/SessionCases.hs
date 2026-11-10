@@ -65,7 +65,7 @@ withClient time action = do
   bracket (Client.newClient transport contents Nothing options Timing.protocolSettings Nothing) Client.dispose action
 
 stored :: Text -> StoredSession
-stored access = StoredSession access "session-cases" "refresh-credential" Nothing "https://issuer.test/token" KM.empty
+stored access = StoredSession access "session-cases" Nothing "refresh-credential" Nothing "https://issuer.test/token" KM.empty
 
 sessionCases :: FilePath -> Map.Map Text Value -> IO ()
 sessionCases root fixtures = do

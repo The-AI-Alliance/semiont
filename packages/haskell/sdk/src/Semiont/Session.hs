@@ -162,7 +162,7 @@ signInDevice http persistence options onCode = do
   endpoint <- httpTarget options
   let issuerOptions = Issuer.IssuerOptions (Http.httpClient http) (Http.httpTime http) (Http.httpTiming http)
   (issuer,issued) <- Issuer.signInWithDeviceGrant issuerOptions endpoint onCode
-  let stored = StoredSession (issuedTokensAccess issued) Issuer.scriptClientId (issuedTokensRefresh issued)
+  let stored = StoredSession (issuedTokensAccess issued) Issuer.scriptClientId Nothing (issuedTokensRefresh issued)
         (issuerEndpointsRevocation issuer) (issuerEndpointsToken issuer) mempty
   fromIssuedSession http persistence options stored
 

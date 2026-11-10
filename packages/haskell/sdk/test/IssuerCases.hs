@@ -161,7 +161,7 @@ issuerCases fixtures = do
   atomically (writeTVar tokenBody (object ["access_token" .= String "next"]))
   issued <- Issuer.refreshAtIssuer options "http://issuer.test/token" "client" "original"
   require "nonrotating issuer lost the refresh token" (issuedTokensRefresh issued=="original")
-  let stored=StoredSession "before" "client" "original" Nothing "http://issuer.test/token" KM.empty
+  let stored=StoredSession "before" "client" Nothing "original" Nothing "http://issuer.test/token" KM.empty
   Stored.storeSession storage "kb" stored
   entered <- newEmptyTMVarIO
   release <- newEmptyTMVarIO
