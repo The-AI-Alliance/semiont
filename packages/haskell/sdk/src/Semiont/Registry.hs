@@ -19,7 +19,7 @@ import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 import Control.Concurrent.QSem (newQSem, waitQSem, signalQSem)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Exception (SomeException, SomeAsyncException, bracket, bracket_, finally, fromException, mask, onException, throwIO, try)
+import Control.Exception (SomeException, SomeAsyncException, bracket, bracket_, catch, finally, fromException, mask, onException, throwIO, try)
 import Control.Monad (forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (FromJSON, ToJSON, Value(..), eitherDecodeStrict', encode, fromJSON, toJSON, Result(..))
@@ -238,10 +238,16 @@ activate owner version key=do
         Right openedSession -> do
           let session=Session.openedSession openedSession
               route (Left failure)=failed failure
-              route (Right failure)=atomically $ do
-                case transportErrorCode failure of
-                  Code.TransportForbidden -> Signals.notifyPermissionDenied signals (Just (transportErrorMessage failure))
-                  _ -> pure ()
+              route (Right failure)=case transportErrorCode failure of
+                -- A failure does not say which token was refused: the one the
+                -- session holds as it is read is. Refusals read together are
+                -- answered by one renewal, which the session says the outcome of.
+                Code.TransportUnauthorized -> do
+                  held <- atomically (State.current (Session.token session))
+                  spawn owner (void (Session.refresh session held `catch` \(problem::BusRequestError) ->
+                    if busRequestErrorCode problem==Code.BusRequestClosed then pure Nothing else throwIO problem))
+                Code.TransportForbidden -> atomically (Signals.notifyPermissionDenied signals (Just (transportErrorMessage failure)))
+                _ -> pure ()
           -- The registry reads first: what the session said before anyone
           -- read is kept for its first reader.
           subscribed <- newEmptyTMVarIO

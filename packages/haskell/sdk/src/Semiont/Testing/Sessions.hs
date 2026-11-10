@@ -90,4 +90,4 @@ factory (ScriptedSessions clock bus timing wall answer content refusal buildRefu
           options=Session.SessionOptions key (KbTarget (knowledgeBaseEndpoint kb) key (knowledgeBaseLabel kb) mempty) kept Nothing
             (Just renew) (Just validate) (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals inputs)) wall
       session <- Session.newSession client options clock timing `onException` Client.dispose client
-      pure (Session.OpenedSession session (Session.dispose session `finally` Client.dispose client))
+      pure (Session.OpenedSession session (Client.dispose client `finally` Session.dispose session))

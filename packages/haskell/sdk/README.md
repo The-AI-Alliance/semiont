@@ -55,8 +55,12 @@ together share one renewal. An issuer refusal forgets the grant; an outage
 keeps it and retries with reconnect backoff. What goes wrong, the session's
 own errors and its transport's failures, is said once each on `errors`; what
 is said before anyone reads is kept for the first reader. Disposing a session
-joins its work, ends `errors` and leaves its client open; `closeOpenedSession`
-closes both, and ends `errors` once the client's closing flush is done.
+joins its work, ends `errors` and leaves its client open, and once its client
+has closed, ends `errors` after what that client's transport said;
+`closeOpenedSession` closes the client first, its closing flush done, then
+ends the session, so what the flush meets is said before `errors` ends. A
+registry reads each session's `errors` itself: a refusal for want of a valid
+token renews the session, handed the token it holds as the refusal is read.
 
 ```haskell
 module DeviceSignIn where

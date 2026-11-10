@@ -138,8 +138,9 @@ seed options stored = do
 
 -- | The transport reads the session's actual token cell. Its renewal callback
 -- waits for construction, so even a refusal on the first stream uses this
--- session. The returned closer stops the session's work, closes the client,
--- its closing flush done, and only then ends the session's errors.
+-- session. The returned closer closes the client, its closing flush done, and
+-- only then ends the session: its work, and its errors once what the flush
+-- met is said.
 --
 -- Given a storage, the session has its client keep its persisted queries'
 -- values, and its stream's places, there for the person the kept sign-in
@@ -179,7 +180,7 @@ fromHttp http storage options = mask $ \restore -> do
   let stopped = mapM_ (stop . fst) keeps
   case outcome of
     Left problem -> (Client.dispose owned `finally` stopped) >> throwIO problem
-    Right session -> pure (OpenedSession session (halt session `finally` (Client.dispose owned
+    Right session -> pure (OpenedSession session (Client.dispose owned `finally` (halt session
       `finally` (stopped `finally` (void (waitCatch (forwarding session)) `finally` silence session)))))
 
 -- | What a session's client keeps for the person its sign-in names.
@@ -618,9 +619,14 @@ later session schedule = do
   writeIORef schedule (Schedule (Just (now+wait,Unanswered)) (min (2*step) (Timing.maxReconnectMs (timings session))))
 
 -- | Ends the session's work, observations and errors stream. The client
--- stays its owner's.
+-- stays its owner's: closed first, what its transport said is said before
+-- the errors end; still open, the errors end at once.
 dispose :: Session -> IO ()
-dispose session = halt session `finally` (cancel (forwarding session) `finally` silence session)
+dispose session = halt session `finally` (forwarded `finally` silence session)
+  where
+    forwarded = do
+      closed <- atomically ((== Transport.Closed) <$> State.current (streamState session))
+      if closed then void (waitCatch (forwarding session)) else cancel (forwarding session)
 
 halt :: Session -> IO ()
 halt session = Lifetime.close (life session) `finally`

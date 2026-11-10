@@ -299,4 +299,4 @@ sessionClockCases root fixtures = clockCasesFor root ["renewal"] $ \time row -> 
         (const (pure ())) now
   session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
   Session.ready session
-  pure (Scenario (pure ()) (readTVarIO calls) (Session.dispose session `finally` Client.dispose owned))
+  pure (Scenario (pure ()) (readTVarIO calls) (Client.dispose owned `finally` Session.dispose session))
