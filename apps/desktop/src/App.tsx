@@ -27,6 +27,7 @@ import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout, type ResourcePresenta
 import { KbNav } from './components/KbNav';
 import { WorkspaceTabs, localRootPathFromTabId, localRootTabId } from './components/WorkspaceTabs';
 import { ThemePanel } from './components/ThemePanel';
+import { LanguagePanel } from './components/LanguagePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
 import { LauncherStatusModal } from './components/LauncherStatusModal';
@@ -195,6 +196,7 @@ export function App() {
   // set and the pane is wide enough, the main pane splits (chat left, document right).
   const activeResource = activeKbTabUri === null ? null : activeResourcesByKb[activeKbTabUri] ?? null;
   const [showTheme, setShowTheme] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showInference, setShowInference] = useState(false);
   const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
@@ -981,6 +983,7 @@ export function App() {
             onOpenMcp={openMcp}
             mcpStatus={mcpStatus}
             onOpenTheme={() => setShowTheme(true)}
+            onOpenLanguage={() => setShowLanguage(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
@@ -1028,6 +1031,7 @@ export function App() {
       {showTheme && (
         <ThemePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowTheme(false)} />
       )}
+      {showLanguage && <LanguagePanel onClose={() => setShowLanguage(false)} />}
       {showAbout && (
         <AboutModal
           version={appVersion}

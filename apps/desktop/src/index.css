@@ -660,6 +660,31 @@ button.kb-location-picker__entry:hover {
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
 }
 
+.language-modal {
+  max-width: 32rem;
+}
+.language-modal__label {
+  display: block;
+  margin-bottom: -0.75rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.language-modal__select {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+.language-modal__hint {
+  margin: -0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .config--launcher-status {
   max-width: 72rem;
 }

@@ -1,21 +1,54 @@
-import type { ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { LOCALES, type LocaleCode } from '@semiont/core';
 import { ErrorBoundary, TranslationProvider } from '@semiont/react-ui';
+import { getPref, setPref } from './lib/prefs';
+
+const LOCALE_KEY = 'locale';
+interface DesktopLocaleContextValue {
+  locale: LocaleCode;
+  setLocale: (locale: LocaleCode) => Promise<void>;
+  loaded: boolean;
+}
+const DesktopLocaleContext = createContext<DesktopLocaleContextValue | null>(null);
+
+export function useDesktopLocale(): DesktopLocaleContextValue {
+  const value = useContext(DesktopLocaleContext);
+  if (value === null) throw new Error('useDesktopLocale must be used within AppProviders');
+  return value;
+}
 
 /**
- * What every react-ui component chat renders needs above it.
+ * Providers every Desktop screen and react-ui component needs above it.
  *
- * This provider is where chat states its language: English, as chat's own copy is.
- * react-ui's annotation entries read it from here, and each `ResourceViewer` is handed its
- * manager (`useTranslationManager()`) as the language prop the viewer requires. The
+ * The selected language is persisted in Desktop preferences and supplied to react-ui's
+ * translation provider. App-specific copy remains English for now. Each `ResourceViewer`
+ * is handed its manager (`useTranslationManager()`) as the language prop the viewer requires. The
  * boundary sits outside the provider, so a component that fails to render, or a locale that fails to load, shows the failure
  * instead of leaving an empty window.
  */
 export function AppProviders({ children }: { children: ReactNode }) {
+  const [locale, setLocaleState] = useState<LocaleCode>('en');
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void getPref(LOCALE_KEY, 'en').then((saved) => {
+      setLocaleState(LOCALES.find((entry) => entry.code === saved)?.code ?? 'en');
+      setLoaded(true);
+    });
+  }, []);
+
+  const setLocale = useCallback(async (nextLocale: LocaleCode) => {
+    setLocaleState(nextLocale);
+    await setPref(LOCALE_KEY, nextLocale);
+  }, []);
+
   return (
     <ErrorBoundary fallback={(error, reset) => <RenderFailure error={error} onRetry={reset} />}>
-      <TranslationProvider locale="en" loadingComponent={<p className="app__connecting">Loading…</p>}>
-        {children}
-      </TranslationProvider>
+      <DesktopLocaleContext.Provider value={{ locale, setLocale, loaded }}>
+        <TranslationProvider locale={locale} loadingComponent={<p className="app__connecting">Loading…</p>}>
+          {children}
+        </TranslationProvider>
+      </DesktopLocaleContext.Provider>
     </ErrorBoundary>
   );
 }
