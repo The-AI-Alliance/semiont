@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron';
+import { shell } from 'electron';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { RETRY_RULES, isNumber, isObject, isString } from '@semiont/core';
@@ -20,6 +20,7 @@ import type { Resumed } from '../src/lib/auth-bridge';
 import { openLoopbackRedirect } from './loopback';
 import { appendLog, configDir } from './paths';
 import { FileSessionStorage } from './session-file';
+import { handleTrustedIpc } from './ipc-security';
 
 // Everything chat says to a knowledge base's issuer is said from here (the renderer reaches
 // it through `window.authBridge`, src/lib/auth-bridge.ts). An issuer answers the origins its
@@ -192,10 +193,10 @@ async function answered<T>(what: string, work: () => Promise<T>): Promise<{ valu
 }
 
 export function registerAuthHandlers(): void {
-  ipcMain.handle('auth:resume', (_event, kbId: unknown) => answered('resume', () => resume(kbIdOf(kbId))));
-  ipcMain.handle('auth:sign-in', (_event, kbId: unknown, address: unknown) =>
+  handleTrustedIpc('auth:resume', (_event, kbId: unknown) => answered('resume', () => resume(kbIdOf(kbId))));
+  handleTrustedIpc('auth:sign-in', (_event, kbId: unknown, address: unknown) =>
     answered('sign-in', () => signIn(kbIdOf(kbId), endpointOf(address))),
   );
-  ipcMain.handle('auth:refresh', (_event, kbId: unknown, holding: unknown) => renew(kbIdOf(kbId), holdingOf(holding)));
-  ipcMain.handle('auth:sign-out', (_event, kbId: unknown) => signOut(kbIdOf(kbId)));
+  handleTrustedIpc('auth:refresh', (_event, kbId: unknown, holding: unknown) => renew(kbIdOf(kbId), holdingOf(holding)));
+  handleTrustedIpc('auth:sign-out', (_event, kbId: unknown) => signOut(kbIdOf(kbId)));
 }

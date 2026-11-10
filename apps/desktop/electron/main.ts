@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, Menu, net, protocol, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
@@ -12,6 +12,7 @@ import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
 import { ControlClient } from './control-client';
 import { registerControlHandlers } from './control-ipc';
+import { handleTrustedIpc, onTrustedIpc } from './ipc-security';
 import { appendLog, configDir, logPath } from './paths';
 
 protocol.registerSchemesAsPrivileged([{
@@ -217,7 +218,7 @@ const control = new ControlClient(
 );
 registerControlHandlers(control);
 
-ipcMain.handle('dialog:choose-directory', async () => {
+handleTrustedIpc('dialog:choose-directory', async () => {
   const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
   return result.canceled ? null : result.filePaths[0] ?? null;
 });
@@ -297,9 +298,9 @@ async function ollamaInfo(): Promise<OllamaInfo> {
   return { executablePath, endpoint: null, models: [] };
 }
 
-ipcMain.handle('system:ollama-info', () => ollamaInfo());
+handleTrustedIpc('system:ollama-info', () => ollamaInfo());
 
-ipcMain.handle('system:git-path', async () => {
+handleTrustedIpc('system:git-path', async () => {
   const pathValue = launcherEnvironment().PATH ?? '';
   const executableNames = process.platform === 'win32' ? ['git.exe', 'git.cmd', 'git.bat'] : ['git'];
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
@@ -316,7 +317,7 @@ ipcMain.handle('system:git-path', async () => {
   return null;
 });
 
-ipcMain.handle('system:op-path', async () => {
+handleTrustedIpc('system:op-path', async () => {
   const pathValue = launcherEnvironment().PATH ?? '';
   const executableNames = process.platform === 'win32' ? ['op.exe'] : ['op'];
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
@@ -375,9 +376,9 @@ async function mcpProcessStatus(): Promise<McpProcessStatus> {
   };
 }
 
-ipcMain.handle('mcp:status', () => mcpProcessStatus());
+handleTrustedIpc('mcp:status', () => mcpProcessStatus());
 
-ipcMain.handle('mcp:start', async () => {
+handleTrustedIpc('mcp:start', async () => {
   if (mcpChild !== null) return mcpProcessStatus();
   mcpError = null;
   mcpStopping = false;
@@ -415,7 +416,7 @@ ipcMain.handle('mcp:start', async () => {
   return mcpProcessStatus();
 });
 
-ipcMain.handle('mcp:stop', async () => {
+handleTrustedIpc('mcp:stop', async () => {
   const child = mcpChild;
   if (child === null) return mcpProcessStatus();
   mcpStopping = true;
@@ -488,7 +489,7 @@ function setApplicationMenu(): void {
   ]));
 }
 
-ipcMain.on('log:append', (_event, line: string) => appendLog(String(line)));
+onTrustedIpc('log:append', (_event, line: string) => appendLog(String(line)));
 process.on('uncaughtException', (err) => appendLog(`${new Date().toISOString()} [main uncaught] ${err.stack ?? String(err)}`));
 
 // Per-user runtime config (the KBs): an XDG TOML file at
@@ -503,18 +504,18 @@ function readConfigText(): string | null {
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
 }
 
-ipcMain.handle('config:read', () => {
+handleTrustedIpc('config:read', () => {
   return readConfigText();
 });
 
-ipcMain.handle('config:write', (_event, toml: string) => {
+handleTrustedIpc('config:write', (_event, toml: string) => {
   const path = configPath();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, toml, { mode: 0o600 });
   chmodSync(path, 0o600); // enforce 0600 on an existing file too
 });
 
-ipcMain.handle('config:kb-route', (_event, gatewayUrl: string) => {
+handleTrustedIpc('config:kb-route', (_event, gatewayUrl: string) => {
   let origin: string;
   try {
     parseKbUri(gatewayUrl);
@@ -535,12 +536,12 @@ function historyPath(): string {
   return join(configDir(), 'history.json');
 }
 
-ipcMain.handle('history:read', () => {
+handleTrustedIpc('history:read', () => {
   const path = historyPath();
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
 });
 
-ipcMain.handle('history:write', (_event, json: string) => {
+handleTrustedIpc('history:write', (_event, json: string) => {
   const path = historyPath();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, json, { mode: 0o600 });
@@ -552,12 +553,12 @@ function prefsPath(): string {
   return join(configDir(), 'prefs.json');
 }
 
-ipcMain.handle('prefs:read', () => {
+handleTrustedIpc('prefs:read', () => {
   const path = prefsPath();
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
 });
 
-ipcMain.handle('prefs:write', (_event, json: string) => {
+handleTrustedIpc('prefs:write', (_event, json: string) => {
   const path = prefsPath();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, json);
@@ -571,7 +572,7 @@ ipcMain.handle('prefs:write', (_event, json: string) => {
 let preGrowBounds: Electron.Rectangle | null = null;
 let grownWidth: number | null = null;
 
-ipcMain.handle('window:ensure-width', (event, desired: number) => {
+handleTrustedIpc('window:ensure-width', (event, desired: number) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const want = Math.round(Number(desired));
   if (!win || !Number.isFinite(want) || want <= 0 || win.isMaximized() || win.isFullScreen()) return;
@@ -586,7 +587,7 @@ ipcMain.handle('window:ensure-width', (event, desired: number) => {
   win.setBounds({ ...bounds, x, width });
 });
 
-ipcMain.handle('window:restore-width', (event) => {
+handleTrustedIpc('window:restore-width', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win && preGrowBounds !== null && grownWidth !== null && win.getBounds().width === grownWidth) {
     win.setBounds(preGrowBounds);
