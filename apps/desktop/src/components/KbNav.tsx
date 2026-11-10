@@ -38,6 +38,7 @@ export interface KbNavProps {
   onOpenTelemetry: () => void;
   onOpenRuntime: () => void;
   onOpenKnowledgeBase: () => void;
+  onOpenKnowledgeBaseUsers: () => void;
 }
 
 function hostOf(uri: string): string {
@@ -65,12 +66,12 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
+      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
     </nav>
   );
 }
 
-function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
+function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -118,6 +119,7 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onO
                 <section className="semiont-menu__group" aria-labelledby="semiont-menu-kb">
                   <h2 id="semiont-menu-kb">Knowledge Base</h2>
                   <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Record</span></button>
+                  <button type="button" onClick={() => choose(onOpenKnowledgeBaseUsers)}><WorkersIcon /><span>Users</span></button>
                   <button type="button" onClick={() => choose(() => onOpenServiceGroup('record'))}><RecordIcon /><span>Services</span></button>
                 </section>
               )}

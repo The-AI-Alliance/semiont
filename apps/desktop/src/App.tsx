@@ -33,6 +33,7 @@ import { InferenceModal } from './components/InferenceModal';
 import { RemoteServiceModal, type RemoteService } from './components/RemoteServiceModal';
 import { ServiceGroupModal, type DesktopServiceGroup } from './components/ServiceGroupModal';
 import { KnowledgeBaseModal, KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
+import { KnowledgeBaseUsersModal } from './components/KnowledgeBaseUsersModal';
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
@@ -206,6 +207,7 @@ export function App() {
   const [serviceGroup, setServiceGroup] = useState<DesktopServiceGroup | null>(null);
   const [showKnowledgeBasePicker, setShowKnowledgeBasePicker] = useState(false);
   const [showKnowledgeBaseDetails, setShowKnowledgeBaseDetails] = useState(false);
+  const [showKnowledgeBaseUsers, setShowKnowledgeBaseUsers] = useState(false);
   const [focusKnowledgeBaseSearch, setFocusKnowledgeBaseSearch] = useState(false);
   const [knowledgeBaseSelectedPath, setKnowledgeBaseSelectedPath] = useState<string | null>(null);
   const [logsRoot, setLogsRoot] = useState<KnowledgeBaseRow | null>(null);
@@ -990,6 +992,10 @@ export function App() {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
             }}
+            onOpenKnowledgeBaseUsers={() => {
+              setShowKnowledgeBaseUsers(true);
+              refreshKnowledgeBases();
+            }}
           />
           {showWorkspaceNav && (
             <div
@@ -1087,6 +1093,13 @@ export function App() {
           onClose={() => {
             if (logsRoot === null) setShowKnowledgeBaseDetails(false);
           }}
+        />
+      )}
+      {showKnowledgeBaseUsers && (
+        <KnowledgeBaseUsersModal
+          root={activeKnowledgeBaseRoot}
+          kb={activeKb}
+          onClose={() => setShowKnowledgeBaseUsers(false)}
         />
       )}
       {logsRoot !== null && <KnowledgeBaseLogsModal root={logsRoot} onClose={() => setLogsRoot(null)} />}
