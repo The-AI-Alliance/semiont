@@ -96,6 +96,21 @@ export class TestStorage extends InMemorySessionStorage {
   }
 }
 
+/** A storage that refuses every write while `refusing` is set. */
+export class RefusingStorage extends TestStorage {
+  refusing = false;
+
+  override set(key: string, value: string): void {
+    if (this.refusing) throw new Error(`refused: ${key}`);
+    super.set(key, value);
+  }
+
+  override update(key: string, change: (stored: string | null) => string | null): void {
+    if (this.refusing) throw new Error(`refused: ${key}`);
+    super.update(key, change);
+  }
+}
+
 /** What every context's handle on a `SharedStorage` reads and writes, and who listens from which context. */
 interface Shared {
   stored: Map<string, string>;

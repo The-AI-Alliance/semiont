@@ -8,7 +8,6 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -19,11 +18,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.errors.SessionError
-import semiont.errors.TransportError
-import semiont.errors.TransportErrorCode
 import semiont.http.tokenFor
 import semiont.session.OpenedSession
-import semiont.session.PermissionDenied
 import semiont.storage.MemoryStorage
 import semiont.testing.ScriptedSessions
 import semiont.types.KbRead
@@ -328,60 +324,7 @@ class RegistryTest {
         }
     }
 
-    // What its sessions say: the registry is the one reader of each session's errors.
-
-    @Test
-    fun whatASessionSaysOfItsOwnBeforeTheRegistryReadsIsSaidOnTheRegistrysErrors() = runBlocking {
-        val world = World().with(kbOfA())
-        // Its gateway cannot say who a token is, so the session says so as it starts: before the factory hands it back.
-        val sessions = ScriptedSessions(world.factory.behind::answer)
-        SemiontBrowser(SemiontBrowserConfig(world.storage, ReadyFirst(sessions))).use { browser ->
-            val said = soon { firstOf(browser.errors()) }
-            assertEquals("session.auth-failed" to KB_A, said.code to said.kbId)
-            assertTrue("who a token of '$KB_A' is" in said.message, said.message)
-        }
-    }
-
-    @Test
-    fun aRefusalForWantOfAValidTokenRenewsTheSessionHandedTheTokenItHolds() = runBlocking {
-        val world = World().with(kbOfA())
-        world.browser().use { browser ->
-            val session = live(browser)
-            assertNotNull(session.token.value)
-            val renewed = tokenFor("renewed")
-            world.factory.sessions.queueRenewals(renewed)
-            world.factory.sessions.transports(KB_A).single().fail(TransportError(TransportErrorCode.Unauthorized, "the token is refused"))
-            eventually("the session renewed its token") { session.token.value == renewed }
-            // A refresh handed any token but the one the session holds renews nothing: this one renewed.
-            assertEquals(1, world.factory.sessions.renewed)
-        }
-    }
-
-    @Test
-    fun aRefusalForLackOfPermissionIsSaidThroughTheSessionsSignals() = runBlocking {
-        val world = World().with(kbOfA())
-        world.browser().use { browser ->
-            live(browser)
-            val signals = checkNotNull(browser.activeSignals.value)
-            world.factory.sessions.transports(KB_A).single().fail(TransportError(TransportErrorCode.Forbidden, "you may not delete this"))
-            eventually("the refusal is shown") { signals.permissionDenied.value != null }
-            assertEquals(PermissionDenied("you may not delete this"), signals.permissionDenied.value)
-        }
-    }
-
     // How it ends.
-
-    @Test
-    fun whatTheActiveSessionsClosingFlushMeetsIsSaidBeforeTheRegistrysErrorsEnd() = runBlocking {
-        val world = World().with(kbOfA())
-        SemiontBrowser(SemiontBrowserConfig(world.storage, RefusedAsItCloses(world.factory.sessions))).use { browser ->
-            live(browser)
-            val errors = browser.errors()
-            browser.close()
-            // The registry's errors have ended, and what the session said as its client closed is among them.
-            assertEquals(listOf("session.save-refused" to KB_A), soon { errors.toList() }.map { it.code to it.kbId })
-        }
-    }
 
     @Test
     fun closingFromWithinTheRegistrysOwnWorkEndsItWithoutWaitingForItself() = runBlocking {

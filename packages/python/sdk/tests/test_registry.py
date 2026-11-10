@@ -60,10 +60,10 @@ from semiont.stored import (
     person_key,
     session_key,
 )
-from semiont.testing import FaultyTransport, ScriptedSessions, SharedStorage, create_test_client
+from semiont.testing import FaultyTransport, ScriptedSessions, SharedStorage
 from semiont.transport import Transport
-from semiont.types import HttpEndpoint, KbDescription, KbRead, KbTarget, KnowledgeBase, NewKnowledgeBase, UserResponse
-from semiont.watched import Variable, Watched, reached
+from semiont.types import HttpEndpoint, KbDescription, KbRead, KnowledgeBase, NewKnowledgeBase, UserResponse
+from semiont.watched import Watched, reached
 
 KB_A: Final = "kb-a"
 KB_B: Final = "kb-b"
@@ -1557,79 +1557,6 @@ def test_a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not()
             await settle()
             assert denied(browser) == PermissionDenied(detail="HTTP 403")
             assert session_ended(browser) is None
-
-    run(scenario())
-
-
-@final
-class ReadingNothing(SessionFactory):
-    """Sessions handed back once they are ready, so what each said as it started was said before anyone read it.
-
-    It reads nothing a session says, as `ScriptedSessions` does not: whatever
-    is said of a session here, the registry said. Nobody can say who a token
-    is, and each renewal gives `renewed`, recording the token it was handed.
-    """
-
-    def __init__(self, renewed: str) -> None:
-        self.renewed: Final = renewed
-        self.handed: Final[list[str | None]] = []
-        self.transports: Final[list[FaultyTransport]] = []
-
-    @override
-    @asynccontextmanager
-    async def session(self, options: SessionFactoryOptions) -> AsyncGenerator[SemiontSession[FaultyTransport]]:
-        transport = FaultyTransport()
-        client = create_test_client(transport=transport).client
-        self.transports.append(transport)
-
-        async def renew(holding: str | None) -> str | None:
-            self.handed.append(holding)
-            return self.renewed
-
-        async def who(_token: str) -> UserResponse:
-            raise TransportError("unavailable", "nobody can say who a token is")
-
-        session = SemiontSession(
-            kb=KbTarget(id=options.kb.id, label=options.kb.label, endpoint=options.kb.endpoint),
-            client=client,
-            token=Variable[str | None](None),
-            kept=kept_in(options.storage, options.kb.id),
-            refresh=renew,
-            validate=who,
-            on_auth_failed=options.signals.notify_session_ended,
-        )
-        try:
-            # Left client first, then the session.
-            async with session, client:
-                await session.ready()
-                yield session
-        finally:
-            await transport.close()
-
-    @override
-    async def revoke(self, stored: StoredSession) -> None:
-        pass
-
-
-def test_the_registry_reads_a_sessions_errors_from_the_first_thing_it_said_and_renews_it_with_the_token_it_holds() -> None:
-    async def scenario() -> None:
-        world = World().with_(kb_of_a())
-        stored = stored_session(world.storage, KB_A)
-        assert stored is not None
-        factory = ReadingNothing(renewed=token(7200, 2))
-        browser = SemiontBrowser(SemiontBrowserConfig(storage=world.storage, session_factory=factory))
-        errors = browser.errors()
-        async with browser:
-            session = await live(browser)
-            # Said as the session started, before its factory handed it over: the registry, its errors' first reader, says it.
-            said = await soon(anext(errors))
-            assert (said.code, said.kb_id) == ("session.auth-failed", KB_A)
-
-            # A refusal for want of a valid token renews it, handed the token it holds.
-            factory.transports[0].fail(TransportError.of_status("HTTP 401", 401, None))
-            await settle()
-            assert factory.handed == [stored.access]
-            assert session.token.value == factory.renewed
 
     run(scenario())
 

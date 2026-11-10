@@ -948,8 +948,9 @@ func TestASignInUnreadableAtASaveStopsTheClientKeepingAndIsSaidOnce(t *testing.T
 	}
 }
 
-// hearing is what a session says of its own on its errors stream, read from
-// as soon as it is made.
+// hearing is the failures of a session's own said on an errors stream: the
+// session's own stream, read from as soon as it is made (hear), or its
+// registry's (hearRegistry).
 type hearing struct {
 	said  chan *semiont.SessionError
 	ended chan struct{}
@@ -970,36 +971,41 @@ func hear(session *semiont.Session) *hearing {
 	return h
 }
 
-// next is the next failure the session says of its own, waited for up to
-// ten seconds; what is the failure the test waits for.
+// next is the next failure said, waited for up to ten seconds; what is the
+// failure the test waits for.
 func (h *hearing) next(t *testing.T, what string) *semiont.SessionError {
 	t.Helper()
 	select {
 	case said := <-h.said:
 		return said
 	case <-time.After(10 * time.Second):
-		t.Fatalf("the session never said %s on its errors stream", what)
+		t.Fatalf("never said on the errors stream: %s", what)
 		return nil
 	}
 }
 
-// rest is every failure said of its own and not yet taken, until the stream
-// ends, which it does once the session is ended: waited for up to ten
+// rest is every failure said and not yet taken, until the stream ends, which
+// it does once the session, or the registry, is ended: waited for up to ten
 // seconds.
 func (h *hearing) rest(t *testing.T) []*semiont.SessionError {
 	t.Helper()
 	select {
 	case <-h.ended:
 	case <-time.After(10 * time.Second):
-		t.Fatal("the session's errors stream did not end once the session was ended")
+		t.Fatal("the errors stream did not end once what says it was ended")
 	}
-	var rest []*semiont.SessionError
+	return h.sofar()
+}
+
+// sofar is every failure said and not yet taken, without waiting for more.
+func (h *hearing) sofar() []*semiont.SessionError {
+	var said []*semiont.SessionError
 	for {
 		select {
-		case said := <-h.said:
-			rest = append(rest, said)
+		case each := <-h.said:
+			said = append(said, each)
 		default:
-			return rest
+			return said
 		}
 	}
 }

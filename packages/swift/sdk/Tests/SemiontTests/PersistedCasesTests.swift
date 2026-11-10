@@ -1263,12 +1263,14 @@ private func owingASave(
   }
 }
 
-// A registry's close ends its live session, its client first, and reads that session's errors to
-// their end before it ends its own: a write the active session's closing flush cannot make is said
-// on the registry's errors before they end, and is what its close raises.
-@Test func aRegistrysCloseSaysItsActiveSessionsRefusedClosingSaveBeforeItsErrorsEnd()
-  async throws
-{
+/// Closes a registry over a gateway in this process once it has recorded what kb-a, its active
+/// knowledge base, says of itself (its last write) and its storage refuses every write, and gives
+/// `heard` what the close raised and every error the registry said from its close until its errors
+/// ended. When `owingASave`, kb-a's session's client has read res-1 and owes the save of its value,
+/// which on a clock that never moves waits for the client's close; otherwise it owes nothing.
+func closeARegistry(
+  owingASave: Bool, _ heard: @Sendable (_ raised: (any Error)?, _ said: [any Error]) throws -> Void
+) async throws {
   let table = try casesTable()
   let jo = try personKeyOf(table, "jo")
   let user = try JSONEncoder().encode(required(table, "whoAmI"))
@@ -1279,17 +1281,10 @@ private func owingASave(
     try storeSession(
       storage, kbId: "kb-a",
       session: signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
-    // On a clock that never moves, the save waits for the client's close.
     let clock = TestClock()
     let browser = try await newSemiontBrowser(
       SemiontBrowserConfig(
         storage: storage, sessionFactory: HttpSessionFactory(httpClient: http, clock: clock)))
-    let errors = browser.errors()
-    let said = Task { () async throws -> [any Error] in
-      var said: [any Error] = []
-      for try await error in errors { said.append(error) }
-      return said
-    }
     do {
       let opened = try await withinTestDeadline { () async throws -> OpenedSession in
         for await opened in browser.activeSession {
@@ -1297,29 +1292,49 @@ private func owingASave(
         }
         throw SpecFailure.shape("kb-a's session never opened")
       }
-      // The registry records what kb-a says of itself: its last write before the close.
       try await withinTestDeadline {
         for await bases in browser.knowledgeBases where bases.first?.lastRead != nil { return }
         throw SpecFailure.shape("kb-a was never read")
       }
-      let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
-      _ = try await withinTestDeadline { try await observed.first() }
-      observed.stop()
-      // The save is owed: due saveDebounceMs after the value.
-      let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
-      try await withinTestDeadline {
-        while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
+      if owingASave {
+        let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
+        _ = try await withinTestDeadline { try await observed.first() }
+        observed.stop()
+        // The save is owed: due saveDebounceMs after the value.
+        let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
+        try await withinTestDeadline {
+          while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
+        }
       }
     } catch {
       try? await browser.close()
       throw error
     }
+    let errors = browser.errors()
+    let said = Task { () async throws -> [any Error] in
+      var said: [any Error] = []
+      for try await error in errors { said.append(error) }
+      return said
+    }
     storage.setRefusing(true)
-    let raised = await #expect(throws: SessionError.self) { try await browser.close() }
-    #expect(raised?.reason == .sessionSaveRefused)
-    let heard = try await withinTestDeadline { try await said.value }
-    let refused = sessionErrors(heard, .sessionSaveRefused)
-    #expect(refused.map(\.kbId) == ["kb-a"], "\(heard)")
+    let raised: (any Error)?
+    do {
+      try await browser.close()
+      raised = nil
+    } catch {
+      raised = error
+    }
+    try heard(raised, try await withinTestDeadline { try await said.value })
+  }
+}
+
+// What a registry said first is what its close raises, though it says it as it closes: a write its
+// active session's closing flush cannot make.
+@Test func aRegistrysCloseRaisesTheClosingSaveItsActiveSessionCouldNotMake() async throws {
+  try await closeARegistry(owingASave: true) { raised, _ in
+    let refused = try #require(raised as? SessionError, "\(String(describing: raised))")
+    #expect(refused.reason == .sessionSaveRefused)
+    #expect(refused.kbId == "kb-a")
   }
 }
 

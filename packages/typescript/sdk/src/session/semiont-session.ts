@@ -203,9 +203,10 @@ export class SemiontSession implements StateUnit {
    * transport's failures, surfaced just before they are thrown to the
    * caller (for `HttpTransport` an `APIError`, status-coded). A registry
    * (`SemiontBrowser`) is the one reader of its sessions' errors, and routes
-   * them by `err.code`; headless consumers can subscribe for logging. What
-   * the session says of itself before anyone reads is kept for the first
-   * reader. It ends when the session does: the client's closing flush, made
+   * them by `err.code`; headless consumers can subscribe for logging.
+   * Everything the session says before anyone reads, its own errors and its
+   * transport's failures, is kept for the first reader, in the order it was
+   * said. It ends when the session does: the client's closing flush, made
    * first, says what it says before then, and what the client meets after
    * is said nowhere.
    */
@@ -218,8 +219,12 @@ export class SemiontSession implements StateUnit {
   readonly #heldUser$: BehaviorSubject<UserInfo | null>;
   /** What the session says on `errors$`, to every reader it has: its own errors and its transport's failures. */
   readonly #said = new Subject<SemiontError>();
-  /** Its own errors said before anyone read `errors$`, kept for the first reader; null once one has, or the session has ended. */
-  #keptForFirstReader: SemiontSessionError[] | null = [];
+  /**
+   * What the session said before anyone read `errors$`, its own errors and its
+   * transport's failures in the order it said them, kept for the first
+   * reader; null once one has, or the session has ended.
+   */
+  #keptForFirstReader: SemiontError[] | null = [];
   readonly #transportFailures: Subscription;
   /**
    * The token the session held last, or found stored at its start though it
@@ -256,7 +261,7 @@ export class SemiontSession implements StateUnit {
     this.token$ = watched(this.#heldToken$);
     this.#heldUser$ = new BehaviorSubject<UserInfo | null>(null);
     this.user$ = watched(this.#heldUser$);
-    this.#transportFailures = this.client.transport.errors$.subscribe((failure) => this.#said.next(failure));
+    this.#transportFailures = this.client.transport.errors$.subscribe((failure) => this.#say(failure));
     this.errors$ = new Observable<SemiontError>((reader) => {
       const kept = this.#keptForFirstReader;
       this.#keptForFirstReader = null;
@@ -405,8 +410,8 @@ export class SemiontSession implements StateUnit {
     this.#say(new SemiontSessionError(code, why, this.kb.id));
   }
 
-  /** Say `error` on `errors$`, kept for the first reader while nobody has read. */
-  #say(error: SemiontSessionError): void {
+  /** Say `error`, one of the session's own or its transport's failure, on `errors$`, kept for the first reader while nobody has read. */
+  #say(error: SemiontError): void {
     if (this.#keptForFirstReader !== null) this.#keptForFirstReader.push(error);
     this.#said.next(error);
   }

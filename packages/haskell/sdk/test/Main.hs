@@ -52,6 +52,7 @@ import ActorCases (actorCases)
 import TestingCases (testingCases)
 import RegistryCases (registryCases)
 import OpenResourceCases (openResourceCases)
+import RegistryErrorsCases (registryErrorsCases)
 import RegistryRuntimeCases (registryRuntimeCases)
 import LifetimeCases (lifetimeCases)
 import CacheCases (cacheCases)
@@ -425,6 +426,7 @@ runCases root = do
   testingCases fixtures
   registryCases root fixtures
   openResourceCases root fixtures
+  registryErrorsCases root fixtures
   persistenceCases fixtures
   cacheDocumentCases root
   persistedCases root fixtures

@@ -260,13 +260,9 @@ forgetPart fixtures table jo = do
 
 -- | Waits for probe, the controlled clock moved on by a reconnect's debounce at a time, a hundred times at most.
 eventually :: Time.ControlledTime -> Text -> String -> IO Bool -> IO ()
-eventually time why what probe = go (100 :: Int)
-  where
-    go left = do
-      Time.settle
-      held <- probe
-      unless held $ if left == 0 then failure why ("never saw " ++ what)
-        else Time.advance time (Timing.reconnectDebounceMs Timing.protocolSettings * 1000000) >> go (left - 1)
+eventually time why what probe = do
+  seen <- Time.within time (Timing.reconnectDebounceMs Timing.protocolSettings * 1000000) probe
+  unless seen (failure why ("never saw " ++ what))
 
 agreeOn :: (Eq value, Show value) => Text -> String -> value -> value -> IO ()
 agreeOn why what found tabled = unless (found == tabled) (failure why (what ++ ": " ++ show found ++ "; the table's is " ++ show tabled))

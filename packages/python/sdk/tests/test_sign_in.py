@@ -64,7 +64,7 @@ from semiont.sign_in_store import FILE_NAME, SignInStore
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import KEPT_QUERIES, cache_key, last_event_id_key, person_key
 from semiont.testing import create_test_client
-from semiont.timing import DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, MIN_REFRESH_DELAY_MS
+from semiont.timing import DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, MAX_RECONNECT_MS, MIN_REFRESH_DELAY_MS
 from semiont.types import HttpEndpoint, KbTarget, LocalEndpoint, UserResponse
 from semiont.watched import Variable, Watched, reached
 
@@ -1589,6 +1589,17 @@ def describing(gateway: GatewayServer) -> Callable[[JsonObject], None]:
     return answering
 
 
+async def renewed_on_the_backoff(token: Watched[str | None], renewed: str) -> str | None:
+    """`token` once the reconnect backoff has renewed it to `renewed`, with the loop's clock moved ahead meanwhile (`hurried`).
+
+    Bounded on that clock, which `hurried` moves: the backoff's first wait is
+    up to `RECONNECT_MS` of it before the renewal is even asked for, all of
+    `soon`'s default. `MAX_RECONNECT_MS`, its longest wait, leaves the renewal
+    time to be answered.
+    """
+    return await soon(hurried(reached(token, lambda held_token: held_token == renewed)), within=MAX_RECONNECT_MS / 1000)
+
+
 def said_by_the_session(said: Sequence[SemiontError]) -> list[tuple[str, str]]:
     """What a session said of itself on its errors stream: each of its own failures' code and knowledge base, in order."""
     return [(error.code, error.kb_id) for error in said if isinstance(error, SessionError)]
@@ -1658,7 +1669,7 @@ def test_a_renewal_at_the_start_that_cannot_read_the_sign_in_got_no_answer_says_
 
                 # The sign-in can be read again: the reconnect backoff renews it, and asks who the token is.
                 kept.readable = True
-                assert await soon(hurried(reached(session.token, lambda held_token: held_token == renewed))) == renewed
+                assert await renewed_on_the_backoff(session.token, renewed) == renewed
                 assert len(gateway.of("POST", TOKEN)) == 1
                 assert await kept.held() == held(gateway, renewed, "refresh-2")
             assert told == []
@@ -1690,7 +1701,7 @@ def test_a_renewal_that_cannot_read_the_sign_in_got_no_answer_says_so_and_is_tri
                 # refused, so the issuer is asked, and the refused token is not handed back.
                 kept.failing = False
                 assert await kept.held() == held(gateway, first)
-                assert await soon(hurried(reached(session.token, lambda held_token: held_token == renewed))) == renewed
+                assert await renewed_on_the_backoff(session.token, renewed) == renewed
                 assert [form(asked)["refresh_token"] for asked in gateway.of("POST", TOKEN)] == ["refresh-1"]
             assert told == []
             assert said_by_the_session(await heard.ended()) == [("session.refresh-exhausted", "kb")]
@@ -1719,7 +1730,7 @@ def test_a_renewal_on_the_backoff_is_handed_the_token_the_gateway_refused_and_as
 
                 # The reconnect backoff renews the token that renewal was for: the issuer is asked again, and the
                 # token the gateway refused is not handed back without a grant.
-                assert await soon(hurried(reached(session.token, lambda held_token: held_token == renewed))) == renewed
+                assert await renewed_on_the_backoff(session.token, renewed) == renewed
                 assert len(gateway.of("POST", TOKEN)) == 5
                 assert await kept.held() == held(gateway, renewed, "refresh-2")
             assert told == []

@@ -61,6 +61,9 @@ has closed, ends `errors` after what that client's transport said;
 ends the session, so what the flush meets is said before `errors` ends. A
 registry reads each session's `errors` itself: a refusal for want of a valid
 token renews the session, handed the token it holds as the refusal is read.
+Closing a registry closes its sessions before the rest of its work, reading
+each one's `errors` to their end, so what a closing flush meets is said on
+the registry's `errors` before they end.
 
 ```haskell
 module DeviceSignIn where

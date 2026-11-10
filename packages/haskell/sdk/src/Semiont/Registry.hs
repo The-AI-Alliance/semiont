@@ -81,7 +81,7 @@ data SemiontBrowser = SemiontBrowser
   , identity :: State.StateValue (Maybe Text), failures :: Broadcast.Broadcast SessionError
   , openByKb :: TVar (KM.KeyMap Value), viewedByKb :: TVar (KM.KeyMap Value)
   , detach :: TVar (IO ()), backgroundFailures :: TVar [SomeException]
-  , registryBus :: Local.EventBus, retired :: TQueue Live, closing :: MVar (Maybe (Async ()))
+  , registryBus :: Local.EventBus, retired :: TQueue Live, closing :: MVar (Maybe (Async ())), disposing :: TVar Bool
   }
 
 storage :: SemiontBrowser -> Storage.SessionStorage
@@ -141,7 +141,7 @@ newSemiontBrowser config = mask $ \restore -> do
     <*> State.newStateValue initial <*> State.newStateValue chosen <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> State.newStateValue False <*> State.newStateValue [] <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> Broadcast.newEvents <*> newTVar (fromMaybe KM.empty (document rawOpened)) <*> newTVar (fromMaybe KM.empty (document rawViewed))
-    <*> newTVar (pure ()) <*> newTVar [] <*> pure applicationBus <*> newTQueue <*> pure closer
+    <*> newTVar (pure ()) <*> newTVar [] <*> pure applicationBus <*> newTQueue <*> pure closer <*> newTVar False
   let initialize=do
         saveKnowledgeBases store initial
         maybe (Storage.delete store activeKey) (Storage.set store activeKey) chosen
@@ -193,9 +193,11 @@ drainRetired owner=do
 setActiveKb :: SemiontBrowser -> Maybe Text -> IO ()
 setActiveKb owner requested=Lifetime.run (lifetime owner) $ mask $ \restore -> do
   selectedVersion <- atomically $ do
+    ending <- readTVar (disposing owner)
     existing <- readTVar (live owner)
     current <- State.current (selected owner)
     case existing of
+      _ | ending -> pure Nothing
       Just _ | current==requested -> pure Nothing
       _ -> do
         modifyTVar' (revision owner) (+1)
@@ -262,8 +264,7 @@ activate owner version key=do
             Right () -> do
               accepted <- atomically $ do
                 current <- readTVar (revision owner)
-                stopped <- Lifetime.isClosed (lifetime owner)
-                if current/=version || stopped then pure False else do
+                if current/=version then pure False else do
                   writeTVar (live owner) (Just owned)
                   State.update (connected owner) (Just session)
                   State.update (notices owner) (Just signals)
@@ -499,19 +500,16 @@ dispose owner=mask $ \restore -> do
   closer <- modifyMVar (closing owner) $ \prior -> case prior of
     Just worker -> pure (prior,worker)
     Nothing -> do
-      atomically (modifyTVar' (revision owner) (+1))
+      atomically (modifyTVar' (revision owner) (+1) >> writeTVar (disposing owner) True)
       worker <- tracedAsync $ do
-        Lifetime.close (lifetime owner) `finally` do
+        let closeViews=atomically $ do
+              State.complete (registered owner); State.complete (selected owner); State.complete (connected owner); State.complete (notices owner)
+              State.complete (activating owner); State.complete (opened owner); State.complete (viewed owner); State.complete (identity owner)
+              Broadcast.close (failures owner)
+        -- Sessions close while the registry's work still runs, so each one's errors are read to their end.
+        (atomically (void (takeLive owner)) >> drainRetired owner) `finally` (Lifetime.close (lifetime owner) `finally` do
           unsubscribe <- atomically $ do action<-readTVar (detach owner); writeTVar (detach owner) (pure ()); pure action
-          unsubscribe `finally` do
-            let closeConnections=withMVar (activation owner) $ \() -> do
-                  atomically (void (takeLive owner))
-                  drainRetired owner
-                closeViews=atomically $ do
-                  State.complete (registered owner); State.complete (selected owner); State.complete (connected owner); State.complete (notices owner)
-                  State.complete (activating owner); State.complete (opened owner); State.complete (viewed owner); State.complete (identity owner)
-                  Broadcast.close (failures owner)
-            closeConnections `finally` (Local.closeEventBus (registryBus owner) `finally` closeViews)
+          unsubscribe `finally` (Local.closeEventBus (registryBus owner) `finally` closeViews))
         problems <- readTVarIO (backgroundFailures owner)
         case problems of first:_->throwIO first; []->pure ()
       pure (Just worker,worker)

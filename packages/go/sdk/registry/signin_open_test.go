@@ -828,39 +828,13 @@ func (f *startedSessions) last() *semionttest.FaultyTransport {
 	return f.transports[len(f.transports)-1]
 }
 
-// The registry is the one reader of each session's errors, from the first
-// thing the session said: a failure of the session's own, said as it started
-// and before the factory handed it back, is said on the registry's errors.
-func TestASessionsOwnFailureSaidBeforeTheRegistryReadsIsSaidOnTheRegistrysErrors(t *testing.T) {
-	bubble(t, func(t *testing.T, w *world) {
-		w.with(kbOfA())
-		gate := gated{SessionFactory: &startedSessions{}, open: make(chan struct{})}
-		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: gate})
-		must(t, err)
-		closedAtTheEnd(t, browser)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-		errs := browser.Errors(ctx)
-		close(gate.open)
-
-		var said *semiont.SessionError
-		for err := range errs {
-			said = err
-			break
-		}
-		if said == nil || said.Code != semiont.SessionErrorCodeAuthFailed || said.KbID != kbA {
-			t.Errorf("the failure said is %+v; the session said %s of kb-a as it started", said, semiont.SessionErrorCodeAuthFailed)
-		}
-	})
-}
-
-// A refusal for want of a valid token renews the session, handed the token
-// the session holds as the registry reads the refusal, and the session goes
-// on signed in.
+// A refusal for want of a valid token that a renewal answers leaves the
+// session signed in, on the renewed token, with its credential still stored.
+// That the renewal is handed the token the session held is the case table's
+// (registry_errors_cases_test.go).
 func TestARefusalForWantOfATokenRenewsTheSessionQuietlyWhenItCan(t *testing.T) {
 	bubble(t, func(t *testing.T, w *world) {
 		w.with(kbOfA())
-		held, _ := registry.StoredSessionOf(w.storage, kbA)
 		person := alice()
 		sessions := &startedSessions{who: &person, renewed: jwt(2 * time.Hour)}
 		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: sessions})
@@ -871,9 +845,6 @@ func TestARefusalForWantOfATokenRenewsTheSessionQuietlyWhenItCan(t *testing.T) {
 		sessions.last().Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
 		settle()
 
-		if handed := sessions.renewals(); !slices.Equal(handed, []string{held.Access}) {
-			t.Errorf("%d renewals were asked for, handed %v; want one, handed the token the session held", len(handed), handed)
-		}
 		if session.Token().Value() != sessions.renewed || sessionEnded(browser) != nil {
 			t.Error("the session was not renewed quietly")
 		}
@@ -937,28 +908,32 @@ func TestARefusalWithNothingStoredIsBeingSignedOutAndNotAnExpiry(t *testing.T) {
 	})
 }
 
-func TestARefusalForLackOfPermissionIsSaidAndAnyOtherFailureIsNot(t *testing.T) {
+// What the case table's rows do not say of a session's transport failures
+// (registry_errors_cases_test.go holds what they do): a conflict is acted on
+// in no way, and no failure but a refusal of the session's token ends the
+// session, a refusal for lack of permission among them.
+func TestAConflictIsNotActedOnAndNoOtherFailureEndsTheSession(t *testing.T) {
 	bubble(t, func(t *testing.T, w *world) {
 		browser := w.with(kbOfA()).browser()
 		live(t, browser)
 		transport := w.factory.sessions.Transports(kbA)[0]
 
-		transport.Fail(refusal(semiont.TransportErrorCodeNotFound, 404))
 		transport.Fail(refusal(semiont.TransportErrorCodeConflict, 409))
-		transport.Fail(refusal(semiont.TransportErrorCodeError, 500))
-		transport.Fail(refusal(semiont.TransportErrorCodeUnavailable, 503))
 		settle()
 		if denied(browser) != nil || sessionEnded(browser) != nil || w.factory.sessions.Renewed() != 0 {
-			t.Error("a failure that is no refusal of a token or of permission was acted on")
+			t.Error("a conflict was acted on")
 		}
 
+		transport.Fail(refusal(semiont.TransportErrorCodeNotFound, 404))
+		transport.Fail(refusal(semiont.TransportErrorCodeError, 500))
+		transport.Fail(refusal(semiont.TransportErrorCodeUnavailable, 503))
 		transport.Fail(refusal(semiont.TransportErrorCodeForbidden, 403))
 		settle()
-		if got := denied(browser); got == nil || got.Detail == nil || *got.Detail != "HTTP 403" {
-			t.Errorf("the refusal said is %+v", got)
+		if denied(browser) == nil {
+			t.Fatal("the failures were not read: the refusal for lack of permission after them is not said")
 		}
 		if sessionEnded(browser) != nil {
-			t.Error("a refusal of permission ended the session")
+			t.Error("a failure that is no refusal of the session's token ended the session")
 		}
 	})
 }
