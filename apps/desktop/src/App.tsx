@@ -929,6 +929,10 @@ export function App() {
     : activeKbUri === null
       ? null
       : knowledgeBaseRows.find((root) => [root.configuredUri, root.gatewayUrl].some((uri) => uri !== undefined && normalizeGatewayUri(uri) === normalizeGatewayUri(activeKbUri))) ?? null;
+  const activeKbConnected = activeRootPath !== null
+    ? activeKnowledgeBaseRoot?.activeSessionUri !== undefined
+    : activeConn?.opened !== undefined;
+  const showWorkspaceNav = activeKbTabUri === null || activeKbConnected;
 
   return (
     <>
@@ -952,8 +956,9 @@ export function App() {
           onClose={closeKbTab}
           onAdd={() => openKnowledgeBases(true)}
         />
-        <div className="app__body" style={{ gridTemplateColumns: `${sidebarWidth}px 1px 1fr` }}>
+        <div className="app__body" style={{ gridTemplateColumns: showWorkspaceNav ? `${sidebarWidth}px 1px 1fr` : '0px 1fr' }}>
           <KbNav
+            showWorkspaceContent={showWorkspaceNav}
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
             hasActiveKbTab={activeKbTabUri !== null}
@@ -982,15 +987,17 @@ export function App() {
               refreshKnowledgeBases();
             }}
           />
-          <div
-            className="app__resizer"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize sidebar"
-            tabIndex={0}
-            onPointerDown={startResize}
-            onKeyDown={nudgeResize}
-          />
+          {showWorkspaceNav && (
+            <div
+              className="app__resizer"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize sidebar"
+              tabIndex={0}
+              onPointerDown={startResize}
+              onKeyDown={nudgeResize}
+            />
+          )}
           <MainPane
             viewerPrefs={viewerPrefs}
             hasOpenKb={activeKbTabUri !== null}

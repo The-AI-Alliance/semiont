@@ -9,6 +9,8 @@ import type { ResourcePresentation } from '../lib/split-layout';
 /** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
 export interface KbNavProps {
+  /** Hide KB-specific navigation while the active tab has no SDK session. */
+  showWorkspaceContent: boolean;
   kbs: KbEntry[];
   hasLocalRootTab: boolean;
   hasActiveKbTab: boolean;
@@ -48,16 +50,18 @@ export function KbNav(props: KbNavProps) {
   const { kbs } = props;
 
   return (
-    <nav className="nav">
-      <div className="nav__content">
-        {kbs.length === 0 ? (
-          <div className="nav__empty">
-            <p>{props.hasLocalRootTab ? 'This Knowledge Base is not connected yet.' : 'No Knowledge Base tab is open.'}</p>
-          </div>
-        ) : (
-          kbs.map((kb) => <KbNavItem key={kb.uri} kb={kb} {...props} />)
-        )}
-      </div>
+    <nav className={`nav${props.showWorkspaceContent ? '' : ' nav--hidden'}`}>
+      {props.showWorkspaceContent && (
+        <div className="nav__content">
+          {kbs.length === 0 ? (
+            <div className="nav__empty">
+              <p>{props.hasLocalRootTab ? 'This Knowledge Base is not connected yet.' : 'No Knowledge Base tab is open.'}</p>
+            </div>
+          ) : (
+            kbs.map((kb) => <KbNavItem key={kb.uri} kb={kb} {...props} />)
+          )}
+        </div>
+      )}
 
       <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>

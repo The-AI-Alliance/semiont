@@ -1974,6 +1974,22 @@ body.resizing {
   gap: 0.4rem;
 }
 
+.nav--hidden {
+  padding: 0;
+  gap: 0;
+  overflow: visible;
+  background: transparent;
+}
+
+.nav--hidden .nav__footer {
+  padding: 0;
+  border: 0;
+}
+
+.nav--hidden .semiont-brand {
+  display: none;
+}
+
 .nav__content {
   display: flex;
   flex: 1;
