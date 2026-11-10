@@ -975,7 +975,10 @@ command runs:
 - What it would refuse is the request's error, under a code from the
   `control` group of `protocol/specs/src/errors/codes.json`.
 
-`semiont init` has no method.
+`roots.init` creates and registers a local knowledge base by running
+`semiont init` with explicit parameters. Desktop supplies the destination and
+permanent identity; it does not request template copying or overwrite an
+existing knowledge base.
 
 - **The spec is `protocol/specs/src/control`.** `methods.json` names each
   method and the schemas of its params and result.

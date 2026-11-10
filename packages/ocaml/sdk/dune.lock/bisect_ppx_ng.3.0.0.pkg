@@ -1,0 +1,19 @@
+(version 3.0.0)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (dune ocaml ppxlib cmdliner)))
+
+(source
+ (fetch
+  (url
+   https://github.com/Kakadu/bisect_ppx_ng/releases/download/3.0.0/bisect_ppx_ng-3.0.0.tbz)
+  (checksum
+   sha512=e35f9009aaa55c7b13e76a65945e2cf62d63789b13336d12169e9e394e2b3ee48e0dfa3f21d8c67deb6950d86e412b6a4b9ed3843ccaad5e0786e1f5122ace2b)))

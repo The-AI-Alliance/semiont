@@ -114,7 +114,7 @@ exist.
   with -32603 and the code `control.failed`, and stderr says what did not
   hold. A notification that does not hold is not sent, and stderr says so. A
   handler that panics is answered with -32603 and the code `control.failed`.
-  *Held by no case.*
+  *Held by `packages/go/launcher/control_ops_test.go`.*
 - **E5.** A client holds every result, every error's data and every
   notification it receives to the same schemas. On a mismatch it fails
   loudly: it does not use the message, and it does not fill in what is
@@ -201,7 +201,7 @@ exist.
   to `delete` without `deleteConfirmed` is refused with
   `control.confirmation-required`. A request that states `deleteConfirmed`
   without `delete` is refused with `control.invalid-request`.
-  *Held by no case.*
+  *Held by `packages/go/launcher/control_ops_test.go`.*
 
 ## Secrets
 

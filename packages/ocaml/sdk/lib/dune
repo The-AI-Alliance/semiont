@@ -37,6 +37,8 @@
   mirage-crypto-pk
   ptime
   unix)
+ (instrumentation
+  (backend bisect_ppx_ng))
  (foreign_stubs
   (language c)
   (names store_lock)))

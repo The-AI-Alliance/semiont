@@ -47,13 +47,13 @@ jobs:
     # The JDK the Kotlin SDK's .java-version names, for its build traced below.
     - name: Setup Java
       if: matrix.language == 'java-kotlin'
-      uses: actions/setup-java@v6.1.0
+      uses: actions/setup-java@v6.2.0
       with:
         distribution: temurin
         java-version-file: packages/kotlin/sdk/.java-version
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4.39.1
+      uses: github/codeql-action/init@v4.39.3
       with:
         languages: ${{ matrix.language }}
         # C# is extracted from source; its SDK is built and checked in ci.yml.
@@ -95,6 +95,6 @@ jobs:
       run: ./gradlew --no-daemon --console=plain -Pkotlin.compiler.execution.strategy=in-process classes testClasses javaTestClasses
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4.39.1
+      uses: github/codeql-action/analyze@v4.39.3
       with:
         category: "/language:${{matrix.language}}"
