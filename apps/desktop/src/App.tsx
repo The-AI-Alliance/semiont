@@ -1047,7 +1047,11 @@ export function App() {
           group={serviceGroup}
           state={snapshot}
           selectedRootPath={activeRootPath}
+          knowledgeBaseRoot={activeKnowledgeBaseRoot}
           gitCheck={gitCheck}
+          onStartKnowledgeBase={(root) => operateKnowledgeBase(root, 'starting')}
+          onStopKnowledgeBase={(root) => operateKnowledgeBase(root, 'stopping')}
+          onFollowLogs={setLogsRoot}
           onRefresh={refreshServiceStatus}
           onClose={() => setServiceGroup(null)}
         />
@@ -1072,12 +1076,9 @@ export function App() {
           root={activeKnowledgeBaseRoot}
           kb={activeKb}
           connected={activeKnowledgeBaseRoot?.activeSessionUri !== undefined || activeConn?.opened !== undefined}
-          onStart={(root) => operateKnowledgeBase(root, 'starting')}
-          onStop={(root) => operateKnowledgeBase(root, 'stopping')}
           onLogin={loginKnowledgeBase}
           onLogout={logoutKnowledgeBase}
           onForget={forgetKnowledgeBase}
-          onFollowLogs={setLogsRoot}
           onRenameAlias={renameKnowledgeBase}
           onClose={() => {
             if (logsRoot === null) setShowKnowledgeBaseDetails(false);

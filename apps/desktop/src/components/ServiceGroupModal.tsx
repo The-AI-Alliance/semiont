@@ -10,6 +10,8 @@ import { controlFailureText } from '../lib/launcher-bridge';
 import type { ControlStatusSnapshotResult } from '../../electron/control-types.gen';
 import { LauncherAnswer } from './LauncherAnswer';
 import { GitStatusSection, type GitCheck } from './GitStatusSection';
+import { KnowledgeBaseServiceControls } from './KnowledgeBaseServiceControls';
+import type { KnowledgeBaseRow } from './KnowledgeBasesModal';
 
 export type DesktopServiceGroup = Extract<ControlServiceGroup, 'record' | 'index' | 'knowledge-workers' | 'issuer'>;
 type Action = 'start' | 'stop';
@@ -28,7 +30,7 @@ const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
 };
 
 const GROUP_DESCRIPTIONS: Record<DesktopServiceGroup, string> = {
-  record: 'Record services and Git availability for this knowledge base.',
+  record: 'Launcher, logs, Record services, and Git for this knowledge base.',
   index: 'Index services for search, extraction, graph, and vector data.',
   'knowledge-workers': 'Shared workers that process jobs for knowledge bases on this machine.',
   issuer: 'Identity services and their stores, listed for each knowledge base.',
@@ -38,14 +40,22 @@ export function ServiceGroupModal({
   group,
   state,
   selectedRootPath,
+  knowledgeBaseRoot,
   gitCheck,
+  onStartKnowledgeBase,
+  onStopKnowledgeBase,
+  onFollowLogs,
   onRefresh,
   onClose,
 }: {
   group: DesktopServiceGroup;
   state: ControlAnswerState<'status.snapshot'>;
   selectedRootPath: string | null;
+  knowledgeBaseRoot: KnowledgeBaseRow | null;
   gitCheck: GitCheck;
+  onStartKnowledgeBase: (root: KnowledgeBaseRow) => void;
+  onStopKnowledgeBase: (root: KnowledgeBaseRow) => void;
+  onFollowLogs: (root: KnowledgeBaseRow) => void;
   onRefresh: () => void;
   onClose: () => void;
 }) {
@@ -113,6 +123,14 @@ export function ServiceGroupModal({
         </header>
 
         <div className="service-group__body">
+          {group === 'record' && (
+            <KnowledgeBaseServiceControls
+              root={knowledgeBaseRoot}
+              onStart={onStartKnowledgeBase}
+              onStop={onStopKnowledgeBase}
+              onFollowLogs={onFollowLogs}
+            />
+          )}
           <LauncherAnswer state={state}>
             {(snapshot) => <SnapshotServices snapshot={snapshot} group={group} selectedRootPath={selectedRootPath} gitCheck={gitCheck} onOperate={operate} pending={pending} />}
           </LauncherAnswer>
