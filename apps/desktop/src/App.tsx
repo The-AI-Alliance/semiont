@@ -30,6 +30,7 @@ import { AppearancePanel } from './components/AppearancePanel';
 import { LanguagePanel } from './components/LanguagePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
+import { RemoteServiceModal, type RemoteService } from './components/RemoteServiceModal';
 import { ServiceGroupModal, type DesktopServiceGroup } from './components/ServiceGroupModal';
 import { KnowledgeBaseModal, KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
@@ -199,6 +200,7 @@ export function App() {
   const [showLanguage, setShowLanguage] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showInference, setShowInference] = useState(false);
+  const [remoteService, setRemoteService] = useState<RemoteService | null>(null);
   const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [serviceGroup, setServiceGroup] = useState<DesktopServiceGroup | null>(null);
@@ -976,6 +978,7 @@ export function App() {
             onSelectSession={selectSession}
             onOpenInference={openInference}
             onOpenServiceGroup={openServiceGroup}
+            onOpenRemoteService={setRemoteService}
             onOpenSecrets={openSecrets}
             onOpenMcp={openMcp}
             mcpStatus={mcpStatus}
@@ -1042,6 +1045,7 @@ export function App() {
           onClose={() => setShowInference(false)}
         />
       )}
+      {remoteService !== null && <RemoteServiceModal service={remoteService} onClose={() => setRemoteService(null)} />}
       {serviceGroup !== null && (
         <ServiceGroupModal
           group={serviceGroup}

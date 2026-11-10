@@ -707,6 +707,14 @@ button.kb-location-picker__entry:hover {
   color: var(--muted);
   font-size: 0.92rem;
 }
+.remote-service-modal {
+  max-width: 36rem;
+}
+.remote-service-modal > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 .service-group__body {
   min-height: 5rem;
   overflow-x: auto;

@@ -6,6 +6,7 @@ import { KbResources } from './KbResources';
 import type { McpProcessStatus } from '../lib/launcher-bridge';
 import type { ResourcePresentation } from '../lib/split-layout';
 import type { DesktopServiceGroup } from './ServiceGroupModal';
+import type { RemoteService } from './RemoteServiceModal';
 
 /** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
@@ -28,6 +29,7 @@ export interface KbNavProps {
   onSelectSession: (sessionId: string) => void;
   onOpenInference: () => void;
   onOpenServiceGroup: (group: DesktopServiceGroup) => void;
+  onOpenRemoteService: (service: RemoteService) => void;
   onOpenSecrets: () => void;
   onOpenMcp: () => void;
   mcpStatus: McpProcessStatus;
@@ -63,12 +65,12 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
+      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
     </nav>
   );
 }
 
-function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
+function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -135,6 +137,12 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onO
                   </span>
                 </button>
                 <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
+              </section>
+              <section className="semiont-menu__group" aria-labelledby="semiont-menu-remote">
+                <h2 id="semiont-menu-remote">Shared, Remote Services</h2>
+                <button type="button" onClick={() => choose(() => onOpenRemoteService('inference'))}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
+                <button type="button" onClick={() => choose(() => onOpenRemoteService('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
+                <button type="button" onClick={() => choose(() => onOpenRemoteService('identity'))}><IdentityIcon /><span>Identity</span></button>
               </section>
             </nav>
           </aside>
