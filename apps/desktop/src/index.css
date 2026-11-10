@@ -243,7 +243,7 @@ button:disabled {
   display: none;
 }
 
-@media (max-width: 600px) {
+@media (width <= 600px) {
   .modal--compose {
     padding: 0.5rem;
   }
@@ -1113,7 +1113,7 @@ button:disabled {
   width: 0.48rem;
   height: 0.48rem;
   border-radius: 50%;
-  background: currentColor;
+  background: currentcolor;
   content: '';
 }
 
@@ -1333,7 +1333,7 @@ button:disabled {
   justify-content: space-between;
 }
 
-@media (max-width: 820px) {
+@media (width <= 820px) {
   .knowledge-bases__workspace {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1812,6 +1812,7 @@ body.resizing {
   font-size: 0.85rem;
   color: var(--muted);
 }
+
 /* ── One KB in the nav ────────────────────────────────────────────────── */
 .kb {
   display: flex;
