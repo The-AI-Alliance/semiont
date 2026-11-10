@@ -1060,7 +1060,7 @@ button.kb-location-picker__entry:hover {
 .git-modal__missing {
   color: var(--danger);
 }
-@media (max-width: 60rem) {
+@media (width <= 60rem) {
   .service-group__git {
     grid-template-columns: 1fr;
     gap: 0.45rem;
@@ -1680,7 +1680,7 @@ button.kb-location-picker__entry:hover {
   color: var(--success, #18894b);
 }
 
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .knowledge-bases__useradd-form {
     grid-template-columns: 1fr;
   }
