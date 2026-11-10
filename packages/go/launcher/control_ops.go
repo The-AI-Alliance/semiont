@@ -21,22 +21,23 @@ type controlHandler func(req *controlRequest, u *UI) (any, *controlFailure)
 // controlHandlers: the handler of each method of controlMethods
 // (TestEveryControlMethodHasAHandler).
 var controlHandlers = map[string]controlHandler{
-	"launcher.about":   controlAbout,
-	"roots.list":       controlRootsList,
-	"roots.init":       controlRootsInit,
-	"roots.forget":     controlRootsForget,
-	"status.snapshot":  controlStatusSnapshot,
-	"stack.start":      controlStackStart,
-	"stack.stop":       controlStackStop,
-	"auth.login":       controlAuthLogin,
-	"auth.logout":      controlAuthLogout,
-	"identity.useradd": controlIdentityUseradd,
-	"logs.follow":      controlLogsFollow,
-	"settings.list":    controlSettingsList,
-	"settings.get":     controlSettingsGet,
-	"settings.set":     controlSettingsSet,
-	"settings.unset":   controlSettingsUnset,
-	"settings.path":    controlSettingsPath,
+	"launcher.about":      controlAbout,
+	"roots.list":          controlRootsList,
+	"roots.init":          controlRootsInit,
+	"roots.forget":        controlRootsForget,
+	"status.snapshot":     controlStatusSnapshot,
+	"stack.start":         controlStackStart,
+	"stack.stop":          controlStackStop,
+	"auth.login":          controlAuthLogin,
+	"auth.logout":         controlAuthLogout,
+	"identity.useradd":    controlIdentityUseradd,
+	"identity.users.list": controlIdentityUsersList,
+	"logs.follow":         controlLogsFollow,
+	"settings.list":       controlSettingsList,
+	"settings.get":        controlSettingsGet,
+	"settings.set":        controlSettingsSet,
+	"settings.unset":      controlSettingsUnset,
+	"settings.path":       controlSettingsPath,
 }
 
 // operate runs req's operation. A panic in it is the launcher's failure, and
@@ -513,6 +514,37 @@ func controlIdentityUseradd(req *controlRequest, u *UI) (any, *controlFailure) {
 		Email: result.email, Identity: result.identity, Created: result.created,
 		GeneratedPassword: stated(result.generatedPassword),
 	}, nil
+}
+
+func controlIdentityUsersList(req *controlRequest, u *UI) (any, *controlFailure) {
+	var p ControlIdentityUsersListParams
+	if f := req.decode(&p); f != nil {
+		return nil, f
+	}
+	target, ok := rootLocalStack(u, LoadStackSet(), p.Target.Root)
+	if !ok {
+		return nil, failed(u, controlCodeFailed)
+	}
+	if target == nil || target.KBRoot == "" || target.Codespace != nil {
+		u.Refuse(controlCodeStackNotRunning, "No local stack for the selected knowledge base is recorded, so there is no realm to list.")
+		return nil, failed(u, controlCodeStackNotRunning)
+	}
+	admin, ok := resolveRealmAdmin(u, target.KBRoot, target.KBDid)
+	if !ok {
+		return nil, failed(u, controlCodeFailed)
+	}
+	accounts, err := listRealmUsers(admin.base, admin.realm, admin.token)
+	if err != nil {
+		u.Fail("%v", err)
+		return nil, failed(u, controlCodeFailed)
+	}
+	users := make([]ControlIdentityUser, 0, len(accounts))
+	for _, account := range accounts {
+		users = append(users, ControlIdentityUser{
+			Email: account.email, Identity: accountIdentity(admin, account.email, account.id), Enabled: account.enabled,
+		})
+	}
+	return ControlIdentityUsersListResult{Users: users}, nil
 }
 
 func controlLogsFollow(req *controlRequest, u *UI) (any, *controlFailure) {

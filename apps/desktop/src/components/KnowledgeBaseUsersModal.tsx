@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { controlFailureText } from '../lib/launcher-bridge';
 import type { KnowledgeBaseRow } from './KnowledgeBasesModal';
 
@@ -50,6 +50,32 @@ function KnowledgeBaseUsersDetails({ root, name }: { root: KnowledgeBaseRow; nam
   const [addingUser, setAddingUser] = useState(false);
   const [userError, setUserError] = useState<string | null>(null);
   const [userResult, setUserResult] = useState<{ email: string; identity: string; generatedPassword?: string } | null>(null);
+  const [users, setUsers] = useState<Array<{ email: string; identity: string; enabled: boolean }>>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const refreshUsers = useCallback(() => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setUsersLoading(false);
+      setUsersError('User listing requires the Semiont Desktop launcher.');
+      return;
+    }
+    setUsersLoading(true);
+    setUsersError(null);
+    void bridge.startControl('identity.users.list', { target: { kind: 'local', root: root.path } }, (event) => {
+      if (event.kind !== 'answer') return;
+      setUsersLoading(false);
+      if (!event.outcome.ok) {
+        setUsersError(controlFailureText(event.outcome.error));
+        return;
+      }
+      setUsers(event.outcome.result.users);
+    }).catch((error: unknown) => {
+      setUsersLoading(false);
+      setUsersError(error instanceof Error ? error.message : String(error));
+    });
+  }, [root.path]);
+  useEffect(() => refreshUsers(), [refreshUsers]);
 
   return (
     <div className="knowledge-bases__detail-panel" aria-label={`${name} users`}>
@@ -85,6 +111,7 @@ function KnowledgeBaseUsersDetails({ root, name }: { root: KnowledgeBaseRow; nam
             }
             setUserResult(event.outcome.result);
             setUserEmail('');
+            refreshUsers();
           }).catch((error: unknown) => {
             setAddingUser(false);
             setUserPassword('');
@@ -119,6 +146,34 @@ function KnowledgeBaseUsersDetails({ root, name }: { root: KnowledgeBaseRow; nam
             });
           }}>Copy generated password</button>}
         </div>}
+      </section>
+      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-users-list-heading">
+        <div className="knowledge-bases__users-list-heading">
+          <h3 id="knowledge-bases-users-list-heading">Accounts</h3>
+          <button type="button" className="kb__connect" onClick={refreshUsers} disabled={usersLoading}>
+            {usersLoading ? 'Loading…' : 'Refresh'}
+          </button>
+        </div>
+        {usersError !== null ? (
+          <p className="knowledge-bases__action-error" role="alert">{usersError}</p>
+        ) : usersLoading ? (
+          <p className="knowledge-bases__action-note" role="status">Loading accounts…</p>
+        ) : users.length === 0 ? (
+          <p className="knowledge-bases__action-note">No users in this knowledge base yet.</p>
+        ) : (
+          <div className="knowledge-bases__users-table-wrap">
+            <table className="knowledge-bases__users-table">
+              <thead><tr><th scope="col">Sign-in name</th><th scope="col">Identity</th><th scope="col">Status</th></tr></thead>
+              <tbody>{users.map((user) => (
+                <tr key={`${user.identity}:${user.email}`}>
+                  <td>{user.email}</td>
+                  <td><code>{user.identity}</code></td>
+                  <td><span className={`knowledge-bases__user-state${user.enabled ? ' knowledge-bases__user-state--enabled' : ''}`}>{user.enabled ? 'Enabled' : 'Disabled'}</span></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

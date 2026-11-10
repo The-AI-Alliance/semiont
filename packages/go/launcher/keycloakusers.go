@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -23,6 +24,53 @@ type realmUser struct {
 	id      string
 	email   string
 	enabled bool
+}
+
+// listRealmUsers: every account, in pages so Keycloak's default page size
+// never silently truncates the list.
+func listRealmUsers(base, realm, token string) ([]realmUser, error) {
+	const pageSize = 100
+	users := make([]realmUser, 0)
+	for first := 0; ; first += pageSize {
+		q := url.Values{"first": {fmt.Sprint(first)}, "max": {fmt.Sprint(pageSize)}}
+		req, err := adminRequest(http.MethodGet, usersURL(base, realm, "")+"?"+q.Encode(), token, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := adminHTTP.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("listing accounts in realm %s: %w", realm, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("listing accounts in realm %s failed (HTTP %d)", realm, resp.StatusCode)
+		}
+		var found []map[string]any
+		decodeErr := json.NewDecoder(resp.Body).Decode(&found)
+		resp.Body.Close()
+		if decodeErr != nil {
+			return nil, fmt.Errorf("listing accounts in realm %s returned no list: %w", realm, decodeErr)
+		}
+		for _, entry := range found {
+			id, _ := entry["id"].(string)
+			if id == "" {
+				continue
+			}
+			email, _ := entry["email"].(string)
+			if email == "" {
+				email, _ = entry["username"].(string)
+			}
+			enabled, _ := entry["enabled"].(bool)
+			users = append(users, realmUser{id: id, email: email, enabled: enabled})
+		}
+		if len(found) < pageSize {
+			break
+		}
+	}
+	sort.Slice(users, func(i, j int) bool {
+		return strings.ToLower(users[i].email) < strings.ToLower(users[j].email)
+	})
+	return users, nil
 }
 
 func usersURL(base, realm, suffix string) string {

@@ -597,9 +597,9 @@ type ControlIdentityUseraddParams struct {
 	// control.unsupported-api-version, and names the ones it does.
 	ApiVersion string `json:"apiVersion"`
 
-	// The local knowledge base whose launcher-managed identity realm receives
-	// the account.
-	Target ControlIdentityUseraddTarget `json:"target"`
+	// The local knowledge base whose launcher-managed identity realm an
+	// operation addresses.
+	Target ControlIdentityLocalTarget `json:"target"`
 
 	// The email address that will sign in to this knowledge base.
 	Email string `json:"email"`
@@ -613,10 +613,10 @@ type ControlIdentityUseraddParams struct {
 	GeneratePassword bool `json:"generatePassword"`
 }
 
-// ControlIdentityUseraddTarget: The local knowledge base whose
-// launcher-managed identity realm receives the account.
-type ControlIdentityUseraddTarget struct {
-	// User accounts can only be added to a local stack.
+// ControlIdentityLocalTarget: The local knowledge base whose launcher-managed
+// identity realm an operation addresses.
+type ControlIdentityLocalTarget struct {
+	// Identity administration here is limited to local stacks.
 	Kind string `json:"kind"`
 
 	// The selected knowledge base's clone path.
@@ -639,6 +639,39 @@ type ControlIdentityUseraddResult struct {
 	// The generated password, returned once so the operator can share it with
 	// the user. Absent when the operator supplied the password.
 	GeneratedPassword *string `json:"generatedPassword,omitempty"`
+}
+
+// ControlIdentityUsersListParams: List accounts in one local knowledge base's
+// launcher-managed Keycloak realm.
+type ControlIdentityUsersListParams struct {
+	// The group and version of the control API. Every request's params state it;
+	// a launcher refuses a version it does not speak with
+	// control.unsupported-api-version, and names the ones it does.
+	ApiVersion string `json:"apiVersion"`
+
+	// The local knowledge base whose launcher-managed identity realm an
+	// operation addresses.
+	Target ControlIdentityLocalTarget `json:"target"`
+}
+
+// ControlIdentityUsersListResult: Accounts in the selected knowledge base's
+// launcher-managed identity realm.
+type ControlIdentityUsersListResult struct {
+	// Accounts, sorted by sign-in name.
+	Users []ControlIdentityUser `json:"users"`
+}
+
+// ControlIdentityUser: An account in a knowledge base's launcher-managed
+// identity realm. Passwords and tokens are never included.
+type ControlIdentityUser struct {
+	// The account's sign-in name, normally its email address.
+	Email string `json:"email"`
+
+	// The identity the account acts under in Semiont.
+	Identity string `json:"identity"`
+
+	// Whether the identity provider currently allows this account to sign in.
+	Enabled bool `json:"enabled"`
 }
 
 // ControlLogsFollowParams: logs.follow's params.

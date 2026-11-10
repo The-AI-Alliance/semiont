@@ -373,8 +373,8 @@ export interface ControlAuthLogoutResult {
 export interface ControlIdentityUseraddParams {
   /** The group and version of the control API. Every request's params state it; a launcher refuses a version it does not speak with control.unsupported-api-version, and names the ones it does. */
   apiVersion: ControlApiVersion;
-  /** The local knowledge base whose launcher-managed identity realm receives the account. */
-  target: ControlIdentityUseraddTarget;
+  /** The local knowledge base whose launcher-managed identity realm an operation addresses. */
+  target: ControlIdentityLocalTarget;
   /** The email address that will sign in to this knowledge base. */
   email: string;
   /** The user's password. Secret: carried only in this local control request, never in progress, diagnostics, or persistent state. */
@@ -383,9 +383,9 @@ export interface ControlIdentityUseraddParams {
   generatePassword: boolean;
 }
 
-/** The local knowledge base whose launcher-managed identity realm receives the account. */
-export interface ControlIdentityUseraddTarget {
-  /** User accounts can only be added to a local stack. */
+/** The local knowledge base whose launcher-managed identity realm an operation addresses. */
+export interface ControlIdentityLocalTarget {
+  /** Identity administration here is limited to local stacks. */
   kind: "local";
   /** The selected knowledge base's clone path. */
   root: string;
@@ -401,6 +401,30 @@ export interface ControlIdentityUseraddResult {
   created: boolean;
   /** The generated password, returned once so the operator can share it with the user. Absent when the operator supplied the password. */
   generatedPassword?: string;
+}
+
+/** List accounts in one local knowledge base's launcher-managed Keycloak realm. */
+export interface ControlIdentityUsersListParams {
+  /** The group and version of the control API. Every request's params state it; a launcher refuses a version it does not speak with control.unsupported-api-version, and names the ones it does. */
+  apiVersion: ControlApiVersion;
+  /** The local knowledge base whose launcher-managed identity realm an operation addresses. */
+  target: ControlIdentityLocalTarget;
+}
+
+/** Accounts in the selected knowledge base's launcher-managed identity realm. */
+export interface ControlIdentityUsersListResult {
+  /** Accounts, sorted by sign-in name. */
+  users: ControlIdentityUser[];
+}
+
+/** An account in a knowledge base's launcher-managed identity realm. Passwords and tokens are never included. */
+export interface ControlIdentityUser {
+  /** The account's sign-in name, normally its email address. */
+  email: string;
+  /** The identity the account acts under in Semiont. */
+  identity: string;
+  /** Whether the identity provider currently allows this account to sign in. */
+  enabled: boolean;
 }
 
 /** logs.follow's params. */
@@ -600,6 +624,7 @@ export interface ControlMethods {
   "auth.login": { params: ControlAuthLoginParams; result: ControlAuthLoginResult };
   "auth.logout": { params: ControlAuthLogoutParams; result: ControlAuthLogoutResult };
   "identity.useradd": { params: ControlIdentityUseraddParams; result: ControlIdentityUseraddResult };
+  "identity.users.list": { params: ControlIdentityUsersListParams; result: ControlIdentityUsersListResult };
   "logs.follow": { params: ControlLogsFollowParams; result: ControlLogsFollowResult };
   "settings.list": { params: ControlSettingsListParams; result: ControlSettingsListResult };
   "settings.get": { params: ControlSettingsGetParams; result: ControlSetting };
@@ -659,6 +684,7 @@ export const CONTROL_METHOD_SCHEMAS: { readonly [M in ControlMethod]: { readonly
   "auth.login": { params: "protocol/specs/src/control/AuthLoginParams.json", result: "protocol/specs/src/control/AuthLoginResult.json" },
   "auth.logout": { params: "protocol/specs/src/control/AuthLogoutParams.json", result: "protocol/specs/src/control/AuthLogoutResult.json" },
   "identity.useradd": { params: "protocol/specs/src/control/IdentityUseraddParams.json", result: "protocol/specs/src/control/IdentityUseraddResult.json" },
+  "identity.users.list": { params: "protocol/specs/src/control/IdentityUsersListParams.json", result: "protocol/specs/src/control/IdentityUsersListResult.json" },
   "logs.follow": { params: "protocol/specs/src/control/LogsFollowParams.json", result: "protocol/specs/src/control/LogsFollowResult.json" },
   "settings.list": { params: "protocol/specs/src/control/SettingsListParams.json", result: "protocol/specs/src/control/SettingsListResult.json" },
   "settings.get": { params: "protocol/specs/src/control/SettingsGetParams.json", result: "protocol/specs/src/control/Setting.json" },
@@ -689,9 +715,12 @@ export const CONTROL_SCHEMAS: { readonly [path: string]: object } = {
   "protocol/specs/src/control/Cancelled.json": {"title":"Cancelled","type":"object","description":"The client gives up on one of its requests. The launcher answers that request with control.cancelled, unless it has answered it already; a cancellation of a request it does not know is ignored.","properties":{"requestId":{"$ref":"./RequestId.json"},"reason":{"type":"string","description":"Why, for the launcher's diagnostics."}},"required":["requestId"],"additionalProperties":false},
   "protocol/specs/src/control/ErrorData.json": {"title":"ErrorData","type":"object","description":"The data of a control error: the launcher's code for the failure, one of protocol/specs/src/errors/codes.json's control group, and what a client can act on. A request's failure is never only a message.","properties":{"code":{"type":"string","description":"Why the request failed: a code of the control group of protocol/specs/src/errors/codes.json.","pattern":"^control\\.[a-z]+(-[a-z]+)*$"},"retryable":{"type":"boolean","description":"Whether the same request can succeed sent again unchanged, once something outside it changes: a start finishes, a runtime is installed, a stack comes up."},"fields":{"type":"array","items":{"$ref":"./FieldFault.json"},"description":"For params the contract refuses: each fault, where it is."},"choices":{"type":"array","items":{"$ref":"./Target.json"},"description":"For control.target-required and control.target-ambiguous: each target the request could have meant, to send again with one."},"supported":{"type":"array","items":{"type":"string"},"description":"For control.unsupported-api-version: each version this launcher speaks."},"mayStillRun":{"type":"boolean","description":"For a cancelled stack.start: whether services the start launched may still be running. The launcher stops waiting, and stops nothing."}},"required":["code","retryable"],"additionalProperties":false},
   "protocol/specs/src/control/FieldFault.json": {"title":"FieldFault","type":"object","description":"One fault in a request's params, named where it is.","properties":{"field":{"type":"string","description":"Where in the params the fault is, as a JSON pointer (RFC 6901); empty for the params as a whole."},"message":{"type":"string","description":"What is wrong there."}},"required":["field","message"],"additionalProperties":false},
-  "protocol/specs/src/control/IdentityUseraddParams.json": {"title":"IdentityUseraddParams","type":"object","description":"Create one account in the launcher-managed Keycloak realm for a specific local knowledge base.","properties":{"apiVersion":{"$ref":"./ApiVersion.json"},"target":{"$ref":"./IdentityUseraddTarget.json"},"email":{"type":"string","minLength":3,"description":"The email address that will sign in to this knowledge base."},"password":{"type":"string","minLength":1,"description":"The user's password. Secret: carried only in this local control request, never in progress, diagnostics, or persistent state."},"generatePassword":{"type":"boolean","description":"Generate a random password in the launcher and return it once in the result."}},"required":["apiVersion","target","email","generatePassword"],"additionalProperties":false,"oneOf":[{"required":["password"],"properties":{"generatePassword":{"const":false}}},{"properties":{"generatePassword":{"const":true}},"not":{"required":["password"]}}]},
+  "protocol/specs/src/control/IdentityLocalTarget.json": {"title":"IdentityLocalTarget","type":"object","description":"The local knowledge base whose launcher-managed identity realm an operation addresses.","properties":{"kind":{"type":"string","const":"local","description":"Identity administration here is limited to local stacks."},"root":{"type":"string","minLength":1,"description":"The selected knowledge base's clone path."}},"required":["kind","root"],"additionalProperties":false},
+  "protocol/specs/src/control/IdentityUser.json": {"title":"IdentityUser","type":"object","description":"An account in a knowledge base's launcher-managed identity realm. Passwords and tokens are never included.","properties":{"email":{"type":"string","description":"The account's sign-in name, normally its email address."},"identity":{"type":"string","description":"The identity the account acts under in Semiont."},"enabled":{"type":"boolean","description":"Whether the identity provider currently allows this account to sign in."}},"required":["email","identity","enabled"],"additionalProperties":false},
+  "protocol/specs/src/control/IdentityUseraddParams.json": {"title":"IdentityUseraddParams","type":"object","description":"Create one account in the launcher-managed Keycloak realm for a specific local knowledge base.","properties":{"apiVersion":{"$ref":"./ApiVersion.json"},"target":{"$ref":"./IdentityLocalTarget.json"},"email":{"type":"string","minLength":3,"description":"The email address that will sign in to this knowledge base."},"password":{"type":"string","minLength":1,"description":"The user's password. Secret: carried only in this local control request, never in progress, diagnostics, or persistent state."},"generatePassword":{"type":"boolean","description":"Generate a random password in the launcher and return it once in the result."}},"required":["apiVersion","target","email","generatePassword"],"additionalProperties":false,"oneOf":[{"required":["password"],"properties":{"generatePassword":{"const":false}}},{"properties":{"generatePassword":{"const":true}},"not":{"required":["password"]}}]},
   "protocol/specs/src/control/IdentityUseraddResult.json": {"title":"IdentityUseraddResult","type":"object","description":"The created account's sign-in identity. A generated password is present only in this one answer and is not stored by the launcher.","properties":{"email":{"type":"string","description":"The account's email address."},"identity":{"type":"string","description":"The identity the account acts under in Semiont."},"created":{"type":"boolean","description":"Whether a new account was created."},"generatedPassword":{"type":"string","description":"The generated password, returned once so the operator can share it with the user. Absent when the operator supplied the password."}},"required":["email","identity","created"],"additionalProperties":false},
-  "protocol/specs/src/control/IdentityUseraddTarget.json": {"title":"IdentityUseraddTarget","type":"object","description":"The local knowledge base whose launcher-managed identity realm receives the account.","properties":{"kind":{"type":"string","const":"local","description":"User accounts can only be added to a local stack."},"root":{"type":"string","minLength":1,"description":"The selected knowledge base's clone path."}},"required":["kind","root"],"additionalProperties":false},
+  "protocol/specs/src/control/IdentityUsersListParams.json": {"title":"IdentityUsersListParams","type":"object","description":"List accounts in one local knowledge base's launcher-managed Keycloak realm.","properties":{"apiVersion":{"$ref":"./ApiVersion.json"},"target":{"$ref":"./IdentityLocalTarget.json"}},"required":["apiVersion","target"],"additionalProperties":false},
+  "protocol/specs/src/control/IdentityUsersListResult.json": {"title":"IdentityUsersListResult","type":"object","description":"Accounts in the selected knowledge base's launcher-managed identity realm.","properties":{"users":{"type":"array","items":{"$ref":"./IdentityUser.json"},"description":"Accounts, sorted by sign-in name."}},"required":["users"],"additionalProperties":false},
   "protocol/specs/src/control/KnowledgeBaseStatus.json": {"title":"KnowledgeBaseStatus","type":"object","description":"One knowledge base's stack as semiont status reads it: what it is, where it runs, and each of its own services. The services every knowledge base shares are reported once, in the snapshot's shared list.","properties":{"name":{"type":"string","description":"What the snapshot calls the knowledge base: the last segment of its DID, or the whole DID where two would share one, or its key."},"key":{"type":"string","description":"The knowledge base's key on this machine, which names its containers and its state."},"recorded":{"type":"boolean","description":"Whether a stack of it is recorded. When none is, its services are found by name."},"placement":{"$ref":"../discovery/DiscoveredKB.json#/properties/placement"},"root":{"type":"string","description":"Its clone, for a local stack."},"repo":{"$ref":"../discovery/DiscoveredKB.json#/properties/repo"},"did":{"$ref":"../discovery/DiscoveredKB.json#/properties/did"},"siteName":{"$ref":"../discovery/DiscoveredKB.json#/properties/siteName"},"identityError":{"type":"string","description":"Why its identity could not be read from its clone, when it could not."},"kb":{"$ref":"../discovery/DiscoveredKB.json","description":"The knowledge base as the discovery document publishes it, when it does."},"runtime":{"$ref":"./Runtime.json","description":"The runtime its record names."},"gateway":{"type":"string","description":"The base URL of its gateway, from its record."},"secretStore":{"type":"string","description":"Where the values the launcher generates for it are kept, as semiont settings secret-store describes it."},"lan":{"type":"string","description":"This machine's address on the network, when the stack is started with network lan."},"starting":{"type":"boolean","description":"Whether a semiont start of it holds its start lock: its services are not ready, whatever they report."},"session":{"$ref":"./Session.json"},"healthy":{"type":"boolean","description":"Whether each of its counted services, and the issuer it signs in at, answers."},"services":{"type":"array","items":{"$ref":"./ServiceStatus.json"},"description":"Its own services, group by group, then the issuer it signs in at. Empty for a codespace's, whose services its own launcher reports."}},"required":["name","key","recorded","placement","starting","healthy","services"],"additionalProperties":false},
   "protocol/specs/src/control/LogRecord.json": {"title":"LogRecord","type":"object","description":"One line one of a stack's services wrote. The launcher removes from it each secret value the launcher generated or read; anything else the service wrote is the client's to handle. The launcher keeps no copy.","properties":{"requestId":{"$ref":"./RequestId.json"},"service":{"type":"string","description":"The role whose container wrote the line, as semiont status names it."},"stream":{"type":"string","description":"Which of the container's streams the line was on.","enum":["stdout","stderr"]},"line":{"type":"string","description":"The line, without its newline."},"receivedAt":{"type":"string","description":"When the launcher read the line, in RFC 3339 with its fraction: a container's own lines carry the time it wrote them, if any.","minLength":1}},"required":["requestId","service","stream","line","receivedAt"],"additionalProperties":false},
   "protocol/specs/src/control/LogsFollowParams.json": {"title":"LogsFollowParams","type":"object","description":"logs.follow's params.","properties":{"apiVersion":{"$ref":"./ApiVersion.json","description":"The version of the control API the request is written to."},"target":{"$ref":"./Target.json","description":"Which knowledge base's stack. Absent: the one the command line chooses, standing where the control server was started."},"runtime":{"$ref":"./Runtime.json","description":"Keep to the local stacks, as --runtime does."},"service":{"type":"string","description":"Just this service's container, as --service names it. Absent: each Semiont service the stack runs.","minLength":1}},"required":["apiVersion"],"additionalProperties":false},

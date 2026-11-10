@@ -7,7 +7,7 @@
       "$ref": "./ApiVersion.json"
     },
     "target": {
-      "$ref": "./IdentityUseraddTarget.json"
+      "$ref": "./IdentityLocalTarget.json"
     },
     "email": {
       "type": "string",

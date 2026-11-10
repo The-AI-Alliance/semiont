@@ -94,6 +94,13 @@ exist.
   *Held by the method and schemas in `protocol/specs/src/control/` and the
   handler in `packages/go/launcher/control_ops.go`.*
 
+- **P4.** `identity.users.list` names one local root explicitly and returns
+  only each account's sign-in name, Semiont identity and enabled state. It
+  returns no passwords, tokens or profile secrets. Like `identity.useradd`,
+  it refuses codespace targets and external identity providers.
+  *Held by the method and schemas in `protocol/specs/src/control/` and the
+  handler in `packages/go/launcher/control_ops.go`.*
+
 ## Answers and errors
 
 - **E1.** Every request gets exactly one answer: a result that holds to its

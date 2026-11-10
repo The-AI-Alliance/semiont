@@ -1621,6 +1621,65 @@ button.kb-location-picker__entry:hover {
   font-size: 0.85rem;
 }
 
+.knowledge-bases__users-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.knowledge-bases__users-list-heading h3 {
+  margin-bottom: 0;
+}
+
+.knowledge-bases__users-table-wrap {
+  margin-top: 0.55rem;
+  overflow: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.5rem;
+}
+
+.knowledge-bases__users-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.84rem;
+}
+
+.knowledge-bases__users-table th,
+.knowledge-bases__users-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: top;
+}
+
+.knowledge-bases__users-table th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.knowledge-bases__users-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.knowledge-bases__users-table code {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.knowledge-bases__user-state {
+  color: var(--danger, #c43b3b);
+  white-space: nowrap;
+}
+
+.knowledge-bases__user-state--enabled {
+  color: var(--success, #18894b);
+}
+
 @media (max-width: 760px) {
   .knowledge-bases__useradd-form {
     grid-template-columns: 1fr;
