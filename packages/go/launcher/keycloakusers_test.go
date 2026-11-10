@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -140,6 +141,79 @@ func TestFindUserByEmailReportsARefusal(t *testing.T) {
 	if _, err := findUserByEmail(s.srv.URL, "semiont", "admin-token", "sam@x.co"); err == nil {
 		t.Fatal("a 403 search was reported as success")
 	}
+}
+
+func TestListRealmUsersPagesAndSortsAccounts(t *testing.T) {
+	var pages []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/admin/realms/semiont/users" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+		}
+		pages = append(pages, r.URL.Query().Get("first"))
+		if r.URL.Query().Get("max") != "100" {
+			t.Errorf("max = %q, want 100", r.URL.Query().Get("max"))
+		}
+		if r.URL.Query().Get("first") == "0" {
+			accounts := make([]map[string]any, 100)
+			for i := range accounts {
+				accounts[i] = map[string]any{"id": fmt.Sprintf("id-%03d", i), "email": fmt.Sprintf("User%03d@example.org", 99-i), "enabled": i%2 == 0}
+			}
+			_ = json.NewEncoder(w).Encode(accounts)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "last", "username": "last@example.org", "enabled": true},
+			{"id": ""},
+		})
+	}))
+	defer srv.Close()
+
+	users, err := listRealmUsers(srv.URL, "semiont", "admin-token")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if !reflect.DeepEqual(pages, []string{"0", "100"}) {
+		t.Fatalf("page offsets = %v, want [0 100]", pages)
+	}
+	if len(users) != 101 {
+		t.Fatalf("got %d users, want 101 valid accounts", len(users))
+	}
+	if users[0].email != "last@example.org" || users[len(users)-1].email != "User099@example.org" {
+		t.Fatalf("users not sorted case-insensitively: first=%q last=%q", users[0].email, users[len(users)-1].email)
+	}
+	if users[0].id != "last" || !users[0].enabled {
+		t.Fatalf("username fallback account = %+v", users[0])
+	}
+}
+
+func TestListRealmUsersReportsFailures(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		if _, err := listRealmUsers("http://[::1", "semiont", "token"); err == nil {
+			t.Fatal("invalid request URL succeeded")
+		}
+	})
+	t.Run("unreachable issuer", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+		url := srv.URL
+		srv.Close()
+		if _, err := listRealmUsers(url, "semiont", "token"); err == nil || !strings.Contains(err.Error(), "listing accounts") {
+			t.Fatalf("error = %v, want transport error", err)
+		}
+	})
+	t.Run("HTTP refusal", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) }))
+		defer srv.Close()
+		if _, err := listRealmUsers(srv.URL, "semiont", "token"); err == nil || !strings.Contains(err.Error(), "HTTP 403") {
+			t.Fatalf("error = %v, want HTTP 403", err)
+		}
+	})
+	t.Run("invalid response", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "not-json") }))
+		defer srv.Close()
+		if _, err := listRealmUsers(srv.URL, "semiont", "token"); err == nil || !strings.Contains(err.Error(), "returned no list") {
+			t.Fatalf("error = %v, want decode error", err)
+		}
+	})
 }
 
 func TestCreateUserSetsTheClaimsSignInRequires(t *testing.T) {
@@ -419,5 +493,51 @@ func TestUseraddActiveRestoresADisabledAccount(t *testing.T) {
 	}
 	if _, wrote := s.puts["/admin/realms/semiont/users/abc-123/reset-password"]; wrote {
 		t.Error("an update with no password reset one anyway")
+	}
+}
+
+func TestPrintUseraddResultStatesChangesAndUpsert(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result useraddResult
+		opts   useraddOpts
+		want   []string
+		omit   []string
+	}{
+		{
+			name:   "updated and enabled",
+			result: useraddResult{email: "person@example.org", created: false, identity: "did:web:example.org:users:1"},
+			opts:   useraddOpts{email: "person@example.org", active: true},
+			want:   []string{"User updated: person@example.org", "Identity: did:web:example.org:users:1", "Enabled at the identity provider"},
+			omit:   []string{"Password:"},
+		},
+		{
+			name:   "created disabled without identity",
+			result: useraddResult{email: "person@example.org", created: true},
+			opts:   useraddOpts{email: "person@example.org", inactive: true},
+			want:   []string{"User created: person@example.org", "Disabled at the identity provider"},
+			omit:   []string{"Identity:", "Password:"},
+		},
+		{
+			name:   "upsert reports existing account only",
+			result: useraddResult{email: "person@example.org", created: false, identity: "ignored"},
+			opts:   useraddOpts{email: "person@example.org", upsert: true},
+			want:   []string{"User already exists: person@example.org"},
+			omit:   []string{"Identity:", "User updated"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := harness.CaptureStdout(t, func() { printUseraddResult(NewUI(false), tc.result, tc.opts) })
+			for _, text := range tc.want {
+				if !strings.Contains(out, text) {
+					t.Errorf("output missing %q:\n%s", text, out)
+				}
+			}
+			for _, text := range tc.omit {
+				if strings.Contains(out, text) {
+					t.Errorf("output contains %q:\n%s", text, out)
+				}
+			}
+		})
 	}
 }

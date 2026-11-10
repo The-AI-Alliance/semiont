@@ -483,6 +483,13 @@ func controlIdentityUseradd(req *controlRequest, u *UI) (any, *controlFailure) {
 	if f := req.decode(&p); f != nil {
 		return nil, f
 	}
+	target, ok := rootLocalStack(u, LoadStackSet(), p.Target.Root)
+	return controlIdentityUseraddForTarget(u, p, target, ok, useraddLocal)
+}
+
+type controlUseraddRunner func(*UI, useraddOpts, string, string, string) (useraddResult, int)
+
+func controlIdentityUseraddForTarget(u *UI, p ControlIdentityUseraddParams, target *StackState, ok bool, run controlUseraddRunner) (any, *controlFailure) {
 	o := useraddOpts{email: p.Email, generate: p.GeneratePassword}
 	password := given(p.Password)
 	if !p.GeneratePassword {
@@ -498,7 +505,6 @@ func controlIdentityUseradd(req *controlRequest, u *UI) (any, *controlFailure) {
 	} else if !useraddValidate(u, o) {
 		return nil, failed(u, controlCodeInvalidParams)
 	}
-	target, ok := rootLocalStack(u, LoadStackSet(), p.Target.Root)
 	if !ok {
 		return nil, failed(u, controlCodeFailed)
 	}
@@ -506,7 +512,7 @@ func controlIdentityUseradd(req *controlRequest, u *UI) (any, *controlFailure) {
 		u.Refuse(controlCodeStackNotRunning, "No local stack for the selected knowledge base is running, so there is no realm to administer.")
 		return nil, failed(u, controlCodeStackNotRunning)
 	}
-	result, code := useraddLocal(u, o, password, target.KBRoot, target.KBDid)
+	result, code := run(u, o, password, target.KBRoot, target.KBDid)
 	if code != 0 {
 		return nil, failed(u, controlCodeFailed)
 	}
@@ -522,6 +528,13 @@ func controlIdentityUsersList(req *controlRequest, u *UI) (any, *controlFailure)
 		return nil, f
 	}
 	target, ok := rootLocalStack(u, LoadStackSet(), p.Target.Root)
+	return controlIdentityUsersListForTarget(u, target, ok, resolveRealmAdmin, listRealmUsers)
+}
+
+type controlRealmAdminResolver func(*UI, string, string) (realmAdmin, bool)
+type controlRealmUserLister func(string, string, string) ([]realmUser, error)
+
+func controlIdentityUsersListForTarget(u *UI, target *StackState, ok bool, resolve controlRealmAdminResolver, list controlRealmUserLister) (any, *controlFailure) {
 	if !ok {
 		return nil, failed(u, controlCodeFailed)
 	}
@@ -529,11 +542,11 @@ func controlIdentityUsersList(req *controlRequest, u *UI) (any, *controlFailure)
 		u.Refuse(controlCodeStackNotRunning, "No local stack for the selected knowledge base is recorded, so there is no realm to list.")
 		return nil, failed(u, controlCodeStackNotRunning)
 	}
-	admin, ok := resolveRealmAdmin(u, target.KBRoot, target.KBDid)
+	admin, ok := resolve(u, target.KBRoot, target.KBDid)
 	if !ok {
 		return nil, failed(u, controlCodeFailed)
 	}
-	accounts, err := listRealmUsers(admin.base, admin.realm, admin.token)
+	accounts, err := list(admin.base, admin.realm, admin.token)
 	if err != nil {
 		u.Fail("%v", err)
 		return nil, failed(u, controlCodeFailed)
