@@ -284,6 +284,60 @@ describe('ResourceComposePage', () => {
   });
 
   describe('Form Submission', () => {
+    it('uses the native folder picker and saves the generated resource path', async () => {
+      const onChooseStorageDirectory = vi.fn().mockResolvedValue('notes/archive');
+      const onSaveResource = vi.fn().mockResolvedValue(undefined);
+      renderWithProviders(
+        <ResourceComposePage
+          {...createMockProps({ onChooseStorageDirectory, onSaveResource })}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText('Resource Name'), { target: { value: 'Field Notes' } });
+      expect(screen.getByText('file://field-notes.md')).toBeInTheDocument();
+      const chooseButton = screen.getByRole('button', { name: 'Choose folder…' });
+      fireEvent.click(chooseButton);
+
+      await waitFor(() => {
+        expect(onChooseStorageDirectory).toHaveBeenCalledWith('');
+        expect(screen.getByText('file://notes/archive/field-notes.md')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Create Resource' }));
+      await waitFor(() => {
+        expect(onSaveResource).toHaveBeenCalledWith(expect.objectContaining({
+          storageUri: 'file://notes/archive/field-notes.md',
+        }));
+      });
+    });
+
+    it('keeps the proposed path when the native folder picker is cancelled', async () => {
+      const onChooseStorageDirectory = vi.fn().mockResolvedValue(null);
+      renderWithProviders(<ResourceComposePage {...createMockProps({ onChooseStorageDirectory })} />);
+
+      fireEvent.change(screen.getByLabelText('Resource Name'), { target: { value: 'Field Notes' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Choose folder…' }));
+
+      await waitFor(() => expect(onChooseStorageDirectory).toHaveBeenCalledOnce());
+      expect(screen.getByText('file://field-notes.md')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('shows native folder picker errors and allows another attempt', async () => {
+      const onChooseStorageDirectory = vi.fn()
+        .mockRejectedValueOnce(new Error('Folder access was denied'))
+        .mockResolvedValueOnce('notes');
+      renderWithProviders(<ResourceComposePage {...createMockProps({ onChooseStorageDirectory })} />);
+
+      fireEvent.change(screen.getByLabelText('Resource Name'), { target: { value: 'Field Notes' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Choose folder…' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('Folder access was denied');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Choose folder…' }));
+      await waitFor(() => expect(screen.getByText('file://notes/field-notes.md')).toBeInTheDocument());
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
     it('calls onSaveResource with correct params for new resource', async () => {
       const onSaveResource = vi.fn().mockResolvedValue(undefined);
       const props = createMockProps({ onSaveResource });

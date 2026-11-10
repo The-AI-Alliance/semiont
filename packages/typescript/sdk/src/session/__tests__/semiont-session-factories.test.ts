@@ -78,6 +78,42 @@ describe('SemiontSession.fromHttp', () => {
     }
   });
 
+  test('renews a refused token before retrying the request', async () => {
+    const requests: string[] = [];
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const headers = input instanceof Request ? input.headers : new Headers(init?.headers);
+      const token = (headers.get('authorization') ?? '').replace(/^Bearer /, '');
+      requests.push(token);
+      if (token === 'old-token') return new Response(null, { status: 401 });
+      return Response.json({
+        did: 'did:web:example.org:users:alice',
+        email: 'alice@example.org',
+        name: 'Alice',
+        image: null,
+        domain: 'example.org',
+      });
+    });
+    const refresh = vi.fn(async () => 'new-token');
+    const opened = SemiontSession.fromHttp({
+      kb: KB,
+      storage,
+      baseUrl: 'http://test.local',
+      token: 'old-token',
+      fetch: fetch as typeof globalThis.fetch,
+      refresh,
+    });
+
+    try {
+      await opened.session.ready;
+      await expect(opened.session.client.auth!.me()).resolves.toMatchObject({ name: 'Alice' });
+      expect(requests).toEqual(['old-token', 'new-token']);
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(opened.session.token$.getValue()).toBe('new-token');
+    } finally {
+      opened.dispose();
+    }
+  });
+
   test('forwards optional callbacks (refresh / onAuthFailed) into the session', async () => {
     const refresh = vi.fn(async () => null);
     const onAuthFailed = vi.fn();
