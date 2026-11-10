@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type {
   ControlKnowledgeBaseStatus,
   ControlServiceGroup,
@@ -114,9 +114,8 @@ export function ServiceGroupModal({
 
         <div className="service-group__body">
           <LauncherAnswer state={state}>
-            {(snapshot) => <SnapshotServices snapshot={snapshot} group={group} selectedRootPath={selectedRootPath} onOperate={operate} pending={pending} />}
+            {(snapshot) => <SnapshotServices snapshot={snapshot} group={group} selectedRootPath={selectedRootPath} gitCheck={gitCheck} onOperate={operate} pending={pending} />}
           </LauncherAnswer>
-          {group === 'record' && <GitStatusSection check={gitCheck} />}
           {progress !== null && <p className="service-group__progress" role="status" aria-live="polite">{progress}</p>}
           {error !== null && <p className="knowledge-bases__action-error" role="alert">{error}</p>}
         </div>
@@ -133,20 +132,35 @@ function SnapshotServices({
   snapshot,
   group,
   selectedRootPath,
+  gitCheck,
   onOperate,
   pending,
 }: {
   snapshot: ControlStatusSnapshotResult;
   group: DesktopServiceGroup;
   selectedRootPath: string | null;
+  gitCheck: GitCheck;
   onOperate: (row: ServiceRow, action: Action) => void;
   pending: { key: string; action: Action } | null;
 }) {
   const rows = rowsForGroup(snapshot, group, selectedRootPath);
   if (group === 'record' && selectedRootPath === null) {
-    return <p className="service-group__empty">Open a local Knowledge Base tab to see and control its services.</p>;
+    return (
+      <>
+        <p className="service-group__empty">Open a local Knowledge Base tab to see and control its services.</p>
+        <GitStatusSection check={gitCheck} />
+      </>
+    );
   }
   if (rows.length === 0) {
+    if (group === 'record') {
+      return (
+        <>
+          <p className="service-group__empty">No Record services are reported.</p>
+          <GitStatusSection check={gitCheck} />
+        </>
+      );
+    }
     return <p className="service-group__empty">No {GROUP_TITLES[group]} services are reported.</p>;
   }
 
@@ -176,39 +190,51 @@ function SnapshotServices({
             const canStop = row.target !== undefined && !isExternallyManaged(row.service) && row.service.state === 'running';
             const busy = pending?.key === row.key;
             return (
-              <tr key={row.key}>
-                {group === 'issuer' && <td>{row.kbName}</td>}
-                <th scope="row">
-                  {row.service.role}
-                  {row.service.product !== undefined && <small>{row.service.product}</small>}
-                </th>
-                <td>{row.service.runsOn ?? '—'}</td>
-                <td>{row.service.containerState === undefined ? row.service.state : `${row.service.state} (${row.service.containerState})`}</td>
-                <td className={row.service.healthy ? 'launcher-status__healthy' : 'launcher-status__unhealthy'}>
-                  {row.service.healthy ? 'Answers' : 'Does not answer'}
-                  {!row.service.counted && <small>not counted</small>}
-                </td>
-                {group === 'issuer' && <td>{row.service.realm ?? '—'}</td>}
-                {group !== 'record' && group !== 'issuer' && <td>{row.service.serves?.join(', ') ?? '—'}</td>}
-                <td>
-                  {row.service.page !== undefined && <a href={row.service.page} target="_blank" rel="noreferrer">Open</a>}
-                  {row.service.page !== undefined && row.service.probe !== undefined && <br />}
-                  {row.service.probe !== undefined && <code>{row.service.probe}</code>}
-                </td>
-                <td>
-                  {busy ? (
-                    <span className="service-group__busy">{pending?.action === 'start' ? 'Starting…' : 'Stopping…'}</span>
-                  ) : canStart ? (
-                    <button type="button" className="kb__connect" disabled={pending !== null} onClick={() => onOperate(row, 'start')}>Start</button>
-                  ) : canStop ? (
-                    <button type="button" className="kb__connect kb__connect--on" disabled={pending !== null} onClick={() => onOperate(row, 'stop')}>Stop</button>
-                  ) : (
-                    <span className="service-group__busy">—</span>
-                  )}
-                </td>
-              </tr>
+              <Fragment key={row.key}>
+                <tr>
+                  {group === 'issuer' && <td>{row.kbName}</td>}
+                  <th scope="row">
+                    {row.service.role}
+                    {row.service.product !== undefined && <small>{row.service.product}</small>}
+                  </th>
+                  <td>{row.service.runsOn ?? '—'}</td>
+                  <td>{row.service.containerState === undefined ? row.service.state : `${row.service.state} (${row.service.containerState})`}</td>
+                  <td className={row.service.healthy ? 'launcher-status__healthy' : 'launcher-status__unhealthy'}>
+                    {row.service.healthy ? 'Answers' : 'Does not answer'}
+                    {!row.service.counted && <small>not counted</small>}
+                  </td>
+                  {group === 'issuer' && <td>{row.service.realm ?? '—'}</td>}
+                  {group !== 'record' && group !== 'issuer' && <td>{row.service.serves?.join(', ') ?? '—'}</td>}
+                  <td>
+                    {row.service.page !== undefined && <a href={row.service.page} target="_blank" rel="noreferrer">Open</a>}
+                    {row.service.page !== undefined && row.service.probe !== undefined && <br />}
+                    {row.service.probe !== undefined && <code>{row.service.probe}</code>}
+                  </td>
+                  <td>
+                    {busy ? (
+                      <span className="service-group__busy">{pending?.action === 'start' ? 'Starting…' : 'Stopping…'}</span>
+                    ) : canStart ? (
+                      <button type="button" className="kb__connect" disabled={pending !== null} onClick={() => onOperate(row, 'start')}>Start</button>
+                    ) : canStop ? (
+                      <button type="button" className="kb__connect kb__connect--on" disabled={pending !== null} onClick={() => onOperate(row, 'stop')}>Stop</button>
+                    ) : (
+                      <span className="service-group__busy">—</span>
+                    )}
+                  </td>
+                </tr>
+                {group === 'record' && row.service.role === 'archivist' && (
+                  <tr className="service-group__git-row">
+                    <td colSpan={6}><GitStatusSection check={gitCheck} /></td>
+                  </tr>
+                )}
+              </Fragment>
             );
             })}
+            {group === 'record' && !rows.some((row) => row.service.role === 'archivist') && (
+              <tr className="service-group__git-row">
+                <td colSpan={6}><GitStatusSection check={gitCheck} /></td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
