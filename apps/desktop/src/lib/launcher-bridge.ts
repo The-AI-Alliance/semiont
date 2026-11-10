@@ -98,8 +98,6 @@ export interface LauncherBridge {
    *  answered it already. */
   cancelControl(handle: ControlHandle, reason: string): void;
   chooseDirectory(): Promise<string | null>;
-  /** Show a native folder dialog under a local KB root; returns the selected KB-relative directory. */
-  chooseResourceDirectory(rootPath: string, suggestedDirectory: string): Promise<string | null>;
   gitPath(): Promise<string | null>;
   opPath(): Promise<string | null>;
   ollamaInfo(): Promise<OllamaInfo>;

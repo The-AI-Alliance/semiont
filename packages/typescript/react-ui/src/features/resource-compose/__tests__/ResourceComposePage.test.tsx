@@ -284,7 +284,7 @@ describe('ResourceComposePage', () => {
   });
 
   describe('Form Submission', () => {
-    it('uses the native folder picker and saves the generated resource path', async () => {
+    it('uses the KB folder picker and saves the generated resource path', async () => {
       const onChooseStorageDirectory = vi.fn().mockResolvedValue('notes/archive');
       const onSaveResource = vi.fn().mockResolvedValue(undefined);
       renderWithProviders(
@@ -311,7 +311,7 @@ describe('ResourceComposePage', () => {
       });
     });
 
-    it('keeps the proposed path when the native folder picker is cancelled', async () => {
+    it('keeps the proposed path when the KB folder picker is cancelled', async () => {
       const onChooseStorageDirectory = vi.fn().mockResolvedValue(null);
       renderWithProviders(<ResourceComposePage {...createMockProps({ onChooseStorageDirectory })} />);
 
@@ -323,7 +323,7 @@ describe('ResourceComposePage', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
-    it('shows native folder picker errors and allows another attempt', async () => {
+    it('shows KB folder picker errors and allows another attempt', async () => {
       const onChooseStorageDirectory = vi.fn()
         .mockRejectedValueOnce(new Error('Folder access was denied'))
         .mockResolvedValueOnce('notes');
