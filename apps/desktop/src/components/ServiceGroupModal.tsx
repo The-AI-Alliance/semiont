@@ -13,7 +13,8 @@ import { GitStatusSection, type GitCheck } from './GitStatusSection';
 import { KnowledgeBaseServiceControls } from './KnowledgeBaseServiceControls';
 import type { KnowledgeBaseRow } from './KnowledgeBasesModal';
 
-export type DesktopServiceGroup = Extract<ControlServiceGroup, 'record' | 'index' | 'knowledge-workers' | 'issuer'> | 'browser';
+type KnowledgeBaseServiceModal = 'gateway-archivist' | 'dispatcher-messaging';
+export type DesktopServiceGroup = Extract<ControlServiceGroup, 'index' | 'knowledge-workers' | 'issuer'> | 'browser' | KnowledgeBaseServiceModal;
 type Action = 'start' | 'stop';
 interface ServiceRow {
   key: string;
@@ -23,7 +24,8 @@ interface ServiceRow {
 }
 
 const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
-  record: 'Services',
+  'gateway-archivist': 'Gateway & Archivist',
+  'dispatcher-messaging': 'Dispatcher & Messaging',
   index: 'Index',
   'knowledge-workers': 'Knowledge Workers',
   browser: 'Browser',
@@ -31,7 +33,8 @@ const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
 };
 
 const GROUP_DESCRIPTIONS: Record<DesktopServiceGroup, string> = {
-  record: 'Launcher, logs, Record services, and Git for this knowledge base.',
+  'gateway-archivist': 'Gateway and Archivist status, launcher controls, logs, and Git for this knowledge base.',
+  'dispatcher-messaging': 'Dispatcher and Messaging status for this knowledge base.',
   index: 'Index services for search, extraction, graph, and vector data.',
   'knowledge-workers': 'Shared workers that process jobs for knowledge bases on this machine.',
   browser: 'The shared Browser service for knowledge bases on this machine.',
@@ -125,7 +128,7 @@ export function ServiceGroupModal({
         </header>
 
         <div className="service-group__body">
-          {group === 'record' && (
+          {group === 'gateway-archivist' && (
             <KnowledgeBaseServiceControls
               root={knowledgeBaseRoot}
               onStart={onStartKnowledgeBase}
@@ -164,20 +167,21 @@ function SnapshotServices({
   pending: { key: string; action: Action } | null;
 }) {
   const rows = rowsForGroup(snapshot, group, selectedRootPath);
-  if (group === 'record' && selectedRootPath === null) {
+  const knowledgeBaseServiceModal = isKnowledgeBaseServiceModal(group);
+  if (knowledgeBaseServiceModal && selectedRootPath === null) {
     return (
       <>
         <p className="service-group__empty">Open a local Knowledge Base tab to see and control its services.</p>
-        <GitStatusSection check={gitCheck} />
+        {group === 'gateway-archivist' && <GitStatusSection check={gitCheck} />}
       </>
     );
   }
   if (rows.length === 0) {
-    if (group === 'record') {
+    if (knowledgeBaseServiceModal) {
       return (
         <>
-          <p className="service-group__empty">No Record services are reported.</p>
-          <GitStatusSection check={gitCheck} />
+          <p className="service-group__empty">No {GROUP_TITLES[group]} services are reported.</p>
+          {group === 'gateway-archivist' && <GitStatusSection check={gitCheck} />}
         </>
       );
     }
@@ -199,7 +203,7 @@ function SnapshotServices({
               <th scope="col">State</th>
               <th scope="col">Health</th>
               {group === 'issuer' && <th scope="col">Realm</th>}
-              {group !== 'record' && group !== 'issuer' && <th scope="col">Serves</th>}
+              {!knowledgeBaseServiceModal && group !== 'issuer' && <th scope="col">Serves</th>}
               <th scope="col">Page / Probe</th>
               <th scope="col">Control</th>
             </tr>
@@ -224,7 +228,7 @@ function SnapshotServices({
                     {!row.service.counted && <small>not counted</small>}
                   </td>
                   {group === 'issuer' && <td>{row.service.realm ?? '—'}</td>}
-                  {group !== 'record' && group !== 'issuer' && <td>{row.service.serves?.join(', ') ?? '—'}</td>}
+                  {!knowledgeBaseServiceModal && group !== 'issuer' && <td>{row.service.serves?.join(', ') ?? '—'}</td>}
                   <td>
                     {row.service.page !== undefined && <a href={row.service.page} target="_blank" rel="noreferrer">Open</a>}
                     {row.service.page !== undefined && row.service.probe !== undefined && <br />}
@@ -242,7 +246,7 @@ function SnapshotServices({
                     )}
                   </td>
                 </tr>
-                {group === 'record' && row.service.role === 'archivist' && (
+                {group === 'gateway-archivist' && row.service.role === 'archivist' && (
                   <tr className="service-group__git-row">
                     <td colSpan={6}><GitStatusSection check={gitCheck} /></td>
                   </tr>
@@ -250,7 +254,7 @@ function SnapshotServices({
               </Fragment>
             );
             })}
-            {group === 'record' && !rows.some((row) => row.service.role === 'archivist') && (
+            {group === 'gateway-archivist' && !rows.some((row) => row.service.role === 'archivist') && (
               <tr className="service-group__git-row">
                 <td colSpan={6}><GitStatusSection check={gitCheck} /></td>
               </tr>
@@ -267,10 +271,13 @@ function rowsForGroup(
   group: DesktopServiceGroup,
   selectedRootPath: string | null,
 ): ServiceRow[] {
-  if (group === 'record') {
+  if (isKnowledgeBaseServiceModal(group)) {
     const kb = snapshot.knowledgeBases.find((item) => item.root === selectedRootPath);
     if (kb === undefined) return [];
-    return kb.services.filter((service) => service.group === group).map((service) => {
+    const roles: readonly string[] = group === 'gateway-archivist'
+      ? ['gateway', 'archivist']
+      : ['dispatcher', 'messaging'];
+    return kb.services.filter((service) => service.group === 'record' && roles.includes(service.role)).map((service) => {
       const target = targetFor(kb);
       return {
         key: `${kb.key}/${service.role}`,
@@ -312,6 +319,10 @@ function rowsForGroup(
       service,
       ...(selectedRootPath === null ? {} : { target: { kind: 'local' as const, root: selectedRootPath } }),
     }));
+}
+
+function isKnowledgeBaseServiceModal(group: DesktopServiceGroup): group is KnowledgeBaseServiceModal {
+  return group === 'gateway-archivist' || group === 'dispatcher-messaging';
 }
 
 function targetFor(kb: ControlKnowledgeBaseStatus): ControlTarget | undefined {

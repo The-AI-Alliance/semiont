@@ -234,10 +234,10 @@ export function App() {
 
   const openServiceGroup = useCallback((group: DesktopServiceGroup, selectedRootPath: string | null) => {
     setServiceGroup(group);
-    askSnapshot(group === 'record' && selectedRootPath !== null
+    askSnapshot((group === 'gateway-archivist' || group === 'dispatcher-messaging') && selectedRootPath !== null
       ? { target: { kind: 'local', root: selectedRootPath } }
       : {});
-    if (group === 'record') {
+    if (group === 'gateway-archivist') {
       setGitCheck({ status: 'checking' });
       const bridge = window.launcherBridge;
       if (bridge === undefined) {
@@ -251,7 +251,7 @@ export function App() {
     }
   }, [askSnapshot]);
   const refreshServiceStatus = useCallback((selectedRootPath: string | null) => {
-    askSnapshot(serviceGroup === 'record' && selectedRootPath !== null
+    askSnapshot((serviceGroup === 'gateway-archivist' || serviceGroup === 'dispatcher-messaging') && selectedRootPath !== null
       ? { target: { kind: 'local', root: selectedRootPath } }
       : {});
   }, [askSnapshot, serviceGroup]);

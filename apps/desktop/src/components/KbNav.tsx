@@ -120,7 +120,8 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenKnowledgeBaseU
                   <h2 id="semiont-menu-kb">Knowledge Base</h2>
                   <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Record</span></button>
                   <button type="button" onClick={() => choose(onOpenKnowledgeBaseUsers)}><WorkersIcon /><span>Users</span></button>
-                  <button type="button" onClick={() => choose(() => onOpenServiceGroup('record'))}><RecordIcon /><span>Services</span></button>
+                  <button type="button" onClick={() => choose(() => onOpenServiceGroup('gateway-archivist'))}><RecordIcon /><span>Gateway &amp; Archivist</span></button>
+                  <button type="button" onClick={() => choose(() => onOpenServiceGroup('dispatcher-messaging'))}><RecordIcon /><span>Dispatcher &amp; Messaging</span></button>
                 </section>
               )}
               <section className="semiont-menu__group" aria-labelledby="semiont-menu-shared">
