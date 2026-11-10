@@ -124,6 +124,7 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onO
                 <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('index'))}><IndexIcon /><span>Index</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
+                <button type="button" onClick={() => choose(() => onOpenServiceGroup('browser'))}><BrowserIcon /><span>Browser</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('issuer'))}><IdentityIcon /><span>Identity &amp; Stores</span></button>
                 <button type="button" onClick={() => choose(onOpenMcp)}>
                   <McpIcon running={mcpStatus.state === 'running'} />
@@ -308,6 +309,10 @@ function IndexIcon() {
 
 function WorkersIcon() {
   return <svg width="18" height="18" {...ICON_PROPS}><circle cx="9" cy="8" r="3" /><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-13a3 3 0 0 1 0 6m1 2a5 5 0 0 1 3 4v1" /></svg>;
+}
+
+function BrowserIcon() {
+  return <svg width="18" height="18" {...ICON_PROPS}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M7 6.5h.01M10 6.5h.01" /><circle cx="12" cy="14" r="2.5" /><path d="M9.5 14h5m-2.5-2.5a5 5 0 0 1 0 5" /></svg>;
 }
 
 function IdentityIcon() {

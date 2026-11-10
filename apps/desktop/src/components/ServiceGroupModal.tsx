@@ -13,7 +13,7 @@ import { GitStatusSection, type GitCheck } from './GitStatusSection';
 import { KnowledgeBaseServiceControls } from './KnowledgeBaseServiceControls';
 import type { KnowledgeBaseRow } from './KnowledgeBasesModal';
 
-export type DesktopServiceGroup = Extract<ControlServiceGroup, 'record' | 'index' | 'knowledge-workers' | 'issuer'>;
+export type DesktopServiceGroup = Extract<ControlServiceGroup, 'record' | 'index' | 'knowledge-workers' | 'issuer'> | 'browser';
 type Action = 'start' | 'stop';
 interface ServiceRow {
   key: string;
@@ -26,6 +26,7 @@ const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
   record: 'Services',
   index: 'Index',
   'knowledge-workers': 'Knowledge Workers',
+  browser: 'Browser',
   issuer: 'Identity & Stores',
 };
 
@@ -33,6 +34,7 @@ const GROUP_DESCRIPTIONS: Record<DesktopServiceGroup, string> = {
   record: 'Launcher, logs, Record services, and Git for this knowledge base.',
   index: 'Index services for search, extraction, graph, and vector data.',
   'knowledge-workers': 'Shared workers that process jobs for knowledge bases on this machine.',
+  browser: 'The shared Browser service for knowledge bases on this machine.',
   issuer: 'Identity services and their stores, listed for each knowledge base.',
 };
 
@@ -184,7 +186,7 @@ function SnapshotServices({
 
   return (
     <>
-      {(group === 'index' || group === 'knowledge-workers') && selectedRootPath === null && (
+      {(group === 'index' || group === 'knowledge-workers' || group === 'browser') && selectedRootPath === null && (
         <p className="service-group__empty">Open a local Knowledge Base tab to control these shared services.</p>
       )}
       <div className="launcher-status__services">
@@ -293,8 +295,18 @@ function rowsForGroup(
       }));
   }
 
+  if (group === 'browser') {
+    return snapshot.shared
+      .filter((service) => service.group === 'knowledge-workers' && service.role === 'browser')
+      .map((service) => ({
+        key: `browser/${service.role}`,
+        service,
+        ...(selectedRootPath === null ? {} : { target: { kind: 'local' as const, root: selectedRootPath } }),
+      }));
+  }
+
   return snapshot.shared
-    .filter((service) => service.group === group)
+    .filter((service) => service.group === group && (group !== 'knowledge-workers' || service.role !== 'browser'))
     .map((service) => ({
       key: `${group}/${service.role}`,
       service,
