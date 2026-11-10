@@ -79,6 +79,7 @@ class StoredPlacesText(BaseModel, frozen=True, extra="forbid"):
 class Table(BaseModel, frozen=True, extra="forbid"):
     comment: str = Field(alias="$comment")
     run_by: dict[str, list[str]] = Field(alias="runBy")
+    not_yet_reached: dict[str, str] = Field(alias="notYetReached")
     cases: list[Stored | StoredText]
     writes: list[Write]
     refused_writes: list[Write] = Field(alias="refusedWrites")

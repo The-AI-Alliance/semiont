@@ -1821,7 +1821,8 @@ async fn a_knowledge_base_whose_tokens_the_storage_will_not_forget_is_not_remove
     let storage = Refusing::over(&world);
     let browser = world.browser_over(storage.clone());
     live(&browser).await;
-    storage.deletes.store(true, Ordering::SeqCst);
+    // A stored sign-in is forgotten by one update of its key.
+    storage.updates.store(true, Ordering::SeqCst);
 
     let refused = browser.remove_kb(A).await;
 
@@ -1842,7 +1843,8 @@ async fn a_sign_out_the_storage_will_not_keep_leaves_the_session_as_it_was() {
     let storage = Refusing::over(&world);
     let browser = world.browser_over(storage.clone());
     live(&browser).await;
-    storage.deletes.store(true, Ordering::SeqCst);
+    // A stored sign-in is forgotten by one update of its key.
+    storage.updates.store(true, Ordering::SeqCst);
 
     let refused = browser.sign_out(A).await;
     settle().await;
