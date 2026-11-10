@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module IssuerCases (issuerCases, serviceTokenCases, deviceClockCases, peer, httpPeer, route, form) where
+module IssuerCases (issuerCases, serviceTokenCases, deviceClockCases, peer, httpPeer, streamingPeer, jsonReply, route, bodyOf, form) where
 
 import Control.Concurrent.Async (async, cancel, wait, poll, replicateConcurrently)
 import Control.Concurrent.STM
@@ -58,25 +58,33 @@ values :: Value -> [Value]
 values (Array rows) = toList rows
 values _ = error "issuer answers are not a list"
 
--- A real http-client connection, driven byte for byte. The peer waits for
--- the complete declared body before replying, and closes every connection.
+-- An issuer over a peer that answers each request with one JSON reply.
 peer :: Time.ControlledTime -> (Bytes.ByteString -> IO (Int,Value)) -> IO Issuer.IssuerOptions
 peer time answer = do
-  pool <- httpPeer $ \request -> do
-    (status,body) <- answer request
-    let content=Lazy.toStrict (encode body)
-    pure ("HTTP/1.1 "<>Char8.pack (show status)<>" reply\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
-      <>Char8.pack (show (Bytes.length content))<>"\r\n\r\n"<>content)
+  pool <- httpPeer (fmap (uncurry jsonReply) . answer)
   pure (Issuer.IssuerOptions pool (Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pure 0)) Timing.protocolSettings)
 
+-- | A JSON reply that closes its connection.
+jsonReply :: Int -> Value -> Bytes.ByteString
+jsonReply status body = let content=Lazy.toStrict (encode body) in
+  "HTTP/1.1 "<>Char8.pack (show status)<>" reply\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
+    <>Char8.pack (show (Bytes.length content))<>"\r\n\r\n"<>content
+
+-- | Each request answered with one reply.
 httpPeer :: (Bytes.ByteString -> IO Bytes.ByteString) -> IO Http.HttpClient
-httpPeer answer = do
+httpPeer answer = streamingPeer (\request write _ -> answer request >>= atomically . write)
+
+-- | A real http-client connection, driven byte for byte. Once the request's declared body is in, answer is handed
+-- it, what writes the reply's bytes, at once or later, and what hangs up; a connection the client closes reads no more.
+streamingPeer :: (Bytes.ByteString -> (Bytes.ByteString -> STM ()) -> STM () -> IO ()) -> IO Http.HttpClient
+streamingPeer answer = do
   let connect _ _ _ = do
         accumulated <- newIORef Bytes.empty
         sent <- newIORef False
         output <- newTQueueIO
         closed <- newTVarIO False
         let readBytes = atomically (readTQueue output `orElse` (readTVar closed >>= check >> pure Bytes.empty))
+            hangUp = writeTVar closed True
             writeBytes bytes = do
               request <- atomicModifyIORef' accumulated (\before -> let after=before<>bytes in (after,after))
               already <- readIORef sent
@@ -86,9 +94,8 @@ httpPeer answer = do
                   fromRead=maybe (error "invalid HTTP content length") Prelude.id
               when (not already && not (Bytes.null rest) && Bytes.length (Bytes.drop 4 rest)>=lengthValue) $ do
                 writeIORef sent True
-                response <- answer request
-                atomically (writeTQueue output response)
-        makeConnection readBytes writeBytes (atomically (writeTVar closed True))
+                answer request (writeTQueue output) hangUp
+        makeConnection readBytes writeBytes (atomically hangUp)
   Http.newHttpClient noProxy defaultManagerSettings { managerRawConnection=pure connect }
 
 -- The generated endpoint's tag and protocol are explicit nominal constructors.
@@ -103,8 +110,10 @@ discovery = object ["issuer" .= String "http://issuer.test", "authorization_endp
   ,"revocation_endpoint" .= String "http://issuer.test/revoke"]
 route :: Bytes.ByteString -> Bytes.ByteString
 route request = case Char8.words (Char8.takeWhile (/='\r') request) of [_,path,_] -> path; _ -> error "invalid HTTP request line"
+bodyOf :: Bytes.ByteString -> Bytes.ByteString
+bodyOf = Bytes.drop 4 . snd . Bytes.breakSubstring "\r\n\r\n"
 form :: Bytes.ByteString -> [(Bytes.ByteString,Maybe Bytes.ByteString)]
-form = parseQuery . Bytes.drop 4 . snd . Bytes.breakSubstring "\r\n\r\n"
+form = parseQuery . bodyOf
 
 issuerCases :: Map.Map Text Value -> IO ()
 issuerCases fixtures = do
