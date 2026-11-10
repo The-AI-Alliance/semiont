@@ -963,11 +963,11 @@ the other clients' form. What the server does that a verb does not:
   2026-07-28 client and an older one that initializes alike, on
   `github.com/modelcontextprotocol/go-sdk`.
 
-### The control API, for Desktop
+### Serving Desktop over the control API
 
 `semiont control` serves the launcher's control API on stdio: JSON-RPC 2.0,
-one message per line. A program drives the launcher with it the way a person
-drives the commands: it is for Desktop. Each method is a command, run by the code the
+one message per line. A program, Desktop, drives the launcher with it the way
+a person drives the commands. Each method is a command, run by the code the
 command runs:
 
 - What the command would print arrives as the request's progress.
@@ -975,18 +975,22 @@ command runs:
 - What it would refuse is the request's error, under a code from the
   `control` group of `protocol/specs/src/errors/codes.json`.
 
-`semiont init` has no method.
+`roots.init` creates and registers a local knowledge base by running
+`semiont init` with explicit parameters. Desktop supplies the destination and
+permanent identity; it does not request template copying or overwrite an
+existing knowledge base.
 
 - **The spec is `protocol/specs/src/control`.** `methods.json` names each
   method and the schemas of its params and result.
   `packages/codegen/schemas/generate-control.mjs` generates the launcher's
-  types and the schema text it validates against. CI fails when either
-  drifts.
+  types, Desktop's types, and the schemas both sides validate against. CI
+  fails when any of them drifts.
 - **Every command-line option has a stated place in the API.** `cli.json`
   maps each option to a params field or a method, or says why it has none.
   `TestControlCLICensus` holds each command's parser to that table both ways.
-- **The launcher validates.** It holds every request to its schema before
-  anything runs, and every answer before it is sent. A mismatch fails the
+- **Both sides validate.** The launcher holds every request to its schema
+  before anything runs, and every answer before it is sent. Desktop holds what
+  it sends and what it receives to the same schemas. A mismatch fails the
   request; nothing is filled in.
 - **Nothing it sends carries a secret.** Every secret value the launcher reads
   or generates is removed from progress lines, log records, error messages

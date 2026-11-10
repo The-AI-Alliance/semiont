@@ -1,5 +1,5 @@
 {
-  "$comment": "The control API's methods and notifications: what `semiont control` serves, over JSON-RPC 2.0, one message per line on stdin and stdout. Each method names the schema of its params and of its result; each notification, the schema of its params. packages/codegen/schemas/generate-control.mjs generates the launcher's Go types from this table and the schemas it names, and the schema text the launcher validates against. protocol/contract/LAUNCHER-CONTROL.md is the contract's prose. `errorData`: the schema of a failed request's error data. `exclusive`: the request waits for every other exclusive request to end, and holds the others off until it does. `sends`: the notifications a request of the method may send besides notifications/progress, which any may.",
+  "$comment": "The control API's methods and notifications: what `semiont control` serves, over JSON-RPC 2.0, one message per line on stdin and stdout. Each method names the schema of its params and of its result; each notification, the schema of its params. packages/codegen/schemas/generate-control.mjs generates the launcher's Go types and Desktop's TypeScript types from this table and the schemas it names, and the schemas themselves for both sides to validate against. protocol/contract/LAUNCHER-CONTROL.md is the contract's prose. `errorData`: the schema of a failed request's error data. `exclusive`: the request waits for every other exclusive request to end, and holds the others off until it does. `sends`: the notifications a request of the method may send besides notifications/progress, which any may.",
   "apiVersion": "./ApiVersion.json",
   "errorData": "./ErrorData.json",
   "methods": [
@@ -18,6 +18,14 @@
       "exclusive": true,
       "sends": [],
       "docs": "Every knowledge base this machine knows: semiont roots."
+    },
+    {
+      "name": "roots.init",
+      "params": "./RootsInitParams.json",
+      "result": "./RootsInitResult.json",
+      "exclusive": true,
+      "sends": ["notifications/progress"],
+      "docs": "Create and register a new local knowledge base: semiont init."
     },
     {
       "name": "roots.forget",

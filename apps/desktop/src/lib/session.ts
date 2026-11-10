@@ -85,13 +85,11 @@ export async function connect(
     const { session } = opened;
     await session.ready;
 
-    // The KB owns its vocabulary, with one exception: the app marks its question
-    // resources with the `Question` entity type (so prior questions are excluded from
-    // recall). Ensure it exists in whatever KB we connect to. `frame.addEntityTypes`
-    // is state-idempotent, and framed directly (no `browse.entityTypes()` dedup) so it
-    // doesn't depend on the KB's entity-type read path.
-    await session.client.frame.addEntityTypes([QUESTION_ENTITY_TYPE]);
-
+    // Connecting only establishes the signed-in session and reads KB metadata. Do not
+    // mutate the KB's vocabulary here: an app-specific Question type is used on chat
+    // resources, but registering it is not a prerequisite for connecting, and waiting
+    // for that write's bus acknowledgement could leave an otherwise usable KB stuck at
+    // Connect for the full bus-request timeout.
     return { opened, description: await session.client.browse.kb() };
   } catch (err) {
     // A connection that fails after opening is ended here: nobody else holds it.

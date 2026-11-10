@@ -36,5 +36,6 @@
   (ambient-context-eio :with-test)
   (alcotest :with-test)
   (qcheck :with-test)
+  (bisect_ppx_ng :with-test)
   (ocamlformat (and :with-test (= 0.29.0)))
   (odoc :with-doc)))

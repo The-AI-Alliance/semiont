@@ -1,0 +1,22 @@
+{
+  "title": "RootsInitParams",
+  "type": "object",
+  "description": "roots.init's params: the local directory, permanent identity, and optional configuration inputs semiont init takes.",
+  "properties": {
+    "apiVersion": { "$ref": "./ApiVersion.json" },
+    "path": { "type": "string", "description": "Existing local directory in which to create the knowledge base.", "minLength": 1 },
+    "domain": { "type": "string", "description": "The permanent did:web domain, in colon-path form, such as owner.github.io:repo.", "minLength": 1 },
+    "name": { "type": "string", "description": "Project name. Absent: the directory basename.", "minLength": 1 },
+    "siteName": { "type": "string", "description": "Human-readable site name. Absent: the project name.", "minLength": 1 },
+    "inference": { "type": "string", "description": "Inference provider for the generated local stack documents.", "enum": ["anthropic", "ollama"] },
+    "model": { "type": "string", "description": "The primary model bound to roles and jobs.", "minLength": 1 },
+    "modelLight": { "type": "string", "description": "A light model example emitted in the generated config.", "minLength": 1 },
+    "embedding": { "type": "string", "description": "Ollama embedding model name, without the ollama: prefix.", "minLength": 1 },
+    "configName": { "type": "string", "description": "Inference document name. Absent: the provider name.", "minLength": 1 },
+    "anthropicEndpoint": { "type": "string", "description": "Anthropic API base URL.", "minLength": 1 },
+    "ollamaBase": { "type": "string", "description": "Local Ollama API base URL.", "minLength": 1 },
+    "ollamaRegistry": { "type": "string", "description": "Ollama registry base URL.", "minLength": 1 }
+  },
+  "required": ["apiVersion", "path", "domain"],
+  "additionalProperties": false
+}

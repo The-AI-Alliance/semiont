@@ -1,0 +1,10 @@
+{
+  "title": "RootsInitResult",
+  "type": "object",
+  "description": "The local directory where semiont init created and registered the knowledge base.",
+  "properties": {
+    "path": { "type": "string", "minLength": 1 }
+  },
+  "required": ["path"],
+  "additionalProperties": false
+}

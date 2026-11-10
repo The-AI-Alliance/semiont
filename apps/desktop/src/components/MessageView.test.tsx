@@ -32,10 +32,10 @@ function sessionWithOneMessage() {
               // A question is uploaded as markdown (chat-turn.ts), and a descriptor states its representations.
               representations: [{ mediaType: 'text/markdown', checksum: 'sha256:0', byteSize: TEXT.length }],
             },
-            annotations: [],
-            entityReferences: [],
+            lastSequence: 1,
           };
         }
+        if (op === 'browse:entity-types-requested') return { entityTypes: [] };
         return refuseUnscriptedOperation(op);
       },
     },

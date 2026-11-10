@@ -1,6 +1,13 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { AuthBridge } from '../src/lib/auth-bridge';
-import type { LauncherBridge } from '../src/lib/launcher-bridge';
+import {
+  controlEventChannel,
+  type ControlEvent,
+  type ControlHandle,
+  type ControlRequestParams,
+  type LauncherBridge,
+} from '../src/lib/launcher-bridge';
+import type { ControlMethod } from './control-types.gen';
 
 /** The main process answers a sign-in or a resume as `{ value }` or `{ error }` (a sentence
  *  a person may read); thrown here, it reaches the renderer unwrapped. */
@@ -55,16 +62,45 @@ const authBridge: AuthBridge = {
 };
 contextBridge.exposeInMainWorld('authBridge', authBridge);
 
+// The launcher's control API: the main process holds the `semiont control` child
+// (electron/control-client.ts) and serves these (electron/control-ipc.ts). A request's events
+// come back on its handle's own channel, listened to before the request is sent.
+let nextControlHandle: ControlHandle = 1;
+
 const launcherBridge: LauncherBridge = {
   onStatusRequested(listener) {
     const handler = () => listener();
     ipcRenderer.on('launcher:status-requested', handler);
     return () => ipcRenderer.removeListener('launcher:status-requested', handler);
   },
-  status: () => ipcRenderer.invoke('launcher:status'),
-  about: () => ipcRenderer.invoke('launcher:about'),
+  startControl<M extends ControlMethod>(
+    method: M,
+    params: ControlRequestParams<M>,
+    listener: (event: ControlEvent<M>) => void,
+  ): Promise<ControlHandle> {
+    const handle = nextControlHandle++;
+    const channel = controlEventChannel(handle);
+    ipcRenderer.on(channel, (_event: IpcRendererEvent, controlEvent: ControlEvent<M>) => {
+      if (controlEvent.kind === 'answer') ipcRenderer.removeAllListeners(channel);
+      listener(controlEvent);
+    });
+    return ipcRenderer.invoke('control:start', handle, method, params).then(
+      () => handle,
+      (error: unknown) => {
+        ipcRenderer.removeAllListeners(channel);
+        throw error;
+      },
+    );
+  },
+  cancelControl: (handle, reason) => ipcRenderer.send('control:cancel', handle, reason),
+  chooseDirectory: () => ipcRenderer.invoke('dialog:choose-directory'),
+  chooseResourceDirectory: (rootPath, suggestedDirectory) =>
+    ipcRenderer.invoke('dialog:choose-resource-directory', rootPath, suggestedDirectory),
   gitPath: () => ipcRenderer.invoke('system:git-path'),
   opPath: () => ipcRenderer.invoke('system:op-path'),
   ollamaInfo: () => ipcRenderer.invoke('system:ollama-info'),
+  mcpStatus: () => ipcRenderer.invoke('mcp:status'),
+  startMcp: () => ipcRenderer.invoke('mcp:start'),
+  stopMcp: () => ipcRenderer.invoke('mcp:stop'),
 };
 contextBridge.exposeInMainWorld('launcherBridge', launcherBridge);

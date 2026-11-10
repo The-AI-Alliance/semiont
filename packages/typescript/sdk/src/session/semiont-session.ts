@@ -599,9 +599,16 @@ export class SemiontSession implements StateUnit {
       ? null
       : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
+    // A session may be handed a token that the gateway no longer accepts
+    // (for example after its issuer rotates signing keys). Let the transport
+    // renew it on a 401, just as createHttpSessionFactory does; otherwise a
+    // bus request waits on a stream that keeps retrying the refused token
+    // until its own deadline expires.
+    let session!: SemiontSession;
     const transport = new HttpTransport({
       baseUrl: url,
       token$,
+      tokenRefresher: (refused) => session.refresh(refused),
       ...(keeps === null ? {} : { saveLastEventId: keeps.saveLastEventId }),
       ...(keeps === null || keeps.fromStart === null ? {} : { loadLastEventIds: keeps.fromStart.places.loadLastEventIds }),
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
@@ -624,7 +631,7 @@ export class SemiontSession implements StateUnit {
     }
     if (opts.onAuthFailed) config.onAuthFailed = opts.onAuthFailed;
     if (opts.onError) config.onError = opts.onError;
-    const session = new SemiontSession(config);
+    session = new SemiontSession(config);
     return {
       session,
       dispose: () => {

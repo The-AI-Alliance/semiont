@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useObservable } from '@semiont/react-ui';
 import type { ResourceId } from '@semiont/core';
 import { chatTurn, type PendingReference, type TurnPhase } from '../lib/chat-turn';
-import { ingest, mimeTypeFor } from '../lib/ingest';
 import { questionHistory } from '../lib/question-history';
 import { QUESTION_ENTITY_TYPE, type ChatSession } from '../lib/session';
 import { AnswerView } from './AnswerView';
@@ -10,6 +9,7 @@ import { MentionComposer, type MentionComposerHandle } from './MentionComposer';
 import type { MentionCandidate } from './MentionPicker';
 import { UploadRecord } from './UploadRecord';
 import type { ViewerPrefs } from './ViewerPrefControls';
+import { ResourceDiscoveryModal } from './ResourceDiscoveryModal';
 
 /** A question/answer turn in the chat log. */
 export interface Turn {
@@ -57,6 +57,7 @@ export function ChatPane({
   setEntries,
   onResourcesChanged,
   onOpenResource,
+  onNewDocument,
 }: {
   session: ChatSession;
   /** App-global viewer prefs — threaded to every message viewer (the footer lives in App). */
@@ -69,6 +70,7 @@ export function ChatPane({
   onResourcesChanged: () => void;
   /** Open a referenced/uploaded resource in the main pane; bound to this KB by the caller. */
   onOpenResource: (id: string, name: string) => void;
+  onNewDocument: () => void;
 }) {
   const entityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
   const entityTypes = entityTypesState?.status === 'ready' ? entityTypesState.value : [];
@@ -92,22 +94,12 @@ export function ChatPane({
   // re-renders the chat log.
   const composerRef = useRef<MentionComposerHandle>(null);
   const [composerEmpty, setComposerEmpty] = useState(true);
+  const [showResourceDiscovery, setShowResourceDiscovery] = useState(false);
 
   // This session's past questions, newest-first, for the composer's Up/Down recall. Each
   // entry points at its question RESOURCE (the persisted questionId) — the composer
   // rebuilds chips from that resource's own annotations.
   const history = useMemo(() => questionHistory(entries.filter((e) => e.kind === 'qna')), [entries]);
-
-  // Upload-a-file state. The catch in our case: Semiont needs a storage URI for
-  // the resource, which the GUI can't derive — so we ask for it.
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [staged, setStaged] = useState<File | null>(null);
-  const [fileUri, setFileUri] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadPct, setUploadPct] = useState(0);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const dragDepth = useRef(0);
 
   // Keep the newest turn in view: auto-scroll the log to the bottom on new content, but
   // only while the user is already near the bottom (don't yank them down if they've
@@ -257,107 +249,11 @@ export function ChatPane({
     onResourcesChanged(); // the pass created annotations on the resource
   };
 
-  // Stage a file for upload — shared by the picker and drag-and-drop. The staging
-  // panel then asks for the File URI before the actual upload.
-  const stageFile = (file: File) => {
-    setStaged(file);
-    setFileUri(`file://uploads/${file.name}`); // sensible default — the user edits it
-    setUploadError(null);
-    setUploadPct(0);
-  };
-
-  const onPickFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = ''; // reset so the same file can be re-picked later
-    if (file) stageFile(file);
-  };
-
-  // Drag-and-drop onto the chat pane. `dragDepth` counters nested dragenter/leave
-  // so the overlay doesn't flicker as the cursor crosses child elements; the
-  // `Files` check ignores text/element drags.
-  const hasFiles = (event: DragEvent) => event.dataTransfer.types.includes('Files');
-  const onDragEnter = (event: DragEvent) => {
-    if (!hasFiles(event)) return;
-    event.preventDefault();
-    dragDepth.current += 1;
-    setDragging(true);
-  };
-  const onDragOver = (event: DragEvent) => {
-    if (hasFiles(event)) event.preventDefault(); // required to allow the drop
-  };
-  const onDragLeave = (event: DragEvent) => {
-    if (!hasFiles(event)) return;
-    dragDepth.current -= 1;
-    if (dragDepth.current <= 0) {
-      dragDepth.current = 0;
-      setDragging(false);
-    }
-  };
-  const onDrop = (event: DragEvent) => {
-    if (!hasFiles(event)) return;
-    event.preventDefault();
-    dragDepth.current = 0;
-    setDragging(false);
-    const file = event.dataTransfer.files[0];
-    if (file) stageFile(file);
-  };
-
-  const cancelUpload = () => {
-    setStaged(null);
-    setFileUri('');
-    setUploadError(null);
-    setUploadPct(0);
-  };
-
-  const upload = async () => {
-    const file = staged;
-    if (file === null) return;
-    const uri = fileUri.trim();
-    if (uri.length === 0) return;
-
-    setUploading(true);
-    setUploadError(null);
-    setUploadPct(0);
-    try {
-      const { resourceId } = await ingest(session, file, file.name, {
-        storageUri: uri,
-        // Prefer the browser's sniffed type; fall back to the extension.
-        format: file.type || mimeTypeFor(file.name),
-        onProgress: (fraction) => setUploadPct(Math.round(fraction * 100)),
-      });
-      // The resource is created + embedded now — plain, unmarked. Marking its references is
-      // on demand via the upload record's chip (see markUpload).
-      setUploadPct(100);
-      stickToBottom.current = true; // a new upload record — scroll to it
-      suppressPinUntil.current = 0; // uploading overrides any in-log interaction hold
-      holdScrollTop.current = null;
-      setEntries((prev) => [
-        ...prev,
-        { kind: 'upload', id: crypto.randomUUID(), name: file.name, fileUri: uri, resourceId, markedEntityTypes: [] },
-      ]);
-      onResourcesChanged(); // the uploaded file is a new resource — refresh the document list
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      cancelUpload();
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setUploading(false);
-    }
-  };
-
   return (
-    <section
-      className="chat"
-      onDragEnter={onDragEnter}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
-      {dragging && (
-        <div className="chat__dropzone" aria-hidden="true">
-          <span>Drop a file to upload</span>
-        </div>
-      )}
+    <>
+      <section
+        className="chat"
+      >
       <div
         className="chat__log"
         ref={logRef}
@@ -396,78 +292,6 @@ export function ChatPane({
         )}
       </div>
 
-      {staged !== null && (
-        <div className="upload">
-          <div className="upload__head">
-            <span className="upload__name">
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-              {staged.name}
-            </span>
-            <button
-              type="button"
-              className="upload__cancel"
-              onClick={cancelUpload}
-              disabled={uploading}
-              aria-label="Remove file"
-            >
-              ×
-            </button>
-          </div>
-          <label className="upload__field">
-            <span className="upload__label">File URI</span>
-            <input
-              className="upload__uri"
-              value={fileUri}
-              onChange={(e) => setFileUri(e.target.value)}
-              placeholder="file://uploads/document.txt"
-              aria-label="File URI"
-            />
-          </label>
-          {uploadError !== null && (
-            <p className="upload__error" role="alert">
-              {uploadError}
-            </p>
-          )}
-          {uploading && (
-            <div
-              className="upload__progress"
-              role="progressbar"
-              aria-valuenow={uploadPct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <div className="upload__progress-fill" style={{ width: `${uploadPct}%` }} />
-            </div>
-          )}
-          <div className="upload__actions">
-            <button type="button" className="upload__secondary" onClick={cancelUpload} disabled={uploading}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="upload__primary"
-              onClick={() => void upload()}
-              disabled={uploading || fileUri.trim().length === 0}
-            >
-              {uploading ? 'Uploading…' : 'Upload'}
-            </button>
-          </div>
-        </div>
-      )}
-
       <form
         className="chat__compose"
         onSubmit={(event: FormEvent) => {
@@ -478,9 +302,9 @@ export function ChatPane({
         <button
           type="button"
           className="chat__attach"
-          onClick={() => fileInput.current?.click()}
-          aria-label="Attach a file"
-          title="Attach a file"
+          onClick={onNewDocument}
+          aria-label="Add a document"
+          title="Add a document"
         >
           <svg
             width="18"
@@ -493,10 +317,31 @@ export function ChatPane({
             strokeLinejoin="round"
             aria-hidden="true"
           >
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
-        <input ref={fileInput} type="file" className="chat__file" onChange={onPickFile} tabIndex={-1} aria-hidden="true" />
+        <button
+          type="button"
+          className="chat__attach"
+          onClick={() => setShowResourceDiscovery(true)}
+          aria-label="Search resources"
+          title="Search resources"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
+          </svg>
+        </button>
         <button
           type="button"
           className="chat__mention"
@@ -518,6 +363,17 @@ export function ChatPane({
           Send
         </button>
       </form>
-    </section>
+      </section>
+      {showResourceDiscovery && (
+        <ResourceDiscoveryModal
+          session={session}
+          onClose={() => setShowResourceDiscovery(false)}
+          onOpenResource={(id, name) => {
+            setShowResourceDiscovery(false);
+            onOpenResource(id, name);
+          }}
+        />
+      )}
+    </>
   );
 }

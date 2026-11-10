@@ -1,7 +1,7 @@
 # The launcher's control API
 
 `semiont control` serves the launcher's control API: a program drives the
-launcher the way a person drives its commands. It is for Desktop. Each
+launcher the way a person drives its commands. Desktop is its client. Each
 method is one of the launcher's commands, run by the code the command runs;
 what the command would print is the request's progress, and what it would
 report is the request's result.
@@ -14,8 +14,8 @@ and the schema of its params and of its result; the schemas beside it are the
 shapes; the `control` group of
 [`protocol/specs/src/errors/codes.json`](../specs/src/errors/codes.json) is
 why a request failed. `packages/codegen/schemas/generate-control.mjs`
-generates the launcher's Go types from them, and the schema text the
-launcher validates against.
+generates the launcher's Go types and Desktop's TypeScript types from them,
+and the schemas both sides validate against.
 
 **How this document is held.** Each rule ends with *Held by* and what fails
 when a launcher or a client breaks it: a case table, a census or a test, by
@@ -73,10 +73,11 @@ exist.
 
   A client holds its own params to the same schemas before it sends them, and
   refuses what the launcher would refuse, naming the same fields. Each
-  keyword that can refuse a value in the control schemas is one the launcher
-  locates a fault of.
+  keyword that can refuse a value in the control schemas is one both sides
+  locate a fault of.
   *Held by `protocol/specs/src/control/request-cases.json`,
   `packages/go/launcher/control_cases_test.go`,
+  `apps/desktop/electron/control-cases.test.ts`,
   `packages/go/launcher/control_census_test.go`.*
 - **P2.** A target is local or a codespace. A local target may name a root,
   and names no repository. A codespace target names its repository and no
@@ -118,7 +119,7 @@ exist.
   notification it receives to the same schemas. On a mismatch it fails
   loudly: it does not use the message, and it does not fill in what is
   missing.
-  *Held by no case.*
+  *Held by `apps/desktop/electron/control-client.test.ts`.*
 
 ## Progress
 
@@ -186,7 +187,7 @@ exist.
   *Held by `apps/launcher/control_wire_test.go`.*
 - **S2.** A client that quits cancels its requests, closes the launcher's
   stdin, and waits a bounded time for it to exit before it kills it.
-  *Held by no case.*
+  *Held by `apps/desktop/electron/control-client.test.ts`.*
 
 ## stdin and the person
 
@@ -237,8 +238,11 @@ exist.
   line a request is turned into. A new option fails the census until the
   table says what it is.
   *Held by `packages/go/launcher/control_census_test.go`.*
-- **L2.** `semiont init` has no method: making a knowledge base is the
-  command line's.
+- **L2.** `roots.init` creates and registers a new local knowledge base by
+  running `semiont init` with explicit params and `--yes`. Its caller states
+  the destination directory and permanent did:web domain. The method never
+  overwrites an existing KB and does not expose template copying, `--force`,
+  or `--no-git`.
   *Held by `protocol/specs/src/control/cli.json`.*
 - **L3.** The API reports what the command reports. It differs from the
   command line in two places, both so that a client is never left to guess:
