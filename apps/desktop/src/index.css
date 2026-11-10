@@ -447,10 +447,195 @@ button.kb-location-picker__entry:hover {
   padding: 1.5rem;
 }
 
+.discover-modal .semiont-card {
+  padding: 1.25rem;
+}
+
 .discover-modal__message {
   margin: 0;
   padding: 1.25rem 0;
   color: var(--muted);
+}
+
+.discover-modal__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.discover-modal__view-switch {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface-sidebar);
+}
+
+.discover-modal__view-switch button {
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.discover-modal__view-switch button[data-active="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
+}
+
+.discover-modal__toolbar .semiont-card__search-form {
+  flex: 1 1 auto;
+  min-width: 12rem;
+  margin: 0;
+}
+
+.discover-modal__toolbar .semiont-card__search-wrapper {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.discover-modal__toolbar .semiont-card__search-input {
+  width: 100%;
+}
+
+.discover-modal .semiont-card__filters {
+  margin-top: 1rem;
+}
+
+.discover-modal .semiont-card__filters-label {
+  margin-bottom: 0.5rem;
+}
+
+.discover-modal .semiont-card__filters {
+  margin-bottom: 0.75rem;
+}
+
+.discover-folders {
+  margin-top: 1rem;
+}
+
+.discover-folders__breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2rem;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+}
+
+.discover-folders__crumb {
+  padding: 0.25rem 0.1rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.discover-folders__crumb[aria-current="location"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.discover-folders__list {
+  max-height: min(52vh, 38rem);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.discover-folders__entry {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.65rem 0.9rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.discover-folders__entry:last-child {
+  border-bottom: 0;
+}
+
+.discover-folders__entry:hover,
+.discover-folders__entry:focus-visible {
+  background: var(--hover);
+}
+
+.discover-folders__resource-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.discover-folders__resource-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discover-folders__resource-copy small,
+.discover-folders__tags {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.discover-folders__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.discover-folders__tags small {
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-sidebar);
+}
+
+.discover-folders__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  color: var(--danger);
+}
+
+@media (width <= 600px) {
+  .discover-modal__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .discover-modal__view-switch {
+    align-self: flex-start;
+  }
+
+  .discover-folders__entry {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+  }
+
+  .discover-folders__tags {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
 }
 
 .config--modal {
