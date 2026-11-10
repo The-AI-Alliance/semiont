@@ -350,11 +350,12 @@ impl Keeping {
 fn assert_written(case: &str, written: Option<String>, expected: &Value) {
     let stored = table(STORED);
     let document = &stored["cacheDocument"]["properties"];
-    let members: Vec<&String> = document
+    let mut members: Vec<&String> = document
         .as_object()
         .expect("cacheDocument has properties")
         .keys()
         .collect();
+    members.sort();
     let written: Value =
         serde_json::from_str(&written.unwrap_or_else(|| panic!("{case}: nothing was written")))
             .expect("the document is JSON");
