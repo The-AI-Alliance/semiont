@@ -432,19 +432,14 @@ where
     }
 }
 
-/// Begin `save`, a save owed as a cache ends, on the runtime it ends on. A
-/// save that waits on nothing, as one to a persistence given directly does,
-/// is made before this returns (protocol/contract/CACHE-SEMANTICS.md B17);
-/// one that waits (a session's check of its sign-in) goes on there, and is
-/// handed back to be awaited. Where no runtime runs there is nothing to
-/// write it on, and it is lost, which is said as a warning.
+/// Begin `save`, a save owed as a cache ends. A save that waits on nothing,
+/// as one to a persistence given directly does, is made before this returns
+/// (protocol/contract/CACHE-SEMANTICS.md B17), with or without a runtime;
+/// one that waits (a session's check of its sign-in) goes on on the runtime
+/// the cache ends on, and is handed back to be awaited. Where no runtime
+/// runs there is nothing to finish it on, and it is lost, which is said as a
+/// warning.
 fn begun(save: impl Future<Output = ()> + Send + 'static) -> Option<JoinHandle<()>> {
-    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-        log::warn!(
-            "semiont: the cache's values were not kept: no Tokio runtime ran to write them on"
-        );
-        return None;
-    };
     let mut save = Box::pin(save);
     if save
         .as_mut()
@@ -453,6 +448,12 @@ fn begun(save: impl Future<Output = ()> + Send + 'static) -> Option<JoinHandle<(
     {
         return None;
     }
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        log::warn!(
+            "semiont: the cache's values were not kept: no Tokio runtime ran to write them on"
+        );
+        return None;
+    };
     Some(runtime.spawn(save))
 }
 
