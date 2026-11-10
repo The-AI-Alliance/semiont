@@ -43,6 +43,7 @@ interface Window {
   };
   /** Electron menu actions forwarded from the main process. */
   appMenuBridge?: {
+    onAboutRequested(listener: () => void): () => void;
     onDocumentsReloadRequested(listener: () => void): () => void;
   };
   /** Electron preload bridge to the knowledge bases' issuers: signing in, and the stored

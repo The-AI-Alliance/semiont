@@ -60,7 +60,6 @@ export function AboutModal({
           The launcher runs the local Semiont stack: Neo4j, Qdrant, Ollama, PostgreSQL, Jaeger, and the Semiont
           gateway, worker, smelter, weaver, and Browser. Try <code>semiont start --help</code>.
         </p>
-        <p className="about-modal__tagline">✨ Make Meaning</p>
       </section>
     </div>
   );

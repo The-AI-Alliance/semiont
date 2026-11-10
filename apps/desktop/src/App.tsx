@@ -422,6 +422,7 @@ export function App() {
   );
   // Bumped after resource creation or View > Reload to refresh open document lists.
   const [docsRefresh, setDocsRefresh] = useState(0);
+  useEffect(() => window.appMenuBridge?.onAboutRequested(openAbout), [openAbout]);
   useEffect(() => window.appMenuBridge?.onDocumentsReloadRequested(() => {
     setDocsRefresh((value) => value + 1);
   }), []);
@@ -975,7 +976,6 @@ export function App() {
             onNewChat={handleNewChat}
             onNewDocument={openNewDocument}
             onSelectSession={selectSession}
-            onOpenAbout={openAbout}
             onOpenInference={openInference}
             onOpenSecrets={openSecrets}
             onOpenMcp={openMcp}

@@ -445,7 +445,10 @@ app.on('before-quit', () => {
 
 function setApplicationMenu(): void {
   const appMenu: MenuItemConstructorOptions[] = [
-    { role: 'about' },
+    {
+      label: `About ${app.getName()}`,
+      click: () => mainWindow?.webContents.send('about:requested'),
+    },
     { type: 'separator' },
     {
       label: 'Launcher Status…',

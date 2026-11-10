@@ -54,6 +54,11 @@ contextBridge.exposeInMainWorld('windowBridge', {
 });
 
 contextBridge.exposeInMainWorld('appMenuBridge', {
+  onAboutRequested(listener: () => void): () => void {
+    const handler = () => listener();
+    ipcRenderer.on('about:requested', handler);
+    return () => ipcRenderer.removeListener('about:requested', handler);
+  },
   onDocumentsReloadRequested(listener: () => void): () => void {
     const handler = () => listener();
     ipcRenderer.on('documents:reload-requested', handler);
