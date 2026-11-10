@@ -37,10 +37,10 @@ async function sessionWithOneDocument() {
               name: NAME,
               representations: [{ mediaType: 'text/plain', checksum: 'sha256:0', byteSize: TEXT.length }],
             },
-            annotations: [],
-            entityReferences: [],
+            lastSequence: 1,
           };
         }
+        if (op === 'browse:entity-types-requested') return { entityTypes: [] };
         return refuseUnscriptedOperation(op);
       },
     },

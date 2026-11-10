@@ -371,6 +371,43 @@ jobs:
           verbose: true
         continue-on-error: true
 
+  # Desktop's type check and suite: its renderer, and its Electron main
+  # process, the control API's client among them. Its packaging is Build
+  # Acceptance's.
+  test-desktop:
+    name: Desktop Tests
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Build packages
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      - name: Run Desktop type check
+        run: npm run typecheck --workspace=semiont-desktop
+        env:
+          CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Run Desktop tests
+        run: npm test --workspace=semiont-desktop
+        env:
+          CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
   # Each npm package's suite, once, with coverage: coverage sets no threshold,
   # so the run fails exactly when the suite does (docs/contributor/TESTING.md).
   # react-ui's accessibility tests are tests of its suite.
@@ -3826,10 +3863,11 @@ jobs:
 
       # The control API (protocol/specs/src/control/methods.json and the
       # schemas it names) → the launcher's types and the schema text it
-      # validates against (packages/go/launcher/control_*_gen.go).
+      # validates against (packages/go/launcher/control_*_gen.go), and
+      # Desktop's types and schemas (apps/desktop/electron/control-types.gen.ts).
       # TestControlCLICensus, in the launcher's suite, holds the command line
       # to the API both ways.
-      - name: Control API vs the launcher's generated code
+      - name: Control API vs the launcher's and Desktop's generated code
         run: npm run generate:control:check
 
       # protocol/specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
@@ -4317,6 +4355,7 @@ jobs:
       - census
       - changes
       - test-browser
+      - test-desktop
       - test-package
       - browser-security
       - lighthouse-accessibility

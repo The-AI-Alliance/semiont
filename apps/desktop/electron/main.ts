@@ -1,17 +1,23 @@
-import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
-import { execFile } from 'node:child_process';
-import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { delimiter, dirname, join } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
-import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
+import type { McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
+import { ControlClient } from './control-client';
+import { registerControlHandlers } from './control-ipc';
 import { appendLog, configDir, logPath } from './paths';
 
 registerAuthHandlers();
 
 let mainWindow: BrowserWindow | null = null;
+let mcpChild: ChildProcess | null = null;
+let mcpStartedAt: number | null = null;
+let mcpStopping = false;
+let mcpError: string | null = null;
 
 function launcherPath(): string {
   return app.isPackaged
@@ -39,33 +45,68 @@ function launcherEnvironment(): NodeJS.ProcessEnv {
   return { ...process.env, PATH: pathEntries.join(delimiter) };
 }
 
-function runLauncher(args: string[]): Promise<LauncherStatusResult> {
-  return new Promise((resolve) => {
-    execFile(
-      launcherPath(),
-      args,
-      {
-        cwd: app.getPath('home'),
-        encoding: 'utf8',
-        env: launcherEnvironment(),
-        maxBuffer: 4 * 1024 * 1024,
-        timeout: 120_000,
-        windowsHide: true,
-      },
-      (error, stdout, stderr) => {
-        const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
-        resolve({
-          output: output || (error === null ? '(no output)' : error.message),
-          exitCode: error === null ? 0 : (typeof error.code === 'number' ? error.code : null),
-          error: error?.message ?? null,
-        });
-      },
-    );
-  });
-}
+const control = new ControlClient(
+  () => spawn(launcherPath(), ['control'], {
+    cwd: app.getPath('home'),
+    env: launcherEnvironment(),
+    windowsHide: true,
+  }),
+  (line) => appendLog(`${new Date().toISOString()} [launcher] ${line}`),
+);
+registerControlHandlers(control);
 
-ipcMain.handle('launcher:status', () => runLauncher(['status']));
-ipcMain.handle('launcher:about', () => runLauncher(['about']));
+ipcMain.handle('dialog:choose-directory', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+  return result.canceled ? null : result.filePaths[0] ?? null;
+});
+
+ipcMain.handle('dialog:choose-resource-directory', async (event, rootValue: unknown, suggestedValue: unknown) => {
+  if (typeof rootValue !== 'string' || rootValue.length === 0 || typeof suggestedValue !== 'string') {
+    throw new Error('Choose resource directory needs a KB root and suggested relative directory.');
+  }
+  const root = resolve(rootValue);
+  if (!existsSync(root) || !statSync(root).isDirectory()) throw new Error('The Knowledge Base folder is unavailable.');
+
+  const suggested = isAbsolute(suggestedValue) ? '' : suggestedValue;
+  const candidate = resolve(root, suggested);
+  const candidateRelative = relative(root, candidate);
+  let defaultPath = candidateRelative === '..' || candidateRelative.startsWith(`..${sep}`) || isAbsolute(candidateRelative)
+    ? root
+    : candidate;
+  if (!existsSync(defaultPath) || !statSync(defaultPath).isDirectory()) defaultPath = root;
+  const options: Electron.OpenDialogOptions = {
+    title: 'Choose a Folder in This Knowledge Base',
+    buttonLabel: 'Choose Folder',
+    defaultPath,
+    properties: ['openDirectory', 'createDirectory'],
+  };
+  const owner = BrowserWindow.fromWebContents(event.sender);
+  const result = owner === null
+    ? await dialog.showOpenDialog(options)
+    : await dialog.showOpenDialog(owner, options);
+  if (result.canceled) return null;
+  const selectedPath = result.filePaths[0];
+  if (selectedPath === undefined) return null;
+
+  const chosen = resolve(selectedPath);
+  const chosenRelative = relative(root, chosen);
+  if (chosenRelative === '..' || chosenRelative.startsWith(`..${sep}`) || isAbsolute(chosenRelative)) {
+    throw new Error('Choose a folder inside this Knowledge Base.');
+  }
+  return chosenRelative.split(sep).join('/');
+});
+
+// Quitting waits for the launcher's control child to answer what it was asked and exit (at
+// most SHUTDOWN_GRACE_MS), then quits for real.
+let launcherClosed = false;
+app.on('before-quit', (event) => {
+  if (launcherClosed) return;
+  event.preventDefault();
+  void control.close().then(() => {
+    launcherClosed = true;
+    app.quit();
+  });
+});
 
 async function ollamaInfo(): Promise<OllamaInfo> {
   const env = launcherEnvironment();
@@ -163,6 +204,115 @@ ipcMain.handle('system:op-path', async () => {
     }
   }
   return null;
+});
+
+async function mcpProcessStatus(): Promise<McpProcessStatus> {
+  const child = mcpChild;
+  if (child === null) {
+    return {
+      state: mcpError === null ? 'stopped' : 'failed',
+      pid: null,
+      startedAt: null,
+      memoryBytes: null,
+      cpuPercent: null,
+      error: mcpError,
+    };
+  }
+
+  const pid = child.pid ?? null;
+  let memoryBytes: number | null = null;
+  let cpuPercent: number | null = null;
+  if (pid !== null && !mcpStopping) {
+    const stats = await new Promise<{ memoryBytes: number | null; cpuPercent: number | null }>((resolve) => {
+      execFile('ps', ['-o', 'rss=', '-o', '%cpu=', '-p', String(pid)], { encoding: 'utf8' }, (error, output) => {
+        const values = output.trim().match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)$/);
+        const memoryKb = values === null ? null : Number(values[1]);
+        const cpu = values === null ? null : Number(values[2]);
+        resolve({
+          memoryBytes: error === null && memoryKb !== null && Number.isFinite(memoryKb) ? memoryKb * 1024 : null,
+          cpuPercent: error === null && cpu !== null && Number.isFinite(cpu) ? cpu : null,
+        });
+      });
+    });
+    memoryBytes = stats.memoryBytes;
+    cpuPercent = stats.cpuPercent;
+  }
+
+  return {
+    state: mcpStopping ? 'stopping' : pid === null ? 'starting' : 'running',
+    pid,
+    startedAt: mcpStartedAt,
+    memoryBytes,
+    cpuPercent,
+    error: null,
+  };
+}
+
+ipcMain.handle('mcp:status', () => mcpProcessStatus());
+
+ipcMain.handle('mcp:start', async () => {
+  if (mcpChild !== null) return mcpProcessStatus();
+  mcpError = null;
+  mcpStopping = false;
+  const child = spawn(launcherPath(), ['mcp'], {
+    cwd: app.getPath('home'),
+    env: launcherEnvironment(),
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  mcpChild = child;
+  mcpStartedAt = Date.now();
+  child.stdout?.on('data', () => {});
+  child.stderr?.on('data', () => {});
+  child.once('error', (error) => {
+    mcpError = error.message;
+    if (mcpChild === child) {
+      mcpChild = null;
+      mcpStartedAt = null;
+    }
+  });
+  child.once('close', (code, signal) => {
+    if (mcpChild !== child) return;
+    if (!mcpStopping && (code !== 0 || signal !== null)) {
+      mcpError = `semiont mcp exited${code === null ? '' : ` with code ${code}`}${signal === null ? '' : ` (${signal})`}.`;
+    }
+    mcpChild = null;
+    mcpStartedAt = null;
+    mcpStopping = false;
+  });
+
+  await new Promise<void>((resolve) => {
+    child.once('spawn', resolve);
+    child.once('error', resolve);
+  });
+  return mcpProcessStatus();
+});
+
+ipcMain.handle('mcp:stop', async () => {
+  const child = mcpChild;
+  if (child === null) return mcpProcessStatus();
+  mcpStopping = true;
+  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
+  child.kill('SIGTERM');
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const stopped = await Promise.race([
+    closed.then(() => true),
+    new Promise<boolean>((resolve) => {
+      timeout = setTimeout(() => resolve(false), 3000);
+    }),
+  ]);
+  if (timeout !== undefined) clearTimeout(timeout);
+  if (!stopped) {
+    child.kill('SIGKILL');
+    await closed;
+  }
+  return mcpProcessStatus();
+});
+
+app.on('before-quit', () => {
+  if (mcpChild !== null && mcpChild.exitCode === null && mcpChild.signalCode === null) {
+    mcpChild.kill('SIGTERM');
+  }
 });
 
 function setApplicationMenu(): void {

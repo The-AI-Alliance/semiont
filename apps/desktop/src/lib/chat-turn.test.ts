@@ -16,7 +16,19 @@ import { recordingContent } from './test-content';
 // A `yield` job is generated from its context's focus, so a usable
 // `focus.resource['@id']` is required — the fake carries the question's id.
 function fakeContext(focusRid: string): GatheredContext {
-  return { focus: { kind: 'resource', resource: { '@id': focusRid } } } as unknown as GatheredContext;
+  return {
+    focus: {
+      kind: 'resource',
+      resource: {
+        '@context': 'https://schema.org/',
+        '@id': brandResourceId(focusRid),
+        name: 'Question',
+        representations: [],
+      },
+    },
+    graph: { nodes: [], edges: [] },
+    metadata: {},
+  };
 }
 
 const QUESTION = 'What does the spec say about retries?';
@@ -44,6 +56,16 @@ function harness(opts: {
         if (op === 'mark:create-request') return { annotationId: `ann-${++annCounter}` };
         if (op === 'gather:resource-requested') return context;
         if (op === 'job:create') return { jobId: 'job-1' };
+        if (op === 'job:status-requested') {
+          return {
+            jobId: 'job-1',
+            type: 'yield',
+            status: 'running',
+            userId: 'did:web:test:users:alice',
+            created: '2026-11-09T00:00:00.000Z',
+          };
+        }
+        if (op === 'job:cancel-requested') return { cancelled: true };
         return refuseUnscriptedOperation(op);
       },
     },

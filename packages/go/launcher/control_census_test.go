@@ -529,9 +529,31 @@ func faultKindsOfSchemaFaults(t *testing.T) []string {
 	return keywords
 }
 
+// faultKeywordsOfDesktop: the keywords Desktop's fieldFaults has a case for.
+func faultKeywordsOfDesktop(t *testing.T) []string {
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "apps", "desktop", "electron", "control-schemas.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, body, found := strings.Cut(string(text), "\nfunction fieldFaults(")
+	if !found {
+		t.Fatal("control-schemas.ts has no function fieldFaults")
+	}
+	body, _, _ = strings.Cut(body, "\n}\n")
+	var keywords []string
+	for _, line := range strings.Split(body, "\n") {
+		if literal, ok := strings.CutPrefix(strings.TrimSpace(line), "case '"); ok {
+			keyword, _, _ := strings.Cut(literal, "'")
+			keywords = append(keywords, keyword)
+		}
+	}
+	sort.Strings(keywords)
+	return keywords
+}
+
 // The keywords that can refuse a value in the control schemas are exactly the
-// ones the launcher's schemaFaults says a fault for: a schema that grows a
-// keyword fails here, not as a fault nobody locates.
+// ones the launcher's schemaFaults and Desktop's fieldFaults say a fault for:
+// a schema that grows a keyword fails here, not as a fault nobody locates.
 func TestControlFaultKeywordsAreTheSchemas(t *testing.T) {
 	names, err := filepath.Glob(filepath.Join(controlSpecDir, "*.json"))
 	if err != nil {
@@ -556,5 +578,8 @@ func TestControlFaultKeywordsAreTheSchemas(t *testing.T) {
 	sort.Strings(refusing)
 	if launcher := faultKindsOfSchemaFaults(t); !slices.Equal(launcher, refusing) {
 		t.Errorf("the control schemas refuse by %v; the launcher's schemaFaults says faults of %v", refusing, launcher)
+	}
+	if desktop := faultKeywordsOfDesktop(t); !slices.Equal(desktop, refusing) {
+		t.Errorf("the control schemas refuse by %v; Desktop's fieldFaults says faults of %v", refusing, desktop)
 	}
 }

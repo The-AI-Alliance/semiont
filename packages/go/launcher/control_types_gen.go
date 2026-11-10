@@ -146,6 +146,58 @@ type ControlRoot struct {
 	Reachable *bool `json:"reachable,omitempty"`
 }
 
+// ControlRootsInitParams: roots.init's params: the local directory, permanent
+// identity, and optional configuration inputs semiont init takes.
+type ControlRootsInitParams struct {
+	// The group and version of the control API. Every request's params state it;
+	// a launcher refuses a version it does not speak with
+	// control.unsupported-api-version, and names the ones it does.
+	ApiVersion string `json:"apiVersion"`
+
+	// Existing local directory in which to create the knowledge base.
+	Path string `json:"path"`
+
+	// The permanent did:web domain, in colon-path form, such as
+	// owner.github.io:repo.
+	Domain string `json:"domain"`
+
+	// Project name. Absent: the directory basename.
+	Name *string `json:"name,omitempty"`
+
+	// Human-readable site name. Absent: the project name.
+	SiteName *string `json:"siteName,omitempty"`
+
+	// Inference provider for the generated local stack documents.
+	Inference *string `json:"inference,omitempty"`
+
+	// The primary model bound to roles and jobs.
+	Model *string `json:"model,omitempty"`
+
+	// A light model example emitted in the generated config.
+	ModelLight *string `json:"modelLight,omitempty"`
+
+	// Ollama embedding model name, without the ollama: prefix.
+	Embedding *string `json:"embedding,omitempty"`
+
+	// Inference document name. Absent: the provider name.
+	ConfigName *string `json:"configName,omitempty"`
+
+	// Anthropic API base URL.
+	AnthropicEndpoint *string `json:"anthropicEndpoint,omitempty"`
+
+	// Local Ollama API base URL.
+	OllamaBase *string `json:"ollamaBase,omitempty"`
+
+	// Ollama registry base URL.
+	OllamaRegistry *string `json:"ollamaRegistry,omitempty"`
+}
+
+// ControlRootsInitResult: The local directory where semiont init created and
+// registered the knowledge base.
+type ControlRootsInitResult struct {
+	Path string `json:"path"`
+}
+
 // ControlRootsForgetParams: roots.forget's params.
 type ControlRootsForgetParams struct {
 	// The version of the control API the request is written to.

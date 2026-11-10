@@ -9,6 +9,77 @@
   /* Use full width like the Discover page instead of centering */
 }
 
+.semiont-form__location-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.semiont-form__location-picker code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: 0.375rem;
+  color: var(--semiont-color-gray-700);
+  background: var(--semiont-bg-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .semiont-form__location-picker code {
+  border-color: var(--semiont-color-gray-600);
+  color: var(--semiont-color-gray-200);
+}
+
+.semiont-form__location-button {
+  flex: none;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: 0.375rem;
+  color: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-primary);
+}
+
+.semiont-form__location-button:hover:not(:disabled) {
+  border-color: var(--semiont-color-blue-500);
+  color: var(--semiont-color-blue-600);
+}
+
+.semiont-form__location-button:focus-visible {
+  outline: 2px solid var(--semiont-focus-ring);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-form__location-button {
+  border-color: var(--semiont-color-gray-600);
+  color: var(--semiont-color-gray-100);
+  background: var(--semiont-bg-secondary);
+}
+
+.semiont-form__location-error {
+  margin: 0.35rem 0 0;
+  color: var(--semiont-color-red-600);
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .semiont-form__location-error {
+  color: var(--semiont-color-red-400);
+}
+
+.semiont-form__location-hint {
+  margin: 0.35rem 0 0;
+  color: var(--semiont-color-gray-600);
+  font-size: 0.8rem;
+}
+
+[data-theme="dark"] .semiont-form__location-hint {
+  color: var(--semiont-color-gray-400);
+}
+
 /* Two-column compose grid: metadata left, content right on wide screens */
 .semiont-compose-grid {
   display: grid;

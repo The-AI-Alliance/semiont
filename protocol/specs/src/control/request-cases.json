@@ -1,7 +1,8 @@
 {
-  "$comment": "How a launcher answers a request line before any operation runs: each case is one line a client sends to semiont control, and the answer it gets — none, for a notification; an error, with its JSON-RPC code and the control code its data names; or a result, which holds to the method's result schema. The launcher's codec runs every case (control_cases_test.go). `fields`: the JSON pointers the error's data names, in any order.",
+  "$comment": "How a launcher answers a request line before any operation runs: each case is one line a client sends to semiont control, and the answer it gets — none, for a notification; an error, with its JSON-RPC code and the control code its data names; or a result, which holds to the method's result schema. The launcher's codec runs every case (control_cases_test.go). Desktop's client runs each request it would send through its own validation of params, and refuses exactly those the launcher refuses for their params: the cases answered with control.invalid-params or control.unsupported-api-version (control-cases.test.ts). `fields`: the JSON pointers the error's data names, in any order.",
   "runBy": {
-    "launcher": ["packages/go/launcher/control_cases_test.go"]
+    "launcher": ["packages/go/launcher/control_cases_test.go"],
+    "desktop": ["apps/desktop/electron/control-cases.test.ts"]
   },
   "cases": [
     {
@@ -68,6 +69,11 @@
       "name": "a version this launcher does not speak is refused, naming the ones it does",
       "line": "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"roots.list\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v2\"}}",
       "answer": {"id": 6, "error": {"code": -32602, "data": {"code": "control.unsupported-api-version", "retryable": false, "supported": ["control.semiont.the-ai-alliance.github.io/v1alpha1"]}}}
+    },
+    {
+      "name": "roots.init requires a destination directory",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"roots.init\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"domain\":\"owner.github.io:repo\"}}",
+      "answer": {"id": 15, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/path"]}}}
     },
     {
       "name": "a member a method's params do not take is refused, naming it",

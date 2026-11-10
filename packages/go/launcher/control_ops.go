@@ -23,6 +23,7 @@ type controlHandler func(req *controlRequest, u *UI) (any, *controlFailure)
 var controlHandlers = map[string]controlHandler{
 	"launcher.about":  controlAbout,
 	"roots.list":      controlRootsList,
+	"roots.init":      controlRootsInit,
 	"roots.forget":    controlRootsForget,
 	"status.snapshot": controlStatusSnapshot,
 	"stack.start":     controlStackStart,
