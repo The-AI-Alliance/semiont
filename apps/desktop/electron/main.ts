@@ -61,15 +61,16 @@ ipcMain.handle('dialog:choose-directory', async () => {
 });
 
 // Quitting waits for the launcher's control child to answer what it was asked and exit (at
-// most SHUTDOWN_GRACE_MS), then quits for real.
-let launcherClosed = false;
+// most SHUTDOWN_GRACE_MS), then exits directly. Calling app.quit() again from this async
+// continuation can leave macOS with a closed window but a still-running app.
+let quitInProgress = false;
 app.on('before-quit', (event) => {
-  if (launcherClosed) return;
   event.preventDefault();
-  void control.close().then(() => {
-    launcherClosed = true;
-    app.quit();
-  });
+  if (quitInProgress) return;
+  quitInProgress = true;
+  void control.close()
+    .catch((error: unknown) => appendLog(`${new Date().toISOString()} [quit] ${String(error)}`))
+    .finally(() => app.exit(0));
 });
 
 async function ollamaInfo(): Promise<OllamaInfo> {
