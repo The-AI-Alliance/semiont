@@ -626,6 +626,39 @@ function createWindow(): void {
     if (mainWindow === win) mainWindow = null;
   });
 
+  // Only the app document may stay in this window. In development, allow the
+  // local Vite origin; in packaged builds, allow only the app's index document.
+  // Links to external sites are handled separately by setWindowOpenHandler.
+  const devUrl = process.env['ELECTRON_RENDERER_URL'];
+  let devOrigin: string | null = null;
+  if (devUrl !== undefined) {
+    try {
+      const candidate = new URL(devUrl);
+      if (candidate.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(candidate.hostname)) {
+        devOrigin = candidate.origin;
+      }
+    } catch {
+      // An invalid dev URL cannot widen the allowed navigation boundary.
+    }
+  }
+  const allowTopLevelNavigation = (candidateUrl: string): boolean => {
+    try {
+      const candidate = new URL(candidateUrl);
+      return devOrigin !== null
+        ? candidate.origin === devOrigin
+        : candidate.protocol === 'semiont-app:' && candidate.hostname === 'desktop' && candidate.pathname === '/index.html';
+    } catch {
+      return false;
+    }
+  };
+  const blockUnexpectedNavigation = (event: Electron.Event, candidateUrl: string) => {
+    if (allowTopLevelNavigation(candidateUrl)) return;
+    event.preventDefault();
+    appendLog(`${new Date().toISOString()} [navigation] blocked top-level navigation`);
+  };
+  win.webContents.on('will-navigate', blockUnexpectedNavigation);
+  win.webContents.on('will-redirect', blockUnexpectedNavigation);
+
   // Deep-links (sidebar docs, upload records, answer references) use target=_blank /
   // window.open. In Electron that would otherwise spawn a bare in-app window — instead
   // route http(s) to the user's DEFAULT browser (where the Semiont Browser runs), and
@@ -639,7 +672,6 @@ function createWindow(): void {
 
   // dev: `electron:dev` sets ELECTRON_RENDERER_URL to the Vite dev server.
   // packaged: load the Vite-built renderer from out/renderer.
-  const devUrl = process.env['ELECTRON_RENDERER_URL'];
   if (devUrl) {
     void win.loadURL(devUrl);
   } else {
