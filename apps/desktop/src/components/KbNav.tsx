@@ -101,7 +101,7 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenAbout, onOpenI
           <aside id="semiont-panel" className="semiont-panel" role="dialog" aria-modal="true" aria-label="Semiont menu">
             <header className="semiont-panel__header">
               <button type="button" className="semiont-panel-toggle semiont-panel-toggle--open" onClick={() => setOpen(false)} aria-label="Collapse Semiont panel" aria-expanded="true" aria-controls="semiont-panel">
-                <span className="app__powered-mark">SEMIONT</span><span aria-hidden="true">›</span>
+                <span aria-hidden="true">›</span>
               </button>
             </header>
             <nav className="semiont-panel__items">
