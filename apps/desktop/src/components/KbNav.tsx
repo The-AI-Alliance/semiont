@@ -35,7 +35,6 @@ export interface KbNavProps {
   onOpenLanguage: () => void;
   onOpenTelemetry: () => void;
   onOpenRuntime: () => void;
-  onOpenGit: () => void;
   onOpenKnowledgeBase: () => void;
 }
 
@@ -64,12 +63,12 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
     </nav>
   );
 }
 
-function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -116,12 +115,8 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onO
               {hasActiveKbTab && (
                 <section className="semiont-menu__group" aria-labelledby="semiont-menu-kb">
                   <h2 id="semiont-menu-kb">Knowledge Base</h2>
-                  <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Overview</span></button>
-                  <div className="semiont-menu__subgroup">
-                    <h3>Record</h3>
-                    <button type="button" onClick={() => choose(() => onOpenServiceGroup('record'))}><RecordIcon /><span>Services</span></button>
-                    <button type="button" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
-                  </div>
+                  <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Record</span></button>
+                  <button type="button" onClick={() => choose(() => onOpenServiceGroup('record'))}><RecordIcon /><span>Services</span></button>
                 </section>
               )}
               <section className="semiont-menu__group" aria-labelledby="semiont-menu-shared">
@@ -378,17 +373,6 @@ function ContainerIcon() {
   return (
     <svg width="18" height="18" {...ICON_PROPS}>
       <path d="m12 3 9 5v8l-9 5-9-5V8l9-5Zm0 10 9-5M12 13 3 8m9 5v8M7.5 5.5l9 5" />
-    </svg>
-  );
-}
-
-function GitIcon() {
-  return (
-    <svg width="18" height="18" {...ICON_PROPS}>
-      <circle cx="6" cy="5" r="2" />
-      <circle cx="6" cy="19" r="2" />
-      <circle cx="18" cy="5" r="2" />
-      <path d="M6 7v10m12-10a8 8 0 0 1-8 8H6" />
     </svg>
   );
 }

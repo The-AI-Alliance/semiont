@@ -35,7 +35,7 @@ import { KnowledgeBaseModal, KnowledgeBasesModal, type KnowledgeBaseRow, type Kn
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
-import { GitModal, type GitCheck } from './components/GitModal';
+import type { GitCheck } from './components/GitStatusSection';
 import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { McpModal } from './components/McpModal';
 import { AppFooter } from './components/AppFooter';
@@ -213,7 +213,6 @@ export function App() {
   // One snapshot for the status, telemetry and runtime views: opening any of them asks again.
   const [snapshot, askSnapshot] = useLauncherAnswer('status.snapshot');
   const [launcherAbout, askLauncherAbout] = useLauncherAnswer('launcher.about');
-  const [showGit, setShowGit] = useState(false);
   const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
   const [showSecrets, setShowSecrets] = useState(false);
   const [secretsCheck, setSecretsCheck] = useState<SecretsCheck>({ status: 'checking' });
@@ -231,6 +230,18 @@ export function App() {
   const openServiceGroup = useCallback((group: DesktopServiceGroup) => {
     setServiceGroup(group);
     askSnapshot({});
+    if (group === 'record') {
+      setGitCheck({ status: 'checking' });
+      const bridge = window.launcherBridge;
+      if (bridge === undefined) {
+        setGitCheck({ status: 'unavailable' });
+      } else {
+        void bridge.gitPath().then(
+          (path) => setGitCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
+          () => setGitCheck({ status: 'unavailable' }),
+        );
+      }
+    }
   }, [askSnapshot]);
   const refreshServiceStatus = useCallback(() => askSnapshot({}), [askSnapshot]);
 
@@ -314,20 +325,6 @@ export function App() {
     askSnapshot({});
     askLauncherAbout({});
   }, [askSnapshot, askLauncherAbout]);
-
-  const openGit = useCallback(() => {
-    setShowGit(true);
-    setGitCheck({ status: 'checking' });
-    const bridge = window.launcherBridge;
-    if (bridge === undefined) {
-      setGitCheck({ status: 'unavailable' });
-      return;
-    }
-    void bridge.gitPath().then(
-      (path) => setGitCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
-      () => setGitCheck({ status: 'unavailable' }),
-    );
-  }, []);
 
   const openSecrets = useCallback(() => {
     setShowSecrets(true);
@@ -986,7 +983,6 @@ export function App() {
             onOpenLanguage={() => setShowLanguage(true)}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
-            onOpenGit={openGit}
             onOpenKnowledgeBase={() => {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
@@ -1051,6 +1047,7 @@ export function App() {
           group={serviceGroup}
           state={snapshot}
           selectedRootPath={activeRootPath}
+          gitCheck={gitCheck}
           onRefresh={refreshServiceStatus}
           onClose={() => setServiceGroup(null)}
         />
@@ -1092,7 +1089,6 @@ export function App() {
       {showRuntime && (
         <RuntimeModal status={snapshot} about={launcherAbout} onClose={() => setShowRuntime(false)} />
       )}
-      {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
       {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
       {composeTarget !== null && (

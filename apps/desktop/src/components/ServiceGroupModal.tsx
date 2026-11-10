@@ -9,6 +9,7 @@ import type { ControlAnswerState, ControlEvent, ControlFailure } from '../lib/la
 import { controlFailureText } from '../lib/launcher-bridge';
 import type { ControlStatusSnapshotResult } from '../../electron/control-types.gen';
 import { LauncherAnswer } from './LauncherAnswer';
+import { GitStatusSection, type GitCheck } from './GitStatusSection';
 
 export type DesktopServiceGroup = Extract<ControlServiceGroup, 'record' | 'index' | 'knowledge-workers' | 'issuer'>;
 type Action = 'start' | 'stop';
@@ -20,14 +21,14 @@ interface ServiceRow {
 }
 
 const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
-  record: 'Record',
+  record: 'Services',
   index: 'Index',
   'knowledge-workers': 'Knowledge Workers',
   issuer: 'Identity & Stores',
 };
 
 const GROUP_DESCRIPTIONS: Record<DesktopServiceGroup, string> = {
-  record: 'Services that receive, record, and distribute this knowledge base’s activity.',
+  record: 'Record services and Git availability for this knowledge base.',
   index: 'Index services for search, extraction, graph, and vector data.',
   'knowledge-workers': 'Shared workers that process jobs for knowledge bases on this machine.',
   issuer: 'Identity services and their stores, listed for each knowledge base.',
@@ -37,12 +38,14 @@ export function ServiceGroupModal({
   group,
   state,
   selectedRootPath,
+  gitCheck,
   onRefresh,
   onClose,
 }: {
   group: DesktopServiceGroup;
   state: ControlAnswerState<'status.snapshot'>;
   selectedRootPath: string | null;
+  gitCheck: GitCheck;
   onRefresh: () => void;
   onClose: () => void;
 }) {
@@ -113,6 +116,7 @@ export function ServiceGroupModal({
           <LauncherAnswer state={state}>
             {(snapshot) => <SnapshotServices snapshot={snapshot} group={group} selectedRootPath={selectedRootPath} onOperate={operate} pending={pending} />}
           </LauncherAnswer>
+          {group === 'record' && <GitStatusSection check={gitCheck} />}
           {progress !== null && <p className="service-group__progress" role="status" aria-live="polite">{progress}</p>}
           {error !== null && <p className="knowledge-bases__action-error" role="alert">{error}</p>}
         </div>
@@ -140,7 +144,7 @@ function SnapshotServices({
 }) {
   const rows = rowsForGroup(snapshot, group, selectedRootPath);
   if (group === 'record' && selectedRootPath === null) {
-    return <p className="service-group__empty">Open a local Knowledge Base tab to see and control its Record services.</p>;
+    return <p className="service-group__empty">Open a local Knowledge Base tab to see and control its services.</p>;
   }
   if (rows.length === 0) {
     return <p className="service-group__empty">No {GROUP_TITLES[group]} services are reported.</p>;
