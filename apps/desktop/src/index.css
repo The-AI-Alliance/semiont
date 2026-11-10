@@ -1576,6 +1576,57 @@ button.kb-location-picker__entry:hover {
   background: var(--field);
 }
 
+.knowledge-bases__useradd-form {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 1fr) auto;
+  align-items: end;
+  gap: 0.55rem;
+  max-width: 64rem;
+}
+
+.knowledge-bases__useradd-form .knowledge-bases__useradd-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.45rem;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.knowledge-bases__useradd-result {
+  margin-top: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.knowledge-bases__useradd-result p {
+  margin: 0.2rem 0;
+}
+
+.knowledge-bases__useradd-result code {
+  user-select: all;
+}
+
+.knowledge-bases__generated-password {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.55rem !important;
+}
+
+.knowledge-bases__generated-password span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 760px) {
+  .knowledge-bases__useradd-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .knowledge-bases__status {
   display: inline-flex;
   align-items: center;

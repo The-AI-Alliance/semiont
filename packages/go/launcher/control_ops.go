@@ -21,21 +21,22 @@ type controlHandler func(req *controlRequest, u *UI) (any, *controlFailure)
 // controlHandlers: the handler of each method of controlMethods
 // (TestEveryControlMethodHasAHandler).
 var controlHandlers = map[string]controlHandler{
-	"launcher.about":  controlAbout,
-	"roots.list":      controlRootsList,
-	"roots.init":      controlRootsInit,
-	"roots.forget":    controlRootsForget,
-	"status.snapshot": controlStatusSnapshot,
-	"stack.start":     controlStackStart,
-	"stack.stop":      controlStackStop,
-	"auth.login":      controlAuthLogin,
-	"auth.logout":     controlAuthLogout,
-	"logs.follow":     controlLogsFollow,
-	"settings.list":   controlSettingsList,
-	"settings.get":    controlSettingsGet,
-	"settings.set":    controlSettingsSet,
-	"settings.unset":  controlSettingsUnset,
-	"settings.path":   controlSettingsPath,
+	"launcher.about":   controlAbout,
+	"roots.list":       controlRootsList,
+	"roots.init":       controlRootsInit,
+	"roots.forget":     controlRootsForget,
+	"status.snapshot":  controlStatusSnapshot,
+	"stack.start":      controlStackStart,
+	"stack.stop":       controlStackStop,
+	"auth.login":       controlAuthLogin,
+	"auth.logout":      controlAuthLogout,
+	"identity.useradd": controlIdentityUseradd,
+	"logs.follow":      controlLogsFollow,
+	"settings.list":    controlSettingsList,
+	"settings.get":     controlSettingsGet,
+	"settings.set":     controlSettingsSet,
+	"settings.unset":   controlSettingsUnset,
+	"settings.path":    controlSettingsPath,
 }
 
 // operate runs req's operation. A panic in it is the launcher's failure, and
@@ -474,6 +475,44 @@ func controlAuthLogout(req *controlRequest, u *UI) (any, *controlFailure) {
 		return nil, failed(u, controlCodeFailed)
 	}
 	return ended, nil
+}
+
+func controlIdentityUseradd(req *controlRequest, u *UI) (any, *controlFailure) {
+	var p ControlIdentityUseraddParams
+	if f := req.decode(&p); f != nil {
+		return nil, f
+	}
+	o := useraddOpts{email: p.Email, generate: p.GeneratePassword}
+	password := given(p.Password)
+	if !p.GeneratePassword {
+		if !useraddValidate(u, o) {
+			return nil, failed(u, controlCodeInvalidParams)
+		}
+		if password == "" {
+			u.Refuse(controlCodeInvalidParams, "Supply a password or ask the launcher to generate one.")
+			return nil, failed(u, controlCodeInvalidParams)
+		}
+		// Error messages and progress must never repeat a supplied password.
+		noteSecret(password)
+	} else if !useraddValidate(u, o) {
+		return nil, failed(u, controlCodeInvalidParams)
+	}
+	target, ok := rootLocalStack(u, LoadStackSet(), p.Target.Root)
+	if !ok {
+		return nil, failed(u, controlCodeFailed)
+	}
+	if target == nil || target.KBRoot == "" || target.Codespace != nil {
+		u.Refuse(controlCodeStackNotRunning, "No local stack for the selected knowledge base is running, so there is no realm to administer.")
+		return nil, failed(u, controlCodeStackNotRunning)
+	}
+	result, code := useraddLocal(u, o, password, target.KBRoot, target.KBDid)
+	if code != 0 {
+		return nil, failed(u, controlCodeFailed)
+	}
+	return ControlIdentityUseraddResult{
+		Email: result.email, Identity: result.identity, Created: result.created,
+		GeneratedPassword: stated(result.generatedPassword),
+	}, nil
 }
 
 func controlLogsFollow(req *controlRequest, u *UI) (any, *controlFailure) {

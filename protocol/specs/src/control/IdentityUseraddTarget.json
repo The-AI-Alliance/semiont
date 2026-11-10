@@ -1,0 +1,19 @@
+{
+  "title": "IdentityUseraddTarget",
+  "type": "object",
+  "description": "The local knowledge base whose launcher-managed identity realm receives the account.",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "local",
+      "description": "User accounts can only be added to a local stack."
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The selected knowledge base's clone path."
+    }
+  },
+  "required": ["kind", "root"],
+  "additionalProperties": false
+}

@@ -241,7 +241,7 @@ func TestUserCallsReportARefusedPut(t *testing.T) {
 
 func applyAgainst(t *testing.T, s *stubUsers, o useraddOpts, password string) int {
 	t.Helper()
-	code, _ := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, o, password)
+	_, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, o, password)
 	return code
 }
 
@@ -255,19 +255,12 @@ func TestUseraddNamesTheIdentityItCreated(t *testing.T) {
 		{"preferred_username", "did:web:kb.example:users:sam%40x.co"},
 	} {
 		s := newStubUsers(t, "semiont", []map[string]any{})
-		var code int
-		var created bool
-		out := harness.CaptureStdout(t, func() {
-			code, created = applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: c.claim}, useraddOpts{email: "sam@x.co"}, "hunter2hunter2")
-		})
-		if code != 0 || !created {
-			t.Fatalf("%s: create: exit %d, created %v\n%s", c.claim, code, created, out)
+		result, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: c.claim}, useraddOpts{email: "sam@x.co"}, "hunter2hunter2")
+		if code != 0 || !result.created {
+			t.Fatalf("%s: create: exit %d, created %v", c.claim, code, result.created)
 		}
-		if !strings.Contains(out, "Identity: "+c.want) {
-			t.Errorf("%s: the output does not name %s:\n%s", c.claim, c.want, out)
-		}
-		if strings.Contains(out, "Subject:") {
-			t.Errorf("%s: the output still shows the realm's account id as Subject:\n%s", c.claim, out)
+		if result.identity != c.want {
+			t.Errorf("%s: identity is %q, want %q", c.claim, result.identity, c.want)
 		}
 	}
 }
@@ -321,10 +314,8 @@ func TestUseraddInactiveCreatesDisabled(t *testing.T) {
 // refuse every such call with "Password required".
 func TestUseraddGeneratesAPasswordForACreate(t *testing.T) {
 	s := newStubUsers(t, "semiont", []map[string]any{})
-	code := 0
-	out := harness.CaptureStdout(t, func() {
-		code = applyAgainst(t, s, useraddOpts{email: "sam@x.co", generate: true}, "")
-	})
+	result, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, useraddOpts{email: "sam@x.co", generate: true}, "")
+	out := harness.CaptureStdout(t, func() { printUseraddResult(NewUI(false), result, useraddOpts{email: "sam@x.co", generate: true}) })
 	if code != 0 {
 		t.Fatalf("create --generate-password: exit %d\n%s", code, out)
 	}
@@ -343,10 +334,9 @@ func TestUseraddGeneratesAPasswordForACreate(t *testing.T) {
 
 func TestUseraddGeneratesAPasswordForAnUpdate(t *testing.T) {
 	s := newStubUsers(t, "semiont", []map[string]any{{"id": "abc-123", "email": "sam@x.co"}})
-	code := 0
-	out := harness.CaptureStdout(t, func() {
-		code = applyAgainst(t, s, useraddOpts{email: "sam@x.co", update: true, generate: true}, "")
-	})
+	o := useraddOpts{email: "sam@x.co", update: true, generate: true}
+	result, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, o, "")
+	out := harness.CaptureStdout(t, func() { printUseraddResult(NewUI(false), result, o) })
 	if code != 0 {
 		t.Fatalf("update --generate-password: exit %d\n%s", code, out)
 	}
