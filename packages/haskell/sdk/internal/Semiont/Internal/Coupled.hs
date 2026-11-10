@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | Where a knowledge base's stream was (session/stored.json's @lastEventIds@),
 -- written only in the same call as a write of a kept cache's document.
-module Semiont.Internal.Coupled (Coupled, newCoupled, placesKey, savePosition, loadPositions, start, written, dispose) where
+module Semiont.Internal.Coupled (Coupled, newCoupled, savePosition, loadPositions, start, written, dispose) where
 
 import Control.Concurrent.MVar (MVar, newMVar, withMVar)
 import Control.Concurrent.STM
@@ -14,7 +14,6 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import qualified Semiont.Internal.Generated.Stored as Stored
 import Semiont.Internal.Generated.CachePersistence (lastEventIds)
 import qualified Semiont.SessionStorage as Storage
 import Semiont.Types (ResourceId, resourceIdValue, PersistedEventId(..))
@@ -29,13 +28,10 @@ data Coupled = Coupled
   , writing :: MVar ()
   }
 
+-- | The places kept under @key@ of @underlying@.
 newCoupled :: Storage.SessionStorage -> Text -> IO Coupled
-newCoupled underlying prefix = Coupled underlying (placesKey prefix)
+newCoupled underlying key = Coupled underlying key
   <$> newTVarIO Map.empty <*> newTVarIO Nothing <*> newTVarIO Nothing <*> newMVar ()
-
--- | The key a persistence's places are kept under.
-placesKey :: Text -> Text
-placesKey prefix = Stored.lastEventIdKeyPrefix<>prefix
 
 positionsOf :: Maybe Text -> Map.Map ResourceId Text
 positionsOf raw=case raw >>= either (const Nothing) Just . eitherDecodeStrict' . encodeUtf8 of

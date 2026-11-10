@@ -7,10 +7,10 @@
     "go": ["packages/go/sdk/registry/browser_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/registry/OpenResourcesTest.kt"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift"],
-    "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs"]
+    "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs"],
+    "haskell": ["packages/haskell/sdk/test/OpenResourceCases.hs"]
   },
   "notYetReached": {
-    "haskell": "Haskell's registry is to run these cases over a scripted knowledge base, as the others do.",
     "ocaml": "OCaml's registry is to run these cases over a scripted knowledge base, as the others do."
   },
   "cases": [

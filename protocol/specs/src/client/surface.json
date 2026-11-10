@@ -2155,8 +2155,7 @@
         {
           "member": "signOut",
           "kind": "function",
-          "absent": { "csharp": "C#'s is Issuer.SignOutAsync, a method of the issuer." },
-          "notYetReached": { "haskell": "A sign-out of a KeptSignIn at its issuer: Haskell's signOut is its registry's, of a knowledge base it holds." }
+          "absent": { "csharp": "C#'s is Issuer.SignOutAsync, a method of the issuer." }
         }
       ]
     },

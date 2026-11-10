@@ -2,7 +2,7 @@
 module Semiont.Internal.Cache
   ( Cache, Query, CacheState(..), CacheOptions(..), CachePersister(..)
   , newCache, query, current, watch, fresh, invalidateQuery, observe, fetch, get, known, keys
-  , invalidate, invalidateAll, remove, set, persistencePending, fetching, dispose
+  , invalidate, invalidateAll, remove, set, persistencePending, fetching, dispose, attach
   , isReady, readyValue, invalidateSTM, setSTM, removeSTM, updateSTM, encodeKey, canonical, liftQuery2
   ) where
 
@@ -16,6 +16,7 @@ import Data.Aeson (ToJSON, Value(..), encode, toJSON)
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Foldable (toList)
 import Data.List (sortOn)
+import Data.Maybe (isNothing)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Map.Strict as Map
 import Data.Scientific (normalize)
@@ -57,6 +58,8 @@ data Cache key value = Cache
   , encodeKey :: key -> Text
   , equalValue :: value -> value -> Bool
   , lifetime :: Lifetime.Lifetime
+  , keeper :: TVar (Maybe (CachePersister key value))
+  -- ^ What keeps the values: the options' persister, or one attached later.
   , dirty :: TVar Bool
   , saveVersion :: TVar Integer
   , persistenceLock :: MVar ()
@@ -130,7 +133,25 @@ newCache reader options = do
   let render = decodeUtf8 . Lazy.toStrict . canonical . toJSON
   restored <- atomically $ Map.fromList <$> traverse (\(key,value) -> (,) (render key) <$> newEntry key (Ready value) True) initial
   Cache <$> newTVarIO restored <*> pure options <*> pure reader <*> pure render <*> pure (==)
-    <*> Lifetime.newLifetime "cache is disposed" <*> newTVarIO False <*> newTVarIO 0 <*> newMVar () <*> newTVarIO False <*> newMVar Nothing
+    <*> Lifetime.newLifetime "cache is disposed" <*> newTVarIO (cachePersister options) <*> newTVarIO False <*> newTVarIO 0 <*> newMVar () <*> newTVarIO False <*> newMVar Nothing
+
+-- | A cache that keeps nothing keeps its values in @persister@ from now on.
+-- What it kept is shown for each key the cache holds nothing of, and asked
+-- for again the first time it is observed; a key the cache holds stands.
+-- Nothing is saved until a value changes.
+attach :: Cache key value -> CachePersister key value -> IO ()
+attach cache persister = do
+  kept <- load persister
+  atomically $ do
+    over <- readTVar (disposed cache)
+    held <- readTVar (keeper cache)
+    when (not over && isNothing held) $ do
+      writeTVar (keeper cache) (Just persister)
+      forM_ kept $ \(key,value) -> do
+        values <- readTVar (entries cache)
+        unless (Map.member (encodeKey cache key) values) $ do
+          restored <- newEntry key (Ready value) True
+          writeTVar (entries cache) (Map.insert (encodeKey cache key) restored values)
 
 entry :: Cache key value -> key -> STM (Entry key value)
 entry cache key = do
@@ -387,7 +408,7 @@ snapshot cache = do
   concat <$> traverse (\(Entry keyCell state _ _ _ _ _ _ _) -> do key <- readTVar keyCell; value <- State.current state; pure [(key,item) | Just item <- [readyValue value]]) values
 
 markDirty :: Cache key value -> STM (Maybe Integer)
-markDirty cache = case cachePersister (configuration cache) of
+markDirty cache = readTVar (keeper cache) >>= \held -> case held of
   Nothing -> pure Nothing
   Just _ -> do
     writeTVar (dirty cache) True
@@ -395,7 +416,7 @@ markDirty cache = case cachePersister (configuration cache) of
     Just <$> readTVar (saveVersion cache)
 
 saveLater :: Cache key value -> Integer -> IO ()
-saveLater cache epoch = forM_ (cachePersister (configuration cache)) $ \persister -> do
+saveLater cache epoch = readTVarIO (keeper cache) >>= mapM_ (\persister -> do
   now <- cacheNow (configuration cache)
   startOwned cache $ do
     cacheWaitUntil (configuration cache) (now + cacheSaveDebounceMs (configuration cache) * 1000000)
@@ -403,13 +424,16 @@ saveLater cache epoch = forM_ (cachePersister (configuration cache)) $ \persiste
       version <- readTVar (saveVersion cache)
       over <- readTVar (disposed cache)
       pure (not over && epoch == version)
-    when eligible (persist cache persister epoch)
+    when eligible (persist cache persister epoch))
 
 persist :: Cache key value -> CachePersister key value -> Integer -> IO ()
 persist cache persister epoch = withMVar (persistenceLock cache) $ \_ -> do
   planned <- atomically $ do
     version <- readTVar (saveVersion cache)
     if version /= epoch then pure Nothing else Just <$> snapshot cache
+  -- A write the storage refuses, the document's or the places' after it,
+  -- leaves the save owed, made by the next change or by disposal's flush,
+  -- never by a timer of its own.
   forM_ planned $ \values -> do
     outcome <- try (save persister values)
     case outcome of
@@ -418,7 +442,10 @@ persist cache persister epoch = withMVar (persistenceLock cache) $ \_ -> do
         atomically $ do
           version <- readTVar (saveVersion cache)
           when (version == epoch) (writeTVar (dirty cache) False)
-        saved persister
+        placed <- try (saved persister)
+        case placed of
+          Left (_ :: SomeException) -> atomically (writeTVar (dirty cache) True)
+          Right () -> pure ()
 
 persistencePending :: Cache key value -> STM Bool
 persistencePending cache = (||) <$> readTVar (dirty cache) <*> fetching cache
@@ -442,9 +469,9 @@ dispose cache = mask $ \restore -> do
           State.complete state) . Map.elems
       worker <- async $ do
         Lifetime.close (lifetime cache)
-        forM_ (cachePersister (configuration cache)) $ \persister -> do
+        readTVarIO (keeper cache) >>= mapM_ (\persister -> do
           pending <- readTVarIO (dirty cache)
-          when pending (readTVarIO (saveVersion cache) >>= persist cache persister)
+          when pending (readTVarIO (saveVersion cache) >>= persist cache persister))
       pure (Just worker,worker)
   caller <- myThreadId
   unless (caller == asyncThreadId closer) (restore (wait closer))

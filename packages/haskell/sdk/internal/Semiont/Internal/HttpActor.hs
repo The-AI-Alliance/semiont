@@ -87,7 +87,7 @@ runActor http = do
       else do
         before <- atomically (State.current (Transport.state (transport http)))
         case live of Nothing -> unless (before == Connecting) (transition Connecting); Just _ -> pure ()
-        saved <- readTVarIO (positions http)
+        saved <- Map.union <$> readTVarIO (positions http) <*> httpLoadPositions (options http)
         let body = BusSubscribeRequest (clientId http) (Just (Set.toAscList (httpGlobalChannels (options http)))) (Just pending)
               (Just [BusSubscribeRequestScopedItem scopedChannels (Map.lookup scope saved) scope | scope <- scopes])
         connection <- connect seen token body

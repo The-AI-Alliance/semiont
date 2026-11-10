@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.Internal.Persistence (CachePersistence(..), persister, documentKey) where
+module Semiont.Internal.Persistence (CachePersistence(..), persister) where
 
 import Data.Aeson (FromJSON, ToJSON, Value)
 import Data.Aeson.Types (Parser)
@@ -9,26 +9,24 @@ import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.StoragePersister as Stored
 import qualified Semiont.Cache as Cache
 import qualified Semiont.Internal.Coupled as Coupled
+import Semiont.Internal.Kept (cacheKey)
 import qualified Semiont.Timing.Settings as Timing
-import qualified Semiont.Internal.Generated.Stored as Keys
-import Semiont.Internal.Generated.CachePersistence (KeptQuery, keptQueryName)
+import Semiont.Internal.Generated.CachePersistence (KeptQuery)
 
+-- | What a client keeps for one person on one knowledge base, under the
+-- keys session/stored.json gives the knowledge base's id and the person's key.
 data CachePersistence = CachePersistence
   { cacheStorage :: Storage.SessionStorage
-  , cachePrefix :: Text
+  , cacheKbId :: Text
+  , cachePersonKey :: Text
   , cacheWallNow :: IO Scientific
   -- ^ Epoch milliseconds supplied by the host. Protocol waits use BusOptions.
   }
 
--- | The key a kept query's document is kept under.
-documentKey :: Text -> KeptQuery -> Text
-documentKey prefix query = Keys.cacheKeyPrefix<>prefix<>"."<>keptQueryName query
-
 -- | A kept query's persister, whose every recorded save writes the places noted.
 persister :: (ToJSON key, ToJSON value, FromJSON value)
-  => Maybe (CachePersistence, Coupled.Coupled) -> Timing.Settings -> KeptQuery
-  -> (Value -> value -> Parser key) -> IO (Maybe (Cache.CachePersister key value))
-persister Nothing _ _ _=pure Nothing
-persister (Just (options, coupled)) timing query decodeKey = Just <$> Stored.newStoragePersister
-  (Stored.StoragePersister (cacheStorage options) (documentKey (cachePrefix options) query)
-    (Timing.maxStoredBytesCount timing) (cacheWallNow options) (Coupled.written coupled)) decodeKey
+  => CachePersistence -> Coupled.Coupled -> Timing.Settings -> KeptQuery
+  -> (Value -> value -> Parser key) -> IO (Cache.CachePersister key value)
+persister options coupled timing query = Stored.newStoragePersister
+  (Stored.StoragePersister (cacheStorage options) (cacheKey (cacheKbId options) (cachePersonKey options) query)
+    (Timing.maxStoredBytesCount timing) (cacheWallNow options) (Coupled.written coupled))

@@ -103,7 +103,7 @@ open driver args=do
   let options=Http.HttpOptions address (httpPool driver) (pure (Just token)) (const (pure Nothing))
         (Retry.RetryOptions now waitUntil (randomRIO (0,1))) timing UUID.nextRandom
         (Set.fromList Channels.globalChannels) (pure Map.empty) (\_ _->pure ())
-      persistence=if persisted then Just (Client.CachePersistence (storage driver) "conformance" (realToFrac . (*1000) <$> getPOSIXTime)) else Nothing
+      persistence=if persisted then Just (Client.CachePersistence (storage driver) "conformance" "conformance" (realToFrac . (*1000) <$> getPOSIXTime)) else Nothing
   client <- Client.fromHttp options persistence
   atomically $ do writeTVar (current driver) (Just client); writeTVar (closed driver) False; writeTVar (observers driver) Map.empty; writeTVar (reported driver) Nothing
   void $ launch driver $ State.watch (Client.state client) (Stream.mapM_ $ \state -> do

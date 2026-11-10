@@ -72,8 +72,7 @@ factory (ScriptedSessions clock bus timing wall answer content refusal buildRefu
       over <- Faulty.newFaultyTransport clock [] (answer key) (Set.fromList Channels.channelNames)
       Faulty.refuseWhen over (\operation payload->readTVarIO refusal >>= \refuse->refuse key operation payload)
       (contents,gateway) <- content key `onException` Transport.dispose (Faulty.carrier over)
-      client <- Client.newClient (Faulty.carrier over) contents gateway bus timing
-        (Just (Client.CachePersistence (Factory.sessionFactoryOptionsStorage inputs) key ((*1000) <$> wall)))
+      client <- Client.newClient (Faulty.carrier over) contents gateway bus timing Nothing
         `onException` (Content.dispose contents `finally` Transport.dispose (Faulty.carrier over))
       atomically (modifyTVar' built (++[(key,over)]))
       let kept=Stored.keptIn (Factory.sessionFactoryOptionsStorage inputs) key
@@ -89,6 +88,6 @@ factory (ScriptedSessions clock bus timing wall answer content refusal buildRefu
             who <- readTVarIO user
             maybe (throwIO (TransportError Code.TransportError ("Unscripted user of "<>key) Nothing Nothing)) (pure . Just) who
           options=Session.SessionOptions key (KbTarget (knowledgeBaseEndpoint kb) key (knowledgeBaseLabel kb) mempty) kept Nothing
-            (Just renew) (Just validate) (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals inputs)) (Factory.sessionFactoryOptionsOnError inputs) wall
+            (Just renew) (Just validate) (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals inputs)) wall
       session <- Session.newSession client options clock timing `onException` Client.dispose client
-      pure (Session.OpenedSession session (Session.dispose session `finally` Client.dispose client))
+      pure (Session.OpenedSession session (Client.dispose client `finally` Session.dispose session))

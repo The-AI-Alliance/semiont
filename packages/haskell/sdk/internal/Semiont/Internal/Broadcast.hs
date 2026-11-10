@@ -1,5 +1,5 @@
 module Semiont.Internal.Broadcast
-  ( Broadcast, Subscription, newEvents, newState, withSubscription, next, publish, close
+  ( Broadcast, Subscription, newEvents, newKeptEvents, newState, withSubscription, next, publish, close
   ) where
 
 import Control.Concurrent.STM
@@ -12,15 +12,22 @@ data Contents value = Contents
   { nextKey :: Integer
   , readers :: Map.Map Integer (TQueue value)
   , latest :: Maybe value
+  , unread :: Maybe [value]
+  -- ^ What was published before the first reader subscribed, newest first,
+  -- kept for that reader; Nothing once one has.
   , stopped :: Bool
   }
 data Subscription value = Subscription (Broadcast value) Integer (TQueue value) (TVar Bool)
 
 newEvents :: STM (Broadcast value)
-newEvents = Broadcast <$> newTVar (Contents 0 Map.empty Nothing False)
+newEvents = Broadcast <$> newTVar (Contents 0 Map.empty Nothing Nothing False)
+
+-- | Events where what is published before anyone subscribes reaches the first subscriber.
+newKeptEvents :: STM (Broadcast value)
+newKeptEvents = Broadcast <$> newTVar (Contents 0 Map.empty Nothing (Just []) False)
 
 newState :: value -> STM (Broadcast value)
-newState value = Broadcast <$> newTVar (Contents 0 Map.empty (Just value) False)
+newState value = Broadcast <$> newTVar (Contents 0 Map.empty (Just value) Nothing False)
 
 subscribe :: Broadcast value -> STM (Subscription value)
 subscribe broadcast@(Broadcast cell) = do
@@ -29,8 +36,10 @@ subscribe broadcast@(Broadcast cell) = do
   cancelled <- newTVar False
   let key = nextKey current
   mapM_ (writeTQueue queue) (latest current)
-  unless (stopped current) $ writeTVar cell current
-    { nextKey = key + 1, readers = Map.insert key queue (readers current) }
+  mapM_ (mapM_ (writeTQueue queue) . reverse) (unread current)
+  writeTVar cell current { unread = Nothing }
+  unless (stopped current) $ modifyTVar' cell (\held -> held
+    { nextKey = key + 1, readers = Map.insert key queue (readers held) })
   pure (Subscription broadcast key queue cancelled)
 
 unsubscribe :: Subscription value -> STM ()
@@ -57,7 +66,7 @@ publish :: Broadcast value -> value -> STM ()
 publish (Broadcast cell) value = do
   current <- readTVar cell
   unless (stopped current) $ do
-    writeTVar cell current { latest = value <$ latest current }
+    writeTVar cell current { latest = value <$ latest current, unread = (value:) <$> unread current }
     mapM_ (\queue -> writeTQueue queue value) (readers current)
 
 close :: Broadcast value -> STM ()

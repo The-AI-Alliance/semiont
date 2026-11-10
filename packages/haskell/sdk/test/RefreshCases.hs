@@ -20,6 +20,7 @@ import qualified Semiont.Internal.Cache as Cache (fetching)
 import qualified Semiont.Internal.Coupled as Coupled
 import qualified Semiont.Internal.Generated.CacheRefresh as Fact
 import qualified Semiont.Internal.Generated.CachePersistence as Persisted
+import qualified Semiont.Internal.Kept as Kept
 import qualified Semiont.Internal.Persistence as Persistence
 import qualified Semiont.Internal.Refresh as Refresh
 import qualified Semiont.Internal.Transport as Internal
@@ -190,15 +191,15 @@ disposalCases fixtures = do
   disposeWith owing = withCarrier $ \carrier input local -> do
     time <- Time.newTime
     storage <- Storage.newMemoryStorage
-    coupled <- Coupled.newCoupled storage "kb"
+    coupled <- Coupled.newCoupled storage (Kept.lastEventIdKey "kb" "person")
     resource <- either (ioError . userError) pure (mkResourceId "held")
     stored <- fixture fixtures "StoredEventResponse"
-    persister <- Persistence.persister (Just (Persistence.CachePersistence storage "kb" (pure 1800000000000), coupled))
+    persister <- Persistence.persister (Persistence.CachePersistence storage "kb" "person" (pure 1800000000000)) coupled
       Timing.protocolSettings Persisted.Resource (\key _ -> parseJSON key)
     let event = BusFrame (Channel.channelName Channel.MarkAdded) Nothing
           (payload stored { storedEventResponseResourceId = Just resource }) (Just resource)
         matches info identity = Refresh.subjectResource info == Just identity
-    bracket (Cache.newCache (\(_::ResourceId) -> pure (1::Int)) ((options time) { Cache.cachePersister = persister })) Cache.dispose $ \cache -> do
+    bracket (Cache.newCache (\(_::ResourceId) -> pure (1::Int)) ((options time) { Cache.cachePersister = Just persister })) Cache.dispose $ \cache -> do
       _ <- Cache.fetch cache resource
       let control = Refresh.Acts (Refresh.cacheTargets cache matches) Nothing Nothing
       bracket (Refresh.newRefresher local carrier (clock time) Timing.protocolSettings [(Fact.Events,control)]) Refresh.dispose $ \refresher -> do
@@ -215,7 +216,7 @@ disposalCases fixtures = do
         Coupled.dispose coupled
         Refresh.dispose refresher
         Cache.dispose cache
-    (,) <$> Storage.get storage (Persistence.documentKey "kb" Persisted.Resource) <*> Storage.get storage (Coupled.placesKey "kb")
+    (,) <$> Storage.get storage (Kept.cacheKey "kb" "person" Persisted.Resource) <*> Storage.get storage (Kept.lastEventIdKey "kb" "person")
 
 refreshCases :: Map.Map Text Value -> IO ()
 refreshCases fixtures = do

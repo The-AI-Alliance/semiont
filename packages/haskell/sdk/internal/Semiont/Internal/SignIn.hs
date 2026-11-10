@@ -17,6 +17,10 @@ data KeptSignIn = KeptSignIn
   , renewed :: StoredSession -> IssuedTokens -> IO (Maybe Text)
   , forget :: IO ()
   , subscribe :: (Maybe StoredSession -> IO ()) -> IO (Maybe (IO ()))
+  , recordPersonKey :: Text -> Text -> IO Bool
+  -- ^ Records the key of the person the gateway said a token is, while the
+  -- sign-in still holds that token and names nobody: whether it then names
+  -- that person. A sign-in with no place for a person answers False.
   }
 
 data Rotation = Gone | AlreadyRenewed Text | WriteTokens StoredSession
@@ -36,7 +40,12 @@ newMemorySignIn = do
         Gone -> pure Nothing
         AlreadyRenewed access -> pure (Just access)
         WriteTokens next -> writeTVar value (Just next) >> pure (Just (storedSessionAccess next)))
-    (atomically (writeTVar value Nothing)) (const (pure Nothing)))
+    (atomically (writeTVar value Nothing)) (const (pure Nothing))
+    (\access person -> atomically $ do
+      current <- readTVar value
+      case Stored.recording access person <$> current of
+        Just (named, answer) -> mapM_ (writeTVar value . Just) named >> pure answer
+        Nothing -> pure False))
 
 keptIn :: Storage.SessionStorage -> Text -> KeptSignIn
 keptIn storage identity = KeptSignIn (Stored.storedSession storage identity) (Stored.storeSession storage identity)
@@ -50,6 +59,7 @@ keptIn storage identity = KeptSignIn (Stored.storedSession storage identity) (St
   (\observe -> Storage.subscribe storage $ \key raw -> when (key==Stored.sessionKey identity) $ case raw of
     Nothing -> observe Nothing
     Just text -> case eitherDecodeStrict' (encodeUtf8 text) of Left _ -> pure (); Right value -> observe (Just value))
+  (Stored.recordPersonKey storage identity)
 
 -- | A replacement already kept is used before spending a refresh token. The
 -- writer compares both read tokens afterwards, preserving renewal/sign-out.

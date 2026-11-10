@@ -5,6 +5,7 @@ import Control.Concurrent.Async (async, cancel, wait)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally)
 import Control.Monad (unless, forM_, when)
+import Data.Maybe (isJust)
 import Data.Aeson (FromJSON, Value(..), fromJSON, Result(..), toJSON)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -17,6 +18,8 @@ import qualified Semiont.Bus as Bus
 import qualified Semiont.Channels as Channels
 import qualified Semiont.Client as Client
 import qualified Semiont.Content as Content
+import qualified Semiont.ErrorCodes as Code
+import Semiont.Errors (TransportError(..))
 import qualified Semiont.Http as Http
 import qualified Semiont.Registry as Browser
 import qualified Semiont.Registry.Factory as Factory
@@ -30,6 +33,7 @@ import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Transport as Transport
 import Semiont.Types
 import qualified ControlledTime as Time
+import SessionCases (jwt)
 import System.Timeout (timeout)
 
 require :: String -> Bool -> IO ()
@@ -99,21 +103,79 @@ rig time fixtures = do
         kept <- SignIn.newMemorySignIn
         let target=KbTarget (knowledgeBaseEndpoint kb) (knowledgeBaseId kb) (knowledgeBaseLabel kb) mempty
             settings=Session.SessionOptions (knowledgeBaseId kb) target kept Nothing Nothing Nothing
-              (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals inputs))
-              (Factory.sessionFactoryOptionsOnError inputs) (pure 1800000000)
+              (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals inputs)) (pure 1800000000)
         session <- Session.newSession client settings clock Timing.protocolSettings
         closed <- newTVarIO False
         let close=do
               first <- atomically $ do before<-readTVar closed; writeTVar closed True; pure (not before)
-              when first ((Session.dispose session `finally` Client.dispose client) `finally` atomically (modifyTVar' active (subtract 1)))
+              when first ((Client.dispose client `finally` Session.dispose session) `finally` atomically (modifyTVar' active (subtract 1)))
         pure (Session.OpenedSession session close)
   pure (Rig (Factory.SessionFactory open (\grant -> atomically (modifyTVar' revoked (<>[grant])))) active blocked different blockWrite revoked detached storage fresh)
 
 registryRuntimeCases :: Map.Map Text Value -> IO ()
 registryRuntimeCases fixtures=do
-  result <- timeout 20000000 (cases fixtures)
+  result <- timeout 20000000 (cases fixtures >> routedCases)
   require "Registry runtime failed its liveness guard" (result==Just ())
-  putStrLn "PASS registry adoption, per-KB tabs, identity conflicts, stale activations, cancellation and joined teardown"
+  putStrLn "PASS registry adoption, per-KB tabs, identity conflicts, stale activations, cancellation, joined teardown and the reading of a session's errors"
+
+-- | The registry is the one reader of a session's errors: under a factory that reads none of them, a refusal for want
+-- of a valid token renews the session, handed the token it holds, and the reader goes on reading while the renewal
+-- runs, saying a refusal for lack of permission through the session's signals.
+routedCases :: IO ()
+routedCases = do
+  time <- Time.newTime
+  inputs <- newEmptyTMVarIO
+  handed <- newTVarIO []
+  gate <- newEmptyTMVarIO
+  ids <- newTVarIO (0::Integer)
+  let fresh=atomically $ do modifyTVar' ids (+1); number<-readTVar ids; pure (UUID.fromWords 0 0 0 (fromInteger number))
+      clock=Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pure 0)
+      options=Bus.BusOptions (Time.now time) (Time.waitUntil time) (UUID.toText <$> fresh)
+      unexpected :: IO result
+      unexpected=ioError (userError "the routed session read content")
+      contents=Content.ContentTransport (\_ _ _ _ -> unexpected) (\_ _ -> unexpected) (\_ _ _ -> unexpected)
+        (\_ _ -> unexpected) (\_ _ -> unexpected) (\_ _ -> unexpected) (pure ())
+      access=jwt 3600 1
+      kb=KnowledgeBase "did:web:routed.example.test" (KbEndpointBranch2 (LocalEndpoint "routed" LocalEndpointKindLocal mempty)) "routed" "Routed" Nothing mempty
+      grant=StoredSession access "client" Nothing "refresh" Nothing "http://issuer.test/token" mempty
+      open request = do
+        (carrier,input) <- Transport.newTransport (Transport.TransportOptions "local://routed" Set.empty (const (pure Nothing)) (pure ()))
+        Transport.setState input Transport.Connecting
+        Transport.setState input Transport.Open
+        atomically (putTMVar inputs input)
+        client <- Client.newClient carrier contents Nothing options Timing.protocolSettings Nothing
+        kept <- SignIn.newMemorySignIn
+        SignIn.keep kept grant
+        let target=KbTarget (knowledgeBaseEndpoint kb) (knowledgeBaseId kb) (knowledgeBaseLabel kb) mempty
+            renew held=do
+              atomically (modifyTVar' handed (<>[held]))
+              atomically (readTMVar gate)
+              pure (Just (jwt 7200 2))
+            settings=Session.SessionOptions (knowledgeBaseId kb) target kept Nothing (Just renew) Nothing
+              (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals request)) (pure 1800000000)
+        session <- Session.newSession client settings clock Timing.protocolSettings
+        pure (Session.OpenedSession session (Client.dispose client `finally` Session.dispose session))
+  store <- Storage.newMemoryStorage
+  Browser.saveKnowledgeBases store [kb]
+  Storage.set store Browser.activeKey (knowledgeBaseId kb)
+  pool <- Http.newHttpClient noProxy defaultManagerSettings
+  let http=Http.HttpOptions "http://unused.test:1" pool (pure Nothing) (const (pure Nothing)) clock Timing.protocolSettings fresh Set.empty
+        (pure Map.empty) (\_ _ -> pure ())
+      config=Browser.SemiontBrowserConfig store (Factory.SessionFactory open (const (pure ()))) http (pure 1800000000)
+  bracket (Browser.newSemiontBrowser config) Browser.dispose $ \browser -> do
+    Time.settle
+    session <- atomically (State.current (Browser.activeSession browser)) >>= maybe (ioError (userError "the routed session never came up")) pure
+    signals <- atomically (State.current (Browser.activeSignals browser)) >>= maybe (ioError (userError "the routed session has no signals")) pure
+    input <- atomically (readTMVar inputs)
+    Transport.reportError input (TransportError Code.TransportUnauthorized "Invalid token" (Just 401) Nothing)
+    Transport.reportError input (TransportError Code.TransportForbidden "not permitted" (Just 403) Nothing)
+    Time.settle
+    require "a refusal for want of a valid token did not renew the session, handed the token it held" . (==[Just access]) =<< readTVarIO handed
+    require "the registry stopped reading the session's errors while the session renewed" . isJust
+      =<< atomically (State.current (Signals.permissionDenied signals))
+    atomically (putTMVar gate ())
+    Time.settle
+    require "the session does not hold the renewed token" . (==Just (jwt 7200 2)) =<< atomically (State.current (Session.token session))
 
 cases :: Map.Map Text Value -> IO ()
 cases fixtures=do

@@ -72,7 +72,7 @@ jwt instant name expired = "e30."<>decodeUtf8 (Base64.encodeUnpadded (Lazy.toStr
   (object ["iss" .= String "http://issuer.test", "email" .= String "account@example.test", "caseName" .= name,
     "iat" .= (instant-7200), "exp" .= (instant+if expired then -3600 else 3600)]))))<>"."
 held :: Text -> Text -> StoredSession
-held access refresh = StoredSession access Issuer.scriptClientId refresh Nothing "http://issuer.test/token" KM.empty
+held access refresh = StoredSession access Issuer.scriptClientId Nothing refresh Nothing "http://issuer.test/token" KM.empty
 clockOptions :: Time.ControlledTime -> Retry.RetryOptions
 clockOptions time = Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pure 0)
 storeOptions :: Time.ControlledTime -> Store.SignInStoreOptions
