@@ -4,8 +4,8 @@
 -- gives.
 module CacheDocumentCases (cacheDocumentCases) where
 
-import Control.Concurrent.STM (atomically, retry)
-import Control.Monad (forM, forM_, unless)
+import Control.Concurrent.STM (STM, atomically, check, newTVarIO, readTVar, retry, writeTVar)
+import Control.Monad (forM, forM_, unless, when)
 import Data.Aeson (FromJSON, ToJSON, Result(..), Value(..), eitherDecodeStrict', encode, fromJSON, parseJSON, toJSON)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
@@ -28,6 +28,7 @@ import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Timing.Settings as Timing
 import Semiont.Types (AnnotationId, ResourceId, resourceIdValue)
 import System.FilePath ((</>))
+import System.Timeout (timeout)
 
 type Using result = forall key value. (ToJSON key, FromJSON key, ToJSON value, FromJSON value, Eq value)
   => Proxy key -> Proxy value -> IO result
@@ -112,19 +113,53 @@ loadCase row = do
   expected <- member name "kept" row >>= pairsOf name
   unless (asMap loaded == asMap expected) (failure name ("kept " ++ show loaded))
 
-writeCase :: Value -> IO ()
-writeCase row = do
-  name <- member "a write case" "name" row >>= textOf "a write case"
-  (query, key) <- queryOf name row
-  storage <- Storage.newMemoryStorage
+-- | A cache of the case's query, saving to @storage@ and waiting out its debounce with @wait@, given the case's
+-- @held@; @between@ is handed whether it owes a save, and then the cache is disposed.
+holding :: Text -> Value -> KeptQuery -> Storage.SessionStorage -> (Integer -> IO ()) -> (STM Bool -> IO ()) -> IO ()
+holding name row query storage wait between = do
   held <- member name "held" row >>= pairsOf name
   kept query (\(_ :: Proxy key) (_ :: Proxy value) -> do
     persister <- persisterOf storage query :: IO (Cache.CachePersister key value)
     values <- forM held (\(identity, value) -> (,) <$> decoded name identity <*> decoded name value) :: IO [(key, value)]
     cache <- Cache.newCache (\_ -> failure name "asked the wire")
-      (Cache.CacheOptions (pure 0) (const (atomically retry)) 0 (Just persister) (const (pure (pure ()))))
+      (Cache.CacheOptions (pure 0) wait 0 (Just persister) (const (pure (pure ()))))
     forM_ values (uncurry (Cache.set cache))
+    between (Cache.persistencePending cache)
     Cache.dispose cache)
+
+-- | Disposal's flush is the only save: the debounce never ends.
+writeCase :: Value -> IO ()
+writeCase row = do
+  name <- member "a write case" "name" row >>= textOf "a write case"
+  (query, key) <- queryOf name row
+  storage <- Storage.newMemoryStorage
+  holding name row query storage (const (atomically retry)) (const (pure ()))
+  writtenAsStated name storage key row
+
+-- | The debounce ends at once, so the save the cache owes is made, and the storage refuses it; the cache still owes
+-- it, and disposal's flush, which the storage takes, writes the case's document.
+refusedWriteCase :: Value -> IO ()
+refusedWriteCase row = do
+  name <- member "a refused write case" "name" row >>= textOf "a refused write case"
+  (query, key) <- queryOf name row
+  memory <- Storage.newMemoryStorage
+  refused <- newTVarIO False
+  let refuses written = when (written == key) $ do
+        first <- atomically (readTVar refused >>= \done -> if done then pure False else True <$ writeTVar refused True)
+        when first (ioError (userError "the storage refuses the first write of the query's document"))
+      storage = Storage.SessionStorage (Storage.get memory) (\written value -> refuses written >> Storage.set memory written value)
+        (Storage.delete memory) (\written change -> refuses written >> Storage.update memory written change) (Storage.subscribe memory)
+  outcome <- timeout 10000000 $ holding name row query storage (const (pure ())) $ \owes -> do
+    atomically (readTVar refused >>= check)
+    pending <- atomically owes
+    unless pending (failure name "owes no save after the storage refused it")
+  maybe (failure name "the storage was not asked for the document in ten seconds") pure outcome
+  writtenAsStated name storage key row
+
+-- | The document kept under @key@ is the case's @written@: its version, and its entries as a map, each stamped with
+-- a whole number of at least 0.
+writtenAsStated :: Text -> Storage.SessionStorage -> Text -> Value -> IO ()
+writtenAsStated name storage key row = do
   raw <- Storage.get storage key >>= maybe (failure name "wrote no document") pure
   document <- either (failure name) pure (eitherDecodeStrict' (encodeUtf8 raw) :: Either String Value)
   written <- member name "written" row
@@ -159,8 +194,11 @@ cacheDocumentCases root = do
     >>= either (ioError . userError) pure . eitherDecodeStrict'
   loads <- member "the cache table" "cases" table >>= listOf "the cache table"
   writes <- member "the cache table" "writes" table >>= listOf "the cache table"
+  refusals <- member "the cache table" "refusedWrites" table >>= listOf "the cache table"
   places <- member "the cache table" "places" table >>= listOf "the cache table"
   mapM_ loadCase loads
   mapM_ writeCase writes
+  mapM_ refusedWriteCase refusals
   mapM_ placesCase places
-  putStrLn ("PASS " ++ show (length loads + length writes + length places) ++ " shared cache document, write and places cases")
+  putStrLn ("PASS " ++ show (length loads + length writes + length refusals + length places)
+    ++ " shared cache document, write, refused write and places cases")
