@@ -23,7 +23,7 @@ import {
   type AppChatSession,
 } from './lib/chat-sessions';
 import { getPref, setPref } from './lib/prefs';
-import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-layout';
+import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout, type ResourcePresentation } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
 import { WorkspaceTabs, localRootPathFromTabId, localRootTabId } from './components/WorkspaceTabs';
 import { ThemePanel } from './components/ThemePanel';
@@ -185,7 +185,7 @@ export function App() {
   const [openKbTabUris, setOpenKbTabUris] = useState<string[]>([]);
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
   const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
-  const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string }>>({});
+  const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string; presentation: ResourcePresentation }>>({});
   const [composeTarget, setComposeTarget] = useState<{ kbUri: string; session: ChatSession; storageRoot: string | null } | null>(null);
   const [composePreparing, setComposePreparing] = useState(false);
   const localRootCache = useRef(new Map<string, string | null>());
@@ -871,7 +871,7 @@ export function App() {
   // Rendered natively via @semiont/react-ui's bring-your-own-session ResourceViewer, so this
   // works in both the web and Electron builds. `name` is what the nav row shows; a reference
   // followed from inside the viewer arrives with the id as its name.
-  const openResource = (kbUri: string, id: string, name: string) => setActiveResourcesByKb((current) => ({ ...current, [kbUri]: { kbUri, id, name } }));
+  const openResource = (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => setActiveResourcesByKb((current) => ({ ...current, [kbUri]: { kbUri, id, name, presentation } }));
   const localRootForKb = async (kbUri: string): Promise<string | null> => {
     if (localRootCache.current.has(kbUri)) return localRootCache.current.get(kbUri) ?? null;
     const known = knowledgeBasesState.status === 'result'
@@ -924,7 +924,12 @@ export function App() {
   // Selecting a chat session leaves any open document in place (split view).
   const selectSession = (id: string) => {
     const selected = sessions.find((session) => session.id === id);
-    if (selected !== undefined) setActiveSessionIdsByKb((current) => ({ ...current, [selected.kbUri]: id }));
+    if (selected === undefined) return;
+    setActiveSessionIdsByKb((current) => ({ ...current, [selected.kbUri]: id }));
+    setActiveResourcesByKb((current) => {
+      const resource = current[selected.kbUri];
+      return resource === undefined ? current : { ...current, [selected.kbUri]: { ...resource, presentation: 'chat-and-document' } };
+    });
   };
 
   if (config === null) return <p className="app__connecting">Loading…</p>;
@@ -1131,7 +1136,7 @@ export function App() {
             setComposeTarget(null);
             setDocsRefresh((n) => n + 1);
             selectWorkspaceTab(target.kbUri);
-            openResource(target.kbUri, id, name);
+            openResource(target.kbUri, id, name, 'chat-and-document');
           }}
         />
       )}
@@ -1158,13 +1163,13 @@ function MainPane({
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
-  activeResource: { id: string; kbUri: string; name: string } | null;
+  activeResource: { id: string; kbUri: string; name: string; presentation: ResourcePresentation } | null;
   /** The connected session for the open document's KB (null if that KB isn't connected). */
   resourceSession: ChatSession | null;
   docWidth: number;
   onDocWidthChange: (updater: (prev: number) => number) => void;
   onCloseResource: () => void;
-  onOpenResource: (kbUri: string, id: string, name: string) => void;
+  onOpenResource: (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => void;
   setActiveEntries: (updater: (prev: LogEntry[]) => LogEntry[]) => void;
   onResourcesChanged: () => void;
   onConnect: () => void;
@@ -1177,10 +1182,9 @@ function MainPane({
   );
 }
 
-/** The main pane's body. An open document splits the pane beside an active chat when there's
- *  room (`mainLayout`); too narrow — or no chat — and the document takes the whole pane (the
- *  original swap). Chat-side states: empty when no chat is selected, a connect prompt when
- *  the selected chat's KB isn't connected, else the live chat. */
+/** The main pane's body. A document selected in navigation takes the full pane; one opened
+ *  from chat splits beside it when there's room (`mainLayout`). Chat-side states: empty when
+ *  no chat is selected, a connect prompt when its KB isn't connected, else the live chat. */
 function MainBody({
   viewerPrefs,
   hasOpenKb,
@@ -1208,12 +1212,12 @@ function MainBody({
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
-  activeResource: { id: string; kbUri: string; name: string } | null;
+  activeResource: { id: string; kbUri: string; name: string; presentation: ResourcePresentation } | null;
   resourceSession: ChatSession | null;
   docWidth: number;
   onDocWidthChange: (updater: (prev: number) => number) => void;
   onCloseResource: () => void;
-  onOpenResource: (kbUri: string, id: string, name: string) => void;
+  onOpenResource: (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => void;
   setActiveEntries: (updater: (prev: LogEntry[]) => LogEntry[]) => void;
   onResourcesChanged: () => void;
   onConnect: () => void;
@@ -1244,6 +1248,7 @@ function MainBody({
     docOpen: activeResource !== null,
     chatActive: activeSession !== null,
     containerWidth,
+    ...(activeResource === null ? {} : { resourcePresentation: activeResource.presentation }),
   });
 
   // Divider between chat and doc: dragging left widens the doc pane (it hangs off the
@@ -1288,7 +1293,7 @@ function MainBody({
         resourceId={activeResource.id}
         name={activeResource.name}
         onClose={onCloseResource}
-        onOpenResource={(id) => onOpenResource(activeResource.kbUri, id, id)}
+        onOpenResource={(id) => onOpenResource(activeResource.kbUri, id, id, activeResource.presentation)}
       />
     );
 
@@ -1341,7 +1346,7 @@ function MainBody({
         entries={activeSession.entries}
         setEntries={setActiveEntries}
         onResourcesChanged={onResourcesChanged}
-        onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name)}
+        onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name, 'chat-and-document')}
         onNewDocument={onNewDocument}
       />
     );

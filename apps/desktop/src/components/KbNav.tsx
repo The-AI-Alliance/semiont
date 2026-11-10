@@ -4,6 +4,7 @@ import type { KbConnection } from '../lib/session';
 import { sessionsForKb, sessionTitle, type AppChatSession } from '../lib/chat-sessions';
 import { KbResources } from './KbResources';
 import type { McpProcessStatus } from '../lib/launcher-bridge';
+import type { ResourcePresentation } from '../lib/split-layout';
 
 /** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
@@ -18,7 +19,7 @@ export interface KbNavProps {
   activeResourceId: string | null;
   docsRefresh: number;
   /** Open a document in the main pane. */
-  onOpenResource: (kbUri: string, id: string, name: string) => void;
+  onOpenResource: (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => void;
   onNewChat: (kbUri: string) => void;
   onNewDocument: (kbUri: string) => void;
   onSelectSession: (sessionId: string) => void;
@@ -209,7 +210,7 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
               session={conn.opened.session}
               refreshSignal={refreshTick + docsRefresh}
               activeResourceId={activeResourceId}
-              onOpen={(id, name) => onOpenResource(kb.uri, id, name)}
+              onOpen={(id, name) => onOpenResource(kb.uri, id, name, 'document-only')}
             />
           )}
         </div>
