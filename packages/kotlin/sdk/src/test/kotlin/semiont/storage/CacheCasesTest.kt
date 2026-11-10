@@ -1,5 +1,7 @@
 package semiont.storage
 
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -22,6 +24,7 @@ import semiont.registry.lastEventIdKey
 import semiont.sameJson
 import semiont.types.wireJson
 import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -112,17 +115,23 @@ private class RefusingTheFirstWrite(private val beneath: SessionStorage, private
 }
 
 /**
- * Whether `kept`'s cache, having fetched `held` over a storage that refuses
- * the first write of its document, still owes its save once that write is
- * refused; and the document its closing writes then, over the storage that
- * takes it, or none.
+ * What a cache did with a write the storage refused: whether it still owed
+ * its save once the write was refused; the document its closing wrote then,
+ * over the storage that took it, or none; and what it threw into the context
+ * it runs on, whose handler a cache a host makes hands the refusal its saving
+ * met.
  */
-private fun <K : Any, V : Any> writtenAfterARefusal(kept: KeptQuery<K, V>, held: JsonElement): Pair<Boolean, JsonObject?> {
+private class AfterARefusal(val owed: Boolean, val written: JsonObject?, val thrown: List<Throwable>)
+
+/** What `kept`'s cache, having fetched `held` over a storage that refuses the first write of its document, does with that refusal. */
+private fun <K : Any, V : Any> writtenAfterARefusal(kept: KeptQuery<K, V>, held: JsonElement): AfterARefusal {
     val beneath = MemoryStorage()
     val storage = RefusingTheFirstWrite(beneath, documentKey(kept.query.wire))
     val answers = answersOf(kept, held)
+    val thrown = CopyOnWriteArrayList<Throwable>()
+    val context = Dispatchers.Default + CoroutineExceptionHandler { _, failure -> thrown += failure }
     // The first save is the one the answers owe, once they have stopped changing.
-    val cache = Cache<K, V>({ key -> answers.getValue(key) }, kept.persister(CachePersistence(storage, KB, PERSON)), saveDebounceMs = 50)
+    val cache = Cache<K, V>({ key -> answers.getValue(key) }, kept.persister(CachePersistence(storage, KB, PERSON)), saveDebounceMs = 50, context = context)
     runBlocking { answers.keys.forEach { cache.fetch(it) } }
     assertTrue(storage.refusal.await(5, TimeUnit.SECONDS), "the cache never wrote its document")
     val owed = runBlocking {
@@ -131,7 +140,12 @@ private fun <K : Any, V : Any> writtenAfterARefusal(kept: KeptQuery<K, V>, held:
         } != null
     }
     cache.close()
-    return owed to beneath.get(documentKey(kept.query.wire))?.let { Json.parseToJsonElement(it).jsonObject }
+    runBlocking {
+        withTimeoutOrNull(1_000) {
+            while (thrown.isEmpty()) delay(5)
+        }
+    }
+    return AfterARefusal(owed, beneath.get(documentKey(kept.query.wire))?.let { Json.parseToJsonElement(it).jsonObject }, thrown.toList())
 }
 
 /**
@@ -163,9 +177,12 @@ class CacheCasesTest {
     fun aWriteTheStorageRefusesLeavesTheSaveOwedAndClosingWritesWhatTheTableSays(): List<DynamicTest> =
         table.getValue("refusedWrites").jsonArray.map { it.jsonObject }.map { case ->
             DynamicTest.dynamicTest(case.getValue("name").jsonPrimitive.content) {
-                val (owed, document) = writtenAfterARefusal(keptAs(case.getValue("query").jsonPrimitive.content), case.getValue("held"))
-                assertTrue(owed, "the cache owes no save once the storage refused its write")
-                assertWrittenAsTheTableSays(case.getValue("written").jsonObject, checkNotNull(document) { "closing wrote no document" })
+                val query = case.getValue("query").jsonPrimitive.content
+                val after = writtenAfterARefusal(keptAs(query), case.getValue("held"))
+                assertTrue(after.owed, "the cache owes no save once the storage refused its write")
+                assertWrittenAsTheTableSays(case.getValue("written").jsonObject, checkNotNull(after.written) { "closing wrote no document" })
+                // The refusal its saving met, and nothing else, is what the cache threw into its context.
+                assertEquals(listOf("the storage refuses the write of ${documentKey(query)}"), after.thrown.map { it.message }, "what the cache threw into its context")
             }
         }
 

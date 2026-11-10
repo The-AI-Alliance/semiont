@@ -479,10 +479,12 @@ public interface Transport : AutoCloseable {
     public fun subscribeToResource(resourceId: ResourceId): ResourceHold
 
     /**
-     * The failures the transport meets from now on: everything a server
+     * The failures the transport meets: everything a server
      * refused, every request never answered, and every line its stream
      * carried that names no reader: one that is no frame, or a frame refused
-     * whose channel or scope cannot be read.
+     * whose channel or scope cannot be read. What it met before anyone
+     * listened is kept for its first listener; every later listener hears
+     * from when it listens.
      */
     public fun failures(): Events<SemiontError>
 

@@ -136,13 +136,15 @@ public class SemiontSession internal constructor(
     public val streamState: Watched<ConnectionState> get() = client.transport.state
 
     /**
-     * What went wrong, from now on, each said once: what the session says of
-     * its own (a `SessionError`: `session.auth-failed`,
-     * `session.refresh-exhausted`, `session.credential-refused`,
-     * `session.keep-failed`, `session.save-refused`), and the failures its
-     * client's transport meets, a refusal for want of a valid token among
-     * them, which is a reason to `refresh`. What the session said before
-     * anyone read it is kept for the first reader. They end when the session
+     * What went wrong, each said once: what the session says of its own (a
+     * `SessionError`: `session.auth-failed`, `session.refresh-exhausted`,
+     * `session.credential-refused`, `session.keep-failed`,
+     * `session.save-refused`), and the failures its client's transport meets,
+     * a refusal for want of a valid token among them, which is a reason to
+     * `refresh`. What the session said, and what its transport met, before
+     * anyone read them is kept for the first reader: the transport's failures
+     * as `Transport.failures` keeps them for its first listener. A later
+     * reader hears from when it reads. They end when the session
      * ends, once the writes its client has begun are made or refused: whoever
      * ends both closes the client first, so what its closing flush meets is
      * said before they end. What the client meets once its session has ended
