@@ -5,7 +5,7 @@
 -- said once each on its one errors stream.
 module Semiont.Session
   ( Session, SessionOptions(..), OpenedSession(..), SessionEndReason(..)
-  , newSession, fromHttp, fromIssuedSession, fromKeptSession, signInDevice, signInAgent, id, kb, client, token, user, streamState, errors, ready
+  , newSession, fromHttp, fromIssuedSession, fromKeptSession, signInDevice, signInAgent, signOut, id, kb, client, token, user, streamState, errors, ready
   , expiresAt, refresh, dispose
   ) where
 
@@ -26,7 +26,7 @@ import qualified Semiont.Client as Client
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors
 import qualified Semiont.Http as Http
-import qualified Semiont.Issuer as Issuer
+import qualified Semiont.Internal.Issuer as Issuer
 import qualified Semiont.ServiceToken as Service
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Gateway as Gateway
@@ -293,6 +293,15 @@ openKept http storage options initial = do
   opened <- fromHttp http { Http.httpBaseUrl=base } storage actual
   ready (openedSession opened) `onException` closeOpenedSession opened
   pure opened
+
+-- | Signs out of a kept sign-in: its refresh token is revoked at the issuer where the sign-in names a revocation
+-- endpoint, and the sign-in is forgotten however that went. Whether the issuer revoked it.
+signOut :: Http.HttpOptions -> SignIn.KeptSignIn -> IO Bool
+signOut http kept = do
+  held <- SignIn.held kept
+  revoked <- maybe (pure False) (Issuer.revokeStored (Issuer.IssuerOptions (Http.httpClient http) (Http.httpTime http) (Http.httpTiming http))) held
+  SignIn.forget kept
+  pure revoked
 
 signInDevice :: Http.HttpOptions -> Maybe Storage.SessionStorage -> SessionOptions -> (DeviceCode -> IO ()) -> IO OpenedSession
 signInDevice http storage options onCode = do

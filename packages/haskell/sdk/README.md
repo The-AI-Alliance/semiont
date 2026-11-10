@@ -43,6 +43,9 @@ HTTP pool and controlled clock. The client ids and scope come from the shared
 OAuth registration table.
 
 `Semiont.Session.signInDevice` opens a client/session from a device grant.
+`Session.signOut http kept` signs out of a kept sign-in: it revokes the refresh
+token at the issuer where the sign-in names a revocation endpoint, forgets the
+sign-in however that went, and says whether the issuer revoked it.
 `fromIssuedSession` persists an already issued grant and installs its rotating
 refresh callback. `SessionOptions` carries the knowledge base, typed kept grant, wall
 clock and host callbacks; provide `sessionValidate` to confirm a person with

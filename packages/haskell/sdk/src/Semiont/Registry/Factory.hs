@@ -3,13 +3,12 @@
 module Semiont.Registry.Factory (SessionFactory(..), SessionFactoryOptions(..), newHttpSessionFactory) where
 
 import Control.Concurrent.STM (atomically)
-import Control.Exception (catch)
-import Semiont.Errors (SignInError)
+import Control.Monad (void)
 import Data.Scientific (Scientific)
 import qualified Semiont.Client as Client
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Http as Http
-import qualified Semiont.Issuer as Issuer
+import qualified Semiont.Internal.Issuer as Issuer
 import qualified Semiont.Session as Session
 import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.State.SessionSignals as Signals
@@ -25,8 +24,7 @@ newHttpSessionFactory :: Http.HttpOptions -> IO Scientific -> SessionFactory
 newHttpSessionFactory http wall = SessionFactory open revoke
   where
     issuer=Issuer.IssuerOptions (Http.httpClient http) (Http.httpTime http) (Http.httpTiming http)
-    revoke held=(mapM_ (\endpoint -> Issuer.revokeAtIssuer issuer endpoint (storedSessionClientId held) (storedSessionRefresh held))
-      (storedSessionRevocationEndpoint held)) `catch` (\(_::SignInError) -> pure ())
+    revoke=void . Issuer.revokeStored issuer
     open options = do
       let kb=sessionFactoryOptionsKb options
           kept=Stored.keptIn (sessionFactoryOptionsStorage options) (knowledgeBaseId kb)

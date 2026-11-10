@@ -30,6 +30,7 @@ import qualified Semiont.ClientAssertion as Assertion
 import qualified Semiont.ServiceToken as Service
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Session as Session
+import qualified Semiont.SignIn as SignIn
 import qualified Semiont.StateValue as State
 import qualified Semiont.Transport as Transport
 import qualified Semiont.Issuer as Issuer
@@ -194,6 +195,16 @@ issuerCases fixtures = do
         (const (ioError (userError "factory did not replace the original renewer")))
         (Issuer.issuerTime options) Timing.protocolSettings (pure (UUID.fromWords 0 0 0 1)) Set.empty
         (pure Map.empty) (\_ _ -> pure ())
+  revocable <- SignIn.newMemorySignIn
+  SignIn.keep revocable stored { storedSessionRefresh="signed-out", storedSessionRevocationEndpoint=Just "http://issuer.test/revoke" }
+  require "sign-out did not say the issuer revoked the sign-in" =<< Session.signOut http revocable
+  require "sign-out kept the sign-in it revoked" . (==Nothing) =<< SignIn.held revocable
+  require "sign-out did not revoke the sign-in's refresh token at its endpoint" . any (\request -> route request=="/revoke"
+    && ("token","signed-out") `elem` [(name,value) | (name,Just value) <- form request]) =<< readTVarIO seen
+  unrevocable <- SignIn.newMemorySignIn
+  SignIn.keep unrevocable stored
+  require "sign-out said a sign-in that names no revocation endpoint was revoked" . not =<< Session.signOut http unrevocable
+  require "sign-out kept a sign-in that names no revocation endpoint" . (==Nothing) =<< SignIn.held unrevocable
   bracket (Session.fromIssuedSession http Nothing sessionOptions stored) Session.closeOpenedSession $ \opened -> do
     let session=Session.openedSession opened
     require "issued-session factory did not renew its expired grant" . (==Just "fresh")
