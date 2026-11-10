@@ -26,8 +26,8 @@ import qualified Semiont.Cache as Cache
 import qualified Semiont.StoragePersister as Stored
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Internal.Coupled as Coupled
-import Semiont.Internal.Generated.CachePersistence (CacheDocument(..), keptQueryName)
-import qualified Semiont.Internal.Generated.Stored as Keys
+import Semiont.Internal.Generated.CachePersistence (CacheDocument(..))
+import qualified Semiont.Internal.Kept as Kept
 import Semiont.Types
 import qualified ControlledTime as Time
 
@@ -91,10 +91,10 @@ coupledCases = do
   quiet <- newTVarIO False
   resource <- either (ioError . userError) pure (mkResourceId "res-1")
   other <- either (ioError . userError) pure (mkResourceId "res-2")
-  let key=Keys.lastEventIdKeyPrefix<>"kb"
+  let key=Kept.lastEventIdKey "kb" "person"
       expect label expected=do actual<-Storage.get underlying key
                                require label (actual==expected)
-  bracket (Coupled.newCoupled underlying "kb") Coupled.dispose $ \coupled -> do
+  bracket (Coupled.newCoupled underlying key) Coupled.dispose $ \coupled -> do
     let held label expected=require label . (==expected) =<< Coupled.loadPositions coupled
     Coupled.savePosition coupled resource "p-res-1-1"
     atomically (writeTVar quiet True)
@@ -148,7 +148,7 @@ clientCases fixtures = do
   originalDescriptor <- fixture fixtures "ResourceDescriptor"
   let annotationValue=originalAnnotation { annotationTarget=AnnotationTargetInlineBranch1 resource }
       descriptor name=originalDescriptor { resourceDescriptorU40_id=resource,resourceDescriptorName=name }
-      persistence=Just (Client.CachePersistence kept "client-case" (pure 1800000000000))
+      persistence=Just (Client.CachePersistence kept "client-case" "person" (pure 1800000000000))
       configuration=Bus.BusOptions (Time.now time) (Time.waitUntil time)
   counter <- newTVarIO (0::Integer)
   let identifier=atomically $ do modifyTVar' counter (+1); Text.pack . show <$> readTVar counter
@@ -197,7 +197,7 @@ clientCases fixtures = do
   -- Closing synchronously flushed all five opt-in views; no test sleep or
   -- elapsed clock is needed to make their last values durable.
   forM_ [minBound..maxBound] $ \query -> do
-    value <- Storage.get kept (Keys.cacheKeyPrefix<>"client-case."<>keptQueryName query)
+    value <- Storage.get kept (Kept.cacheKey "client-case" "person" query)
     require "a declared persisted view was not saved on client disposal" (value/=Nothing)
   blocked <- newEmptyTMVarIO
   calls <- newTVarIO []

@@ -104,8 +104,8 @@ withAccount options authority clientId pem wallNow use = do
     Service.dispose use
 ```
 
-`Session.signInAgent http Nothing options budget service` opens a session for that
-account and keeps the DID the gateway actually returned. Supply its startup
+`Session.signInAgent http options budget service` opens a session for that
+account and keeps the DID the gateway actually returned; it keeps no caches. Supply its startup
 `RetryBudget` explicitly: unreachable peers and boot-transient responses retry,
 and a refused freshly issued credential ends the attempt. The service token
 remains owned by its caller. Each renewal is handed the token it renews: the
@@ -351,10 +351,24 @@ withResourceSearch client clock = bracket
 Use `Search.setQuery` as input changes and observe `Search.state`. This example
 also needs `streaming` in its `build-depends`.
 
-Cache persistence is opt-in: pass `Just (Client.CachePersistence storage
-"kb-id" wallMilliseconds)` to the client or session factory in place of
-`Nothing`. Give each principal a separate storage. Close the old client before
-switching profiles; persisted values are available before gateway revalidation.
+Cache persistence is opt-in, and kept for a person. Give a session builder
+such as `Session.fromKeptSession` `Just storage` in place of `Nothing`, and its
+client keeps under `session/stored.json`'s keys for the knowledge base and the
+person the kept sign-in names (their key is the unpadded base64url SHA-256 of
+their DID): from the start when the sign-in names them already, or, with a
+validate callback, once the gateway has said who the token is and the sign-in
+has recorded it. Each write is checked against the sign-in and made in
+one step: once the sign-in is forgotten, or names nobody or another person,
+nothing more is written, so no write puts back what forgetting deleted.
+Forgetting a sign-in, or replacing it, deletes what was kept for the person it
+named. A sign-in that cannot be read for that check, or cannot record the
+person, is said once on the session's errors as `session.keep-failed`, and
+nothing more is kept. Each write the storage refuses is said there as
+`session.save-refused`, and stays owed to the next change or the closing flush.
+A client you build yourself keeps for one person once given
+`Client.CachePersistence storage kbId personKey wallMilliseconds`, at
+construction or later with `Client.keepIn`; persisted values are available
+before gateway revalidation.
 The queries `session/stored.json` keeps (resource details, annotation lists and
 details, entity types and tag schemas) rehydrate immediately, each from one
 cache document that every SDK writes and reads alike. The first observation

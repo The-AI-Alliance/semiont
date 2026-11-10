@@ -116,6 +116,7 @@ library internal
     Semiont.StoragePersister
     Semiont.Internal.Coupled
     Semiont.Internal.Persistence
+    Semiont.Internal.Kept
     Semiont.Internal.Generated.CachePersistence
     Semiont.Internal.Generated.Stored
     Semiont.Identity
@@ -186,6 +187,7 @@ library internal
     Semiont.Internal.Generated.ClientAssertion
     Semiont.Internal.Generated.ServiceProof
     Semiont.Internal.Issuer
+    Semiont.Internal.Digest
     Semiont.Internal.Generated.WorkerChannels
 @MODEL_MODULES@
   autogen-modules: Paths_semiont

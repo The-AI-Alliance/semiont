@@ -22,7 +22,7 @@ import qualified Semiont.Cache as Cache
 import qualified Semiont.Internal.Coupled as Coupled
 import qualified Semiont.Internal.Persistence as Persistence
 import Semiont.Internal.Generated.CachePersistence (KeptQuery(..), Whole, keptQueryName)
-import qualified Semiont.Internal.Generated.Stored as Keys
+import qualified Semiont.Internal.Kept as Kept
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Timing.Settings as Timing
 import Semiont.Types (Annotation, AnnotationId, GetAnnotationsResponse, ResourceDescriptor, ResourceId, TagSchema, resourceIdValue)
@@ -39,9 +39,9 @@ kept Annotation use = use (Proxy :: Proxy AnnotationId) (Proxy :: Proxy Annotati
 kept EntityTypes use = use (Proxy :: Proxy Whole) (Proxy :: Proxy [Text])
 kept TagSchemas use = use (Proxy :: Proxy Whole) (Proxy :: Proxy [TagSchema])
 
-prefix, kb :: Text
-prefix = "cases"
+kb, person :: Text
 kb = "kb-cases"
+person = "person-cases"
 
 failure :: Text -> String -> IO result
 failure name reason = ioError (userError (Text.unpack name ++ ": " ++ reason))
@@ -87,17 +87,16 @@ queryOf :: Text -> Value -> IO (KeptQuery, Text)
 queryOf name row = do
   queryName <- member name "query" row >>= textOf name
   case [query | query <- [minBound .. maxBound], keptQueryName query == queryName] of
-    [query] -> pure (query, Keys.cacheKeyPrefix <> prefix <> "." <> queryName)
+    [query] -> pure (query, Kept.cacheKey kb person query)
     _ -> failure name ("names " ++ Text.unpack queryName ++ ", no kept query")
 
 -- | The persister the client gives a kept query; its host's clock is not in whole milliseconds.
 persisterOf :: (ToJSON key, FromJSON key, ToJSON value, FromJSON value)
-  => Text -> Storage.SessionStorage -> KeptQuery -> IO (Cache.CachePersister key value)
-persisterOf name storage query = do
-  coupled <- Coupled.newCoupled storage prefix
-  Persistence.persister (Just (Persistence.CachePersistence storage prefix (pure 1800000000000.6), coupled))
+  => Storage.SessionStorage -> KeptQuery -> IO (Cache.CachePersister key value)
+persisterOf storage query = do
+  coupled <- Coupled.newCoupled storage (Kept.lastEventIdKey kb person)
+  Persistence.persister (Persistence.CachePersistence storage kb person (pure 1800000000000.6)) coupled
     Timing.protocolSettings query (\key _ -> parseJSON key)
-    >>= maybe (failure name "was given no persister") pure
 
 loadCase :: Value -> IO ()
 loadCase row = do
@@ -106,7 +105,7 @@ loadCase row = do
   storage <- Storage.newMemoryStorage
   storedText name row >>= Storage.set storage key
   loaded <- kept query (\(_ :: Proxy key) (_ :: Proxy value) -> do
-    persister <- persisterOf name storage query :: IO (Cache.CachePersister key value)
+    persister <- persisterOf storage query :: IO (Cache.CachePersister key value)
     entries <- Cache.load persister
     pure [(toJSON identity, toJSON value) | (identity, value) <- entries])
   expected <- member name "kept" row >>= pairsOf name
@@ -119,7 +118,7 @@ writeCase row = do
   storage <- Storage.newMemoryStorage
   held <- member name "held" row >>= pairsOf name
   kept query (\(_ :: Proxy key) (_ :: Proxy value) -> do
-    persister <- persisterOf name storage query :: IO (Cache.CachePersister key value)
+    persister <- persisterOf storage query :: IO (Cache.CachePersister key value)
     values <- forM held (\(identity, value) -> (,) <$> decoded name identity <*> decoded name value) :: IO [(key, value)]
     cache <- Cache.newCache (\_ -> failure name "asked the wire")
       (Cache.CacheOptions (pure 0) (const (atomically retry)) 0 (Just persister) (const (pure (pure ()))))
@@ -144,8 +143,8 @@ placesCase :: Value -> IO ()
 placesCase row = do
   name <- member "a places case" "name" row >>= textOf "a places case"
   storage <- Storage.newMemoryStorage
-  storedText name row >>= Storage.set storage (Keys.lastEventIdKeyPrefix <> kb)
-  coupled <- Coupled.newCoupled storage kb
+  storedText name row >>= Storage.set storage (Kept.lastEventIdKey kb person)
+  coupled <- Coupled.newCoupled storage (Kept.lastEventIdKey kb person)
   loaded <- Coupled.loadPositions coupled
   expected <- member name "kept" row >>= \value -> case value of
     Object fields -> forM (KM.toList fields) (\(scope, place) -> (,) (Key.toText scope) <$> textOf name place)

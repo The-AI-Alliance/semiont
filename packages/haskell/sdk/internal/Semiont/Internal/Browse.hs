@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes, ScopedTypeVariables #-}
 module Semiont.Internal.Browse
-  ( BrowseNamespace, newBrowse, controls, persistencePending, fetching, dispose
+  ( BrowseNamespace, newBrowse, controls, persistencePending, fetching, keepIn, dispose
   , resource, resources, annotations, annotation, entityTypes, tagSchemas, engines, events
   , resourceContent, resourceGraph, resourceAnchoredText, resourceRepresentation, resourceRepresentationStream
   , resourceEvents, annotationHistory, files, kb, click, openResource, resourceViewed
@@ -54,26 +54,20 @@ data BrowseNamespace = BrowseNamespace
   , eventsCache :: Cache.Cache ResourceId [AttributedEvent]
   }
 
-newBrowse :: Bus.Bus -> LocalBus.EventBus -> Transport.Transport -> Content.ContentTransport -> Bus.BusOptions -> Timing.Settings -> Maybe (Persistence.CachePersistence, Coupled.Coupled) -> IO BrowseNamespace
-newBrowse bus signals carrier contents clock settings persistence = do
+newBrowse :: Bus.Bus -> LocalBus.EventBus -> Transport.Transport -> Content.ContentTransport -> Bus.BusOptions -> Timing.Settings -> IO BrowseNamespace
+newBrowse bus signals carrier contents clock settings = do
   let ask operation input = Bus.request bus operation input (Timing.busRequestTimeoutMs settings)
       unscoped = cacheOptions clock settings (const (pure (pure ())))
       scoped = cacheOptions clock settings (Transport.subscribeToResource carrier)
-  resourceStore <- Persistence.persister persistence settings Persisted.Resource (\key _ -> parseJSON key)
-  annotationListStore <- Persistence.persister persistence settings Persisted.Annotations (\key _ -> parseJSON key)
-  annotationStore <- Persistence.persister persistence settings Persisted.Annotation
-    (\key value -> AnnotationKey (Annotations.targetSource (annotationTarget value)) <$> parseJSON key)
-  vocabularyStore <- Persistence.persister persistence settings Persisted.EntityTypes (\key _ -> parseJSON key)
-  schemaStore <- Persistence.persister persistence settings Persisted.TagSchemas (\key _ -> parseJSON key)
   descriptors <- Cache.newCache
-    (\identity -> browseResourceResultResponseResource . browseResourceResultResponse <$> ask BrowseResourceRequestedOperation (BrowseResourceRequest identity mempty)) scoped { Cache.cachePersister=resourceStore }
+    (\identity -> browseResourceResultResponseResource . browseResourceResultResponse <$> ask BrowseResourceRequestedOperation (BrowseResourceRequest identity mempty)) scoped
   pages <- Cache.newCache (fmap browseResourcesResultResponse . ask BrowseResourcesRequestedOperation) unscoped
-  lists <- Cache.newCache (Content.getAnnotations contents Nothing) scoped { Cache.cachePersister=annotationListStore }
+  lists <- Cache.newCache (Content.getAnnotations contents Nothing) scoped
   details <- Cache.newCache
     (\(AnnotationKey identity mark) -> getAnnotationResponseAnnotation . browseAnnotationResultResponse <$> ask BrowseAnnotationRequestedOperation (BrowseAnnotationRequest mark identity mempty))
-    (cacheOptions clock settings (\(AnnotationKey identity _) -> Transport.subscribeToResource carrier identity)) { Cache.cachePersister=annotationStore }
-  vocabulary <- Cache.newCache (\_ -> getEntityTypesResponseEntityTypes . browseEntityTypesResultResponse <$> ask BrowseEntityTypesRequestedOperation (BrowseEntityTypesRequest mempty)) unscoped { Cache.cachePersister=vocabularyStore }
-  schemas <- Cache.newCache (\_ -> getTagSchemasResponseTagSchemas . browseTagSchemasResultResponse <$> ask BrowseTagSchemasRequestedOperation (BrowseTagSchemasRequest mempty)) unscoped { Cache.cachePersister=schemaStore }
+    (cacheOptions clock settings (\(AnnotationKey identity _) -> Transport.subscribeToResource carrier identity))
+  vocabulary <- Cache.newCache (\_ -> getEntityTypesResponseEntityTypes . browseEntityTypesResultResponse <$> ask BrowseEntityTypesRequestedOperation (BrowseEntityTypesRequest mempty)) unscoped
+  schemas <- Cache.newCache (\_ -> getTagSchemasResponseTagSchemas . browseTagSchemasResultResponse <$> ask BrowseTagSchemasRequestedOperation (BrowseTagSchemasRequest mempty)) unscoped
   models <- Cache.newCache (\() -> browseEnginesResultResponseEngines . browseEnginesResultResponse <$> ask BrowseEnginesRequestedOperation (BrowseEnginesRequest mempty)) unscoped
   limits <- Cache.newCache (\name -> do
     case find (\operation -> let (request,_,_) = operationChannels operation in channelName request == name) limitsOperations of
@@ -155,6 +149,17 @@ resourceViewed namespace identity = void $ Lifetime.start (signalLifetime namesp
     Just _ -> throwIO problem
     Nothing -> LocalBus.reportFailure (carrier namespace) (fromMaybe
       (TransportError Code.TransportError "resource-viewed report failed" Nothing Nothing) (fromException problem)))
+
+-- | The persisted queries keep their values in @persistence@ from now on,
+-- each beginning with what it kept, and every save writes the places noted.
+keepIn :: BrowseNamespace -> Persistence.CachePersistence -> Coupled.Coupled -> IO ()
+keepIn namespace persistence coupled = do
+  let kept query decodeKey cache = Persistence.persister persistence coupled (timing namespace) query decodeKey >>= Cache.attach cache
+  kept Persisted.Resource (\key _ -> parseJSON key) (resourceCache namespace)
+  kept Persisted.Annotations (\key _ -> parseJSON key) (annotationsCache namespace)
+  kept Persisted.Annotation (\key value -> AnnotationKey (Annotations.targetSource (annotationTarget value)) <$> parseJSON key) (annotationCache namespace)
+  kept Persisted.EntityTypes (\key _ -> parseJSON key) (entityTypesCache namespace)
+  kept Persisted.TagSchemas (\key _ -> parseJSON key) (tagSchemasCache namespace)
 
 persistencePending :: BrowseNamespace -> STM Bool
 persistencePending = anyKept Cache.persistencePending

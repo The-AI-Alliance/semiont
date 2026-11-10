@@ -215,7 +215,7 @@ issuerCases fixtures = do
       agentOptions=sessionOptions { Session.sessionKb=agentKb }
   atomically (writeTVar identities [503,200])
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service -> do
-    opening <- async (Session.signInAgent http Nothing agentOptions (Budget.RetryBudget 2 10 20) service)
+    opening <- async (Session.signInAgent http agentOptions (Budget.RetryBudget 2 10 20) service)
     Time.settle
     Time.advance time 4000000
     waitingForRetry <- poll opening
@@ -246,7 +246,7 @@ issuerCases fixtures = do
   let refusedOptions=agentOptions {
         Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[reason])) }
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service ->
-    bracket (async (try (Session.signInAgent http Nothing refusedOptions (Budget.RetryBudget 2 10 20) service)
+    bracket (async (try (Session.signInAgent http refusedOptions (Budget.RetryBudget 2 10 20) service)
       :: IO (Either TransportError Session.OpenedSession))) cancel $ \attempt -> do
       Time.settle
       result <- poll attempt

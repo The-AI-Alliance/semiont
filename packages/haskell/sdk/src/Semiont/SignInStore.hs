@@ -165,3 +165,5 @@ entry store@(SignInStore options _ _) identity = SignIn.KeptSignIn
   (change store $ \document -> pure (if KM.member (Key.fromText identity) document
     then Just (KM.delete (Key.fromText identity) document) else Nothing,()))
   (const (pure Nothing))
+  -- The launcher's document has no place for a person.
+  (\_ _ -> pure False)

@@ -13,7 +13,6 @@ module Semiont.Internal.Issuer
 import Control.Concurrent.Async (race)
 import Control.Exception (throwIO, try)
 import Control.Monad (unless, when)
-import Crypto.Hash (Digest, SHA256, hash)
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (FromJSON, Value(..), encode, eitherDecodeStrict', fromJSON, Result(..))
 import qualified Data.Aeson.Key as Key
@@ -35,6 +34,7 @@ import Network.URI (parseURI, uriAuthority, uriUserInfo, uriScheme, uriFragment,
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors (SignInError(..))
 import qualified Semiont.Gateway as Gateway
+import Semiont.Internal.Digest (sha256Base64Url)
 import Semiont.Internal.Http (HttpClient(..))
 import qualified Semiont.Http.Routes as Route
 import Semiont.Internal.Generated.OAuth
@@ -127,7 +127,7 @@ configuration options identity = do
   pure doc
 
 codeChallenge :: Text -> Text
-codeChallenge verifier = decodeUtf8 (Base64.encodeUnpadded (Memory.convert (hash (encodeUtf8 verifier) :: Digest SHA256)))
+codeChallenge = sha256Base64Url
 randomUrlSafe :: Int -> IO Text
 randomUrlSafe count = decodeUtf8 . Base64.encodeUnpadded <$> (getRandomBytes count :: IO Bytes.ByteString)
 

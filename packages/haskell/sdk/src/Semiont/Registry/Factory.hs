@@ -33,8 +33,7 @@ newHttpSessionFactory http wall = SessionFactory open revoke
           settings=Session.SessionOptions (knowledgeBaseId kb) (KbTarget (knowledgeBaseEndpoint kb) (knowledgeBaseId kb) (knowledgeBaseLabel kb) mempty) kept
             Nothing Nothing (Just validate)
             (atomically . Signals.notifySessionEnded (sessionFactoryOptionsSignals options)) wall
-          persistence=Just (Client.CachePersistence (sessionFactoryOptionsStorage options) (knowledgeBaseId kb) ((*1000) <$> wall))
-      Session.fromKeptSession http persistence settings
+      Session.fromKeptSession http (Just (sessionFactoryOptionsStorage options)) settings
     validate client access=case Client.auth client of
       Nothing -> ioError (userError "The HTTP session factory built no gateway identity operation")
       Just auth -> Just <$> Auth.me auth (Just access)

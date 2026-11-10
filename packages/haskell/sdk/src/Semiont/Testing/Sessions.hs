@@ -72,8 +72,7 @@ factory (ScriptedSessions clock bus timing wall answer content refusal buildRefu
       over <- Faulty.newFaultyTransport clock [] (answer key) (Set.fromList Channels.channelNames)
       Faulty.refuseWhen over (\operation payload->readTVarIO refusal >>= \refuse->refuse key operation payload)
       (contents,gateway) <- content key `onException` Transport.dispose (Faulty.carrier over)
-      client <- Client.newClient (Faulty.carrier over) contents gateway bus timing
-        (Just (Client.CachePersistence (Factory.sessionFactoryOptionsStorage inputs) key ((*1000) <$> wall)))
+      client <- Client.newClient (Faulty.carrier over) contents gateway bus timing Nothing
         `onException` (Content.dispose contents `finally` Transport.dispose (Faulty.carrier over))
       atomically (modifyTVar' built (++[(key,over)]))
       let kept=Stored.keptIn (Factory.sessionFactoryOptionsStorage inputs) key
