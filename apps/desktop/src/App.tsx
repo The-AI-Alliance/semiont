@@ -187,6 +187,7 @@ export function App() {
   const [sessions, setSessions] = useState<AppChatSession[]>([]);
   const [openKbTabUris, setOpenKbTabUris] = useState<string[]>([]);
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
+  const activeRootPath = activeKbTabUri === null ? null : localRootPathFromTabId(activeKbTabUri);
   const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
   const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string; presentation: ResourcePresentation }>>({});
   const [composeTarget, setComposeTarget] = useState<{ kbUri: string; session: ChatSession } | null>(null);
@@ -233,7 +234,9 @@ export function App() {
 
   const openServiceGroup = useCallback((group: DesktopServiceGroup) => {
     setServiceGroup(group);
-    askSnapshot({});
+    askSnapshot(group === 'record' && activeRootPath !== null
+      ? { target: { kind: 'local', root: activeRootPath } }
+      : {});
     if (group === 'record') {
       setGitCheck({ status: 'checking' });
       const bridge = window.launcherBridge;
@@ -246,8 +249,12 @@ export function App() {
         );
       }
     }
-  }, [askSnapshot]);
-  const refreshServiceStatus = useCallback(() => askSnapshot({}), [askSnapshot]);
+  }, [activeRootPath, askSnapshot]);
+  const refreshServiceStatus = useCallback(() => {
+    askSnapshot(serviceGroup === 'record' && activeRootPath !== null
+      ? { target: { kind: 'local', root: activeRootPath } }
+      : {});
+  }, [activeRootPath, askSnapshot, serviceGroup]);
 
   const updateKnowledgeBase = useCallback((path: string, update: (row: KnowledgeBaseRow) => KnowledgeBaseRow) => {
     setKnowledgeBasesState((current) => current.status === 'result'
@@ -926,7 +933,6 @@ export function App() {
     ? { ...knowledgeBasesState, result: { ...knowledgeBasesState.result, roots: knowledgeBaseRows } }
     : knowledgeBasesState;
 
-  const activeRootPath = activeKbTabUri === null ? null : localRootPathFromTabId(activeKbTabUri);
   const activeKbUri = activeKbTabUri === null || activeRootPath !== null ? null : activeKbTabUri;
   const activeKb = activeKbUri === null ? null : config.kbs.find((kb) => kb.uri === activeKbUri) ?? null;
   const activeConn = activeKbUri ? connections[activeKbUri] : undefined;
