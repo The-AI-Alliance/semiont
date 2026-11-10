@@ -1,15 +1,22 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { delimiter, dirname, join } from 'node:path';
+import { delimiter, dirname, join, relative, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseAppManifest } from '../src/lib/app-manifest';
+import { parseKbUri, parseUserConfig } from '../src/lib/user-config';
 import type { McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
 import { ControlClient } from './control-client';
 import { registerControlHandlers } from './control-ipc';
 import { appendLog, configDir, logPath } from './paths';
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'semiont-app',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+}]);
 
 registerAuthHandlers();
 
@@ -18,6 +25,73 @@ let mcpChild: ChildProcess | null = null;
 let mcpStartedAt: number | null = null;
 let mcpStopping = false;
 let mcpError: string | null = null;
+let documentPolicyOrigins = new Set<string>();
+
+function configuredKbOrigins(toml: string | null): Set<string> {
+  const origins = new Set<string>();
+  if (toml === null) return origins;
+  for (const kb of parseUserConfig(toml).kbs) {
+    try {
+      parseKbUri(kb.uri);
+      origins.add(new URL(kb.uri).origin);
+    } catch {
+      // Invalid configured entries do not widen the renderer's network policy.
+    }
+  }
+  return origins;
+}
+
+function rendererCsp(origins: Set<string>): string {
+  const kbOrigins = [...origins].sort().join(' ');
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    `img-src 'self' data: blob: ${kbOrigins}`.trim(),
+    "font-src 'self' data:",
+    `connect-src 'self' ${kbOrigins}`.trim(),
+    "worker-src 'self' blob:",
+    `media-src 'self' blob: ${kbOrigins}`.trim(),
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-src 'none'",
+  ].join('; ');
+}
+
+function registerRendererProtocol(): void {
+  protocol.handle('semiont-app', async (request) => {
+    const url = new URL(request.url);
+    if (url.hostname !== 'desktop' || request.method !== 'GET') return new Response('Not found', { status: 404 });
+    let requestPath: string;
+    try {
+      requestPath = decodeURIComponent(url.pathname);
+    } catch {
+      return new Response('Bad path', { status: 400 });
+    }
+    const rendererRoot = resolve(__dirname, '../renderer');
+    const filePath = resolve(rendererRoot, `.${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`);
+    const fileRelative = relative(rendererRoot, filePath);
+    if (fileRelative === '..' || fileRelative.startsWith(`..${sep}`) || fileRelative.startsWith(sep)) {
+      return new Response('Not found', { status: 404 });
+    }
+    try {
+      const fileResponse = await net.fetch(pathToFileURL(filePath).toString());
+      if (!fileResponse.ok) return new Response('Not found', { status: 404 });
+      const headers = new Headers(fileResponse.headers);
+      headers.set('X-Content-Type-Options', 'nosniff');
+      headers.set('Referrer-Policy', 'no-referrer');
+      if (fileRelative === 'index.html') {
+        documentPolicyOrigins = configuredKbOrigins(readConfigText());
+        headers.set('Content-Security-Policy', rendererCsp(documentPolicyOrigins));
+        headers.set('Cache-Control', 'no-store');
+      }
+      return new Response(fileResponse.body, { status: fileResponse.status, headers });
+    } catch {
+      return new Response('Not found', { status: 404 });
+    }
+  });
+}
 
 function launcherPath(): string {
   return app.isPackaged
@@ -336,9 +410,13 @@ function configPath(): string {
   return join(configDir(), 'config.toml');
 }
 
-ipcMain.handle('config:read', () => {
+function readConfigText(): string | null {
   const path = configPath();
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
+}
+
+ipcMain.handle('config:read', () => {
+  return readConfigText();
 });
 
 ipcMain.handle('config:write', (_event, toml: string) => {
@@ -346,6 +424,8 @@ ipcMain.handle('config:write', (_event, toml: string) => {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, toml, { mode: 0o600 });
   chmodSync(path, 0o600); // enforce 0600 on an existing file too
+  const currentOrigins = configuredKbOrigins(toml);
+  return { policyStale: currentOrigins.size !== documentPolicyOrigins.size || [...currentOrigins].some((origin) => !documentPolicyOrigins.has(origin)) };
 });
 
 // Chat history — same XDG dir, a JSON file. localStorage isn't reliably persisted for
@@ -463,11 +543,12 @@ function createWindow(): void {
   if (devUrl) {
     void win.loadURL(devUrl);
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'));
+    void win.loadURL('semiont-app://desktop/index.html');
   }
 }
 
 void app.whenReady().then(() => {
+  registerRendererProtocol();
   // Fresh log each launch (so it stays small); the renderer appends after this.
   try {
     mkdirSync(dirname(logPath()), { recursive: true, mode: 0o700 });

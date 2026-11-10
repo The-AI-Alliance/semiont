@@ -10,6 +10,8 @@ files:
 extraResources:
   - from: .build/launcher/semiont
     to: launcher/semiont
+  - from: assets/Orbitron-OFL.txt
+    to: licenses/Orbitron-OFL.txt
 npmRebuild: false
 mac:
   target:

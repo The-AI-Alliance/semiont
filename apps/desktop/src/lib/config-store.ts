@@ -19,15 +19,15 @@ export async function loadUserConfig(): Promise<UserConfig> {
   return toml ? parseUserConfig(toml) : { ...EMPTY_USER_CONFIG };
 }
 
-export async function saveUserConfig(config: UserConfig): Promise<void> {
+export async function saveUserConfig(config: UserConfig): Promise<{ policyStale: boolean }> {
   const toml = serializeUserConfig(config);
   const bridge = typeof window !== 'undefined' ? window.configBridge : undefined;
   if (bridge) {
-    await bridge.write(toml);
-    return;
+    return bridge.write(toml);
   }
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, toml);
     localStorage.removeItem(OLD_STORAGE_KEY);
   }
+  return { policyStale: false };
 }
