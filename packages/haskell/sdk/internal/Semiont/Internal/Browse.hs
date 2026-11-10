@@ -43,15 +43,15 @@ instance ToJSON AnnotationKey where toJSON (AnnotationKey _ identity) = toJSON i
 data BrowseNamespace = BrowseNamespace
   { signalLifetime :: Lifetime.Lifetime, carrier :: Transport.Transport
   , wire :: Bus.Bus, local :: LocalBus.EventBus, content :: Content.ContentTransport, timing :: Timing.Settings
-  , resourceCache :: Cache.Cache ResourceId ResourceDescriptor
-  , resourcesCache :: Cache.Cache BrowseResourcesRequest ListResourcesResponse
-  , annotationsCache :: Cache.Cache ResourceId GetAnnotationsResponse
-  , annotationCache :: Cache.Cache AnnotationKey Annotation
-  , entityTypesCache :: Cache.Cache Persisted.Whole [Text]
-  , tagSchemasCache :: Cache.Cache Persisted.Whole [TagSchema]
-  , enginesCache :: Cache.Cache () [EngineEntry]
+  , resourceCache :: Cache.Cache ResourceId Fact.ResourceValue
+  , resourcesCache :: Cache.Cache BrowseResourcesRequest Fact.ResourcesValue
+  , annotationsCache :: Cache.Cache ResourceId Fact.AnnotationsValue
+  , annotationCache :: Cache.Cache AnnotationKey Fact.AnnotationValue
+  , entityTypesCache :: Cache.Cache Persisted.Whole Fact.EntityTypesValue
+  , tagSchemasCache :: Cache.Cache Persisted.Whole Fact.TagSchemasValue
+  , enginesCache :: Cache.Cache () Fact.EnginesValue
   , limitsCache :: Cache.Cache Text [EngineLimits]
-  , eventsCache :: Cache.Cache ResourceId [AttributedEvent]
+  , eventsCache :: Cache.Cache ResourceId Fact.EventsValue
   }
 
 newBrowse :: Bus.Bus -> LocalBus.EventBus -> Transport.Transport -> Content.ContentTransport -> Bus.BusOptions -> Timing.Settings -> IO BrowseNamespace

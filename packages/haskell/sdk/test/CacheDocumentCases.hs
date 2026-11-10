@@ -22,10 +22,11 @@ import qualified Semiont.Cache as Cache
 import qualified Semiont.Internal.Coupled as Coupled
 import qualified Semiont.Internal.Persistence as Persistence
 import Semiont.Internal.Generated.CachePersistence (KeptQuery(..), Whole, keptQueryName)
+import qualified Semiont.Internal.Generated.CacheRefresh as Fact
 import qualified Semiont.Internal.Kept as Kept
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Timing.Settings as Timing
-import Semiont.Types (Annotation, AnnotationId, GetAnnotationsResponse, ResourceDescriptor, ResourceId, TagSchema, resourceIdValue)
+import Semiont.Types (AnnotationId, ResourceId, resourceIdValue)
 import System.FilePath ((</>))
 
 type Using result = forall key value. (ToJSON key, FromJSON key, ToJSON value, FromJSON value, Eq value)
@@ -33,11 +34,11 @@ type Using result = forall key value. (ToJSON key, FromJSON key, ToJSON value, F
 
 -- | What each kept query's cache is keyed by and holds.
 kept :: KeptQuery -> Using result -> IO result
-kept Resource use = use (Proxy :: Proxy ResourceId) (Proxy :: Proxy ResourceDescriptor)
-kept Annotations use = use (Proxy :: Proxy ResourceId) (Proxy :: Proxy GetAnnotationsResponse)
-kept Annotation use = use (Proxy :: Proxy AnnotationId) (Proxy :: Proxy Annotation)
-kept EntityTypes use = use (Proxy :: Proxy Whole) (Proxy :: Proxy [Text])
-kept TagSchemas use = use (Proxy :: Proxy Whole) (Proxy :: Proxy [TagSchema])
+kept Resource use = use (Proxy :: Proxy ResourceId) (Proxy :: Proxy Fact.ResourceValue)
+kept Annotations use = use (Proxy :: Proxy ResourceId) (Proxy :: Proxy Fact.AnnotationsValue)
+kept Annotation use = use (Proxy :: Proxy AnnotationId) (Proxy :: Proxy Fact.AnnotationValue)
+kept EntityTypes use = use (Proxy :: Proxy Whole) (Proxy :: Proxy Fact.EntityTypesValue)
+kept TagSchemas use = use (Proxy :: Proxy Whole) (Proxy :: Proxy Fact.TagSchemasValue)
 
 kb, person :: Text
 kb = "kb-cases"

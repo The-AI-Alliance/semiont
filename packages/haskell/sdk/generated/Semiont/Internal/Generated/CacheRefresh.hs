@@ -1,8 +1,29 @@
 -- Generated from client/refresh.json. Do not edit.
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.Internal.Generated.CacheRefresh (Query(..), Reach(..), Ways(..), Row(..), rows, channels, reopened, unreadable) where
+module Semiont.Internal.Generated.CacheRefresh (Query(..), ResourceValue, AnnotationsValue, AnnotationValue, EventsValue, ReferencedByValue, ResourcesValue, MatchedResourcesValue, EntityTypesValue, TagSchemasValue, EnginesValue, Reach(..), Ways(..), Row(..), rows, channels, reopened, unreadable) where
 import Data.Text (Text)
+import Semiont.Internal.Generated.Models.Annotation (Annotation)
+import Semiont.Internal.Generated.Models.AttributedEvent (AttributedEvent)
+import Semiont.Internal.Generated.Models.EngineEntry (EngineEntry)
+import Semiont.Internal.Generated.Models.GetAnnotationsResponse (GetAnnotationsResponse)
+import Semiont.Internal.Generated.Models.GetReferencedByResponseReferencedByItem (GetReferencedByResponseReferencedByItem)
+import Semiont.Internal.Generated.Models.ListResourcesResponse (ListResourcesResponse)
+import Semiont.Internal.Generated.Models.MatchResourcesResponse (MatchResourcesResponse)
+import Semiont.Internal.Generated.Models.ResourceDescriptor (ResourceDescriptor)
+import Semiont.Internal.Generated.Models.TagSchema (TagSchema)
 data Query = Resource | Annotations | Annotation | Events | ReferencedBy | Resources | MatchedResources | EntityTypes | TagSchemas | Engines deriving (Eq, Ord, Show, Enum, Bounded)
+-- | The type of the value each live query's cache holds for a key: the table's `value`, a component or a member
+-- within one.
+type ResourceValue = ResourceDescriptor
+type AnnotationsValue = GetAnnotationsResponse
+type AnnotationValue = Annotation
+type EventsValue = [AttributedEvent]
+type ReferencedByValue = [GetReferencedByResponseReferencedByItem]
+type ResourcesValue = ListResourcesResponse
+type MatchedResourcesValue = MatchResourcesResponse
+type EntityTypesValue = [Text]
+type TagSchemasValue = [TagSchema]
+type EnginesValue = [EngineEntry]
 data Reach = Subject | Held deriving (Eq, Show)
 -- | Where in its event a row finds the resource it names, the annotation it names, and the value it carries.
 data Ways = Ways (Maybe [Text]) (Maybe [Text]) (Maybe [Text]) deriving (Eq, Show)

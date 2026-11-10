@@ -12,7 +12,7 @@ import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Transport as Transport
 import Semiont.Types
 
-data GatherNamespace = GatherNamespace Bus.Bus Timing.Settings (Cache.Cache ResourceId [GetReferencedByResponseReferencedByItem])
+data GatherNamespace = GatherNamespace Bus.Bus Timing.Settings (Cache.Cache ResourceId Fact.ReferencedByValue)
 newGather :: Bus.Bus -> Transport.Transport -> Bus.BusOptions -> Timing.Settings -> IO GatherNamespace
 newGather wire carrier clock timing = GatherNamespace wire timing <$> Cache.newCache
   (\identity -> getReferencedByResponseReferencedBy . gatherReferencedByResultResponse <$>
