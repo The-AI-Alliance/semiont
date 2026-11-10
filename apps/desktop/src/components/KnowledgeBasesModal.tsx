@@ -32,14 +32,7 @@ export type NewKnowledgeBaseOptions = Omit<ControlRootsInitParams, 'apiVersion'>
 export function KnowledgeBasesModal({
   state,
   onRefresh,
-  onStart,
-  onStop,
-  onLogin,
-  onLogout,
-  onForget,
-  onFollowLogs,
   onCreate,
-  onRenameAlias,
   focusSearchOnOpen,
   openTabUris,
   activeTabUri,
@@ -49,14 +42,7 @@ export function KnowledgeBasesModal({
 }: {
   state: KnowledgeBasesState;
   onRefresh: () => void;
-  onStart: (root: KnowledgeBaseRow) => void;
-  onStop: (root: KnowledgeBaseRow) => void;
-  onLogin: (root: KnowledgeBaseRow) => void;
-  onLogout: (root: KnowledgeBaseRow) => void;
-  onForget: (root: KnowledgeBaseRow) => void;
-  onFollowLogs: (root: KnowledgeBaseRow) => void;
   onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<string>;
-  onRenameAlias: (root: KnowledgeBaseRow, alias: string) => void;
   focusSearchOnOpen: boolean;
   openTabUris: string[];
   activeTabUri: string | null;
@@ -98,6 +84,15 @@ export function KnowledgeBasesModal({
   }, [filteredRoots, initialSelectedPath, state.status]);
   const selected = filteredRoots.find((root) => root.path === selectedPath) ?? filteredRoots[0];
   const selectedTabUri = selected?.configuredUri ?? selected?.gatewayUrl;
+  const selectedIsOpen = selected !== undefined && (
+    openTabUris.includes(localRootTabId(selected.path)) ||
+    (selectedTabUri !== undefined && openTabUris.includes(selectedTabUri))
+  );
+  const selectedIsActive = selected !== undefined && (
+    selectedTabUri === undefined
+      ? localRootTabId(selected.path) === activeTabUri
+      : selectedTabUri === activeTabUri
+  );
   useEffect(() => {
     if (focusSearchOnOpen && state.status === 'result') searchRef.current?.focus();
   }, [focusSearchOnOpen, state.status]);
@@ -109,7 +104,7 @@ export function KnowledgeBasesModal({
           <h1 id="knowledge-bases-title">Knowledge Bases</h1>
           <button type="button" className="config__close" onClick={onClose} aria-label="Close Knowledge Bases">×</button>
         </header>
-        <p className="knowledge-bases__intro">Choose a local root to see its launcher state, Desktop session, and controls. Starting uses the root’s saved launcher settings.</p>
+        <p className="knowledge-bases__intro">Choose a local knowledge base to open as a workspace tab. You can open it before the launcher is running.</p>
         {state.status === 'loading' ? (
           <p className="knowledge-bases__empty">Asking the launcher for its knowledge bases…</p>
         ) : state.status === 'failed' ? (
@@ -135,8 +130,7 @@ export function KnowledgeBasesModal({
             ) : filteredRoots.length === 0 ? (
               <p className="knowledge-bases__empty">No knowledge bases match “{filterText.trim()}”.</p>
             ) : (
-                  <div className="knowledge-bases__workspace">
-                    <div className="knowledge-bases__table-wrap">
+                  <div className="knowledge-bases__table-wrap">
                       <table className="knowledge-bases__table">
                         <thead>
                           <tr>
@@ -163,32 +157,20 @@ export function KnowledgeBasesModal({
                           ))}
                         </tbody>
                       </table>
-                    </div>
-                    {selected !== undefined && (
-                      <KnowledgeBaseDetails
-                        root={selected}
-                        onStart={onStart}
-                        onStop={onStop}
-                        onLogin={onLogin}
-                        onLogout={onLogout}
-                        onForget={onForget}
-                        onFollowLogs={onFollowLogs}
-                        onRenameAlias={onRenameAlias}
-                        openTab={(selectedTabUri !== undefined && openTabUris.includes(selectedTabUri)) || openTabUris.includes(localRootTabId(selected.path))}
-                        activeTab={selectedTabUri === undefined
-                          ? localRootTabId(selected.path) === activeTabUri
-                          : selectedTabUri === activeTabUri}
-                        hasGateway={selectedTabUri !== undefined}
-                        onOpenTab={() => onOpenTab(selected)}
-                      />
-                    )}
                   </div>
                 )}
           </>
         )}
         <footer className="knowledge-bases__footer">
           <button type="button" className="kb__connect" onClick={() => setShowCreate(true)}>New</button>
-          <button type="button" className="kb__connect" onClick={onRefresh}>Refresh</button>
+          <div className="knowledge-bases__footer-actions">
+            {selected !== undefined && (
+              <button type="button" className="kb__connect" disabled={selectedIsActive} onClick={() => onOpenTab(selected)}>
+                {selectedIsActive ? 'Current tab' : selectedIsOpen ? 'Switch to tab' : 'Open as tab'}
+              </button>
+            )}
+            <button type="button" className="kb__connect" onClick={onRefresh}>Refresh</button>
+          </div>
         </footer>
       </section>
       {showCreate && (
@@ -203,6 +185,78 @@ export function KnowledgeBasesModal({
           }}
         />
       )}
+    </div>
+  );
+}
+
+export function KnowledgeBaseModal({
+  root,
+  kb,
+  connected,
+  onStart,
+  onStop,
+  onLogin,
+  onLogout,
+  onForget,
+  onFollowLogs,
+  onRenameAlias,
+  onClose,
+}: {
+  root: KnowledgeBaseRow | null;
+  kb: { uri: string; alias?: string } | null;
+  connected: boolean;
+  onStart: (root: KnowledgeBaseRow) => void;
+  onStop: (root: KnowledgeBaseRow) => void;
+  onLogin: (root: KnowledgeBaseRow) => void;
+  onLogout: (root: KnowledgeBaseRow) => void;
+  onForget: (root: KnowledgeBaseRow) => void;
+  onFollowLogs: (root: KnowledgeBaseRow) => void;
+  onRenameAlias: (root: KnowledgeBaseRow, alias: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  const name = root?.desktopAlias || root?.siteName || kb?.alias || root?.path.split(/[\\/]/u).filter(Boolean).at(-1) || kb?.uri || 'Knowledge Base';
+  return (
+    <div className="modal modal--kb-details" onClick={onClose}>
+      <section className="config config--modal config--knowledge-bases knowledge-bases__manage-modal" role="dialog" aria-modal="true" aria-labelledby="knowledge-base-title" onClick={(event) => event.stopPropagation()}>
+        <header className="config__head">
+          <h1 id="knowledge-base-title">Knowledge Base</h1>
+          <button type="button" className="config__close" onClick={onClose} aria-label="Close Knowledge Base">×</button>
+        </header>
+        {root !== null ? (
+          <KnowledgeBaseDetails
+            root={root}
+            onStart={onStart}
+            onStop={onStop}
+            onLogin={onLogin}
+            onLogout={onLogout}
+            onForget={onForget}
+            onFollowLogs={onFollowLogs}
+            onRenameAlias={onRenameAlias}
+          />
+        ) : kb !== null ? (
+          <div className="knowledge-bases__remote-details">
+            <header className="knowledge-bases__detail-head">
+              <div>
+                <p className="knowledge-bases__eyebrow">Selected Knowledge Base</p>
+                <h2>{name}</h2>
+              </div>
+              <span className={`knowledge-bases__status knowledge-bases__status--${connected ? 'running' : 'stopped'}`}>{connected ? 'Connected' : 'Not connected'}</span>
+            </header>
+            <dl className="knowledge-bases__metadata"><div><dt>Gateway</dt><dd>{kb.uri}</dd></div></dl>
+            <p className="knowledge-bases__action-note">Launcher controls are available for knowledge bases registered as local roots.</p>
+          </div>
+        ) : (
+          <p className="knowledge-bases__empty">No knowledge base is selected.</p>
+        )}
+      </section>
     </div>
   );
 }
@@ -327,7 +381,7 @@ function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
   );
 }
 
-function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, onRenameAlias, openTab, activeTab, hasGateway, onOpenTab }: {
+function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, onRenameAlias }: {
   root: KnowledgeBaseRow;
   onStart: (root: KnowledgeBaseRow) => void;
   onStop: (root: KnowledgeBaseRow) => void;
@@ -336,10 +390,6 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
   onForget: (root: KnowledgeBaseRow) => void;
   onFollowLogs: (root: KnowledgeBaseRow) => void;
   onRenameAlias: (root: KnowledgeBaseRow, alias: string) => void;
-  openTab: boolean;
-  activeTab: boolean;
-  hasGateway: boolean;
-  onOpenTab: () => void;
 }) {
   const [confirmForget, setConfirmForget] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(root.desktopAlias ?? '');
@@ -364,54 +414,48 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
   ].filter((item): item is [string, string] => item[1] !== undefined);
 
   return (
-    <aside className="knowledge-bases__detail-panel" aria-label={`${name} details`}>
-      <header className="knowledge-bases__detail-head">
-        <div>
-          <p className="knowledge-bases__eyebrow">Selected Knowledge Base</p>
-          <h2>{name}</h2>
-        </div>
-        <span className={`knowledge-bases__status knowledge-bases__status--${root.operation === 'starting' ? 'starting' : root.status}`}>
-          {root.operation === 'starting' ? 'Starting…' : root.operation === 'stopping' ? 'Stopping…' : statusLabel(root.status)}
-        </span>
-      </header>
+    <div className="knowledge-bases__detail-panel" aria-label={`${name} details`}>
+      <div className="knowledge-bases__detail-summary">
+        <header className="knowledge-bases__detail-head">
+          <div>
+            <p className="knowledge-bases__eyebrow">Selected Knowledge Base</p>
+            <h2>{name}</h2>
+          </div>
+          <span className={`knowledge-bases__status knowledge-bases__status--${root.operation === 'starting' ? 'starting' : root.status}`}>
+            {root.operation === 'starting' ? 'Starting…' : root.operation === 'stopping' ? 'Stopping…' : statusLabel(root.status)}
+          </span>
+        </header>
 
-      {root.statusDetail !== undefined && <p className="knowledge-bases__status-detail">{root.statusDetail}</p>}
+        {root.statusDetail !== undefined && <p className="knowledge-bases__status-detail">{root.statusDetail}</p>}
 
-      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-workspace-heading">
-        <h3 id="knowledge-bases-workspace-heading">Desktop workspace</h3>
-        <div className="knowledge-bases__controls">
-          <button type="button" className="kb__connect" disabled={activeTab} onClick={onOpenTab}>
-            {activeTab ? 'Current tab' : openTab ? 'Switch to tab' : 'Open as tab'}
-          </button>
-        </div>
-        {!hasGateway && <p className="knowledge-bases__action-note">This opens a workspace tab now. Connect it after the launcher starts the KB.</p>}
-      </section>
+        <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-display-name-heading">
+          <h3 id="knowledge-bases-display-name-heading">Desktop display name</h3>
+          <form className="knowledge-bases__alias-form" onSubmit={(event) => {
+            event.preventDefault();
+            onRenameAlias(root, aliasDraft.trim());
+          }}>
+            <input
+              aria-label="Desktop display name"
+              value={aliasDraft}
+              onChange={(event) => setAliasDraft(event.target.value)}
+              placeholder={root.siteName || root.path.split(/[\\/]/u).filter(Boolean).at(-1) || root.path}
+            />
+            <button type="submit" className="kb__connect">Save name</button>
+          </form>
+        </section>
+      </div>
 
-      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-display-name-heading">
-        <h3 id="knowledge-bases-display-name-heading">Desktop display name</h3>
-        <form className="knowledge-bases__alias-form" onSubmit={(event) => {
-          event.preventDefault();
-          onRenameAlias(root, aliasDraft.trim());
-        }}>
-          <input
-            aria-label="Desktop display name"
-            value={aliasDraft}
-            onChange={(event) => setAliasDraft(event.target.value)}
-            placeholder={root.siteName || root.path.split(/[\\/]/u).filter(Boolean).at(-1) || root.path}
-          />
-          <button type="submit" className="kb__connect">Save name</button>
-        </form>
-      </section>
+      <div className="knowledge-bases__detail-grid">
+        <section className="knowledge-bases__detail-section knowledge-bases__service-section" aria-labelledby="knowledge-bases-services-heading">
+          <h3 id="knowledge-bases-services-heading">Services</h3>
+          {root.services === undefined ? (
+            <p className="knowledge-bases__action-note">{root.status === 'checking' ? 'Checking service status…' : 'Service status is unavailable.'}</p>
+          ) : root.services.length === 0 ? (
+            <p className="knowledge-bases__action-note">{root.status === 'unknown' ? 'Service status is unavailable.' : 'No service details reported.'}</p>
+          ) : <ServiceGroups services={root.services} />}
+        </section>
 
-      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-services-heading">
-        <h3 id="knowledge-bases-services-heading">Services</h3>
-        {root.services === undefined ? (
-          <p className="knowledge-bases__action-note">{root.status === 'checking' ? 'Checking service status…' : 'Service status is unavailable.'}</p>
-        ) : root.services.length === 0 ? (
-          <p className="knowledge-bases__action-note">{root.status === 'unknown' ? 'Service status is unavailable.' : 'No service details reported.'}</p>
-        ) : <ServiceGroups services={root.services} />}
-      </section>
-
+        <div className="knowledge-bases__operations">
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-launcher-heading">
         <h3 id="knowledge-bases-launcher-heading">Launcher</h3>
         <div className="knowledge-bases__controls">
@@ -540,7 +584,9 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
           <p className="knowledge-bases__action-error">{root.operationError}</p>
         )}
       </section>
-    </aside>
+        </div>
+      </div>
+    </div>
   );
 }
 

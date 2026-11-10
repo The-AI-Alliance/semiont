@@ -30,7 +30,7 @@ import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
 import { LauncherStatusModal } from './components/LauncherStatusModal';
-import { KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
+import { KnowledgeBaseModal, KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
@@ -202,7 +202,8 @@ export function App() {
   const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
-  const [showKnowledgeBases, setShowKnowledgeBases] = useState(false);
+  const [showKnowledgeBasePicker, setShowKnowledgeBasePicker] = useState(false);
+  const [showKnowledgeBaseDetails, setShowKnowledgeBaseDetails] = useState(false);
   const [focusKnowledgeBaseSearch, setFocusKnowledgeBaseSearch] = useState(false);
   const [knowledgeBaseSelectedPath, setKnowledgeBaseSelectedPath] = useState<string | null>(null);
   const [logsRoot, setLogsRoot] = useState<KnowledgeBaseRow | null>(null);
@@ -238,11 +239,8 @@ export function App() {
       : current);
   }, []);
 
-  const openKnowledgeBases = useCallback((focusSearch = false, selectedPath: string | null = null) => {
-    setShowKnowledgeBases(true);
-    setFocusKnowledgeBaseSearch(focusSearch);
-    setKnowledgeBaseSelectedPath(selectedPath);
-    setKnowledgeBasesState({ status: 'loading' });
+  const refreshKnowledgeBases = useCallback(() => {
+    setKnowledgeBasesState((current) => current.status === 'result' ? current : { status: 'loading' });
     const bridge = window.launcherBridge;
     if (bridge === undefined) {
       setKnowledgeBasesState({ status: 'failed', message: 'The launcher bridge is available in the desktop app only.' });
@@ -267,6 +265,13 @@ export function App() {
       }
     });
   }, [updateKnowledgeBase]);
+
+  const openKnowledgeBases = useCallback((focusSearch = false, selectedPath: string | null = null) => {
+    setShowKnowledgeBasePicker(true);
+    setFocusKnowledgeBaseSearch(focusSearch);
+    setKnowledgeBaseSelectedPath(selectedPath);
+    refreshKnowledgeBases();
+  }, [refreshKnowledgeBases]);
 
   const createKnowledgeBase = useCallback(async (
     options: NewKnowledgeBaseOptions,
@@ -631,7 +636,7 @@ export function App() {
       window.clearInterval(statusTimer);
       const failureMessage = failureTextOf(outcome);
       if (failureMessage === null) {
-        openKnowledgeBases();
+        refreshKnowledgeBases();
         return;
       }
       const lastFailure = [...progressForOperation].reverse().find((progress) => progress.kind === 'fail');
@@ -671,7 +676,7 @@ export function App() {
     });
     void askLauncher(bridge, 'roots.forget', { root: root.path }).then((outcome) => {
       if (outcome.ok) {
-        openKnowledgeBases();
+        refreshKnowledgeBases();
         return;
       }
       updateKnowledgeBase(root.path, (row) => {
@@ -710,7 +715,7 @@ export function App() {
     const uri = root.configuredUri ?? root.gatewayUrl;
     if (uri === undefined) {
       openRootTab(root.path);
-      setShowKnowledgeBases(false);
+      setShowKnowledgeBasePicker(false);
       return;
     }
     let kb = config.kbs.find((entry) => normalizeGatewayUri(entry.uri) === normalizeGatewayUri(uri));
@@ -728,7 +733,7 @@ export function App() {
     const rootTabId = localRootTabId(root.path);
     setOpenKbTabUris((current) => current.filter((id) => id !== rootTabId));
     openKbTab(kb.uri);
-    setShowKnowledgeBases(false);
+    setShowKnowledgeBasePicker(false);
   };
 
   const renameKnowledgeBase = (root: KnowledgeBaseRow, alias: string) => {
@@ -952,6 +957,11 @@ export function App() {
   const activeKbUri = activeKbTabUri === null || activeRootPath !== null ? null : activeKbTabUri;
   const activeKb = activeKbUri === null ? null : config.kbs.find((kb) => kb.uri === activeKbUri) ?? null;
   const activeConn = activeKbUri ? connections[activeKbUri] : undefined;
+  const activeKnowledgeBaseRoot = activeRootPath !== null
+    ? knowledgeBaseRows.find((root) => root.path === activeRootPath) ?? null
+    : activeKbUri === null
+      ? null
+      : knowledgeBaseRows.find((root) => [root.configuredUri, root.gatewayUrl].some((uri) => uri !== undefined && normalizeGatewayUri(uri) === normalizeGatewayUri(activeKbUri))) ?? null;
 
   return (
     <>
@@ -979,6 +989,7 @@ export function App() {
           <KbNav
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
+            hasActiveKbTab={activeKbTabUri !== null}
             connections={connections}
             sessions={sessions}
             // doc and chat coexist now — both rows light up when both are live
@@ -999,6 +1010,10 @@ export function App() {
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
             onOpenGit={openGit}
+            onOpenKnowledgeBase={() => {
+              setShowKnowledgeBaseDetails(true);
+              refreshKnowledgeBases();
+            }}
           />
           <div
             className="app__resizer"
@@ -1014,6 +1029,10 @@ export function App() {
             hasOpenKb={activeKbTabUri !== null}
             activeRootPath={activeRootPath}
             onOpenKnowledgeBases={() => openKnowledgeBases(activeRootPath === null, activeRootPath)}
+            onOpenKnowledgeBaseDetails={() => {
+              setShowKnowledgeBaseDetails(true);
+              refreshKnowledgeBases();
+            }}
             activeSession={activeSession}
             onNewDocument={() => activeSession && openNewDocument(activeSession.kbUri)}
             conn={activeConn}
@@ -1054,25 +1073,35 @@ export function App() {
           onClose={() => setShowLauncherStatus(false)}
         />
       )}
-      {showKnowledgeBases && (
+      {showKnowledgeBasePicker && (
         <KnowledgeBasesModal
           state={knowledgeBasesModalState}
           focusSearchOnOpen={focusKnowledgeBaseSearch}
           openTabUris={openKbTabUris}
           activeTabUri={activeKbTabUri}
           initialSelectedPath={knowledgeBaseSelectedPath}
-          onRefresh={() => openKnowledgeBases()}
+          onRefresh={refreshKnowledgeBases}
+          onCreate={createKnowledgeBase}
+          onOpenTab={openKnowledgeBaseTab}
+          onClose={() => {
+            if (logsRoot === null) setShowKnowledgeBasePicker(false);
+          }}
+        />
+      )}
+      {showKnowledgeBaseDetails && (
+        <KnowledgeBaseModal
+          root={activeKnowledgeBaseRoot}
+          kb={activeKb}
+          connected={activeKnowledgeBaseRoot?.activeSessionUri !== undefined || activeConn?.opened !== undefined}
           onStart={(root) => operateKnowledgeBase(root, 'starting')}
           onStop={(root) => operateKnowledgeBase(root, 'stopping')}
           onLogin={loginKnowledgeBase}
           onLogout={logoutKnowledgeBase}
           onForget={forgetKnowledgeBase}
           onFollowLogs={setLogsRoot}
-          onCreate={createKnowledgeBase}
           onRenameAlias={renameKnowledgeBase}
-          onOpenTab={openKnowledgeBaseTab}
           onClose={() => {
-            if (logsRoot === null) setShowKnowledgeBases(false);
+            if (logsRoot === null) setShowKnowledgeBaseDetails(false);
           }}
         />
       )}
@@ -1117,6 +1146,7 @@ function MainPane({
   hasOpenKb,
   activeRootPath,
   onOpenKnowledgeBases,
+  onOpenKnowledgeBaseDetails,
   onNewDocument,
   ...body
 }: {
@@ -1124,6 +1154,7 @@ function MainPane({
   hasOpenKb: boolean;
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
+  onOpenKnowledgeBaseDetails: () => void;
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
@@ -1140,7 +1171,7 @@ function MainPane({
 }) {
   return (
     <div className="mainwrap">
-      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} onNewDocument={onNewDocument} {...body} />
+      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onNewDocument={onNewDocument} {...body} />
       <AppFooter prefs={viewerPrefs} />
     </div>
   );
@@ -1155,6 +1186,7 @@ function MainBody({
   hasOpenKb,
   activeRootPath,
   onOpenKnowledgeBases,
+  onOpenKnowledgeBaseDetails,
   onNewDocument,
   activeSession,
   conn,
@@ -1172,6 +1204,7 @@ function MainBody({
   hasOpenKb: boolean;
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
+  onOpenKnowledgeBaseDetails: () => void;
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
@@ -1269,8 +1302,8 @@ function MainBody({
     ) : activeRootPath !== null ? (
       <section className="main main--empty">
         <h1>Knowledge Base not connected</h1>
-        <p className="main__hint">This workspace tab is open. Start the KB or connect it from Knowledge Bases to browse resources and chat.</p>
-        <button type="button" className="main__connect" onClick={onOpenKnowledgeBases}>Open Knowledge Base controls</button>
+        <p className="main__hint">This workspace tab is open. Start the KB from Knowledge Base details, then connect it to browse resources and chat.</p>
+        <button type="button" className="main__connect" onClick={onOpenKnowledgeBaseDetails}>Open Knowledge Base details</button>
       </section>
     ) : activeSession === null && conn?.opened === undefined ? (
       <section className="main main--empty">
@@ -1280,7 +1313,7 @@ function MainBody({
           <button type="button" className="main__connect" onClick={onConnect} disabled={conn?.connecting}>
             {conn?.connecting ? 'Connecting…' : 'Connect'}
           </button>
-          <button type="button" className="main__connect main__connect--secondary" onClick={onOpenKnowledgeBases}>Knowledge Base controls</button>
+          <button type="button" className="main__connect main__connect--secondary" onClick={onOpenKnowledgeBaseDetails}>Knowledge Base details</button>
         </div>
         {conn?.error && <p className="main__error" role="alert">{conn.error}</p>}
       </section>

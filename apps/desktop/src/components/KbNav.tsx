@@ -10,6 +10,7 @@ import type { McpProcessStatus } from '../lib/launcher-bridge';
 export interface KbNavProps {
   kbs: KbEntry[];
   hasLocalRootTab: boolean;
+  hasActiveKbTab: boolean;
   connections: Record<string, KbConnection>;
   sessions: AppChatSession[];
   activeSessionId: string | null;
@@ -31,6 +32,7 @@ export interface KbNavProps {
   onOpenTelemetry: () => void;
   onOpenRuntime: () => void;
   onOpenGit: () => void;
+  onOpenKnowledgeBase: () => void;
 }
 
 function hostOf(uri: string): string {
@@ -56,12 +58,12 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, mcpStatus, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, mcpStatus, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenAbout' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -98,6 +100,7 @@ function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, m
               </button>
             </header>
             <nav className="semiont-panel__items">
+              {hasActiveKbTab && <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Knowledge Base</span></button>}
               <button type="button" onClick={() => choose(onOpenAbout)}><AboutIcon /><span>About</span></button>
               <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
               <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secrets</span></button>
@@ -283,6 +286,15 @@ function AboutIcon() {
     <svg width="18" height="18" {...ICON_PROPS}>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5m0-8h.01" />
+    </svg>
+  );
+}
+
+function KnowledgeBaseIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <path d="M4 5.5c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2Z" />
+      <path d="M4 5.5v6c0 1.1 3.6 2 8 2m8-8v3m-16-3v6m0 0c0 1.1 3.6 2 8 2m8-5v5c0 1.1-3.6 2-8 2m-8-4v5c0 1.1 3.6 2 8 2" />
     </svg>
   );
 }
