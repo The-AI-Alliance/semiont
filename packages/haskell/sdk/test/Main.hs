@@ -45,6 +45,7 @@ import IdentityCases (identityCases)
 import BusLogCases (busLogCases)
 import PersistenceCases (persistenceCases)
 import CacheDocumentCases (cacheDocumentCases)
+import PersistedCases (persistedCases)
 import StateUnitCases (stateUnitCases)
 import FlowCases (flowCases)
 import ActorCases (actorCases)
@@ -426,6 +427,7 @@ runCases root = do
   openResourceCases root fixtures
   persistenceCases fixtures
   cacheDocumentCases root
+  persistedCases root fixtures
   issuerCases fixtures
   serviceTokenCases root
   deviceClock <- deviceClockCases root
