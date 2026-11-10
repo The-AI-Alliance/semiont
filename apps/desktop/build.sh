@@ -93,9 +93,9 @@ assemble_sources() {
   # Snapshot source, including uncommitted files, without sharing dependency or build
   # directories with other commands running in the checkout.
   git -C "$REPO_ROOT" ls-files --cached --others --exclude-standard -z |
-    tar -c -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" --null -T -
+    COPYFILE_DISABLE=1 tar -c -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" --null -T -
   if [[ -x "$LAUNCHER_BIN" ]]; then
-    tar -r -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" apps/desktop/.build/launcher/semiont
+    COPYFILE_DISABLE=1 tar -r -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" apps/desktop/.build/launcher/semiont
   fi
   mkdir -p "$SCRIPT_DIR/release"
 }
