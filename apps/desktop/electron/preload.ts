@@ -52,6 +52,14 @@ contextBridge.exposeInMainWorld('windowBridge', {
   restoreWidth: (): Promise<void> => ipcRenderer.invoke('window:restore-width'),
 });
 
+contextBridge.exposeInMainWorld('appMenuBridge', {
+  onDocumentsReloadRequested(listener: () => void): () => void {
+    const handler = () => listener();
+    ipcRenderer.on('documents:reload-requested', handler);
+    return () => ipcRenderer.removeListener('documents:reload-requested', handler);
+  },
+});
+
 // Signing in, and the stored sessions: the main process talks to each knowledge base's
 // issuer and keeps the tokens (electron/auth.ts). Used via src/lib/session.ts.
 const authBridge: AuthBridge = {

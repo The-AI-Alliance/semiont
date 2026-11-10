@@ -300,10 +300,27 @@ function setApplicationMenu(): void {
   }
   appMenu.push({ type: 'separator' }, { role: 'quit' });
 
+  const viewMenu: MenuItemConstructorOptions[] = [
+    {
+      label: 'Reload',
+      accelerator: 'CommandOrControl+R',
+      click: () => mainWindow?.webContents.send('documents:reload-requested'),
+    },
+    { role: 'forceReload' },
+    { type: 'separator' },
+    { role: 'toggleDevTools' },
+    { type: 'separator' },
+    { role: 'resetZoom' },
+    { role: 'zoomIn' },
+    { role: 'zoomOut' },
+    { type: 'separator' },
+    { role: 'togglefullscreen' },
+  ];
+
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: app.getName(), submenu: appMenu },
     { role: 'editMenu' },
-    { role: 'viewMenu' },
+    { label: 'View', submenu: viewMenu },
     { role: 'windowMenu' },
   ]));
 }

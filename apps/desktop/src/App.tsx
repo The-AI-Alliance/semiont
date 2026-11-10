@@ -420,8 +420,11 @@ export function App() {
     }),
     [clickAction, motivation],
   );
-  // Bumped when the chat pane creates a resource, to nudge document lists to re-fetch.
+  // Bumped after resource creation or View > Reload to refresh open document lists.
   const [docsRefresh, setDocsRefresh] = useState(0);
+  useEffect(() => window.appMenuBridge?.onDocumentsReloadRequested(() => {
+    setDocsRefresh((value) => value + 1);
+  }), []);
   const [sidebarWidth, setSidebarWidth] = useState<number>(SIDEBAR_DEFAULT);
   // Split-view document-pane width (px), persisted like the sidebar; clamped at render
   // against the measured pane so a stale saved value can't starve the chat column.

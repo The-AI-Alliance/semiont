@@ -162,7 +162,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
   const conn = connections[kb.uri];
   const connected = conn?.opened !== undefined;
   const kbSessions = sessionsForKb(sessions, kb.uri);
-  const [refreshTick, setRefreshTick] = useState(0);
   const [docsOpen, setDocsOpen] = useState(true);
   const [sessionsOpen, setSessionsOpen] = useState(true);
 
@@ -199,20 +198,11 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
             >
               <PlusIcon />
             </button>
-            <button
-              type="button"
-              className="kb__icon"
-              onClick={() => setRefreshTick((t) => t + 1)}
-              aria-label="Refresh documents"
-              title="Refresh documents"
-            >
-              <RefreshIcon />
-            </button>
           </div>
           {docsOpen && (
             <KbResources
               session={conn.opened.session}
-              refreshSignal={refreshTick + docsRefresh}
+              refreshSignal={docsRefresh}
               activeResourceId={activeResourceId}
               onOpen={(id, name) => onOpenResource(kb.uri, id, name, 'document-only')}
             />
@@ -391,16 +381,6 @@ function Chevron({ open }: { open: boolean }) {
   return (
     <svg className={`kb__chevron${open ? ' kb__chevron--open' : ''}`} width="10" height="10" {...ICON_PROPS}>
       <polyline points="9 6 15 12 9 18" />
-    </svg>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg width="14" height="14" {...ICON_PROPS}>
-      <polyline points="23 4 23 10 17 10" />
-      <polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </svg>
   );
 }

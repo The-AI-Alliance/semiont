@@ -40,6 +40,10 @@ interface Window {
     ensureWidth(px: number): Promise<void>;
     restoreWidth(): Promise<void>;
   };
+  /** Electron menu actions forwarded from the main process. */
+  appMenuBridge?: {
+    onDocumentsReloadRequested(listener: () => void): () => void;
+  };
   /** Electron preload bridge to the knowledge bases' issuers: signing in, and the stored
    *  sessions. Absent in the browser, where no sign-in is possible. */
   authBridge?: import('./lib/auth-bridge').AuthBridge;
