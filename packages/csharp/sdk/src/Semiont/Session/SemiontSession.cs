@@ -112,28 +112,8 @@ public sealed class SemiontSession : IStateUnit
         return token;
     }
 
-    /// <summary>
-    /// Tells a registry's factory options what the session says, read from its errors until they end: each of its own
-    /// errors to <see cref="SessionFactoryOptions.OnError"/>, the first said once it has ended to the signals as that end,
-    /// and each failure its gateway answered 403 to the signals as a permission denied.
-    /// </summary>
-    internal async Task TellAsync(SessionFactoryOptions options)
-    {
-        var told = false;
-        await foreach (var error in Errors().ConfigureAwait(false))
-        {
-            if (error is SessionError own)
-            {
-                if (!told && kept.EndReason is { } ended)
-                {
-                    told = true;
-                    options.Signals.NotifySessionEnded(ended);
-                }
-                options.OnError(own);
-            }
-            else if (error.Status == 403) options.Signals.NotifyPermissionDenied(error.Message);
-        }
-    }
+    /// <summary>Why the session ended, once it has: set before the error that says so is said on <see cref="Errors"/>.</summary>
+    internal SessionEndReason? EndReason => kept.EndReason;
 
     private async Task FollowIdentityAsync(CancellationToken cancellation)
     {

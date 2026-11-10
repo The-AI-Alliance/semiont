@@ -951,7 +951,7 @@
     },
     {
       "unit": "session",
-      "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. Its `errors` are its one stream of what went wrong: its own errors (a SessionError: its sign-in could not be checked or renewed, the gateway refused a token just issued, what its client keeps could not be kept, its storage refused a write of it) and its transport's failures, each said once, one raised by the flush of its disposal among them, since the stream ends only after that flush; a session takes no callback for them. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
+      "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. Its `errors` are its one stream of what went wrong: its own errors (a SessionError: its sign-in could not be checked or renewed, the gateway refused a token just issued, what its client keeps could not be kept, its storage refused a write of it) and its transport's failures, each said once; a session takes no callback for them. They end when the session ends. Whoever ends both closes the client first, waiting for its closing flush, and then ends the session, so what that flush meets is said before the errors end; what the client meets once its session has ended is said nowhere. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
       "made": {"ocaml": "Session", "csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
       "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "csharp": "FromKeptAsync", "haskell": "newSession"},
       "members": [
@@ -1619,7 +1619,7 @@
     },
     {
       "module": "registry",
-      "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
+      "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered. The registry is the one reader of each session's errors, from the first thing the session said: each of the session's own it says on its own errors; a refusal for want of a valid token renews the session, handed the token it holds as the refusal is read; a refusal for lack of permission is said through the session's signals. A factory reads none of them, so a session built by a factory a host writes is read the same way.",
       "where": {
         "ocaml": ["packages/ocaml/sdk/lib/registry.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Registry"],
@@ -1724,7 +1724,7 @@
         {
           "member": "SessionFactoryOptions",
           "kind": "type",
-          "fields": ["kb", "storage", "signals", "onError"]
+          "fields": ["kb", "storage", "signals"]
         },
         {
           "member": "HttpSessionFactory",

@@ -124,7 +124,8 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 		Timing: semiont.DefaultTiming(),
 	})
 	if err != nil {
-		s.client.close()
+		s.client.closeClient()
+		s.client.closeTransports()
 		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
 	}
 	heard := s.hear()
@@ -156,8 +157,8 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 }
 
 // hear takes what the SDK's session says, its own failures read from its
-// errors, as each is said, until they end once the session and the
-// command's client are closed: the returned channel is closed then.
+// errors, as each is said, until they end when the SDK's session is closed:
+// the returned channel is closed then.
 func (s *Session) hear() <-chan struct{} {
 	errs := s.sdk.Errors()
 	heard := make(chan struct{})
@@ -243,11 +244,13 @@ func (s *Session) Signee(ctx context.Context) (api.UserResponse, error) {
 	return s.client.Auth.Me(ctx)
 }
 
-// Close ends the SDK's session, so it renews nothing more, and then the
-// command's client.
+// Close closes the command's client, waiting for its closing flush, then
+// ends the SDK's session, so it renews nothing more and its errors end, and
+// then closes the client's transports.
 func (s *Session) Close() {
+	s.client.closeClient()
 	s.sdk.Close()
-	s.client.close()
+	s.client.closeTransports()
 }
 
 // kbTarget is the knowledge base key names, at the gateway whose origin is

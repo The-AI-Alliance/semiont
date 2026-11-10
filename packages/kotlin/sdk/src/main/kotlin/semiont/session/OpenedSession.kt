@@ -5,9 +5,9 @@ import semiont.SemiontClient
 /**
  * A session with what it was opened over: closing it ends its client, whose
  * closing flush writes what it owes, then the session, whose errors end once
- * that flush has been made, so what the flush met is said on them first, then
- * what the session was built on, its transport and what renews its token.
- * What a factory of sessions gives a registry.
+ * the writes that flush began are made or refused, so what the flush met is
+ * said on them first, then what the session was built on, its transport and
+ * what renews its token. What a factory of sessions gives a registry.
  */
 public class OpenedSession internal constructor(
     public val session: SemiontSession,

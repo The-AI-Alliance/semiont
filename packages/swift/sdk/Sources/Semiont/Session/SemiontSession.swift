@@ -62,24 +62,18 @@ public actor SemiontSession: StateUnit {
     self.onAuthFailed = onAuthFailed
     let token = token
     let user = user
+    let failures = failures
     lifetime.onEnd {
       token.finish(with: token.value)
       user.finish(with: user.value)
-    }
-  }
-  deinit {
-    lifetime.end()
-    failures.finish()
-  }
-  /// Ends the session at once, and its errors once every write its client has begun has landed:
-  /// what its client's closing flush says is said on them before they end.
-  public nonisolated func dispose() {
-    lifetime.end()
-    Task { [self] in
-      await client.closed()
       failures.finish()
     }
   }
+  deinit { lifetime.end() }
+  /// Ends the session, and its errors with it. Whoever ends its client too closes that first and
+  /// waits for its closing flush (``OpenedSession/dispose()``), so what the flush meets is said
+  /// before they end; what the client meets once the session has ended is said nowhere.
+  public nonisolated func dispose() { lifetime.end() }
   nonisolated func failed(_ error: SessionError) { failures.yield(error) }
   nonisolated func relay(_ error: any Error) { failures.yield(error) }
   public nonisolated func errors() -> Events<any Error> { failures.listen() }

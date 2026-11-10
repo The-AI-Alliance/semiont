@@ -325,21 +325,15 @@ private final class ClosingWrites: SessionFactory {
             session: signIn(
               personKey: named, expired: expired, tokenEndpoint: "http://127.0.0.1:\(port)/token"))
         }
-        let (failures, into) = AsyncStream<SessionErrorCode>.makeStream()
         let opened = try await HttpSessionFactory(httpClient: http).session(
           SessionFactoryOptions(
-            kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
-            onError: { into.yield($0.reason) }))
+            kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
         defer { opened.dispose() }
+        let heard = HeardErrors(opened.session)
         // Its start ends as the row says: it is ready once it has forgotten the stored sign-in.
         try await withinTestDeadline { try await opened.session.ready() }
-        if by == "refusal" {
-          // The factory hands on what the session's errors say, as they say it.
-          try await withinTestDeadline {
-            for await code in failures where code == .sessionCredentialRefused { return }
-            throw SpecFailure.shape("\(why): it never ended as session.credential-refused")
-          }
-        }
+        // A refused one says on its errors that it ended as session.credential-refused.
+        if by == "refusal" { try await heard.said(.sessionCredentialRefused) }
         opened.dispose()
         #expect(try storedSession(storage, kbId: "kb-a") == nil, "\(why): the sign-in is kept")
       }
@@ -677,8 +671,7 @@ private func overGateway(
     try await overGateway(whoAmI, issuer: .unasked, user: user) { gateway, port, http in
       let opened = try await HttpSessionFactory(httpClient: http).session(
         SessionFactoryOptions(
-          kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
-          onError: { _ in }))
+          kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
       defer { opened.dispose() }
       let early = Observed(opened.client.browse.resource(askedFirst))
       defer { early.stop() }
@@ -756,8 +749,7 @@ private func archivedEvent(of scope: ResourceId, id: String) throws -> String {
     try await overGateway(.names, issuer: .unasked, user: user) { gateway, port, http in
       let opened = try await HttpSessionFactory(httpClient: http).session(
         SessionFactoryOptions(
-          kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
-          onError: { _ in }))
+          kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
       defer { opened.dispose() }
       try await withinTestDeadline { try await opened.session.ready() }
       let holding = Observed(opened.client.browse.resource(held))
@@ -1036,8 +1028,8 @@ private func sessionErrors(_ said: [any Error], _ reason: SessionErrorCode) -> [
   }
 }
 
-// The flush of a session's disposal is said before its errors end: a closing save that cannot
-// read the sign-in reports one keep-failed on them, and they end after it.
+// What the closing flush of a session's client meets is said before the session's errors end: a
+// closing save that cannot read the sign-in reports one keep-failed on them, and they end after it.
 @Test func aScriptSessionWhoseClosingSaveCannotReadItsSignInSaysSoBeforeItsErrorsEnd()
   async throws
 {
@@ -1251,17 +1243,83 @@ private func owingASave(
 }
 
 // A write the closing flush cannot make is lost, and its refusal is said once before the
-// session's errors end.
+// session's errors end. They end when the session ends: disposing the opened session closes its
+// client first, and ends the session once that client's closing flush has written. Ended first,
+// the session would end its errors before the flush is refused.
 @Test func aScriptSessionsRefusedClosingSaveIsSaidOnceBeforeItsErrorsEnd() async throws {
   try await owingASave { opened, caches, _, heard in
     caches.setRefusing(true)
+    let client = opened.client
+    let clientAtItsEnd = Mutex<ConnectionState?>(nil)
+    opened.session.lifetime.onEnd { clientAtItsEnd.withLock { $0 = client.state.value } }
     opened.dispose()
-    await opened.client.closed()
+    await opened.closed()
+    #expect(clientAtItsEnd.withLock { $0 } == .closed, "the session ended before its client")
     #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written by the closing save")
     let reported = try await heard.ended()
     let refused = sessionErrors(reported, .sessionSaveRefused)
     #expect(refused.map(\.code) == ["session.save-refused"], "\(reported)")
     #expect(refused.first?.kbId == "kb-a")
+  }
+}
+
+// A registry's close ends its live session, its client first, and reads that session's errors to
+// their end before it ends its own: a write the active session's closing flush cannot make is said
+// on the registry's errors before they end, and is what its close raises.
+@Test func aRegistrysCloseSaysItsActiveSessionsRefusedClosingSaveBeforeItsErrorsEnd()
+  async throws
+{
+  let table = try casesTable()
+  let jo = try personKeyOf(table, "jo")
+  let user = try JSONEncoder().encode(required(table, "whoAmI"))
+  try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
+    let storage = RefusingStorage()
+    try saveKnowledgeBases(storage, knowledgeBases: [knowledgeBase("kb-a", port: port)])
+    try storage.set(activeKey, "kb-a")
+    try storeSession(
+      storage, kbId: "kb-a",
+      session: signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
+    // On a clock that never moves, the save waits for the client's close.
+    let clock = TestClock()
+    let browser = try await newSemiontBrowser(
+      SemiontBrowserConfig(
+        storage: storage, sessionFactory: HttpSessionFactory(httpClient: http, clock: clock)))
+    let errors = browser.errors()
+    let said = Task { () async throws -> [any Error] in
+      var said: [any Error] = []
+      for try await error in errors { said.append(error) }
+      return said
+    }
+    do {
+      let opened = try await withinTestDeadline { () async throws -> OpenedSession in
+        for await opened in browser.activeSession {
+          if let opened { return opened }
+        }
+        throw SpecFailure.shape("kb-a's session never opened")
+      }
+      // The registry records what kb-a says of itself: its last write before the close.
+      try await withinTestDeadline {
+        for await bases in browser.knowledgeBases where bases.first?.lastRead != nil { return }
+        throw SpecFailure.shape("kb-a was never read")
+      }
+      let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
+      _ = try await withinTestDeadline { try await observed.first() }
+      observed.stop()
+      // The save is owed: due saveDebounceMs after the value.
+      let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
+      try await withinTestDeadline {
+        while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
+      }
+    } catch {
+      try? await browser.close()
+      throw error
+    }
+    storage.setRefusing(true)
+    let raised = await #expect(throws: SessionError.self) { try await browser.close() }
+    #expect(raised?.reason == .sessionSaveRefused)
+    let heard = try await withinTestDeadline { try await said.value }
+    let refused = sessionErrors(heard, .sessionSaveRefused)
+    #expect(refused.map(\.kbId) == ["kb-a"], "\(heard)")
   }
 }
 
@@ -1368,8 +1426,7 @@ private final class HoldingStorage: SessionStorage {
     let clock = TestClock()
     let opened = try await HttpSessionFactory(httpClient: http, clock: clock).session(
       SessionFactoryOptions(
-        kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
-        onError: { _ in }))
+        kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
     defer { opened.dispose() }
     let session = opened.session
     try await withinTestDeadline { try await session.ready() }

@@ -61,8 +61,13 @@ and written again with the client's next change or its closing. Disposing the
 session and its errors, without signing out the kept credentials.
 
 Use `HttpSessionFactory` with `SemiontBrowser` to bind a registered knowledge base's
-session to its client. The factory tells the session's own errors to its options'
-`OnError`.
+session to its client. A factory reads none of the session's errors: the registry is
+their one reader, from the first thing the session said. It says each of the session's
+own errors on its `Errors()`, and the first said once the session has ended also
+through the session's signals as that end. A transport refusal for want of a valid
+token renews the session, handed the token it holds; one for lack of permission is said
+through the signals as a permission denied, with its message. A session from a factory
+you write is read the same way.
 
 `Issuer.RenewAsync(kept, holding)` exchanges the stored refresh token at its stored
 endpoint. It adopts another writer's usable renewal before spending a refresh token,

@@ -131,10 +131,16 @@ func (c *VerbClient) Reached() error {
 // otherwise.
 func (c *VerbClient) Refusal(err error) error { return c.sess.refusal(err) }
 
-// close ends the client, and then both its transports.
-func (c *VerbClient) close() {
+// closeClient ends the client, waiting for its closing flush. Its transports
+// are closed after, by closeTransports.
+func (c *VerbClient) closeClient() {
 	c.unhook()
 	c.Client.Close()
+}
+
+// closeTransports closes both the client's transports, once the client is
+// closed.
+func (c *VerbClient) closeTransports() {
 	c.bus.Close()
 	c.direct.Close()
 }

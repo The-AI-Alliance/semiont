@@ -40,13 +40,13 @@ mod stored;
 pub use browser::{
     Expected, KbReadVerdict, SemiontBrowser, SemiontBrowserConfig, SignInOutcome, SignedIn,
 };
-pub use factory::{SessionFactory, SessionFactoryOptions, tell_registry};
+pub use factory::{SessionFactory, SessionFactoryOptions};
 pub use kept::{MemorySignIn, SignInKept};
 pub use knowledge_base::{KbSessionStatus, is_valid_hostname};
 pub use open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_resources};
 pub use semiont_session::{
-    OnAuthFailed, OnSessionError, OpenedSession, Refresh, SemiontSession, SemiontSessionConfig,
-    SessionRenewer, Validate,
+    OnAuthFailed, OpenedSession, Refresh, SemiontSession, SemiontSessionConfig, SessionRenewer,
+    Validate,
 };
 pub use signals::{
     KbIdentityConflict, PermissionDenied, SessionEndReason, SessionEnded, SessionSignals,

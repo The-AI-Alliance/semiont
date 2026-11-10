@@ -225,7 +225,7 @@ activate owner version key=do
       held <- readTVarIO (live owner)
       case held of Just (Live actual _ _ _) | actual==version -> pure (); _->Signals.dispose signals) $ \signals -> do
       let failed failure=atomically (Broadcast.publish (failures owner) failure)
-          options=SessionFactoryOptions entry (storage owner) signals failed
+          options=SessionFactoryOptions entry (storage owner) signals
       acquired <- try (openSession (registryFactory (configuration owner)) options)
       case acquired of
         Left (problem::SomeException) | Just (_::SomeAsyncException)<-fromException problem -> throwIO problem

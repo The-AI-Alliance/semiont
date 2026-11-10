@@ -48,7 +48,7 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 	if err != nil {
 		return err
 	}
-	defer end() // the session, then its client and its transport
+	defer end() // the client, then the session, then its transport
 	status, err := session.Client().System.Status(ctx)
 	if err != nil {
 		return err

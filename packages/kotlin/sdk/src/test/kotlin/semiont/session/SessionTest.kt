@@ -505,8 +505,8 @@ class SessionTest {
         assertEquals(2, said.size, "$said")
         assertEquals(1, said.count { it === refused })
         assertEquals(listOf("session.refresh-exhausted"), said.filterIsInstance<SessionError>().map { it.code })
-        session.close()
         made.client.close()
+        session.close()
         made.transport.close()
     }
 

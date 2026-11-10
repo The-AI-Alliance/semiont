@@ -11,7 +11,7 @@ namespace Semiont.Registry;
 
 public sealed record SemiontBrowserConfig(ISessionStorage Storage, SessionFactory SessionFactory, TimeProvider? TimeProvider = null,
     Random? Random = null);
-public sealed record SessionFactoryOptions(KnowledgeBase Kb, ISessionStorage Storage, SessionSignals Signals, Action<SessionError> OnError);
+public sealed record SessionFactoryOptions(KnowledgeBase Kb, ISessionStorage Storage, SessionSignals Signals);
 
 public interface SessionFactory
 {
@@ -69,7 +69,6 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
             var client = new SemiontClient(http, persistence);
             var session = new SemiontSession(new KbTarget { Id = options.Kb.Id, Endpoint = options.Kb.Endpoint, Label = options.Kb.Label },
                 client, kept);
-            var telling = session.TellAsync(options);
             return new OpenedSession(client, async () =>
             {
                 // The client first, its closing save awaited: what that save says reaches the session's errors before they end.
@@ -79,7 +78,6 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
                     await client.Flushed.ConfigureAwait(false);
                 }
                 finally { session.Dispose(); }
-                await telling.ConfigureAwait(false);
             }, session);
         }
         catch

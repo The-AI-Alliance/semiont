@@ -31,7 +31,6 @@ import semiont.registry.SessionFactoryOptions
 import semiont.registry.SignInOutcome
 import semiont.registry.SignedIn
 import semiont.registry.StoredSession
-import semiont.registry.handOnErrorsOf
 import semiont.registry.keptIn
 import semiont.registry.lastEventIdKey
 import semiont.registry.personKey
@@ -298,7 +297,7 @@ internal suspend fun sessionStarted(
     val content = HttpContentTransport(transport)
     val client = SemiontClient(transport, content, transport, persistence = atStart?.persistence, context = context, clock = clock)
     // The client's caches write through `named`, which makes each write in its turn, and keeps one the storage refused
-    // until it is made: the client's closing flush makes it, and the session's errors end once that flush has been made.
+    // until it is made: the client's closing flush makes it, and the session's errors end once the writes begun have landed.
     client.writes = named
     // The stream's place rides the caches' writes, and only when every cache is at rest and no event's refetch is owed:
     // a place kept ahead of a cache still taking in the event it names would have the next session skip that event.
@@ -446,7 +445,7 @@ public class HttpSessionFactory @JvmOverloads constructor(
 ) : SessionFactory {
     override suspend fun session(options: SessionFactoryOptions): OpenedSession {
         val kb = options.kb
-        val opened = sessionStarted(
+        return sessionStarted(
             KbTarget(kb.id, kb.label, kb.endpoint),
             keptIn(options.storage, kb.id),
             true,
@@ -458,8 +457,6 @@ public class HttpSessionFactory @JvmOverloads constructor(
             clock,
             random,
         )
-        options.handOnErrorsOf(opened.session, context)
-        return opened
     }
 
     override fun sessionFuture(options: SessionFactoryOptions): CompletableFuture<OpenedSession> = CoroutineScope(context).futureOf { session(options) }

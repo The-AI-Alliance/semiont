@@ -1,7 +1,8 @@
 //! A `SessionFactory` for tests of a registry (`SemiontBrowser`) and of what
 //! is built on one. Each session it builds is a real `SemiontSession` over a
 //! `FaultyTransport` of its own, and the factory keeps every transport it
-//! built, by knowledge base.
+//! built, by knowledge base. As every factory, it reads nothing of what
+//! its sessions say: a registry reads their errors.
 //!
 //! A test scripts three things: what each knowledge base's gateway answers,
 //! who the gateway says a token is, and what a renewal gives. Each refuses
@@ -19,7 +20,7 @@ use crate::errors::{
 use crate::locked;
 use crate::session::{
     SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions, StoredSession,
-    kept_in, tell_registry,
+    kept_in,
 };
 use crate::transport::BoxFuture;
 use crate::types::UserResponse;
@@ -188,8 +189,8 @@ impl SessionFactory for ScriptedSessions {
             (scripted.user.clone(), scripted.answers_after)
         };
         let (renewing, renews_for) = (self.inner.clone(), kb_id.clone());
-        let (signals, telling) = (options.signals.clone(), options.signals);
-        let session = SemiontSession::new(SemiontSessionConfig {
+        let signals = options.signals;
+        Ok(SemiontSession::new(SemiontSessionConfig {
             kb: options.kb.target(),
             kept: kept_in(options.storage, &kb_id),
             client,
@@ -231,9 +232,7 @@ impl SessionFactory for ScriptedSessions {
                 signals.notify_session_ended(reason);
             })),
             random: self.inner.random.clone(),
-        });
-        tell_registry(&session, options.on_error, telling);
-        Ok(session)
+        }))
     }
 
     fn revoke(&self, stored: StoredSession) -> BoxFuture<'static, ()> {

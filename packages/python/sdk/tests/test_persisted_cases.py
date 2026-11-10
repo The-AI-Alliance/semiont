@@ -420,7 +420,7 @@ def test_a_registrys_session_reads_and_records_what_the_table_says(row: JsonObje
                     store_session(storage, KB, signed_in(None))
                 case other:
                     raise AssertionError(f"a stored sign-in the table does not state at startup: {other}")
-            options = SessionFactoryOptions(kb=registered(gateway), storage=storage, signals=SessionSignals(), on_error=lambda _: None)
+            options = SessionFactoryOptions(kb=registered(gateway), storage=storage, signals=SessionSignals())
 
             async with HttpSessionFactory().session(options) as session:
                 client = session.client

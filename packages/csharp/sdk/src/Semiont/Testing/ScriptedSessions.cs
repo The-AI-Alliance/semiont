@@ -73,16 +73,19 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
                 refresher: kept.RefreshAsync, httpClient: http, timeProvider: clock, random: random);
             var openedClient = client = new SemiontClient(bus);
             var session = new SemiontSession(new KbTarget { Id = kb.Id, Label = kb.Label, Endpoint = kb.Endpoint }, openedClient, kept);
-            var telling = session.TellAsync(options);
             return new OpenedSession(openedClient, async () =>
             {
-                try { session.Dispose(); }
-                finally
+                // The client first, its closing save awaited, then the session, then what the session was built on.
+                try
                 {
-                    try { openedClient.Dispose(); }
-                    finally { http.Dispose(); }
+                    try
+                    {
+                        openedClient.Dispose();
+                        await openedClient.Flushed.ConfigureAwait(false);
+                    }
+                    finally { session.Dispose(); }
                 }
-                await telling.ConfigureAwait(false);
+                finally { http.Dispose(); }
             }, session);
         }
         catch

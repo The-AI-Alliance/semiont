@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +17,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
-import kotlin.Unit;
 import kotlin.jvm.internal.StringCompanionObject;
 import kotlinx.serialization.builtins.BuiltinSerializersKt;
 import org.junit.jupiter.api.Test;
@@ -35,8 +33,6 @@ import semiont.discovery.Unchanged;
 import semiont.errors.BusRequestError;
 import semiont.errors.IdentityUnverifiableError;
 import semiont.errors.IdentityUnverifiableReason;
-import semiont.errors.SessionError;
-import semiont.errors.SessionErrorCode;
 import semiont.http.AuthorizationKt;
 import semiont.http.BeginAuthorizationOptions;
 import semiont.http.ConnectKt;
@@ -216,16 +212,10 @@ final class ModulesTest {
         SignInOutcome outcome = new SignInOutcome(kb, new Expected("did:web:kb.example", "A KB"));
         assertEquals("A KB", outcome.getExpected().getName());
         try (SessionSignals signals = new SessionSignals()) {
-            List<SessionError> told = new ArrayList<>();
-            SessionFactoryOptions made = new SessionFactoryOptions(kb, storage, signals, error -> {
-                told.add(error);
-                return Unit.INSTANCE;
-            });
+            SessionFactoryOptions made = new SessionFactoryOptions(kb, storage, signals);
             assertEquals(kb, made.getKb());
-            // What the session the options build says of its failures reaches whoever made them.
-            SessionError failed = new SessionError(SessionErrorCode.ConstructFailed, "it could not be built", "kb-a");
-            made.getOnError().invoke(failed);
-            assertEquals(List.of(failed), told);
+            assertEquals(storage, made.getStorage());
+            assertEquals(signals, made.getSignals());
         }
 
         try (Gateway gateway = new Gateway(); SemiontBrowser browser = new SemiontBrowser(new SemiontBrowserConfig(storage, new HttpSessionFactory()))) {

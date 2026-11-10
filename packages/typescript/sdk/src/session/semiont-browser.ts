@@ -218,6 +218,7 @@ export class SemiontBrowser {
    * nothing is connected, and never carrying one KB's id into another.
    */
   readonly lastViewedResource$: BehaviorSubject<string | null>;
+  /** Each session's own errors, as the registry reads them from its errors, and each session it could not make. */
   readonly error$: Subject<SemiontSessionError>;
   readonly identityToken$: BehaviorSubject<string | null>;
 
@@ -529,12 +530,7 @@ export class SemiontBrowser {
 
       let session: SemiontSession;
       try {
-        session = this.sessionFactory({
-          kb,
-          storage: this.storage,
-          signals,
-          onError: (err) => this.error$.next(err),
-        });
+        session = this.sessionFactory({ kb, storage: this.storage, signals });
       } catch (err) {
         this.error$.next(
           err instanceof SemiontSessionError
@@ -549,22 +545,28 @@ export class SemiontBrowser {
         return;
       }
 
-      // Route transport-level errors through RECOVERY, not straight to the
-      // modal. A single `unauthorized` is not session death: requests race
-      // the refresh window, and a direct wire to the modal would fire
-      // "Session Expired — HTTP 401" over sessions that heal a beat later —
-      // and, for a truly dead session, WITHOUT clearing storage, so every
-      // reload would restore the corpse and re-arm an effectively
-      // undismissable modal (both its buttons navigate — into the same
-      // loop). `session.refresh(refused)` covers both ends: success heals in
-      // silence; exhaustion runs the session's own teardown — stored session
-      // cleared, `onAuthFailed` fires the modal once, with the session's own
-      // reason instead of the raw transport line. `forbidden` has no
-      // recovery — surface it as permission-denied, with the refusal's
-      // message as its detail. The subscription ends naturally when
-      // `errors$` completes on dispose.
+      // The one reader of the session's errors, made as soon as the factory
+      // hands it back, so the first: what the session said before anyone
+      // read is kept for it. The factory reads none of them.
+      //  - Each of the session's own errors is said on the registry's.
+      //  - `unauthorized` goes through RECOVERY, not straight to the modal.
+      //    A single one is not session death: requests race the refresh
+      //    window, and a direct wire to the modal would fire "Session
+      //    Expired — HTTP 401" over sessions that heal a beat later — and,
+      //    for a truly dead session, WITHOUT clearing storage, so every
+      //    reload would restore the corpse and re-arm an effectively
+      //    undismissable modal (both its buttons navigate — into the same
+      //    loop). `session.refresh(refused)` covers both ends: success heals
+      //    in silence; exhaustion runs the session's own teardown — stored
+      //    session cleared, `onAuthFailed` fires the modal once, with the
+      //    session's own reason instead of the raw transport line.
+      //  - `forbidden` has no recovery: it is said as permission-denied,
+      //    with the refusal's message as its detail.
+      // The reading ends when the session's errors do, as the session ends.
       session.errors$.subscribe((err) => {
-        if (err.code === 'unauthorized') {
+        if (err instanceof SemiontSessionError) {
+          this.error$.next(err);
+        } else if (err.code === 'unauthorized') {
           // A failure does not say which token was refused: the one the
           // session holds as it is read is.
           void session.refresh(session.token$.getValue());

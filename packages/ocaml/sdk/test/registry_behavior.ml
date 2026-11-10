@@ -551,7 +551,6 @@ let sign_in () =
             incr serial;
             "kb-" ^ string_of_int !serial);
         factory = (fun _ -> assert false);
-        on_error = ignore;
       }
   in
   let endpoint port =
@@ -631,7 +630,6 @@ let redirect () =
       clock;
       fresh_id = (fun () -> "kb-redirect");
       factory = (fun _ -> assert false);
-      on_error = ignore;
     }
   in
   let target =
@@ -718,7 +716,6 @@ let session_unit startup () =
         clock;
         fresh_id = (fun () -> "kb");
         factory = (fun _ -> assert false);
-        on_error = ignore;
       }
   in
   let target =

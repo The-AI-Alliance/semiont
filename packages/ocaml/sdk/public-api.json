@@ -190,8 +190,8 @@
     "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
     "lib/redirect_sign_in.ml": "0d4bab713f5a86ddd705b15dca1aa01919702bfc5484469d104c9a1776d723fd",
     "lib/refusals.ml": "53b42a4d41b53e88968f5010a843038ffa0ddbcd842f390ce88acba818ad15d1",
-    "lib/registry.ml": "37c0272e192eb12eeaed3f2c2ee2811e412acc269d1504732787182a79561d2f",
-    "lib/registry.mli": "f767af542777e6b0cbcfe9e7bcf200cb3c6d728e4ea064292afc412748cdd938",
+    "lib/registry.ml": "8dca04193c26dd7a18608c6ea2c03797db4af0537ab646b5eee100fef4191954",
+    "lib/registry.mli": "66f77a63ca71bdeb9c70c8f0fb4c85d67f518cb26fcb1c53c18fc05d92de8b3b",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/resources.ml": "99f49caf9937bf6754e62b0011196873fdfbc1488ed90817a49fcd292d6a9fd4",
     "lib/resources.mli": "681c8d831db9af64fc28b7b91b6e913bf992f99529f2a3edb7f0d16121b10bf2",
@@ -17782,13 +17782,12 @@
     {
       "kind": "type",
       "path": "Semiont.Registry.session_factory_options",
-      "declaration": "type session_factory_options = {\n  kb : knowledge_base;\n  storage : storage;\n  signals : Semiont__.Session.t option;\n  on_error : Semiont__.Http_wire.failure -> unit;\n}",
+      "declaration": "type session_factory_options = {\n  kb : knowledge_base;\n  storage : storage;\n  signals : Semiont__.Session.t option;\n}",
       "representation": "record",
       "fields": [
         "kb",
         "storage",
-        "signals",
-        "on_error"
+        "signals"
       ]
     },
     {
@@ -17800,14 +17799,13 @@
     {
       "kind": "type",
       "path": "Semiont.Registry.semiont_browser_config",
-      "declaration": "type semiont_browser_config = {\n  storage : storage;\n  clock : Semiont__.Clock.t;\n  fresh_id : unit -> string;\n  factory : session_factory;\n  on_error : Semiont__.Http_wire.failure -> unit;\n}",
+      "declaration": "type semiont_browser_config = {\n  storage : storage;\n  clock : Semiont__.Clock.t;\n  fresh_id : unit -> string;\n  factory : session_factory;\n}",
       "representation": "record",
       "fields": [
         "storage",
         "clock",
         "fresh_id",
-        "factory",
-        "on_error"
+        "factory"
       ]
     },
     {

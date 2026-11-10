@@ -493,14 +493,11 @@ let real_delivery () =
     }
   in
   check
-    (Result.is_ok
-       (factory
-          { kb; storage = registry_storage; signals = None; on_error = ignore }))
+    (Result.is_ok (factory { kb; storage = registry_storage; signals = None }))
     "scripted factory builds a session";
   check
     (Result.is_error
-       (factory
-          { kb; storage = registry_storage; signals = None; on_error = ignore }))
+       (factory { kb; storage = registry_storage; signals = None }))
     "unscripted factory input fails";
   let test = Testing.create_test_session { client; kb; id = "kb" } in
   let bus = Client.subscription client in

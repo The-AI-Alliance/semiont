@@ -312,7 +312,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
     {
         var token = selection.Source.Token;
         SessionSignals? signals = null;
-        OpenedSession? opened = null;
+        LiveSession? held = null;
         try
         {
             // Even a superseded transition owns the session it removed, and what is forgotten once that has closed.
@@ -326,10 +326,10 @@ public sealed class SemiontBrowser : IAsyncDisposable
 
             var notices = new SessionSignals();
             signals = notices;
+            OpenedSession opened;
             try
             {
-                opened = await factory.OpenAsync(new SessionFactoryOptions(kb, Storage, notices, errors.Publish), token)
-                    .ConfigureAwait(false);
+                opened = await factory.OpenAsync(new SessionFactoryOptions(kb, Storage, notices), token).ConfigureAwait(false);
             }
             catch (SemiontError error)
             {
@@ -337,14 +337,17 @@ public sealed class SemiontBrowser : IAsyncDisposable
                     errors.Publish(new SessionError(ProtocolFacts.SessionError("construct-failed"), $"Could not open {kb.Label}.", error));
                 return;
             }
+            // Read as soon as the factory hands the session back, so this is the first reader of its errors and hears
+            // what the session said before anyone read them.
+            held = new LiveSession(id, opened, notices, opened.Session is { } session ? ReadAsync(session, notices) : null);
+            signals = null;
 
             lock (gate)
             {
                 if (closing || requested != selection || token.IsCancellationRequested) return;
-                var current = new LiveSession(id, opened, notices);
+                var current = held;
                 live = current;
-                opened = null;
-                signals = null;
+                held = null;
                 Project();
                 _ = RunOwned(() => CheckOpenResourcesAsync(current), background: true);
             }
@@ -352,7 +355,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         catch (OperationCanceledException) when (!caller.IsCancellationRequested && token.IsCancellationRequested) { }
         finally
         {
-            try { if (opened is not null) await opened.DisposeAsync().ConfigureAwait(false); }
+            try { if (held is not null) await held.DisposeAsync().ConfigureAwait(false); }
             finally
             {
                 signals?.Dispose();
@@ -366,6 +369,41 @@ public sealed class SemiontBrowser : IAsyncDisposable
                     selection.Source.Dispose();
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Reads <paramref name="session"/>'s errors, as their one reader, from the first thing it said until they end, when
+    /// the session ends. Each of its own it says on the registry's <see cref="Errors"/>, and the first said once the
+    /// session has ended it also says through <paramref name="signals"/> as that end. A refusal for want of a valid token
+    /// renews the session: it heals quietly, or the session ends itself and says so. A failure does not say which token
+    /// was refused: the one the session holds as it is read is. A refusal for lack of permission has no remedy, and is said
+    /// through <paramref name="signals"/>, its message the detail.
+    /// </summary>
+    private async Task ReadAsync(SemiontSession session, SessionSignals signals)
+    {
+        var told = false;
+        await foreach (var error in session.Errors().ConfigureAwait(false))
+        {
+            if (error is SessionError own)
+            {
+                if (!told && session.EndReason is { } ended)
+                {
+                    told = true;
+                    signals.NotifySessionEnded(ended);
+                }
+                errors.Publish(own);
+            }
+            else if (error.Code == ProtocolFacts.Error(401))
+            {
+                var refused = session.Token.Value;
+                lock (gate)
+                {
+                    var stop = lifetime.Token;
+                    _ = RunOwned(() => session.RefreshAsync(refused, stop), background: true);
+                }
+            }
+            else if (error.Code == ProtocolFacts.Error(403)) signals.NotifyPermissionDenied(error.Message);
         }
     }
 
@@ -630,28 +668,38 @@ public sealed class SemiontBrowser : IAsyncDisposable
         internal void Cancel() => _ = Source.CancelAsync();
     }
 
+    /// <summary>A session the registry holds, with its signals and the reader of its errors, which one the factory handed
+    /// back as a client alone has none of.</summary>
     private sealed class LiveSession : IAsyncDisposable
     {
         private readonly CancellationTokenSource closing = new();
+        private readonly Task? reading;
         internal string KbId { get; }
         internal OpenedSession Opened { get; }
         internal SessionSignals Signals { get; }
         internal CancellationToken Closed { get; }
 
-        internal LiveSession(string kbId, OpenedSession opened, SessionSignals signals)
+        internal LiveSession(string kbId, OpenedSession opened, SessionSignals signals, Task? reading)
         {
             KbId = kbId;
             Opened = opened;
             Signals = signals;
+            this.reading = reading;
             Closed = closing.Token;
         }
 
+        // Ending the opened session ends its client, waits for its closing save, and then ends the session and its errors,
+        // so the reader has heard what that save said, and is done, before the signals it speaks through close.
         public async ValueTask DisposeAsync()
         {
             try { await closing.CancelAsync().ConfigureAwait(false); }
             finally
             {
-                try { await Opened.DisposeAsync().ConfigureAwait(false); }
+                try
+                {
+                    try { await Opened.DisposeAsync().ConfigureAwait(false); }
+                    finally { if (reading is not null) await reading.ConfigureAwait(false); }
+                }
                 finally { Signals.Dispose(); closing.Dispose(); }
             }
         }

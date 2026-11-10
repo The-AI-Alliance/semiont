@@ -171,7 +171,6 @@ let lifecycle phase row =
         clock;
         fresh_id = (fun () -> "kb");
         factory = (fun _ -> assert false);
-        on_error = ignore;
       }
   in
   let stored =

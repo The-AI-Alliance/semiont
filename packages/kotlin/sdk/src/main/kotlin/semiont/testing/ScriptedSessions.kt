@@ -15,7 +15,6 @@ import semiont.errors.TransportErrorCode
 import semiont.registry.SessionFactory
 import semiont.registry.SessionFactoryOptions
 import semiont.registry.StoredSession
-import semiont.registry.handOnErrorsOf
 import semiont.registry.keptIn
 import semiont.session.OpenedSession
 import semiont.session.SemiontSession
@@ -157,7 +156,6 @@ public class ScriptedSessions @JvmOverloads constructor(
             random,
         )
         session.start()
-        options.handOnErrorsOf(session, context)
         // Its client keeps nothing, so no write is ever under way to wait for.
         return OpenedSession(session, transport) {}
     }

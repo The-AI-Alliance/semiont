@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Threading.Channels;
 using Semiont.Errors;
 using Semiont.Http;
 using Semiont.Identifiers;
@@ -100,7 +99,7 @@ public sealed partial class TransportTests
             using var signals = new SessionSignals();
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var opened = await new HttpSessionFactory(gateway.Http, clock)
-                .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+                .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals), deadline.Token);
             try
             {
                 Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
@@ -216,7 +215,7 @@ public sealed partial class TransportTests
         using var signals = new SessionSignals();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var opened = await new HttpSessionFactory(gateway.Http, clock)
-            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals), deadline.Token);
         try
         {
             var session = opened.Session ?? throw new InvalidOperationException("The registry's session holds no sign-in.");
@@ -236,7 +235,7 @@ public sealed partial class TransportTests
             storage.Release();
             await passing;
             await Assert.ThrowsAsync<TransportError>(() => refused);
-            Assert.Equal(SessionEndReason.Refused, await EndedAsync(signals, deadline.Token));
+            Assert.Equal(SessionEndReason.Refused, await EndedAsync(session, deadline.Token));
             Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, "the session forgot its sign-in");
         }
         finally
@@ -262,28 +261,29 @@ public sealed partial class TransportTests
         gateway.Name(true);
         using var signals = new SessionSignals();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var errors = Channel.CreateUnbounded<SessionError>();
         var opened = await new HttpSessionFactory(gateway.Http, clock)
-            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, error => errors.Writer.TryWrite(error)), deadline.Token);
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals), deadline.Token);
+        var session = opened.Session ?? throw new InvalidOperationException("The registry's session holds no sign-in.");
+        await using IAsyncEnumerator<SemiontError> errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
         try
         {
-            var session = opened.Session ?? throw new InvalidOperationException("The registry's session holds no sign-in.");
             Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
             storage.Unreadable();
             await clock.WaitForAsync(SaveDebounce);
             clock.Advance(SaveDebounce);
-            var told = await errors.Reader.ReadAsync(deadline.Token);
-            Assert.Equal("session.keep-failed", told.Code);
-            Assert.Contains(CaseKb, told.Message, StringComparison.Ordinal);
-            Assert.IsType<IOException>(told.InnerException);
+            Assert.True(await told.WaitAsync(deadline.Token), "the session's errors ended before it was told");
+            Assert.Equal("session.keep-failed", errors.Current.Code);
+            Assert.Contains(CaseKb, errors.Current.Message, StringComparison.Ordinal);
+            Assert.IsType<IOException>(errors.Current.InnerException);
+            told = errors.MoveNextAsync().AsTask();
             Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-2")).FreshAsync(deadline.Token)).Name);
             await clock.WaitForAsync(SaveDebounce);
             clock.Advance(SaveDebounce);
             Assert.True(session.Token.Value is not null, "the session goes on");
         }
-        finally { await opened.DisposeAsync(); }
-        var later = new List<SessionError>();
-        while (errors.Reader.TryRead(out var error)) later.Add(error);
+        finally { await EndAsync(opened, told); }
+        var later = await SaidUntilEndAsync(errors, told, deadline.Token);
         Assert.DoesNotContain(later, error => error.Code == "session.keep-failed");
         foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
     }
@@ -306,7 +306,7 @@ public sealed partial class TransportTests
         using var signals = new SessionSignals();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var opened = await new HttpSessionFactory(gateway.Http, clock)
-            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals), deadline.Token);
         try
         {
             var client = opened.Client;
@@ -800,7 +800,7 @@ public sealed partial class TransportTests
         using var signals = new SessionSignals();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var opened = await new HttpSessionFactory(gateway.Http)
-            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals), deadline.Token);
         try
         {
             var client = opened.Client;
@@ -925,7 +925,7 @@ public sealed partial class TransportTests
         if (by == "expiry") gateway.RefuseRenewal();
         using var signals = new SessionSignals();
         var opened = await new HttpSessionFactory(gateway.Http, clock)
-            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), cancellation);
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals), cancellation);
         try
         {
             if (stored == "unexpired")
@@ -935,18 +935,21 @@ public sealed partial class TransportTests
                 gateway.Refuse(access);
                 gateway.Refuse(renewed);
                 await Assert.ThrowsAsync<TransportError>(() => opened.Client.Transport.GetStatusAsync(cancellation));
-                Assert.True(await EndedAsync(signals, cancellation) == (by == "refusal" ? SessionEndReason.Refused : SessionEndReason.Expired), why + ": how the session ended");
+                var session = opened.Session ?? throw new InvalidOperationException("The registry's session holds no sign-in.");
+                Assert.True(await EndedAsync(session, cancellation) == (by == "refusal" ? SessionEndReason.Refused : SessionEndReason.Expired), why + ": how the session ended");
             }
             Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, why + ": the session forgot its sign-in");
         }
         finally { await opened.DisposeAsync(); }
     }
 
-    private static async Task<SessionEndReason> EndedAsync(SessionSignals signals, CancellationToken cancellation)
+    /// <summary>Why <paramref name="session"/> ended, read from its errors as the registry reads them: the end of the
+    /// first of its own said once it has ended. A factory reads none of them.</summary>
+    private static async Task<SessionEndReason> EndedAsync(SemiontSession session, CancellationToken cancellation)
     {
-        await foreach (var ended in signals.SessionEnded.WithCancellation(cancellation))
-            if (ended is { Reason: var reason }) return reason;
-        throw new InvalidOperationException("The session's signals closed before it ended.");
+        await foreach (var error in session.Errors(cancellation))
+            if (error is SessionError && session.EndReason is { } reason) return reason;
+        throw new InvalidOperationException("The session's errors ended before it ended.");
     }
 
     private static async Task StartupCaseAsync(JsonElement root, JsonElement row, bool namedLate)
@@ -976,7 +979,7 @@ public sealed partial class TransportTests
         using var signals = new SessionSignals();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var opened = await new HttpSessionFactory(gateway.Http)
-            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals), deadline.Token);
         try
         {
             var client = opened.Client;

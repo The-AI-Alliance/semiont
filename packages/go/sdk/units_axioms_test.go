@@ -61,9 +61,13 @@ func TestASessionKeepsTheStateUnitAxiomsAndNeverClosesItsClient(t *testing.T) {
 			return semionttest.Fresh[*semiont.Session]{Unit: session}.With(semionttest.TheClient(made.Client))
 		},
 		// Its stream state is its client's, and ends with it; its errors end
-		// once its client and the client's transport have closed too.
+		// with the session.
 		Surfaces: func(unit *semiont.Session) []semionttest.Surface {
-			return []semionttest.Surface{semionttest.Watching(unit.Token()), semionttest.Watching(unit.User())}
+			return []semionttest.Surface{
+				semionttest.Watching(unit.Token()),
+				semionttest.Watching(unit.User()),
+				semionttest.Events(func(context.Context) iter.Seq[semiont.Error] { return unit.Errors() }),
+			}
 		},
 	})
 }

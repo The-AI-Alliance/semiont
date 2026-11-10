@@ -213,9 +213,9 @@ func testClient() semionttest.TestClient {
 }
 
 // started is a session of config over client, what it says on its errors
-// stream, read from as soon as it is made, and closed, which ends the
-// session, then the client, then the client's transport, as the test's
-// cleanup does too.
+// stream, read from as soon as it is made, and closed, which closes the
+// client, then ends the session, then closes the client's transport, as the
+// test's cleanup does too.
 func started(t *testing.T, client semionttest.TestClient, config semiont.SessionConfig) (*semiont.Session, *hearing, func()) {
 	t.Helper()
 	config.Client = client.Client
@@ -227,8 +227,8 @@ func started(t *testing.T, client semionttest.TestClient, config semiont.Session
 	}
 	heard := hear(session)
 	closed := sync.OnceFunc(func() {
-		session.Close()
 		client.Client.Close()
+		session.Close()
 		client.Transport.Close()
 	})
 	t.Cleanup(closed)
@@ -281,15 +281,15 @@ func (h *hearing) sofar() []error {
 }
 
 // rest is every failure said and not yet taken, until the stream ends:
-// closed is called first, which ends the session, its client and its
-// transport, and a stream that does not end then fails.
+// closed is called first, which closes the client, the session and the
+// client's transport, and a stream that does not end then fails.
 func (h *hearing) rest(t *testing.T, closed func()) []error {
 	t.Helper()
 	closed()
 	select {
 	case <-h.ended:
 	case <-time.After(10 * time.Second):
-		t.Fatal("the session's errors stream did not end once the session, its client and its transport were closed")
+		t.Fatal("the session's errors stream did not end once the session was closed")
 	}
 	return h.sofar()
 }
@@ -1168,10 +1168,20 @@ func TestASessionSaysItsOwnFailuresAndItsTransportsOnOneStream(t *testing.T) {
 	}
 	forbidden := &semiont.TransportError{Code: semiont.TransportErrorCodeForbidden, Message: "HTTP 403"}
 	client.Transport.Fail(forbidden)
+	// Heard before the session is closed: what its transport meets once it
+	// has ended is said nowhere.
+	var said []error
+	for !slices.ContainsFunc(said, func(each error) bool { return each == forbidden }) {
+		next := heard.next(5 * time.Second)
+		if next == nil {
+			t.Fatal("the session never said its transport's refusal on its errors stream")
+		}
+		said = append(said, next)
+	}
 
 	var own []string
 	var transports []*semiont.TransportError
-	for _, failure := range heard.rest(t, closed) {
+	for _, failure := range append(said, heard.rest(t, closed)...) {
 		var transport *semiont.TransportError
 		switch said := sessionError(failure); {
 		case said != nil:
@@ -1185,6 +1195,32 @@ func TestASessionSaysItsOwnFailuresAndItsTransportsOnOneStream(t *testing.T) {
 	}
 	if len(transports) != 1 || transports[0] != forbidden {
 		t.Errorf("the session said %v of its transport's on its errors stream, want the one refusal", transports)
+	}
+}
+
+// A session's errors end when the session ends: its client and the client's
+// transport, still open, are not waited for. What it said before is given
+// first.
+func TestASessionEndedAloneEndsItsErrors(t *testing.T) {
+	client := testClient()
+	session, heard, _ := started(t, client, semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Token: semiont.NewVariable(""), Kept: &semiont.MemorySignIn{},
+		Timing: semiont.DefaultTiming(),
+	})
+	forbidden := &semiont.TransportError{Code: semiont.TransportErrorCodeForbidden, Message: "HTTP 403"}
+	client.Transport.Fail(forbidden)
+	if said := heard.next(5 * time.Second); said != forbidden {
+		t.Fatalf("the session said %v on its errors stream, want its transport's refusal", said)
+	}
+
+	session.Close()
+	select {
+	case <-heard.ended:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the session's errors stream did not end when the session was closed, its client and its transport still open")
+	}
+	if client.Transport.State().Value() == semiont.ConnectionStateClosed {
+		t.Error("the session closed its client's transport")
 	}
 }
 
@@ -1289,8 +1325,8 @@ func TestASignInUnreadableAtARenewalIsARenewalWithNoAnswer(t *testing.T) {
 				}
 				heard := hear(session)
 				t.Cleanup(sync.OnceFunc(func() {
-					session.Close()
 					client.Client.Close()
+					session.Close()
 					client.Transport.Close()
 				}))
 				if err := session.Ready(context.Background()); err != nil {

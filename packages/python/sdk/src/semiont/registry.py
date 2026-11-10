@@ -32,9 +32,14 @@ who it is and each open resource is checked against it:
   as it was written;
 - no answer is no verdict, and changes nothing.
 
-A request the gateway refuses for want of a valid token renews the session,
-and only a session whose issuer refuses to renew it is said to have expired. A request
-refused for lack of permission is said at once.
+**The registry is the one reader of each session's errors,** from the first
+thing the session said until they end, as the session does. Each of the
+session's own errors is said on the registry's `errors`. A request the gateway
+refuses for want of a valid token renews the session, handed the token it
+holds as the refusal is read, and only a session whose issuer refuses to renew
+it is said to have expired. A request refused for lack of permission is said
+at once, through the session's signals. A factory reads none of them, so a
+session a factory of the host's builds is read the same way.
 
 Every change to what is open is made against what the storage holds, as one
 step, so two contexts that each open a resource both keep theirs, and what
@@ -59,7 +64,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont._endpoints import same_place
 from semiont._reading import Reading
-from semiont.errors import BusRequestError, SemiontError, SessionError
+from semiont.errors import BusRequestError, SemiontError, SessionError, TransportError
 from semiont.event_bus import EventBus
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
@@ -396,9 +401,7 @@ class SessionFactoryOptions:
     storage: SessionStorage
     """Where its tokens are kept: the registry's own storage."""
     signals: SessionSignals
-    """Where the session says it is over, and that a request was refused for lack of permission, for a host to show."""
-    on_error: Callable[[SessionError], None]
-    """Told each of the session's own errors (a `SessionError`), as the session says it on its errors: the factory reads them there."""
+    """Where the session says it is over, and where the registry says a request was refused for lack of permission, for a host to show."""
 
 
 class SessionFactory(Protocol):
@@ -411,15 +414,13 @@ class SessionFactory(Protocol):
         """The session of a knowledge base, over a client of its own.
 
         Held with `async with`: inside, the session has started, and the
-        registry waits for it to be ready. Its errors have one reader, the
-        factory's, from the moment it is held: each of its own errors is told
-        `on_error`; a request its gateway refused for want of a valid token
-        renews it, and one refused for lack of permission is said on
-        `signals`. On the way out the session and its client are ended, and
-        every one of the session's own errors, the closing's among them, has
-        been told `on_error` by the time it is left. A knowledge base this
-        factory cannot reach is refused on the way in with a `SessionError`
-        (`session.construct-failed`).
+        registry waits for it to be ready. The factory reads none of its
+        errors: the registry is their one reader, from the moment it is
+        held. On the way out the client is closed first, and its closing
+        flush made, and then the session ends, and its errors with it, so
+        what that flush met is said on them; then what the session was built
+        on is closed. A knowledge base this factory cannot reach is refused
+        on the way in with a `SessionError` (`session.construct-failed`).
         """
         ...
 
@@ -535,10 +536,10 @@ class _Live:
     async def close(self) -> None:
         """End the session and the client it was built with, as its factory does, then what a host was shown of it.
 
-        What the closing met is said on the session's errors, and so told the
-        registry. What the holder failed with is not this caller's: the
-        registry raises it from its `close`, as it does every failure of what
-        it runs (`SemiontBrowser._done`).
+        What the closing met is said on the session's errors, which the
+        registry reads until they end. What the holder failed with is not
+        this caller's: the registry raises it from its `close`, as it does
+        every failure of what it runs (`SemiontBrowser._done`).
         """
         self._stop.set()
         await asyncio.gather(self._holder, return_exceptions=True)
@@ -639,7 +640,7 @@ class SemiontBrowser:
         return Reading(self._last_viewed)
 
     def errors(self) -> Events[SessionError]:
-        """The failures that made a session unusable or ended what its client keeps, from now on, until the registry is closed."""
+        """Each of its sessions' own errors, and each session it could not build, from now on, until the registry is closed."""
         return self._failures.listen()
 
     @property
@@ -1028,8 +1029,9 @@ class SemiontBrowser:
         came_up: asyncio.Future[SemiontSession[Transport] | None],
         stop: asyncio.Event,
     ) -> None:
-        """Hold one session, from its factory's building it until it is to stop."""
-        options = SessionFactoryOptions(kb=kb, storage=self._storage, signals=signals, on_error=self._failed)
+        """Hold one session, from its factory's building it until it is to stop, and read its errors until they end with it."""
+        options = SessionFactoryOptions(kb=kb, storage=self._storage, signals=signals)
+        reading: asyncio.Task[None] | None = None
         try:
             async with AsyncExitStack() as holding:
                 try:
@@ -1038,11 +1040,48 @@ class SemiontBrowser:
                     if not self._closing.is_set():
                         self._failed(_construct_failed(refused, kb.id))
                     return
+                # Their first reader, as the factory hands the session back: what it said before is read too.
+                reading = asyncio.create_task(self._read(session, session.errors(), signals))
                 came_up.set_result(session)
                 await stop.wait()
         finally:
             if not came_up.done():
                 came_up.set_result(None)
+            if reading is not None:
+                await reading
+
+    async def _read(self, session: SemiontSession[Transport], errors: Events[SemiontError], signals: SessionSignals) -> None:
+        """Read what `session` says on `errors`, its errors as their first reader, until they end.
+
+        Each of its own errors is said on the registry's. A refusal for want
+        of a valid token renews the session: it heals quietly, or the session
+        ends itself and says so once. A refusal for lack of permission has no
+        remedy, and is said through `signals`. A renewal still under way when
+        the errors end ends with them, and one that failed is raised then.
+        """
+        renewals: list[asyncio.Task[str | None]] = []
+        try:
+            async with errors:
+                async for error in errors:
+                    if isinstance(error, SessionError):
+                        self._failed(error)
+                    elif isinstance(error, TransportError):
+                        match error.code:
+                            case "unauthorized":
+                                # Refusals that arrive together are answered by one renewal: the session holds them while it renews.
+                                # A failure does not say which token was refused: the one the session holds as it is read is.
+                                renewals.append(asyncio.create_task(session.refresh(session.token.value)))
+                            case "forbidden":
+                                signals.notify_permission_denied(error.message)
+                            case _:
+                                pass
+        finally:
+            for renewal in renewals:
+                renewal.cancel()
+            ended = await asyncio.gather(*renewals, return_exceptions=True)
+        for outcome in ended:
+            if isinstance(outcome, Exception):
+                raise outcome
 
     # ── What is shown ───────────────────────────────────────────────────
 

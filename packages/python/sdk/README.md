@@ -124,8 +124,10 @@ async def as_me(kb: KbTarget, home: str) -> None:
 - **What went wrong is said once, on `session.errors()`**: the session's own
   errors, each a `SessionError`, beside its transport's failures. It takes no
   callback for them. Its first reader hears what the session said as it
-  started, before `session_from_kept` handed it over, and the stream ends
-  only after the closing has written what the client still owed.
+  started, before `session_from_kept` handed it over. The stream ends when
+  the session ends: `session_from_kept` closes the client first and writes
+  what it still owed, so what that met is said before the stream ends, and
+  what the client meets once the session has ended is said nowhere.
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer, a renewal the issuer did not refuse is tried
   again inside a bounded budget, and one under way runs to its end whoever
@@ -764,9 +766,14 @@ async def pick_up_where_i_was(storage: SessionStorage, sessions: SessionFactory)
   base is asked who it is, and each open resource is checked against it. A
   different knowledge base answering voids what was open and raises
   `kb_identity_conflict` on the session's signals; a resource the knowledge
-  base says is gone is closed; no answer changes nothing. A request the
-  gateway refuses for want of a valid token renews the session, and one
-  refused for lack of permission raises `permission_denied`.
+  base says is gone is closed; no answer changes nothing.
+- **The registry is the one reader of each session's errors**, from the
+  first thing the session said until they end with it. Each of the session's
+  own errors is said on `browser.errors()`; a request the gateway refuses
+  for want of a valid token renews the session, handed the token it holds,
+  and one refused for lack of permission raises `permission_denied`. A
+  factory reads none of them, so a session your own `SessionFactory` builds
+  is read the same way.
 - **Another context's writes are heard.** Each change to what is open is made
   against what the storage holds, as one step (`SessionStorage.update`), and
   a storage that hears what another window or process writes

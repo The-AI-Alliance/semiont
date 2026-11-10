@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Channels;
 using Semiont.Authorization;
 using Semiont.Discovery;
 using Semiont.Errors;
@@ -10,6 +11,7 @@ using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Registry;
+using Semiont.Session;
 using Semiont.SignIn;
 using Semiont.Storage;
 using Semiont.State;
@@ -495,6 +497,85 @@ public sealed partial class TransportTests
         await closed.Task.WaitAsync(deadline.Token);
         Assert.Null(browser.State.ActiveSession);
         Assert.Equal(KbSessionStatus.SignedOut, browser.KbSessionStatus(kb.Id));
+    }
+
+    // The registry is the one reader of each session's errors, from the first thing the session said (surface.json, the
+    // registry module's docs). The factory here, as any a host writes, reads none of them: each of the session's own the
+    // registry says on its errors, the first said once the session has ended through its signals as that end too; a
+    // refusal for want of a valid token renews the session, handed the token it holds; a refusal for lack of permission is
+    // said through the session's signals, with its message.
+    [Fact]
+    public async Task TheRegistryIsTheOneReaderOfEachSessionsErrors()
+    {
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var access = TokenTests.Jwt(new { exp = now + 3600 });
+        var renewed = TokenTests.Jwt(new { exp = now + 7200 });
+        var store = new MemoryStorage();
+        var kb = RegistryKb("one", "one.test");
+        RegistryStorage.SaveKnowledgeBases(store, [kb]);
+        var user = Required<UserResponse>(JsonSerializer.Deserialize<JsonElement>(
+            """{"did":"did:web:one.test:users:alice","domain":"one.test","email":null,"name":null,"image":null}"""));
+        var saidFirst = new SessionError(ProtocolFacts.SessionError("keep-failed"), "said before the registry reads");
+        // Each renewal is handed the token the session's kept sign-in holds; a session handed any other refuses nothing,
+        // so a renewal at all is the registry handing it the token the session holds.
+        var handed = Channel.CreateUnbounded<string?>();
+        var renewals = 0;
+        Task<string?> Renew(string? holding, CancellationToken _)
+        {
+            handed.Writer.TryWrite(holding);
+            return Interlocked.Increment(ref renewals) == 1 ? Task.FromResult<string?>(renewed)
+                : Task.FromException<string?>(new SignInError(ProtocolFacts.SignInError("exchange"), "the issuer refuses the grant", 400));
+        }
+        var built = new TaskCompletionSource<(SemiontSession Session, KeptSession Kept)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var factory = new RegistryFactory(async (options, cancellation) =>
+        {
+            var credentials = new KeptSession(new MemorySignIn(RegistryTokens() with { Access = access }), Renew,
+                (_, _) => Task.FromResult(user), clock, new ZeroRandom());
+            await credentials.ReadyAsync(cancellation);
+            var server = new Handler();
+            var http = new HttpClient(server);
+            server.Answer = sent => Reply(server, sent, BusOperations.BrowseKbRequested.Result.Name,
+                new { response = new { domain = "one.test", name = options.Kb.Label } });
+            var client = new SemiontClient(new HttpTransport("https://kb.test", credentials.State.Token, BusRegistry.FullClientChannels,
+                httpClient: http, timeProvider: clock));
+            var opening = new SemiontSession(new KbTarget { Id = options.Kb.Id, Label = options.Kb.Label, Endpoint = options.Kb.Endpoint },
+                client, credentials);
+            credentials.Say(saidFirst);
+            built.SetResult((opening, credentials));
+            return new OpenedSession(client, async () =>
+            {
+                client.Dispose();
+                await client.Flushed;
+                opening.Dispose();
+                http.Dispose();
+            }, opening);
+        });
+        await using var browser = new SemiontBrowser(new SemiontBrowserConfig(store, factory, clock));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await browser.SetActiveKbAsync(kb.Id, deadline.Token);
+        var (session, kept) = await built.Task.WaitAsync(deadline.Token);
+        var signals = Assert.IsType<SessionSignals>(browser.State.ActiveSignals);
+        await using var errors = browser.Errors(deadline.Token).GetAsyncEnumerator();
+
+        Assert.True(await errors.MoveNextAsync(), "the registry's errors ended before the session's first was said");
+        Assert.Same(saidFirst, errors.Current);
+
+        kept.Say(new TransportError(ProtocolFacts.Error(401), "the gateway refuses the token", 401));
+        Assert.Equal(access, await handed.Reader.ReadAsync(deadline.Token));
+        await foreach (var token in session.Token.WithCancellation(deadline.Token))
+            if (token == renewed) break;
+
+        kept.Say(new TransportError(ProtocolFacts.Error(403), "not yours to read", 403));
+        await foreach (var notice in signals.PermissionDenied.WithCancellation(deadline.Token))
+            if (notice is not null) break;
+        Assert.Equal(new PermissionDenied("not yours to read"), signals.PermissionDenied.Value);
+
+        kept.Say(new TransportError(ProtocolFacts.Error(401), "the gateway refuses the renewed token", 401));
+        Assert.Equal(renewed, await handed.Reader.ReadAsync(deadline.Token));
+        Assert.True(await errors.MoveNextAsync(), "the registry's errors ended before the session said it ended");
+        Assert.Equal(ProtocolFacts.SessionError("refresh-exhausted"), errors.Current.Code);
+        Assert.Equal(new SessionEnded(SessionEndReason.Expired), signals.SessionEnded.Value);
     }
 
     private sealed class ExternallyWritableStorage : ISessionStorage

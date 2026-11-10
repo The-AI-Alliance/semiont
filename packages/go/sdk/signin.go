@@ -198,8 +198,9 @@ type SessionFromKeptConfig struct {
 // SessionFromKept is a session with config.Kb over the sign-in config.Kept
 // holds, with the transport and client it is over: open, and ready. A token
 // the gateway refuses is renewed through the session, so the transport and
-// the session never hold different ones. end ends the session, then the
-// client and the transport, as whoever made them must. A knowledge base that
+// the session never hold different ones. end closes the client, waiting for
+// its closing flush, then ends the session, whose errors end then, and then
+// closes the transport, as whoever made them must. A knowledge base that
 // is not reached over HTTP, or whose host is no host's name, is refused
 // before anything is asked (session.construct-failed).
 func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session *Session, end func(), err error) {
@@ -248,8 +249,8 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	}
 	renewer.is(session)
 	end = func() {
-		session.Close()
 		client.Close()
+		session.Close()
 		transport.Close()
 		if keepsForAPerson {
 			// A save whose wait was over as the client closed may still be

@@ -1,7 +1,9 @@
 /**
- * Session-level error surface. Emitted on `SemiontBrowser.error$` for
- * failures that make the session itself unusable (auth failed, actor
- * couldn't start, token refresh terminally exhausted). Per-request
+ * Session-level error surface: a session's own errors, said on its
+ * `errors$` (its sign-in could not be checked or renewed, the gateway
+ * refused a token just issued, what its client keeps could not be kept, its
+ * storage refused a write of it), which a registry says on
+ * `SemiontBrowser.error$`, with a session it could not make. Per-request
  * errors stay with the caller as normal Promise rejections.
  *
  * `SemiontSessionError` extends `SemiontError` (the unified Semiont base)

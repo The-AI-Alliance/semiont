@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import { firstValueFrom, filter, skip, take, type Subject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, filter, skip, take, type Subject } from 'rxjs';
 
 const mockDispose = vi.fn();
 const mockResourceFresh = vi.fn();
@@ -52,18 +52,23 @@ vi.mock('../../client', async () => {
   };
 });
 
-import { HttpTransport } from '@semiont/http-transport';
+import { APIError, HttpTransport } from '@semiont/http-transport';
+import { SemiontClient } from '../../client';
+import { FaultyTransport, inMemoryContent } from '../../testing';
 import { SemiontBrowser } from '../semiont-browser';
+import { SemiontSession, sayOn } from '../semiont-session';
+import { SemiontSessionError } from '../errors';
+import type { SessionFactory } from '../session-factory';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
 import { freshJwt, storageKey, seedStoredSession, testSession, SharedStorage, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
-import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
+import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, keptIn } from '../storage';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
 import { mockResource } from '../../__tests__/fixtures/resource';
 import { BusRequestError, resourceId } from '@semiont/core';
-import type { SemiontError } from '@semiont/core';
+import type { AccessToken, SemiontError } from '@semiont/core';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -1018,18 +1023,6 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
       await browser.dispose();
     });
-
-    it("forbidden routes to permission-denied, with the refusal's message as its detail", async () => {
-      const browser = await makeConnectedBrowser();
-      const signals = browser.activeSignals$.getValue()!;
-
-      pushError(browser, { code: 'forbidden', message: 'HTTP 403: Forbidden' });
-      await settled();
-
-      expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'HTTP 403: Forbidden' });
-
-      await browser.dispose();
-    });
   });
 
 
@@ -1808,24 +1801,6 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     await browser.dispose();
   });
 
-  it('routes 403 from transport.errors$ to signals.permissionDenied$', async () => {
-    const { APIError } = await import('@semiont/http-transport');
-    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
-    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
-    storage.set(ACTIVE_KEY, KB_A.id);
-
-    const browser = makeBrowser();
-    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
-    const signals = browser.activeSignals$.getValue()!;
-    expect(signals.permissionDenied$.getValue()).toBeNull();
-
-    const subj = newestTransportErrors();
-    subj.next(APIError.refusal(403, 'Forbidden', { error: 'Archiving needs the curator role.' }, null));
-
-    expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'Archiving needs the curator role.' });
-    await browser.dispose();
-  });
-
   it('does not fire either signal for non-401/403 transport errors', async () => {
     const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
@@ -1858,5 +1833,79 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
 
     await browser.dispose();
     expect(completed).toBe(true);
+  });
+});
+
+describe("SemiontBrowser — the one reader of each session's errors", () => {
+  /** Each token the session's renewal is handed, in order. */
+  let handed: (string | null)[];
+
+  beforeEach(() => {
+    handed = [];
+  });
+
+  /**
+   * A factory a host writes, which reads nothing of the session's errors.
+   * The session it makes says one error of its own before it is handed back,
+   * so before anything reads them. Its client is this file's mock, which uses
+   * nothing it is handed; its transport's failures are pushed with
+   * `newestTransportErrors()`.
+   */
+  const readsNothing: SessionFactory = ({ kb, storage: given }) => {
+    const session = new SemiontSession({
+      kb,
+      kept: keptIn(given, kb.id),
+      client: new SemiontClient(new FaultyTransport(), inMemoryContent()),
+      token$: new BehaviorSubject<AccessToken | null>(null),
+      refresh: async (holding) => {
+        handed.push(holding);
+        return freshJwt();
+      },
+    });
+    sayOn(session, new SemiontSessionError('session.keep-failed', 'What the client keeps could not be kept', kb.id));
+    return session;
+  };
+
+  /** Register KB A, signed in with `access`, and wait for its session to be active. */
+  const signedInto = async (browser: SemiontBrowser, access: string): Promise<SemiontSession> => {
+    browser.addKb({ did: KB_A.did, label: KB_A.label, endpoint: KB_A.endpoint }, testSession(access, 'r'));
+    const session = await firstValueFrom(browser.activeSession$.pipe(filter((live) => live !== null)));
+    if (session === null) throw new Error('no session was activated');
+    return session;
+  };
+
+  it("says a session's own error, said before the registry reads, on the registry's errors", async () => {
+    const browser = new SemiontBrowser({ storage, sessionFactory: readsNothing });
+    const said: string[] = [];
+    browser.error$.subscribe((error) => said.push(error.code));
+
+    await signedInto(browser, freshJwt());
+
+    expect(said).toEqual(['session.keep-failed']);
+    await browser.dispose();
+  });
+
+  it('renews the session on a refusal for want of a valid token, handed the token it holds', async () => {
+    const held = freshJwt();
+    const browser = new SemiontBrowser({ storage, sessionFactory: readsNothing });
+    const session = await signedInto(browser, held);
+    expect(session.token$.getValue()).toBe(held);
+
+    newestTransportErrors().next(APIError.fromStatus('token expired', 401, 'Unauthorized', undefined, undefined));
+
+    await vi.waitFor(() => expect(handed).toEqual([held]));
+    await browser.dispose();
+  });
+
+  it("says a refusal for lack of permission through the session's signals, with what the gateway said as its detail", async () => {
+    const browser = new SemiontBrowser({ storage, sessionFactory: readsNothing });
+    await signedInto(browser, freshJwt());
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.permissionDenied$.getValue()).toBeNull();
+
+    newestTransportErrors().next(APIError.refusal(403, 'Forbidden', { error: 'Archiving needs the curator role.' }, null));
+
+    expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'Archiving needs the curator role.' });
+    await browser.dispose();
   });
 });

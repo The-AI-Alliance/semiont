@@ -266,11 +266,12 @@ func (b *SemiontBrowser) LastViewedResource() semiont.Watched[api.ResourceId] {
 }
 
 // Errors is the failures its sessions say of their own (each a
-// *semiont.SessionError among semiont.Session's Errors): those that made a
-// session unusable, those that stopped a session's client keeping what it
-// holds, and each write its storage refused, from this call on, until ctx is
-// done or the registry is closed. A reader that falls more than a few dozen
-// behind misses those after.
+// *semiont.SessionError among semiont.Session's Errors, which the registry
+// reads from the first thing each session said): those that made a session
+// unusable, those that stopped a session's client keeping what it holds, and
+// each write its storage refused, from this call on, until ctx is done or the
+// registry is closed. A reader that falls more than a few dozen behind misses
+// those after.
 func (b *SemiontBrowser) Errors(ctx context.Context) iter.Seq[*semiont.SessionError] {
 	return b.failures.from(ctx)
 }
@@ -731,8 +732,8 @@ type ended struct {
 	signals *semiont.SessionSignals
 }
 
-// close ends the session, then the client it was built with, then what a
-// host was shown of it.
+// close ends the session as its factory's end does, the client it was built
+// with first, then what a host was shown of it.
 func (e *ended) close() {
 	e.end()
 	if e.signals != nil {
@@ -829,8 +830,7 @@ func (b *SemiontBrowser) activate(id string) {
 	// The signals exist before the session does: the session says it is over
 	// through them, and may be over before it is ready.
 	signals := semiont.NewSessionSignals()
-	options := SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals, OnError: b.failed}
-	handed, ok := b.build(options)
+	handed, ok := b.build(SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals})
 	if !ok {
 		return
 	}
@@ -843,7 +843,7 @@ func (b *SemiontBrowser) activate(id string) {
 		return
 	}
 	b.spawn(func() error {
-		b.route(session, options)
+		b.route(session, signals)
 		return nil
 	})
 	_ = session.Ready(b.alive)
@@ -898,17 +898,17 @@ func constructFailed(err error, kbID string) *semiont.SessionError {
 }
 
 // route reads the session's errors, as their one reader, and so from what
-// was said at its start: each of the session's own it hands to the factory's
-// OnError, and each failure of its transport it routes. A refusal for want of
+// was said at its start: each of the session's own it says on the registry's
+// Errors, and each failure of its transport it routes. A refusal for want of
 // a valid token renews the session: it heals quietly, or the session ends
 // itself and says so once. A refusal for lack of permission has no remedy,
-// and is said. It ends when the session's errors do, once the session, its
-// client and its transport have closed.
-func (b *SemiontBrowser) route(session *semiont.Session, options SessionFactoryOptions) {
+// and is said through signals. It ends when the session's errors do, when
+// the session ends.
+func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.SessionSignals) {
 	for each := range session.Errors() {
 		var own *semiont.SessionError
 		if errors.As(each, &own) {
-			options.OnError(own)
+			b.failed(own)
 			continue
 		}
 		var failure *semiont.TransportError
@@ -927,7 +927,7 @@ func (b *SemiontBrowser) route(session *semiont.Session, options SessionFactoryO
 			})
 		case semiont.TransportErrorCodeForbidden:
 			detail := failure.Message
-			options.Signals.NotifyPermissionDenied(&detail)
+			signals.NotifyPermissionDenied(&detail)
 		}
 	}
 }

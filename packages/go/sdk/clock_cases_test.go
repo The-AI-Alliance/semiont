@@ -569,8 +569,8 @@ func renewalSubject(t *testing.T, given clockGiven) clockSubject {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		session.Close()
 		client.Client.Close()
+		session.Close()
 		client.Transport.Close()
 	})
 	return clockSubject{counted: func() int { return int(renewals.Load()) }}

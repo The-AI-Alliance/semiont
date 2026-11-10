@@ -94,10 +94,6 @@ pub type Validate =
 /// Told that the session is over, and why.
 pub type OnAuthFailed = Arc<dyn Fn(SessionEndReason) + Send + Sync>;
 
-/// Told of what a session says of its own on its errors stream
-/// (`super::tell_registry`).
-pub type OnSessionError = Arc<dyn Fn(SessionError) + Send + Sync>;
-
 /// Why a renewal gave no token, for whoever reads the error.
 fn not_renewed(failure: Option<&(dyn std::error::Error + Send + Sync)>) -> String {
     match failure {
@@ -281,7 +277,8 @@ impl SemiontSession {
     /// first reader is given everything said since the session was made;
     /// each later one, what is said from then on. It ends when the session
     /// ends. A host routes the transport's failures: a refusal for want of a
-    /// valid token is a reason to `refresh`.
+    /// valid token is a reason to `refresh`. A registry is the one reader of
+    /// the errors of each session it holds (`super::SemiontBrowser`).
     pub fn errors(&self) -> Events<SemiontError> {
         if let Some(first) = locked(&self.shared.first).take() {
             return Events::new(first);

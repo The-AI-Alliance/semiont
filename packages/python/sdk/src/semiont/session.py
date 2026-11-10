@@ -2,8 +2,9 @@
 
 A session is a state unit. It writes its token and who is signed in, so
 `dispose` ends them, and stops its renewal. It only uses its client, so it
-never closes it: whoever made the client and the session closes the client
-after ending the session (`semiont.http.session_from_kept` does both).
+never closes it: whoever made the client and the session ends both, closing
+the client first, waiting for its closing flush, and then ending the session
+(`semiont.http.session_from_kept` does both).
 
 Headless: it runs in an application, a script, a daemon and a test alike, and
 shows nobody anything. What it needs of its surroundings it is given:
@@ -20,7 +21,9 @@ shows nobody anything. What it needs of its surroundings it is given:
 
 What went wrong it says once, on its one errors stream (`errors`): its own
 errors, each a `SessionError`, and its transport's failures. It takes no
-callback for them.
+callback for them. They end when the session ends: what its client's closing
+flush meets is said before then, and what the client meets once the session
+has ended is said nowhere.
 
 **How a token is held** is one rule for every SDK
 (`protocol/specs/src/session/cases.json`, which this package's tests run): when a
@@ -63,6 +66,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 from types import TracebackType
 from typing import Final, Literal, Protocol, Self, final, override
+from weakref import WeakKeyDictionary
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
@@ -339,8 +343,11 @@ class SemiontSession[T: Transport](StateUnit):
     `said` is what is said of what its client keeps by whoever keeps it
     (`semiont.http.session_from_kept`): that it could not be kept
     (`session.keep-failed`), or that the storage refused a write of it
-    (`session.save-refused`). Each is said on the session's errors, which end
-    only once it has ended too: after the client's closing flush.
+    (`session.save-refused`). Each is said on the session's errors while the
+    session lives. Whoever gave it `said` closes the client first, ends
+    `said` once the closing flush is made, and waits for `said_in_full`
+    before ending the session: so what that flush meets is said before the
+    errors end.
     """
 
     def __init__(
@@ -379,9 +386,6 @@ class SemiontSession[T: Transport](StateUnit):
         self._given_up: str | None = None
         """The token a renewal that got no answer was for, while the session holds none since: the one the next renewal renews."""
         self._running: asyncio.Task[None] | None = None
-        self._telling: asyncio.Task[None] | None = None
-        """Saying what `said` says, from the session's start until `said` ends."""
-        self._said_ended = said is None
 
     @property
     def token(self) -> Watched[str | None]:
@@ -403,9 +407,8 @@ class SemiontSession[T: Transport](StateUnit):
 
         Its first reader is given everything said since the session was made;
         every later one, what is said from then on. It ends when the session
-        does, and, for a session given `said`, only once that has ended too.
-        A host routes them: a refusal for want of a valid token is a reason
-        to `refresh`.
+        does. A host routes them: a refusal for want of a valid token is a
+        reason to `refresh`.
         """
         first, self._first = self._first, None
         return self._errors.listen() if first is None else first
@@ -430,27 +433,24 @@ class SemiontSession[T: Transport](StateUnit):
         failures = self.client.transport.failures()
         self._running = asyncio.create_task(self._run(kept, failures))
         if self._said is not None:
-            self._telling = asyncio.create_task(self._tell(self._said))
+            _RELAYS[self] = asyncio.create_task(self._tell(self._said))
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
         self.dispose()
-        running = self._running
-        if running is None:
-            return
-        await asyncio.gather(running, return_exceptions=True)
-        if self._telling is not None:
-            await self._telling
-        # Whatever ended the session's task that was not its ending is raised here.
-        if not running.cancelled():
-            await running
+        started = [task for task in (self._running, _RELAYS.pop(self, None)) if task is not None]
+        await asyncio.gather(*started, return_exceptions=True)
+        # Whatever ended the session's tasks that was not its ending is raised here.
+        for task in started:
+            if not task.cancelled():
+                await task
 
     @override
     def dispose(self) -> None:
         """End the session: it renews nothing more, and its token and who is signed in change no more. Ending twice is ending once.
 
-        Its errors end with it, and, for a session given `said`, once that
-        has ended too. Its client is left to whoever made it.
+        Its errors end with it, and what `said` says that it has not said by
+        then is said nowhere. Its client is left to whoever made it.
         """
         self._closing.set()
         self._ready.set()
@@ -459,25 +459,16 @@ class SemiontSession[T: Transport](StateUnit):
         self._user.end()
         if self._running is not None:
             self._running.cancel()
-        if self._telling is None:
-            # Never started: nothing it was given is to be said.
-            self._said_ended = True
-        self._end_errors()
-
-    def _end_errors(self) -> None:
-        """End the errors once the session has ended and nothing more of what it was given is to be said."""
-        if self._closing.is_set() and self._said_ended:
-            self._errors.close()
+        relay = _RELAYS.get(self)
+        if relay is not None:
+            relay.cancel()
+        self._errors.close()
 
     async def _tell(self, said: Events[SessionError]) -> None:
-        """Say each thing `said` says, until it ends, whenever the session does."""
-        try:
-            async with said:
-                async for error in said:
-                    self._errors.deliver(error)
-        finally:
-            self._said_ended = True
-            self._end_errors()
+        """Say each thing `said` says, for as long as the session lives."""
+        async with said:
+            async for error in said:
+                self._errors.deliver(error)
 
     async def _relay(self, failures: Events[SemiontError]) -> None:
         """Say each failure the transport meets, for as long as the session lives."""
@@ -700,3 +691,21 @@ class SemiontSession[T: Transport](StateUnit):
                 return
             self._token.set(renewed)
             token, just_issued = renewed, True
+
+
+_RELAYS: Final = WeakKeyDictionary[SemiontSession[Transport], asyncio.Task[None]]()
+"""Each started session's saying of the `said` it was given, from its start until `said` or the session ends; until it is left."""
+
+
+async def said_in_full(session: SemiontSession[Transport]) -> None:
+    """Wait until `session` has said everything the `said` it was given said, once that has ended.
+
+    What whoever gave a session `said` awaits after ending it, before ending
+    the session: whatever `said` said is then on the session's errors, by
+    construction, before they end. Of a session given no `said`, not
+    started, or already left, there is nothing to wait for. It waits for
+    good on a `said` that has not ended.
+    """
+    relay = _RELAYS.get(session)
+    if relay is not None:
+        await asyncio.wait([relay])

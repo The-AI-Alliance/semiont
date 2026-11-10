@@ -145,8 +145,9 @@ type SessionConfig struct {
 	Kb api.KbTarget
 	// Client is the client whose transport sends the session's token, and
 	// whose transport's failures the session's errors carry. The session only
-	// uses it: whoever made the client and the session ends both, the session
-	// first, then the client, then its transport.
+	// uses it: whoever made the client and the session ends both, the client
+	// first, waiting for its closing flush, then the session, then the
+	// client's transport.
 	Client *Client
 	// Token is the token the transport sends: "" for none.
 	Token *Variable[string]
@@ -303,24 +304,21 @@ func (s *Session) StreamState() Watched[ConnectionState] { return s.config.Clien
 // (a *SessionError) and its client's transport's (a *TransportError), each
 // said once. Its first reader is given everything said since the session was
 // made, and every later one what is said from then on; saying never waits for
-// a reader. It ends once the session, its client and the client's transport
-// have all closed, so what the client's closing flush meets is said before it
-// ends. A host routes them: a refusal for want of a valid token is a reason to
+// a reader. It ends when the session ends (Close). Whoever ends both closes
+// the client first, so what the client's closing flush meets is said before
+// it ends; what the client meets once the session has ended is said nowhere.
+// A host routes them: a refusal for want of a valid token is a reason to
 // Refresh.
 func (s *Session) Errors() iter.Seq[Error] { return s.failures.failures() }
 
 // carry says among the session's errors each failure the transport meets,
-// until the transport closes; the errors end then, once the session and its
-// client have closed too. It is not the session's work, which Close waits
-// for: the transport closes after the session.
+// until the transport closes. One met once the session has ended is said
+// nowhere: the errors have ended. It is not the session's work, which Close
+// waits for: the transport closes after the session.
 func (s *Session) carry(transportFailures iter.Seq[*TransportError]) {
 	for failure := range transportFailures {
 		s.failures.report(failure)
 	}
-	<-s.alive.Done()
-	s.work.Wait()
-	<-s.config.Client.links.life.Done()
-	s.failures.close()
 }
 
 // ExpiresAt is when the token the session holds expires; false when it holds
@@ -334,16 +332,16 @@ func (s *Session) ExpiresAt() (time.Time, bool) {
 }
 
 // Close ends the session: it renews nothing more and asks nobody anything,
-// its token and who is signed in change no more, and it returns once what it
-// was running has stopped. Closing twice is closing once. Its client is left
-// to whoever made it, and its errors end once the client and its transport
-// have closed too.
+// its token and who is signed in change no more, its errors end once what it
+// was running has said what it met, and it returns then. Closing twice is
+// closing once. Its client is left to whoever made it, who closes it first.
 func (s *Session) Close() {
 	s.cancel()
 	s.markReady()
 	s.work.Wait()
 	s.config.Token.End()
 	s.user.End()
+	s.failures.close()
 }
 
 // Refresh answers the gateway's refusal of refused, the session's token: it

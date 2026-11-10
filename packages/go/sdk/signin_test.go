@@ -319,8 +319,8 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 		}
 	}()
 	closed := sync.OnceFunc(func() {
-		session.Close()
 		client.Close()
+		session.Close()
 		wire.Close()
 	})
 	defer closed()
@@ -345,7 +345,7 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	select {
 	case <-heard:
 	case <-time.After(10 * time.Second):
-		t.Fatal("the session's errors stream did not end once the session, its client and its transport were closed")
+		t.Fatal("the session's errors stream did not end once the session was closed")
 	}
 	if len(said) != 0 {
 		t.Errorf("the session said %v on its errors stream", said)
@@ -398,8 +398,8 @@ func TestARenewalOnTheBackoffIsHandedTheTokenWhoseRenewalGotNoAnswer(t *testing.
 		}
 	}()
 	closed := sync.OnceFunc(func() {
-		session.Close()
 		client.Close()
+		session.Close()
 		wire.Close()
 	})
 	defer closed()
@@ -427,7 +427,7 @@ func TestARenewalOnTheBackoffIsHandedTheTokenWhoseRenewalGotNoAnswer(t *testing.
 	select {
 	case <-heard:
 	case <-time.After(10 * time.Second):
-		t.Fatal("the session's errors stream did not end once the session, its client and its transport were closed")
+		t.Fatal("the session's errors stream did not end once the session was closed")
 	}
 	if !slices.Equal(said, []SessionErrorCode{SessionErrorCodeRefreshExhausted}) {
 		t.Errorf("the session said %v on its errors stream, want the one %s", said, SessionErrorCodeRefreshExhausted)

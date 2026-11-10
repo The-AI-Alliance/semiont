@@ -1019,7 +1019,9 @@ func codesOf(told []*semiont.SessionError) []semiont.SessionErrorCode {
 
 // A sign-in that cannot be read when the client makes its closing save is
 // said on the session's errors stream, once, as session.keep-failed, before
-// the stream ends: the stream ends only after that save. Nothing is written.
+// the stream ends. Nothing is written. The stream ends when the session does,
+// so this holds only because end closes the client first, waiting for that
+// save, and then the session.
 func TestAKeepFailedOfTheClosingSaveIsSaidBeforeTheErrorsEnd(t *testing.T) {
 	table := readPersistedCases(t)
 	jo := personOf(t, table, "jo").PersonKey
@@ -1262,7 +1264,9 @@ func TestAWriteTheStorageRefusesIsSaidOnceAndStaysOwed(t *testing.T) {
 
 // A write the client's closing makes, which the storage refuses, is lost, and
 // said once on the session's errors stream, as session.save-refused, before
-// the stream ends.
+// the stream ends. The stream ends when the session does, so this holds only
+// because end closes the client first, waiting for that write, and then the
+// session.
 func TestAClosingWriteTheStorageRefusesIsSaidBeforeTheErrorsEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

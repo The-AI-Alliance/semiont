@@ -32,7 +32,6 @@ from typing import Final, final, override
 
 import httpx
 
-from semiont._telling import tell
 from semiont.bus import reply_channels_for
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
@@ -57,7 +56,7 @@ from semiont.oauth_clients import BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID
 from semiont.operations import BROWSE_KB_REQUESTED
 from semiont.registry import SemiontBrowser, SessionFactory, SessionFactoryOptions, SignedIn, SignInOutcome, kept_in
 from semiont.resume import CoupledBookmarks
-from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate
+from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate, said_in_full
 from semiont.storage import SessionStorage
 from semiont.stored import StoredSession, last_event_id_key, person_key
 from semiont.types import HttpEndpoint, KbDescription, KbTarget, LocalEndpoint, UserResponse
@@ -405,10 +404,10 @@ async def session_from_kept(
     Held with `async with`, and ready inside it: the session, its client and
     the client's transport are open, and each is closed on the way out, the
     client first, then what it still owes is written, then the session ends,
-    and its errors with it. A token the gateway refuses is renewed through the
-    session, so the transport and the session never hold different ones. What
-    the session said as it started, before it was handed over, is given to
-    the first reader of its `errors`.
+    and its errors with it, and then the transport closes. A token the
+    gateway refuses is renewed through the session, so the transport and the
+    session never hold different ones. What the session said as it started,
+    before it was handed over, is given to the first reader of its `errors`.
 
     With nothing kept, the session is signed out: its `token` is none, and a
     request made through its client is refused. `validate` is whether the
@@ -474,11 +473,13 @@ async def _session_started(
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself.
 
-    On the way out its client closes first, then its transport, and what the
-    client still owes then is made as every write is, only while `kept`
-    names the person, so what forgetting the sign-in deleted stays deleted.
-    Only then does the session end, so whatever that flush met is said on its
-    errors before they end.
+    On the way out its client closes first, and what it still owes then is
+    made as every write is, only while `kept` names the person, so what
+    forgetting the sign-in deleted stays deleted. Then what the client keeps
+    says no more, and the session is waited for until it has said all of it.
+    Only then does the session end, and its errors with it, so whatever that
+    flush met is said on them before they end. Then its transport closes, and
+    what that meets is said nowhere.
     """
     base_url = _gateway_of(kb)
     # Read before anything is built: the client begins with what was kept for the person the sign-in names.
@@ -506,13 +507,15 @@ async def _session_started(
         on_auth_failed=on_auth_failed,
         said=None if keeping is None else keeping.said,
     )
-    # Entered transport, client, session; left client, transport, the flush, then the session.
+    # Entered transport, client, session; left client, the flush, the wait for the session to say what the flush
+    # met, the session, the transport, then the renewal.
     async with AsyncExitStack() as ending:
         ending.push_async_callback(renewing.close)
+        await ending.enter_async_context(transport)
         async with AsyncExitStack() as closing:
             if keeping is not None:
+                closing.push_async_callback(said_in_full, session)
                 closing.push_async_callback(keeping.close)
-            await closing.enter_async_context(transport)
             await closing.enter_async_context(client)
             await ending.enter_async_context(session)
             yield session
@@ -596,12 +599,10 @@ class HttpSessionFactory(SessionFactory):
     which deletes what was kept for them, nothing more is written. Its token
     is renewed at the issuer its stored session names. Each session renews
     its own: a knowledge base's old session and its new one, during a
-    sign-in, are closed in turn. What a session says on its errors is told
-    the registry, its own errors (`SessionFactoryOptions.on_error`), the
-    closing flush's among them, and what its gateway refused
-    (`semiont._telling.tell`). With `http`, every request of each session,
-    and each revocation, is made with that client, which its caller built and
-    closes.
+    sign-in, are closed in turn. It reads none of what a session says: the
+    registry is the one reader of its errors, what the closing flush met among
+    them. With `http`, every request of each session, and each revocation, is
+    made with that client, which its caller built and closes.
     """
 
     def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
@@ -610,7 +611,7 @@ class HttpSessionFactory(SessionFactory):
     @override
     def session(self, options: SessionFactoryOptions) -> AbstractAsyncContextManager[SemiontSession[HttpTransport]]:
         kb = options.kb
-        started = _session_started(
+        return _session_started(
             KbTarget(id=kb.id, label=kb.label, endpoint=kb.endpoint),
             kept=kept_in(options.storage, kb.id),
             validate=True,
@@ -619,27 +620,10 @@ class HttpSessionFactory(SessionFactory):
             on_auth_failed=options.signals.notify_session_ended,
             http=self._http,
         )
-        return _telling(started, options)
 
     @override
     async def revoke(self, stored: StoredSession) -> None:
         await _revoked(stored.revocation_endpoint, stored.client_id, stored.refresh, self._http)
-
-
-@asynccontextmanager
-async def _telling(
-    started: AbstractAsyncContextManager[SemiontSession[HttpTransport]], options: SessionFactoryOptions
-) -> AsyncGenerator[SemiontSession[HttpTransport]]:
-    """`started`'s session, whose errors' one reader tells the registry what it says until they end, which is awaited."""
-    telling: asyncio.Task[None] | None = None
-    try:
-        async with started as session:
-            # Its first reader: what it said as it started is told too.
-            telling = asyncio.create_task(tell(session, options))
-            yield session
-    finally:
-        if telling is not None:
-            await telling
 
 
 # ── What a completed sign-in learns ─────────────────────────────────────

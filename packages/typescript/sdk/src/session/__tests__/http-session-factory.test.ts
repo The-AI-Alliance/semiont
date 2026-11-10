@@ -18,7 +18,8 @@ import { mockAnnotation } from '../../__tests__/fixtures/annotation';
 import { mockResource } from '../../__tests__/fixtures/resource';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { createSessionSignals } from '../session-signals';
-import type { SemiontSessionError } from '../errors';
+import { SemiontSessionError } from '../errors';
+import type { SemiontSession } from '../semiont-session';
 import { cacheKey, getStoredSession, lastEventIdKey, personKey, sessionKey } from '../storage';
 import { fakeGateway, renews } from './fake-gateway';
 import { freshJwt, seedStoredSession, SharedStorage, TestStorage, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
@@ -91,13 +92,22 @@ afterEach(() => {
 
 const settled = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The session's own errors, read from its errors stream from the first thing it said; its transport's failures are left out. */
+function ownErrorsOf(session: SemiontSession): SemiontSessionError[] {
+  const errors: SemiontSessionError[] = [];
+  session.errors$
+    .pipe(filter((error): error is SemiontSessionError => error instanceof SemiontSessionError))
+    .subscribe((error) => errors.push(error));
+  return errors;
+}
+
 describe('a session over HTTP, starting on a stored credential', () => {
   it('asks the gateway who the token is with one request, and opens one stream: its own', async () => {
     const storage = new TestStorage();
     const stored = jwt(1);
     seedStoredSession(storage, KB.id, stored, 'r');
 
-    const session = createHttpSessionFactory()({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
+    const session = createHttpSessionFactory()({ kb: KB, storage, signals: createSessionSignals() });
     await session.ready;
     await settled(50);
 
@@ -105,8 +115,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.who).toEqual([stored]);
     // Asking who the token is opened no stream of its own.
     expect(asked.streams).toEqual([stored]);
-    session.dispose();
     session.client.dispose();
+    session.dispose();
   });
 
   it('makes every request of a session with the fetch the factory is given, and none with the runtime\'s', async () => {
@@ -117,7 +127,7 @@ describe('a session over HTTP, starting on a stored credential', () => {
     const stored = jwt(1);
     seedStoredSession(storage, KB.id, stored, 'r');
 
-    const session = createHttpSessionFactory(given)({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
+    const session = createHttpSessionFactory(given)({ kb: KB, storage, signals: createSessionSignals() });
     await session.ready;
     await settled(50);
 
@@ -128,8 +138,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     await session.refresh(session.token$.getValue());
     expect(asked.renewals).toBe(1);
     expect(runtimes).not.toHaveBeenCalled();
-    session.dispose();
     session.client.dispose();
+    session.dispose();
   });
 
   it('asks a gateway that refuses what its issuer issues twice, and then leaves it alone', async () => {
@@ -140,9 +150,9 @@ describe('a session over HTTP, starting on a stored credential', () => {
     const storage = new TestStorage();
     seedStoredSession(storage, KB.id, jwt(1), 'r');
     const signals = createSessionSignals();
-    const errors: SemiontSessionError[] = [];
 
-    const session = createHttpSessionFactory()({ kb: KB, storage, signals, onError: (error) => errors.push(error) });
+    const session = createHttpSessionFactory()({ kb: KB, storage, signals });
+    const errors = ownErrorsOf(session);
     await session.ready;
 
     expect(asked.who).toHaveLength(2);
@@ -158,8 +168,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.who).toHaveLength(2);
     expect(asked.streams.length).toBeLessThanOrEqual(2);
     expect(asked.renewals).toBeLessThanOrEqual(2);
-    session.dispose();
     session.client.dispose();
+    session.dispose();
   });
 
   it('ends a running session whose gateway starts refusing what its issuer issues, on the first refusal', async () => {
@@ -168,8 +178,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     const stored = jwt(1);
     seedStoredSession(storage, KB.id, stored, 'r');
     const signals = createSessionSignals();
-    const errors: SemiontSessionError[] = [];
-    const session = createHttpSessionFactory()({ kb: KB, storage, signals, onError: (error) => errors.push(error) });
+    const session = createHttpSessionFactory()({ kb: KB, storage, signals });
+    const errors = ownErrorsOf(session);
     await session.ready;
     expect(session.user$.getValue()).toMatchObject({ name: 'Alice' });
     expect(asked.who).toEqual([stored]);
@@ -196,8 +206,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.renewals).toBe(1);
     expect(asked.who).toHaveLength(4);
     expect(errors).toHaveLength(1);
-    session.dispose();
     session.client.dispose();
+    session.dispose();
   });
 });
 
@@ -220,7 +230,7 @@ describe('a session over HTTP whose gateway names its person only after it has s
       resourceName: 'fresh',
     });
 
-    const session = createHttpSessionFactory(gateway.fetch)({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
+    const session = createHttpSessionFactory(gateway.fetch)({ kb: KB, storage, signals: createSessionSignals() });
     try {
       // The start could not ask who the token is: nobody is recorded.
       await session.ready;
@@ -236,8 +246,8 @@ describe('a session over HTTP whose gateway names its person only after it has s
       );
       expect(read).toBe('kept');
     } finally {
-      session.dispose();
       session.client.dispose();
+      session.dispose();
       gateway.close();
     }
   });
@@ -268,8 +278,8 @@ describe('a session over HTTP whose stored sign-in cannot be read as its client 
     let josBefore: (string | null)[] = [];
     storage.set(sessionKey(KB.id), JSON.stringify({ ...testSession(freshJwt(), 'r'), personKey: jo }));
     const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: renews, resourceName: 'fresh' });
-    const errors: SemiontSessionError[] = [];
-    const session = createHttpSessionFactory(gateway.fetch)({ kb: KB, storage, signals: createSessionSignals(), onError: (error) => errors.push(error) });
+    const session = createHttpSessionFactory(gateway.fetch)({ kb: KB, storage, signals: createSessionSignals() });
+    const errors = ownErrorsOf(session);
     const nameOf = (id: string): Promise<string> =>
       firstValueFrom(session.client.browse.resource(resourceId(id)).pipe(filter(isReady), map((state) => state.value.name), take(1)));
     try {
@@ -283,8 +293,8 @@ describe('a session over HTTP whose stored sign-in cannot be read as its client 
       storage.failing = false;
       expect(await nameOf('res-2')).toBe('fresh');
     } finally {
-      session.dispose();
       session.client.dispose();
+      session.dispose();
       gateway.close();
     }
 
@@ -345,7 +355,7 @@ describe('a session over HTTP: the place of an event the refresher has taken, an
     const placesKey = lastEventIdKey(KB.id, alice);
     const resourceKey = cacheKey(KB.id, alice, 'resource');
 
-    const session = createHttpSessionFactory(fetch)({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
+    const session = createHttpSessionFactory(fetch)({ kb: KB, storage, signals: createSessionSignals() });
     try {
       await session.ready;
       const { browse } = session.client;
@@ -390,8 +400,8 @@ describe('a session over HTTP: the place of an event the refresher has taken, an
       expect(JSON.parse(storage.get(placesKey)!)).toEqual({ [RID]: 'p-res-1-2' });
       for (const subscription of subscriptions) subscription.unsubscribe();
     } finally {
-      session.dispose();
       session.client.dispose();
+      session.dispose();
       gateway.close();
     }
   });

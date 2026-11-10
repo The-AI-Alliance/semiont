@@ -1594,6 +1594,13 @@ def said_by_the_session(said: Sequence[SemiontError]) -> list[tuple[str, str]]:
     return [(error.code, error.kb_id) for error in said if isinstance(error, SessionError)]
 
 
+async def closed_before_it_ended(session: SemiontSession[HttpTransport]) -> bool:
+    """Whether a session's client had closed by the time the session ended, when its token stopped changing."""
+    async for _ in session.token:
+        pass
+    return session.client.bus.destroyed
+
+
 def refusals_said(said: Sequence[SemiontError]) -> int:
     """How many writes a session of `kb` said its storage refused: each in what the storage said, and with it as the cause."""
     refused = [error for error in said if isinstance(error, SessionError) and error.code == "session.save-refused"]
@@ -1882,6 +1889,7 @@ def test_a_write_the_storage_still_refuses_after_the_closing_flush_is_said_on_th
             async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage) as session:
                 heard = Heard(session.errors())
                 client = session.client
+                client_first = asyncio.create_task(closed_before_it_ended(session))
                 await soon(reached(client.transport.state, lambda state: state == "open"))
                 assert await soon(client.browse.entity_types().fresh()) == ["Person", "Place"]
 
@@ -1893,6 +1901,8 @@ def test_a_write_the_storage_still_refuses_after_the_closing_flush_is_said_on_th
                 assert [error.code for error in said] == ["session.save-refused"]
                 assert refusals_said(said) == 1
 
+            # The client was closed first, and the session ended after its flush.
+            assert await soon(client_first)
             # The close's flush is refused too, and what it could not write is lost. Closing raised nothing; each
             # refusal is said once, the closing's among them, and then the errors end.
             assert storage.refusals > 1

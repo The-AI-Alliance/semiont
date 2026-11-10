@@ -1522,9 +1522,8 @@ public final class semiont/registry/SessionFactory$DefaultImpls {
 }
 
 public final class semiont/registry/SessionFactoryOptions {
-	public fun <init> (Lsemiont/types/KnowledgeBase;Lsemiont/storage/SessionStorage;Lsemiont/session/SessionSignals;Lkotlin/jvm/functions/Function1;)V
+	public fun <init> (Lsemiont/types/KnowledgeBase;Lsemiont/storage/SessionStorage;Lsemiont/session/SessionSignals;)V
 	public final fun getKb ()Lsemiont/types/KnowledgeBase;
-	public final fun getOnError ()Lkotlin/jvm/functions/Function1;
 	public final fun getSignals ()Lsemiont/session/SessionSignals;
 	public final fun getStorage ()Lsemiont/storage/SessionStorage;
 }

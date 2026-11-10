@@ -14,8 +14,8 @@ use semiont::session::{
     ACTIVE_KEY, Expected, KNOWLEDGE_BASES_KEY, KbIdentityConflict, KbReadVerdict, KbSessionStatus,
     LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, OpenResource, PermissionDenied,
     SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason, SessionEnded,
-    SessionFactory, SessionFactoryOptions, SignedIn, StoredSession, load_knowledge_bases,
-    save_knowledge_bases, session_key, store_session, stored_session,
+    SessionFactory, SessionFactoryOptions, SessionSignals, SignedIn, StoredSession,
+    load_knowledge_bases, save_knowledge_bases, session_key, store_session, stored_session,
 };
 use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::testing::as_id;
@@ -1568,11 +1568,11 @@ fn denied(browser: &SemiontBrowser) -> Option<PermissionDenied> {
 #[tokio::test(start_paused = true)]
 async fn a_refusal_for_want_of_a_token_renews_the_session_quietly_when_it_can() {
     let world = World::with(&[kb_a()]);
-    let renewed = jwt(7200);
+    let (renewed, renewed_again) = (jwt(7200), jwt(10800));
     world
         .factory
         .sessions
-        .queue_renewals([Ok(Some(renewed.clone()))]);
+        .queue_renewals([Ok(Some(renewed.clone())), Ok(Some(renewed_again.clone()))]);
     let browser = world.browser();
     let session = live(&browser).await;
 
@@ -1583,6 +1583,75 @@ async fn a_refusal_for_want_of_a_token_renews_the_session_quietly_when_it_can() 
     assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
     assert_eq!(ended(&browser), None);
     assert!(stored_session(world.storage.as_ref(), A).is_some());
+
+    // The session is handed the token it holds as the refusal is read, the
+    // one renewed just now. A session renews only a token it still holds:
+    // handed any other, it gives the one it holds and renews nothing.
+    world.factory.transports(A)[0].fail(refusal(401));
+    settle().await;
+
+    assert_eq!(world.factory.sessions.renewed(), 2);
+    assert_eq!(
+        session.token().borrow().as_deref(),
+        Some(renewed_again.as_str())
+    );
+    assert_eq!(ended(&browser), None);
+}
+
+/// A factory that hands back the one session it was given, built before
+/// the registry asked for it. It reads nothing of what the session says.
+struct Prebuilt(Mutex<Option<SemiontSession>>);
+
+impl SessionFactory for Prebuilt {
+    fn session(&self, _: SessionFactoryOptions) -> Result<SemiontSession, SessionError> {
+        Ok(self
+            .0
+            .lock()
+            .expect("prebuilt")
+            .take()
+            .expect("one session is asked for"))
+    }
+
+    fn revoke(&self, _: StoredSession) -> BoxFuture<'static, ()> {
+        Box::pin(async {})
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn what_a_session_said_before_the_registry_read_its_errors_is_said_on_the_registrys() {
+    let world = World::with(&[kb_a()]);
+    // Nobody scripted who its token is, so it says so as it starts, and it
+    // has started before the registry is given it.
+    let session = ScriptedSessions::new(None)
+        .session(SessionFactoryOptions {
+            kb: kb_a(),
+            storage: world.storage.clone(),
+            signals: Arc::new(SessionSignals::new()),
+        })
+        .expect("a session");
+    session.ready().await;
+    let browser = SemiontBrowser::new(SemiontBrowserConfig {
+        storage: world.storage.clone(),
+        session_factory: Arc::new(Prebuilt(Mutex::new(Some(session)))),
+    })
+    .expect("a browser");
+    let mut errors = browser.errors();
+
+    let said = tokio::time::timeout(Duration::from_secs(60), errors.next())
+        .await
+        .expect("what the session said is said")
+        .expect("the browser lives")
+        .expect("no failure was missed");
+    assert_eq!(said.code, SessionErrorCode::AuthFailed);
+    assert_eq!(said.kb_id.as_deref(), Some(A));
+    assert!(
+        said.message
+            .contains("ScriptedSessions: not scripted: who a token of \"kb-a\" is"),
+        "{}",
+        said.message
+    );
+    live(&browser).await;
+    browser.close().await.expect("closed");
 }
 
 #[tokio::test(start_paused = true)]

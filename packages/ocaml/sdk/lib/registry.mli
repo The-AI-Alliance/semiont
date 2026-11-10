@@ -61,7 +61,6 @@ type session_factory_options = {
   kb : knowledge_base;
   storage : storage;
   signals : Session.t option;
-  on_error : Http_wire.failure -> unit;
 }
 
 type session_factory =
@@ -72,7 +71,6 @@ type semiont_browser_config = {
   clock : Clock.t;
   fresh_id : unit -> string;
   factory : session_factory;
-  on_error : Http_wire.failure -> unit;
 }
 
 type semiont_browser

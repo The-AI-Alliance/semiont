@@ -12,11 +12,11 @@
  * across concurrent session reactivations for the same KB id.
  *
  * Every request of every session it builds, of the gateway and of the
- * issuer, is sent with `fetch`, or the runtime's own. What a session says of
- * itself on its errors stream, its host's `onError` is told.
+ * issuer, is sent with `fetch`, or the runtime's own. It reads none of a
+ * session's errors: the registry that calls it does.
  */
 
-import { BehaviorSubject, filter } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { HttpTransport, HttpContentTransport, currentUserOf } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
@@ -31,7 +31,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
   const inFlightRefreshes = new Map<string, Promise<string | null>>();
 
   return (opts: SessionFactoryOptions): SemiontSession => {
-    const { kb, storage, signals, onError } = opts;
+    const { kb, storage, signals } = opts;
     let session!: SemiontSession;
 
     if (kb.endpoint.kind !== 'http') {
@@ -122,11 +122,6 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       validate: performValidate,
       onAuthFailed: (reason) => signals.notifySessionEnded(reason),
     });
-    // The host is told the session's own errors, read from its errors
-    // stream; its transport's failures are the host's to read there.
-    session.errors$
-      .pipe(filter((error): error is SemiontSessionError => error instanceof SemiontSessionError))
-      .subscribe(onError);
     return session;
   };
 }

@@ -640,7 +640,8 @@ def test_a_test_session_is_a_real_session_over_a_test_client_ready_at_once_and_h
         assert TestSession.__test__ is False
         assert isinstance(made.session, SemiontSession)
         assert (made.session.client, made.client.transport, made.session.kb.id) == (made.client, made.transport, "test-kb")
-        async with made.client, made.session as session:
+        # Left client first, then the session.
+        async with made.session as session, made.client:
             await soon(session.ready())
             assert (session.token.value, session.user.value) == (None, None)
             # The token is the test's to set, and what the session holds.
@@ -663,7 +664,7 @@ def test_a_test_session_is_a_real_session_over_a_test_client_ready_at_once_and_h
             client.gateway,
             kept,
         )
-        async with given.client, given.session as session:
+        async with given.session as session, given.client:
             await soon(session.ready())
             # A sign-in kept there is the session's at its start.
             assert (session.kb, session.token.value, given.token.value) == (kb, access, access)

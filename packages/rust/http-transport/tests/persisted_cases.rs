@@ -933,7 +933,6 @@ async fn started(cases: &Value, row: &Value) -> Vec<String> {
             kb: gateway.kb(),
             storage: storage.clone(),
             signals: Arc::new(SessionSignals::new()),
-            on_error: Arc::new(|_: SessionError| {}),
         })
         .expect("a session");
     let client = session.client().clone();
@@ -978,8 +977,8 @@ async fn started(cases: &Value, row: &Value) -> Vec<String> {
         ));
     }
 
-    session.dispose();
     client.close().await;
+    session.dispose();
 
     if let Some(untouched) = row["untouched"].as_bool() {
         let stored = stored_table();
@@ -1176,7 +1175,6 @@ async fn resumed(cases: &Value, row: &Value) -> Option<String> {
             kb: gateway.kb(),
             storage: storage.clone(),
             signals: Arc::new(SessionSignals::new()),
-            on_error: Arc::new(|_: SessionError| {}),
         })
         .expect("a session");
     let client = session.client().clone();
@@ -1225,8 +1223,8 @@ async fn resumed(cases: &Value, row: &Value) -> Option<String> {
             },
         }
     };
-    session.dispose();
     client.close().await;
+    session.dispose();
     wrong
 }
 
@@ -1340,7 +1338,6 @@ async fn a_save_being_written_as_the_session_forgets_its_sign_in_is_not_left_aft
                 kb: gateway.kb(),
                 storage: storage.clone(),
                 signals: Arc::new(SessionSignals::new()),
-                on_error: Arc::new(|_: SessionError| {}),
             })
             .expect("a session"),
     );
@@ -1375,8 +1372,8 @@ async fn a_save_being_written_as_the_session_forgets_its_sign_in_is_not_left_aft
         .await
         .expect("the forget finishes")
         .expect("the forget ran");
-    session.dispose();
     client.close().await;
+    session.dispose();
 
     assert!(
         stored_session(storage.as_ref(), KB).is_none(),

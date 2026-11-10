@@ -141,7 +141,7 @@ sessionCases fixtures=do
   Stored.storeSession store "consumer-kb" grant
   let kb=KnowledgeBase "did:web:consumer.test" (KbEndpointBranch2 (LocalEndpoint "consumer-kb" LocalEndpointKindLocal mempty)) "consumer-kb" "Consumer" Nothing mempty
   bracket Signals.newSessionSignals Signals.dispose $ \signals -> do
-    let inputs=Factory.SessionFactoryOptions kb store signals (const (pure ()))
+    let inputs=Factory.SessionFactoryOptions kb store signals
     bracket (Factory.openSession (Sessions.factory scripted) inputs) Session.closeOpenedSession $ \opened -> do
       Session.ready (Session.openedSession opened)
       require "scripted factory did not build a real validating session" . (==Just user) =<< atomically (State.current (Session.user (Session.openedSession opened)))

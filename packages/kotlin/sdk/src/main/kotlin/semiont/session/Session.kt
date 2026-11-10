@@ -142,9 +142,11 @@ public class SemiontSession internal constructor(
      * `session.keep-failed`, `session.save-refused`), and the failures its
      * client's transport meets, a refusal for want of a valid token among
      * them, which is a reason to `refresh`. What the session said before
-     * anyone read it is kept for the first reader. They end once the session
-     * has ended and its client's closing flush has been made: what that flush
-     * met is said before they end.
+     * anyone read it is kept for the first reader. They end when the session
+     * ends, once the writes its client has begun are made or refused: whoever
+     * ends both closes the client first, so what its closing flush meets is
+     * said before they end. What the client meets once its session has ended
+     * is said nowhere.
      */
     public fun errors(): Events<SemiontError> {
         val own = saying.listen()
@@ -154,9 +156,6 @@ public class SemiontSession internal constructor(
             failures.close()
         }
     }
-
-    /** What the session says of its own, from now on, until its errors end: what a factory of sessions hands its registry. */
-    internal fun said(): Events<SessionError> = saying.listen()
 
     /** Say `error` on the session's errors, from the coroutine that met it. */
     internal fun say(error: SessionError) {
@@ -413,10 +412,11 @@ public class SemiontSession internal constructor(
 
     /**
      * End the session: it renews nothing more, and its token and who is
-     * signed in change no more, and their readers end. Its errors end once its
-     * client's closing flush has been made, so a session closed after its
-     * client says what that flush met first. Ending twice is ending once. Its
-     * client is left to whoever made it.
+     * signed in change no more, and their readers end. Its errors end with it,
+     * once the writes its client has begun are made or refused, so a session
+     * closed after its client says what that client's closing flush met
+     * first; what the client meets after is said nowhere. Ending twice is
+     * ending once. Its client is left to whoever made it.
      */
     override fun close() {
         closing = true

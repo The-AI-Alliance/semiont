@@ -431,13 +431,20 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
   before the token expires, and again when the gateway refuses it. A session
   whose issuer refuses to renew it clears its token and what it stored, and
   says so once; one whose renewal got no answer keeps what it stored, says
-  why, and renews again on the reconnect backoff or at the next refusal. It is a state unit: it only uses its client, so `dispose` ends the
-  session and leaves the client to whoever built it.
+  why, and renews again on the reconnect backoff or at the next refusal. It
+  says what went wrong once, on its one `errors` stream, which ends when the
+  session ends. It is a state unit: it only uses its client, so `dispose`
+  ends the session and leaves the client to whoever built it.
 - **`OpenedSession`** is a session and the client it was built with, which
-  end together: what a script's sign-in gives.
+  end together: what a script's sign-in gives. `close` closes the client,
+  waiting for the saves it owes, and then ends the session, so what those
+  saves meet is said before the session's errors end.
 - **`SemiontBrowser`** is what an application holds: the knowledge bases a
   person has registered, which one is active, the active one's session, and
-  what the person has open in each. One session is live at a time. A write
+  what the person has open in each. One session is live at a time. It is the
+  one reader of each session's errors: it says the session's own on its
+  `errors`, renews the session when the gateway refuses its token, and says
+  a refusal for lack of permission through the session's signals. A write
   its storage refuses changes nothing: the method that wrote returns the
   storage's own error, and `close` returns one made in the background.
 - **`SessionSignals`** is what a host shows about a session: that it ended
@@ -445,8 +452,9 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
   different knowledge base is answering. A signal says what happened. The
   sentence a person reads is the host's.
 - **`SessionFactory`** builds a knowledge base's session. A browser is given
-  one, and so knows nothing of how a knowledge base is reached.
-  `semiont-http-transport` has the one over a gateway.
+  one, and so knows nothing of how a knowledge base is reached. A factory
+  reads nothing of what its sessions say, so a factory of your own is read
+  the same way. `semiont-http-transport` has the one over a gateway.
 
 What must outlive a client is kept in a `SessionStorage`
 (`semiont::storage`). A write it could not make is its own error, a

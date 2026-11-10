@@ -168,8 +168,10 @@ gateway who its token is unless it is opened with `validate: false`. Its `ready(
 startup task failures; `errors()` is its one stream of what went wrong: its own
 `SessionError`s (a sign-in it could not check, renew, read or record, a write its storage
 refused) and its transport’s failures, each said once. What it says before anyone reads
-`errors()` is kept for the first reader, and the stream ends only after the client’s closing
-flush, so what that flush says arrives first. Startup is bounded, overlapping refusals share
+`errors()` is kept for the first reader. The stream ends when the session ends. Disposing the
+`OpenedSession` closes the client first and ends the session once the client’s closing flush
+has written, so what that flush meets arrives first; what the client meets once its session has
+ended is said nowhere. Startup is bounded, overlapping refusals share
 one renewal, and a renewal that gets no answer, whatever failed, keeps the stored sign-in for
 another attempt. The transport tells the session the token refused:
 a refusal of a token the session has already replaced is given the token it holds, and renews nothing. Session token and
@@ -220,6 +222,14 @@ authorization-code flow with PKCE. Pass the redirect callback to
 and activate it. Launcher discovery can read a document supplied by the app
 or a document over HTTP. The discovery stream reports absent launchers,
 managed knowledge bases, and changes by address.
+
+The registry is the one reader of each session's `errors()`, from the first
+thing the session said. It says each of the session's own `SessionError`s on
+its own `errors()`. A refusal for want of a valid token renews the session,
+handed the token it holds as the refusal is read. A refusal for lack of
+permission is said through the session's `SessionSignals.permissionDenied`,
+with the refusal's message. A `SessionFactory` reads none of them, so a
+session from a factory you write is read the same way.
 
 State units expose read-only `Watched` values for a viewer or application.
 Use `MarkStateUnit` to compose annotations and follow delegated work,

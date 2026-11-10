@@ -60,7 +60,6 @@ type session_factory_options = {
   kb : knowledge_base;
   storage : storage;
   signals : Session.t option;
-  on_error : Http_wire.failure -> unit;
 }
 
 type session_factory =
@@ -71,7 +70,6 @@ type semiont_browser_config = {
   clock : Clock.t;
   fresh_id : unit -> string;
   factory : session_factory;
-  on_error : Http_wire.failure -> unit;
 }
 
 type semiont_browser = {
@@ -341,10 +339,7 @@ let activate browser key =
   | None -> Error (Unavailable "kb.not-found")
   | Some kb -> (
       let storage = browser.config.storage in
-      match
-        browser.config.factory
-          { kb; storage; signals = None; on_error = browser.config.on_error }
-      with
+      match browser.config.factory { kb; storage; signals = None } with
       | Error code -> Error (Unavailable code)
       | Ok (client, identity) ->
           locked browser (fun () ->

@@ -201,11 +201,13 @@ export class SemiontSession implements StateUnit {
    * renewed, the gateway refused a token just issued, what its client keeps
    * could not be kept, its storage refused a write of it), and its
    * transport's failures, surfaced just before they are thrown to the
-   * caller (for `HttpTransport` an `APIError`, status-coded). A host layer
-   * (e.g. `SemiontBrowser`) routes by `err.code`; headless consumers can
-   * subscribe for logging. What the session says of itself before anyone
-   * reads is kept for the first reader. It ends when the session does: the
-   * client's closing flush, made first, says what it says before then.
+   * caller (for `HttpTransport` an `APIError`, status-coded). A registry
+   * (`SemiontBrowser`) is the one reader of its sessions' errors, and routes
+   * them by `err.code`; headless consumers can subscribe for logging. What
+   * the session says of itself before anyone reads is kept for the first
+   * reader. It ends when the session does: the client's closing flush, made
+   * first, says what it says before then, and what the client meets after
+   * is said nowhere.
    */
   readonly errors$: Observable<SemiontError>;
 

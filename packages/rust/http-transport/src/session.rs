@@ -35,7 +35,7 @@ use semiont::session::{
     BROWSER_CLIENT_ID, OnAuthFailed, OpenedSession, Refresh, SCRIPT_CLIENT_ID, SemiontBrowser,
     SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions, SessionRenewer,
     SignInKept, SignInOutcome, SignedIn, StoredSession, Validate, kept_in, last_event_id_key,
-    person_key, stored_session, tell_registry,
+    person_key, stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
@@ -508,8 +508,8 @@ impl SessionFactory for HttpSessionFactory {
         // has the client keep for them from its start (B17).
         let named =
             stored_session(options.storage.as_ref(), &kb.id).and_then(|stored| stored.person_key);
-        let (signals, telling) = (options.signals.clone(), options.signals);
-        let session = built_over_http(
+        let signals = options.signals;
+        Ok(built_over_http(
             HttpSession {
                 kb,
                 kept,
@@ -527,9 +527,7 @@ impl SessionFactory for HttpSessionFactory {
                 random: self.random.clone(),
             },
             |transport, client| keeping.built(transport, client, named.as_deref()),
-        );
-        tell_registry(&session, options.on_error, telling);
-        Ok(session)
+        ))
     }
 
     fn revoke(&self, stored: StoredSession) -> BoxFuture<'static, ()> {

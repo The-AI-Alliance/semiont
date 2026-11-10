@@ -18,8 +18,9 @@ from aio import Heard, pass_time, run, soon, turns
 from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, jwt, token
 
-from semiont.errors import BusRequestError, SemiontError, SignInError, TransportError
-from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
+from semiont.errors import BusRequestError, SemiontError, SessionError, SignInError, TransportError
+from semiont.events import Broadcast, Events
+from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate, said_in_full
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
 from semiont.timing import MAX_RECONNECT_MS, RECONNECT_MS
@@ -92,7 +93,9 @@ class World:
         self.answered = answer
         return answer
 
-    def session(self, *, refresh: Refresh | None, validate: Validate | None) -> SemiontSession[FaultyTransport]:
+    def session(
+        self, *, refresh: Refresh | None, validate: Validate | None, said: Events[SessionError] | None = None
+    ) -> SemiontSession[FaultyTransport]:
         session = SemiontSession(
             kb=TARGET,
             client=create_test_client().client,
@@ -101,6 +104,7 @@ class World:
             refresh=refresh,
             validate=validate,
             on_auth_failed=self.told.append,
+            said=said,
         )
         # Heard from before it starts, so what its start says is heard too.
         self._heard = Heard(session.errors())
@@ -777,6 +781,43 @@ def test_ending_a_session_ends_what_it_holds_and_leaves_its_client_open() -> Non
         await soon(session.ready())
         with pytest.raises(RuntimeError, match="started once"):
             await session.__aenter__()
+
+    run(scenario())
+
+
+def test_a_session_ended_with_its_client_open_ends_its_errors_then_and_says_nothing_it_is_given_after() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+
+    async def scenario() -> None:
+        session = world.session(refresh=world.refresh, validate=world.validate, said=keeping.listen())
+        async with session:
+            await soon(session.ready())
+            keeping.deliver(SessionError("session.save-refused", "the storage refused a write", kb_id=KB))
+            assert await world.said() == [("session.save-refused", "the storage refused a write")]
+        # Ended alone: its client is open, and what it is given to say has not ended. Its errors end with it.
+        assert await world.said_in_all() == [("session.save-refused", "the storage refused a write")]
+        assert not session.client.bus.destroyed
+        # It hears nothing more of what it was given: what that says from now on is said nowhere.
+        assert keeping.deliver(SessionError("session.keep-failed", "the sign-in could not be read", kb_id=KB)) == 0
+
+    # Bounded: an ending that waited for what the session was given to end would wait for good.
+    run(soon(scenario()))
+
+
+def test_what_a_session_was_given_to_say_is_said_in_full_once_it_has_ended_and_the_session_was_waited_for() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+
+    async def scenario() -> None:
+        session = world.session(refresh=world.refresh, validate=world.validate, said=keeping.listen())
+        async with session:
+            await soon(session.ready())
+            # Said, and ended, with no turn of the loop for the session to say it before it ends: waiting for it is what has it said.
+            keeping.deliver(SessionError("session.save-refused", "the storage refused a write", kb_id=KB))
+            keeping.close()
+            await soon(said_in_full(session))
+        assert await world.said_in_all() == [("session.save-refused", "the storage refused a write")]
 
     run(scenario())
 

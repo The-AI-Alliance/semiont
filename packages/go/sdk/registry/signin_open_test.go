@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -754,21 +755,126 @@ func denied(browser *registry.SemiontBrowser) *semiont.PermissionDenied {
 	return nil
 }
 
+// startedSessions is a factory written here, which reads none of its
+// sessions' errors: the registry is their one reader. Each session is over a
+// test client of its own; the gateway says who its token is as who says, and
+// cannot say when who is nil; each renewal gives renewed, and the token each
+// was handed is recorded. A session is handed back once it has started, so
+// what its start met is said before the registry reads it.
+type startedSessions struct {
+	who     *api.UserResponse
+	renewed string
+
+	mu         sync.Mutex
+	handed     []string
+	transports []*semionttest.FaultyTransport
+}
+
+func (f *startedSessions) Session(ctx context.Context, options registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
+	made := semionttest.NewTestClient(semionttest.TestClientConfig{Timing: semiont.DefaultTiming()})
+	f.mu.Lock()
+	f.transports = append(f.transports, made.Transport)
+	f.mu.Unlock()
+	session, err := semiont.StartSession(ctx, semiont.SessionConfig{
+		Kb:     api.KbTarget{Endpoint: options.Kb.Endpoint, Id: options.Kb.Id, Label: options.Kb.Label},
+		Client: made.Client,
+		Token:  semiont.NewVariable(""),
+		Kept:   registry.KeptIn(options.Storage, options.Kb.Id),
+		Refresh: func(_ context.Context, renewing string) (string, error) {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			f.handed = append(f.handed, renewing)
+			return f.renewed, nil
+		},
+		Validate: func(context.Context, string) (api.UserResponse, error) {
+			if f.who == nil {
+				return api.UserResponse{}, errors.New("the gateway cannot say who the token is")
+			}
+			return *f.who, nil
+		},
+		OnAuthFailed: options.Signals.NotifySessionEnded,
+		Timing:       semiont.DefaultTiming(),
+	})
+	if err != nil {
+		made.Client.Close()
+		made.Transport.Close()
+		return nil, nil, err
+	}
+	end := func() {
+		made.Client.Close()
+		session.Close()
+		made.Transport.Close()
+	}
+	if err := session.Ready(ctx); err != nil {
+		end()
+		return nil, nil, err
+	}
+	return session, end, nil
+}
+
+func (*startedSessions) Revoke(context.Context, registry.StoredSession) {}
+
+// renewals is the token each renewal was handed, in order.
+func (f *startedSessions) renewals() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.handed)
+}
+
+// last is the transport of the session built last.
+func (f *startedSessions) last() *semionttest.FaultyTransport {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.transports[len(f.transports)-1]
+}
+
+// The registry is the one reader of each session's errors, from the first
+// thing the session said: a failure of the session's own, said as it started
+// and before the factory handed it back, is said on the registry's errors.
+func TestASessionsOwnFailureSaidBeforeTheRegistryReadsIsSaidOnTheRegistrysErrors(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		gate := gated{SessionFactory: &startedSessions{}, open: make(chan struct{})}
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: gate})
+		must(t, err)
+		closedAtTheEnd(t, browser)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		errs := browser.Errors(ctx)
+		close(gate.open)
+
+		var said *semiont.SessionError
+		for err := range errs {
+			said = err
+			break
+		}
+		if said == nil || said.Code != semiont.SessionErrorCodeAuthFailed || said.KbID != kbA {
+			t.Errorf("the failure said is %+v; the session said %s of kb-a as it started", said, semiont.SessionErrorCodeAuthFailed)
+		}
+	})
+}
+
+// A refusal for want of a valid token renews the session, handed the token
+// the session holds as the registry reads the refusal, and the session goes
+// on signed in.
 func TestARefusalForWantOfATokenRenewsTheSessionQuietlyWhenItCan(t *testing.T) {
 	bubble(t, func(t *testing.T, w *world) {
 		w.with(kbOfA())
-		renewed := jwt(2 * time.Hour)
-		w.factory.sessions.QueueRenewals(semionttest.Renewal{Token: renewed})
-		browser := w.browser()
+		held, _ := registry.StoredSessionOf(w.storage, kbA)
+		person := alice()
+		sessions := &startedSessions{who: &person, renewed: jwt(2 * time.Hour)}
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: sessions})
+		must(t, err)
+		closedAtTheEnd(t, browser)
 		session := live(t, browser)
 
-		w.factory.sessions.Transports(kbA)[0].Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
+		sessions.last().Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
 		settle()
 
-		if renewals := w.factory.sessions.Renewed(); renewals != 1 {
-			t.Errorf("%d renewals were asked for", renewals)
+		if handed := sessions.renewals(); !slices.Equal(handed, []string{held.Access}) {
+			t.Errorf("%d renewals were asked for, handed %v; want one, handed the token the session held", len(handed), handed)
 		}
-		if session.Token().Value() != renewed || sessionEnded(browser) != nil {
+		if session.Token().Value() != sessions.renewed || sessionEnded(browser) != nil {
 			t.Error("the session was not renewed quietly")
 		}
 		if _, ok := registry.StoredSessionOf(w.storage, kbA); !ok {

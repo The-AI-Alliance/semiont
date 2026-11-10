@@ -176,11 +176,12 @@ const heldGateway = (says: StartupRow['gateway']): { gateway: FakeGateway; relea
 
 /** A session of `kb` the HTTP session factory makes over `storage`, as a registry has it made. */
 const sessionOver = (gateway: FakeGateway, kb: KnowledgeBase, storage: SessionStorage): SemiontSession =>
-  createHttpSessionFactory(gateway.fetch)({ kb, storage, signals: createSessionSignals(), onError: () => {} });
+  createHttpSessionFactory(gateway.fetch)({ kb, storage, signals: createSessionSignals() });
 
+/** End `session` as a registry does, the client it was made with and then the session, and then the gateway. */
 const end = (session: SemiontSession, gateway: FakeGateway): void => {
-  session.dispose();
   session.client.dispose();
+  session.dispose();
   gateway.close();
 };
 

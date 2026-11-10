@@ -353,6 +353,90 @@ private func hold(_ query: CacheQuery, in live: LiveQueries) async throws {
   try await browser.close()
 }
 
+/// A registry's sessions as `scripted` builds them, each of which has said one of its own errors,
+/// a `session.keep-failed`, before it is handed back. It reads none of a session's errors.
+private struct SayingFirst: SessionFactory {
+  let scripted: ScriptedSessions
+
+  func session(_ options: SessionFactoryOptions) async throws -> OpenedSession {
+    let opened = try await scripted.session(options)
+    opened.session.failed(
+      SessionError(.sessionKeepFailed, "said before the registry read", kbId: options.kb.id))
+    return opened
+  }
+
+  func revoke(_ session: HeldSignIn) async { await scripted.revoke(session) }
+}
+
+// The registry is the one reader of each session's errors, from the first thing the session said:
+// the session's own is said on the registry's errors, a refusal for want of a valid token renews
+// the session, handed the token it holds, and a refusal for lack of permission is said through the
+// session's signals, with its message.
+@Test func aRegistryReadsEachSessionsErrorsAsTheirOneReader() async throws {
+  let scripted = ScriptedSessions { _, channel, _ in
+    guard channel == Channels.browseKbRequested.name else {
+      throw BusRequestError(.busRejected, "Unread")
+    }
+    return try wirePayload(
+      BrowseKbResult(response: KbDescription(domain: "example.org", name: "KB")))
+  }
+  let browser = try await newSemiontBrowser(
+    SemiontBrowserConfig(
+      storage: MemorySessionStorage(), sessionFactory: SayingFirst(scripted: scripted)))
+  let errors = browser.errors()
+  let hour = Date().timeIntervalSince1970 + 3600
+  let held = try jwt(.object(["exp": .number(hour), "name": .string("held")]))
+  let renewal = try jwt(.object(["exp": .number(hour), "name": .string("renewal")]))
+  let kbId: String
+  do {
+    let signedIn = try await browser.signedIn(
+      SignedIn(
+        endpoint: .httpEndpoint(HttpEndpoint(host: "localhost", port: 4000, protocol: .http)),
+        description: KbDescription(domain: "example.org", name: "KB"),
+        session: HeldSignIn(
+          access: held, clientId: "browser", refresh: "refresh", tokenEndpoint: "issuer")))
+    kbId = signedIn.kb.id
+    let opened = try #require(browser.activeSession.value)
+    let signals = try #require(browser.activeSignals.value)
+    #expect(opened.session.token.value == held)
+
+    let own = try await withinTestDeadline {
+      for try await error in errors {
+        if let error = error as? SessionError { return error }
+      }
+      throw SpecFailure.shape("The registry's errors ended before the session's own was said")
+    }
+    #expect(own.reason == .sessionKeepFailed)
+    #expect(own.kbId == kbId)
+
+    // Only a renewal handed the token the session holds renews it: one handed another gives the
+    // token held, and asks the issuer nothing.
+    await scripted.queueRenewals([.issued(renewal)])
+    opened.session.relay(TransportError(.unauthorized, "/api/users/me 401", status: 401))
+    try await withinTestDeadline {
+      for await token in opened.session.token where token == renewal { return }
+      throw SpecFailure.shape("The refused token was not renewed")
+    }
+    #expect(await scripted.renewed == 1)
+
+    opened.session.relay(TransportError(.forbidden, "/api/users/me 403: forbidden", status: 403))
+    let denied = try await withinTestDeadline {
+      for await denied in signals.permissionDenied {
+        if let denied { return denied }
+      }
+      throw SpecFailure.shape("The refusal for lack of permission was not said")
+    }
+    #expect(denied.detail == "/api/users/me 403: forbidden")
+  } catch {
+    try? await browser.close()
+    throw error
+  }
+  // What the registry said first is what its close raises.
+  let raised = await #expect(throws: SessionError.self) { try await browser.close() }
+  #expect(raised?.reason == .sessionKeepFailed)
+  #expect(raised?.kbId == kbId)
+}
+
 /// Opens `resources` in a knowledge base a registry over `storage` signs in to, then closes that
 /// registry, so that the next one over `storage` activates a session with them open; gives the
 /// knowledge base's id. The knowledge base answers as its entry, and nothing else.

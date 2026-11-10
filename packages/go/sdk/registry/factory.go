@@ -22,22 +22,20 @@ type SessionFactoryOptions struct {
 	Storage semiont.SessionStorage
 	// Signals is where the session says it is over, for a host to show.
 	Signals *semiont.SessionSignals
-	// OnError is told each of the session's own failures by the registry,
-	// the one reader of the session's errors (semiont.Session's Errors): one
-	// that makes it unusable, and one that stops its client keeping what it
-	// holds, or that its storage refused a write of it, after which it goes
-	// on. A factory reads nothing of the session's errors.
-	OnError func(*semiont.SessionError)
 }
 
-// SessionFactory builds the sessions a registry activates.
+// SessionFactory builds the sessions a registry activates. A factory reads
+// none of a session's errors (semiont.Session's Errors): the registry is
+// their one reader.
 type SessionFactory interface {
 	// Session builds the session of a knowledge base, and the client it
-	// uses, and starts it. end ends the session, then its client. A
-	// knowledge base this factory cannot reach is refused with a
-	// *semiont.SessionError of code session.construct-failed. ctx ends when
-	// the registry is closed: the registry stops waiting then, and ends a
-	// session handed back afterwards at once.
+	// uses, and starts it. end closes the client, waiting for its closing
+	// flush, then ends the session, whose errors end then, and then closes
+	// what they were built on. A knowledge base this factory cannot reach is
+	// refused with a *semiont.SessionError of code
+	// session.construct-failed. ctx ends when the registry is closed: the
+	// registry stops waiting then, and ends a session handed back afterwards
+	// at once.
 	Session(ctx context.Context, options SessionFactoryOptions) (session *semiont.Session, end func(), err error)
 	// Revoke tells whoever issued a stored session that it has been
 	// forgotten, so its refresh token is good for nothing. Best effort: the

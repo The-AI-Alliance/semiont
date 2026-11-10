@@ -460,7 +460,7 @@ class PersistedCasesTest {
             }
             storeSession(storage, KB_A, realm.signIn(signedIn))
             SessionSignals().use { signals ->
-                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals) {}).use { opened ->
+                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals)).use { opened ->
                     eventually("the gateway is asked who the token is") { realm.of(WHO).isNotEmpty() }
                     assertEquals(row.text("first"), Watching(opened.client, "res-2", this).use { it.given() }, "first")
                     when (val gateway = row.text("gateway")) {
@@ -565,7 +565,7 @@ class PersistedCasesTest {
             storeSession(storage, KB_A, realm.signIn(JO))
             val frames = row.getValue("frames").jsonArray.map { it.jsonPrimitive.content }
             SessionSignals().use { signals ->
-                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals) {}).use { opened ->
+                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals)).use { opened ->
                     withTimeout(10_000) { opened.session.ready() }
                     val client = opened.client
                     Watching(client, "res-1", this).use { watching ->
@@ -587,7 +587,7 @@ class PersistedCasesTest {
                     }
                 }
                 val before = realm.subscriptions.size
-                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals) {}).use { opened ->
+                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals)).use { opened ->
                     withTimeout(10_000) { opened.session.ready() }
                     Watching(opened.client, "res-1", this).use {
                         fun resumed(): JsonObject? = realm.subscriptions.drop(before).flatMap { (it["scoped"] as? JsonArray).orEmpty() }
@@ -616,7 +616,7 @@ class PersistedCasesTest {
             val storage = HeldWrite(JO_RESOURCE_ON_A)
             storeSession(storage, KB_A, realm.signIn(JO))
             SessionSignals().use { signals ->
-                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals) {}).use { opened ->
+                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals)).use { opened ->
                     val session = opened.session
                     withTimeout(10_000) { session.ready() }
                     assertEquals("fresh", Watching(opened.client, "res-1", this).use { it.given() })

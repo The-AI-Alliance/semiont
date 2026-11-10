@@ -92,7 +92,7 @@ public actor ScriptedSessions: SessionFactory {
     }
     transports[kb.id, default: []].append(transport)
     let kept = keptIn(options.storage, kbId: kb.id)
-    let opened = try await createTestSession(
+    return try await createTestSession(
       TestSessionOptions(
         kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
         transport: transport, random: random,
@@ -105,9 +105,8 @@ public actor ScriptedSessions: SessionFactory {
           }
           guard let next = try await self.issue() else { return nil }
           return try await kept.renewed(read: read, access: next, refresh: read.refresh)
-        }, onAuthFailed: options.signals.notifySessionEnded))
-    options.handOnErrors(of: opened.opened.session)
-    return opened.opened
+        }, onAuthFailed: options.signals.notifySessionEnded)
+    ).opened
   }
 
   private func issue() throws -> String? {

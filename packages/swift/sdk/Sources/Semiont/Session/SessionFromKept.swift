@@ -1,5 +1,6 @@
 import AsyncHTTPClient
 import Foundation
+import Synchronization
 
 /// The transport can ask before construction finishes; every waiter belongs to its lifetime.
 actor SessionGate {
@@ -104,17 +105,29 @@ public func sessionFromKept(
 public final class OpenedSession: Sendable {
   public let session: SemiontSession
   public var client: SemiontClient { session.client }
+  /// Its closing, once begun: the client's closing flush, and then the session's end.
+  private let closing = Mutex<Task<Void, Never>?>(nil)
 
   package init(session: SemiontSession) {
     self.session = session
   }
 
-  /// Closes the client, then the session: what the client's closing flush says reaches the
-  /// session's errors before they end.
+  /// Closes the client and, once its closing flush has written what it held, ends the session:
+  /// what that flush meets is said on the session's errors before they end.
   public func dispose() {
-    client.dispose()
-    session.dispose()
+    let session = session
+    closing.withLock { closing in
+      guard closing == nil else { return }
+      session.client.dispose()
+      closing = Task {
+        await session.client.closed()
+        session.dispose()
+      }
+    }
   }
+
+  /// Waits until it has closed, once disposed: its client, and then its session.
+  func closed() async { await closing.withLock { $0 }?.value }
 
   deinit { dispose() }
 }

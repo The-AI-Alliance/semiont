@@ -71,8 +71,10 @@ program, a script, a daemon or an application, as in the SDK's
 
 An `OpenedSession` is a session and the client it was built with. A session
 only uses its client, so the two end together: `session()` is the session,
-and `close().await` ends it and then closes the client. An application's
-`SemiontBrowser` does the same for the sessions it holds.
+and `close().await` closes the client, waiting for the saves it owes, and
+then ends the session, so what those saves meet is said before the
+session's errors end. An application's `SemiontBrowser` does the same for
+the sessions it holds.
 
 In the examples:
 

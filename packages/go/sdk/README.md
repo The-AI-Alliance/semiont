@@ -193,7 +193,7 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 	if err != nil {
 		return err
 	}
-	defer end() // the session, then its client and its transport
+	defer end() // the client, then the session, then its transport
 	status, err := session.Client().System.Status(ctx)
 	if err != nil {
 		return err
@@ -206,9 +206,10 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 ```
 
 - **`SessionFromKept`** makes the transport, the client and the session
-  together, ready, and returns what ends all three. `ResumeSession` is the
-  session alone, over a client its caller made: the launcher makes its own,
-  with the channels a command follows.
+  together, ready, and returns what ends all three: the client first, waiting
+  for its closing flush, then the session, then the transport. `ResumeSession`
+  is the session alone, over a client its caller made: the launcher makes its
+  own, with the channels a command follows, and ends them in that order too.
 - **An agent whose renewal fails keeps the token it has** and tries again: a
   process holding a token that still works does not stop over one bad round
   trip. Signing in is the one step that fails.
@@ -777,9 +778,13 @@ made again over the same storage picks up where the last one was.
   knowledge base is asked who it is, and each open resource is checked
   against it. A different knowledge base answering voids what was open and
   raises `KbIdentityConflict` on the session's signals; a resource the
-  knowledge base says is gone is closed; no answer changes nothing. A request
-  the gateway refuses for want of a valid token renews the session, and one
-  refused for lack of permission raises `PermissionDenied`.
+  knowledge base says is gone is closed; no answer changes nothing.
+- **The registry is the one reader of each session's errors**, from the first
+  thing the session said; a factory reads none of them, so a session a host's
+  own factory builds is read the same way. Each of the session's own
+  `*SessionError`s is said on the registry's `Errors`; a request the gateway
+  refuses for want of a valid token renews the session, and one refused for
+  lack of permission raises `PermissionDenied`.
 
 Package `discovery` reads the document a launcher publishes of the knowledge
 bases it manages: whole or not at all, a launcher that is not there told from
@@ -946,8 +951,10 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
   server refused is also on `transport.Failures()`. A session says once, on
   `session.Errors()`, its transport's failures and its own `*SessionError`s
   (a write the storage refused among them, `session.save-refused`); the first
-  reader hears what was said before it listened, and the stream ends once the
-  session, its client and the client's transport have closed.
+  reader hears what was said before it listened, and the stream ends when the
+  session ends. Whoever ends both closes the client first, so what its closing
+  flush meets is said before the stream ends; what the client meets once the
+  session has ended is said nowhere.
 - **The token** is a `*Variable[string]` the transport watches: when it
   changes, the next request carries the new one. A stream refused for its
   token asks its `Refresher` for another, once per outage, and with none

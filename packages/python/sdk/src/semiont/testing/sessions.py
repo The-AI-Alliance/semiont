@@ -2,6 +2,7 @@
 
 Each session it builds is a real `SemiontSession` over a `FaultyTransport` of
 its own, and the factory keeps every transport it built, by knowledge base.
+It reads none of what a session says: the registry is its errors' one reader.
 
 A test scripts three things: what each knowledge base's gateway answers, who
 the gateway says a token is, and what a renewal gives. Each refuses by name
@@ -15,12 +16,11 @@ a token is.
 import asyncio
 from collections import deque
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Final, final, override
 
 from pydantic import JsonValue
 
-from semiont._telling import tell
 from semiont.errors import SessionError, SignInError, TransportError
 from semiont.registry import SessionFactory, SessionFactoryOptions, kept_in
 from semiont.session import SemiontSession
@@ -146,16 +146,13 @@ class ScriptedSessions(SessionFactory):
             validate=validate,
             on_auth_failed=options.signals.notify_session_ended,
         )
-        telling: asyncio.Task[None] | None = None
-        try:
-            async with client, session:
-                # Its errors' one reader, as `semiont.http.session.HttpSessionFactory`'s: what it said as it started is told too.
-                telling = asyncio.create_task(tell(session, options))
+        # Entered client, session; left client, the session, then the transport.
+        async with AsyncExitStack() as ending:
+            ending.push_async_callback(transport.close)
+            async with AsyncExitStack() as closing:
+                await closing.enter_async_context(client)
+                await ending.enter_async_context(session)
                 yield session
-        finally:
-            if telling is not None:
-                await telling
-            await transport.close()
 
     @override
     async def revoke(self, stored: StoredSession) -> None:

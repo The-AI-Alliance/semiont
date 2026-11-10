@@ -38,8 +38,8 @@ func TestATestSessionIsReadyAtOnceAndSignedInAsNobody(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer test.Transport.Close()
-		defer test.Client.Close()
 		defer test.Session.Close()
+		defer test.Client.Close()
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 		defer cancel()
@@ -98,9 +98,10 @@ func TestATestSessionHoldsTheTokenItsSignInHeldAndThenTheOneTheTestSets(t *testi
 			t.Error("the token the test set is not the session's")
 		}
 
-		// The session only uses the client: the test, which built both, closes it.
-		test.Session.Close()
+		// The session only uses the client: the test, which built both, closes
+		// it first, then the session, then the transport.
 		test.Client.Close()
+		test.Session.Close()
 		test.Transport.Close()
 		if test.Transport.State().Value() != semiont.ConnectionStateClosed {
 			t.Error("the transport is not closed")

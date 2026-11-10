@@ -5,6 +5,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use futures_core::Stream;
 use semiont::bus::{Bus, operation};
 use semiont::client::{ClientOptions, ClientTiming};
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode};
@@ -18,13 +19,15 @@ use semiont::testing::{
     FaultyTransport, InMemoryContent, ScriptedSessions, StubGateway, TestClientOptions,
     TestSessionOptions, create_test_client, create_test_session,
 };
-use semiont::transport::{ConnectionState, Content, Transport};
+use semiont::transport::{ConnectionState, Content, Events, Transport};
 use semiont::types::{
     AnchoredTextAnswer, GatherResourceRequestOptions, HttpEndpoint, HttpEndpointProtocol,
     KbEndpoint, KbTarget, KnowledgeBase, ResourceId, UserResponse,
 };
 use serde_json::{Value, json};
-use std::sync::{Arc, Mutex};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 fn message(error: SemiontError) -> String {
@@ -243,9 +246,10 @@ async fn a_test_session_holds_the_token_its_storage_held_and_then_the_one_the_te
     test.token.send_replace(Some("another".to_owned()));
     assert_eq!(test.session.token().borrow().as_deref(), Some("another"));
 
-    // The session only uses the client: the test, which built both, closes it.
-    test.session.dispose();
+    // The session only uses the client: the test, which built both, closes
+    // the client and then ends the session.
     test.client.close().await;
+    test.session.dispose();
     assert_eq!(*test.transport.state().borrow(), ConnectionState::Closed);
 }
 
@@ -287,7 +291,6 @@ fn token() -> String {
 struct Asked {
     storage: Arc<InMemorySessionStorage>,
     signals: Arc<SessionSignals>,
-    errors: Arc<Mutex<Vec<SessionError>>>,
 }
 
 impl Asked {
@@ -295,18 +298,15 @@ impl Asked {
         Asked {
             storage: Arc::new(InMemorySessionStorage::new()),
             signals: Arc::new(SessionSignals::new()),
-            errors: Arc::default(),
         }
     }
 
     /// What a registry asks a factory with.
     fn of(&self, kb_id: &str) -> SessionFactoryOptions {
-        let errors = self.errors.clone();
         SessionFactoryOptions {
             kb: kb(kb_id),
             storage: self.storage.clone(),
             signals: self.signals.clone(),
-            on_error: Arc::new(move |error| errors.lock().expect("errors").push(error)),
         }
     }
 
@@ -325,10 +325,22 @@ impl Asked {
         )
         .expect("stored");
     }
+}
 
-    fn errors(&self) -> Vec<SessionError> {
-        self.errors.lock().expect("errors").clone()
+/// What a session has said of its own on its errors so far, in order. A
+/// stream that missed any of it fails the test.
+fn said_so_far(errors: &mut Events<SemiontError>) -> Vec<SessionError> {
+    let mut said = Vec::new();
+    while let Poll::Ready(Some(item)) =
+        Pin::new(&mut *errors).poll_next(&mut Context::from_waker(Waker::noop()))
+    {
+        match item {
+            Ok(SemiontError::Session(error)) => said.push(error),
+            Ok(_) => {}
+            Err(missed) => panic!("the session's errors stream missed some: {missed}"),
+        }
     }
+    said
 }
 
 #[tokio::test(start_paused = true)]
@@ -384,13 +396,12 @@ async fn scripted_sessions_say_who_a_token_is_only_when_told_and_after_as_long_a
     let asked = Asked::new();
     asked.signed_in("kb-a");
 
-    // Nobody said who: the session is ready, knows nobody, and says why.
+    // Nobody said who: the session is ready, knows nobody, and says why,
+    // kept for the first reader of its errors.
     let unnamed = sessions.session(asked.of("kb-a")).expect("a session");
     unnamed.ready().await;
     assert_eq!(*unnamed.user().borrow(), None);
-    // The registry is told what the session says as its errors are read.
-    tokio::time::sleep(Duration::from_millis(1)).await;
-    let said = asked.errors();
+    let said = said_so_far(&mut unnamed.errors());
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(
         said[0]
@@ -415,6 +426,7 @@ async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_sc
     let asked = Asked::new();
     asked.signed_in("kb-a");
     let session = sessions.session(asked.of("kb-a")).expect("a session");
+    let mut errors = session.errors();
     session.ready().await;
     sessions.queue_renewals([Ok(Some("renewed".to_owned()))]);
 
@@ -431,9 +443,7 @@ async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_sc
     let held = session.token().borrow().clone();
     assert_eq!(session.refresh(held.as_deref()).await, None);
     assert_eq!(sessions.renewed(), 2);
-    // The registry is told what the session says as its errors are read.
-    tokio::time::sleep(Duration::from_millis(1)).await;
-    let said = asked.errors();
+    let said = said_so_far(&mut errors);
     assert!(
         said.iter().any(|error| error
             .message
