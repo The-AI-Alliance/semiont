@@ -232,10 +232,10 @@ export function App() {
   });
   const [theme, setTheme] = useState<Theme>('system');
 
-  const openServiceGroup = useCallback((group: DesktopServiceGroup) => {
+  const openServiceGroup = useCallback((group: DesktopServiceGroup, selectedRootPath: string | null) => {
     setServiceGroup(group);
-    askSnapshot(group === 'record' && activeRootPath !== null
-      ? { target: { kind: 'local', root: activeRootPath } }
+    askSnapshot(group === 'record' && selectedRootPath !== null
+      ? { target: { kind: 'local', root: selectedRootPath } }
       : {});
     if (group === 'record') {
       setGitCheck({ status: 'checking' });
@@ -249,12 +249,12 @@ export function App() {
         );
       }
     }
-  }, [activeRootPath, askSnapshot]);
-  const refreshServiceStatus = useCallback(() => {
-    askSnapshot(serviceGroup === 'record' && activeRootPath !== null
-      ? { target: { kind: 'local', root: activeRootPath } }
+  }, [askSnapshot]);
+  const refreshServiceStatus = useCallback((selectedRootPath: string | null) => {
+    askSnapshot(serviceGroup === 'record' && selectedRootPath !== null
+      ? { target: { kind: 'local', root: selectedRootPath } }
       : {});
-  }, [activeRootPath, askSnapshot, serviceGroup]);
+  }, [askSnapshot, serviceGroup]);
 
   const updateKnowledgeBase = useCallback((path: string, update: (row: KnowledgeBaseRow) => KnowledgeBaseRow) => {
     setKnowledgeBasesState((current) => current.status === 'result'
@@ -941,6 +941,7 @@ export function App() {
     : activeKbUri === null
       ? null
       : knowledgeBaseRows.find((root) => [root.configuredUri, root.gatewayUrl].some((uri) => uri !== undefined && normalizeGatewayUri(uri) === normalizeGatewayUri(activeKbUri))) ?? null;
+  const activeLocalRootPath = activeKnowledgeBaseRoot?.path ?? null;
   const activeKbConnected = activeRootPath !== null
     ? activeKnowledgeBaseRoot?.activeSessionUri !== undefined
     : activeConn?.opened !== undefined;
@@ -985,7 +986,7 @@ export function App() {
             onNewDocument={openNewDocument}
             onSelectSession={selectSession}
             onOpenInference={openInference}
-            onOpenServiceGroup={openServiceGroup}
+            onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
             onOpenRemoteService={setRemoteService}
             onOpenSecrets={openSecrets}
             onOpenMcp={openMcp}
@@ -1062,13 +1063,13 @@ export function App() {
         <ServiceGroupModal
           group={serviceGroup}
           state={snapshot}
-          selectedRootPath={activeRootPath}
+          selectedRootPath={activeLocalRootPath}
           knowledgeBaseRoot={activeKnowledgeBaseRoot}
           gitCheck={gitCheck}
           onStartKnowledgeBase={(root) => operateKnowledgeBase(root, 'starting')}
           onStopKnowledgeBase={(root) => operateKnowledgeBase(root, 'stopping')}
           onFollowLogs={setLogsRoot}
-          onRefresh={refreshServiceStatus}
+          onRefresh={() => refreshServiceStatus(activeLocalRootPath)}
           onClose={() => setServiceGroup(null)}
         />
       )}
