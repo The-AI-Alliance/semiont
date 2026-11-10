@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module SessionCases (jwt, sessionCases, sessionClockCases) where
 
-import Control.Concurrent.Async (async, wait, replicateConcurrently)
+import Control.Concurrent.Async (async, wait, withAsync, replicateConcurrently)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, throwIO, try, IOException)
 import Control.Monad (forM_, unless)
@@ -31,6 +31,7 @@ import qualified Semiont.StateValue as State
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Transport as Transport
 import Semiont.Types
+import qualified Streaming.Prelude as Stream
 import qualified ControlledTime as Time
 -- Runs protocol/specs/src/client/clock-cases.json through the shared clock runner.
 import ClockCases (clockCasesFor, Scenario(..))
@@ -67,6 +68,15 @@ withClient time action = do
 stored :: Text -> StoredSession
 stored access = StoredSession access "session-cases" Nothing "refresh-credential" Nothing "https://issuer.test/token" KM.empty
 
+-- | Each thing the session says, as its code: a session error's own, a
+-- transport failure's prefixed, so a row that expects none fails on either.
+codeOf :: Either SessionError TransportError -> Text
+codeOf (Left failure) = Code.sessionCode (sessionErrorCode failure)
+codeOf (Right failure) = "transport:"<>Code.transportCode (transportErrorCode failure)
+
+collect :: Session.Session -> TVar [Text] -> IO ()
+collect session into = Session.errors session (Stream.mapM_ (\value -> atomically (modifyTVar' into (<>[codeOf value]))))
+
 sessionCases :: FilePath -> Map.Map Text Value -> IO ()
 sessionCases root fixtures = do
   table <- Bytes.readFile (root </> "protocol/specs/src/session/cases.json") >>= either (ioError . userError) pure . eitherDecodeStrict'
@@ -77,16 +87,18 @@ sessionCases root fixtures = do
     withClient time $ \owned -> do
       storage <- Storage.newMemoryStorage
       start <- if section == "refusal" then pure "unexpired" else readValue (member "stored" row)
-      case start :: Text of
-        "none" -> pure ()
-        "unexpired" -> Stored.storeSession storage (kbTargetId target) (stored (jwt 3600 0))
-        "expired" -> Stored.storeSession storage (kbTargetId target) (stored (jwt (-300) 0))
+      found <- case start :: Text of
+        "none" -> pure Nothing
+        "unexpired" -> pure (Just (jwt 3600 0))
+        "expired" -> pure (Just (jwt (-300) 0))
         _ -> ioError (userError "unknown startup credential kind")
+      forM_ found (Stored.storeSession storage (kbTargetId target) . stored)
       asks <- newTVarIO (0::Integer)
       renewals <- newTVarIO (0::Integer)
       beginning <- newTVarIO (section=="refusal")
       told <- newTVarIO []
       failures <- newTVarIO []
+      handedOther <- newTVarIO []
       answered <- newTVarIO Nothing
       let script name count = case array (member name row) of
             [] -> ioError (userError "empty session answer script")
@@ -103,7 +115,8 @@ sessionCases root fixtures = do
               "refuses" -> throwIO (TransportError Code.TransportUnauthorized "refused" (Just 401) Nothing)
               "unreachable" -> throwIO (TransportError Code.TransportUnavailable "no answer" Nothing Nothing)
               _ -> ioError (userError "unknown gateway script answer")
-          renew = do
+          renew handed = do
+            unless (handed==found) (atomically (modifyTVar' handedOther (<>[handed])))
             count <- atomically $ do n <- readTVar renewals; writeTVar renewals (n+1); pure n
             said <- script "issuer" count
             case said :: Text of
@@ -111,11 +124,12 @@ sessionCases root fixtures = do
               "refuses" -> throwIO (SignInError Code.SignInExchange "refused" (Just 400))
               "unreachable" -> throwIO (SignInError Code.SignInExchange "no answer" Nothing)
               _ -> ioError (userError "unknown issuer script answer")
-          options = Session.SessionOptions "case" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const renew)) (Just (\_ -> validate))
+          options = Session.SessionOptions "case" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just renew) (Just (\_ -> validate))
             (\reason -> atomically (modifyTVar' told (<>[reason])))
-            (\failure -> atomically (modifyTVar' failures (<>[Code.sessionCode (sessionErrorCode failure)])))
             (pure 1800000000)
           checkState expected = do
+            require ("a renewal was handed another token than the row stored: "++show row)
+              . null =<< readTVarIO handedOther
             actualAsks <- readTVarIO asks
             actualRenewals <- readTVarIO renewals
             expectedAsks <- readValue (member "asks" expected)
@@ -128,7 +142,8 @@ sessionCases root fixtures = do
             ends <- readValue (member "ends" expected)
             require ("session end differs: "++show row) ((case held of Nothing -> "signed-out"; Just _ -> if signedIn==Nothing then "unconfirmed" else "signed-in")==(ends::Text))
             whenSignedIn ends $ require "session did not keep the gateway's latest person" . (==signedIn) =<< readTVarIO answered
-      bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
+      bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session ->
+       withAsync (collect session failures) $ \_ -> do
         Session.ready session
         whenSignedIn (if section=="refusal" then "signed-in" else "") $ do
           atomically (writeTVar beginning False)
@@ -177,7 +192,7 @@ concurrentCases target person = do
     gate <- newEmptyTMVarIO
     let renew = atomically (modifyTVar' calls (+1)) >> atomically (readTMVar gate) >> pure (Just (jwt 3600 1))
         options = Session.SessionOptions "concurrent" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const renew)) (Just (\_ _ -> pure (Just person)))
-          (const (pure ())) (const (pure ())) (pure 1800000000)
+          (const (pure ())) (pure 1800000000)
     bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
       Session.ready session
       pending <- async (replicateConcurrently 20 (Session.refresh session Nothing))
@@ -206,8 +221,7 @@ externalCases target person = do
     started <- newEmptyTMVarIO
     let issue = atomically (putTMVar started ()) >> atomically (readTMVar gate) >> pure (Just (jwt 3600 1))
         options = Session.SessionOptions "external" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
-          (const (ioError (userError "external sign-out notified expiry")))
-          (const (ioError (userError "a replaced renewal reported a failure"))) (pure 1800000000)
+          (const (ioError (userError "external sign-out notified expiry"))) (pure 1800000000)
     session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
     Session.ready session
     pending <- async (Session.refresh session Nothing)
@@ -222,6 +236,7 @@ externalCases target person = do
     Session.dispose session
     Session.dispose session
     require "session detached its storage listener more than once" . (==1) =<< readTVarIO detached
+    require "a replaced renewal said a failure" . null =<< Session.errors session Stream.toList_
     -- Disposal joins an issuer request and releases every waiter, including
     -- callers which did not themselves cancel their refusal request.
     Stored.storeSession memory (kbTargetId target) (stored (jwt 3600 0))
@@ -235,10 +250,12 @@ externalCases target person = do
     Session.dispose blocked
     outcome <- wait refusal
     require "disposed renewal caller remained usable" (case outcome of Left failure -> busRequestErrorCode failure==Code.BusRequestClosed; _ -> False)
-    Stored.storeSession memory (kbTargetId target) (stored (jwt (-300) 0))
+    -- The gateway refuses the token the issuer has just renewed, and the
+    -- host's onAuthFailed, told so, fails.
+    Stored.storeSession memory (kbTargetId target) (stored (jwt 3600 0))
     let broken = options { Session.sessionKept=Stored.keptIn memory (kbTargetId target),
-          Session.sessionRefresh=Just (\_ -> throwIO (SignInError Code.SignInExchange "no answer" Nothing)),
-          Session.sessionOnError=const (ioError (userError "host error handler failed")) }
+          Session.sessionRefresh=Just (\_ -> pure (Just (jwt 3600 1))),
+          Session.sessionValidate=Just (\_ _ -> throwIO (TransportError Code.TransportUnauthorized "refused" (Just 401) Nothing)) }
     failed <- Session.newSession owned broken (timeOptions time) Timing.protocolSettings
     badReady <- try (Session.ready failed) :: IO (Either IOException ())
     require "a failed host callback made startup look successful" (case badReady of Left _ -> True; _ -> False)
@@ -279,7 +296,7 @@ sessionClockCases root fixtures = clockCasesFor root ["renewal"] $ \time row -> 
   (transport,_) <- Transport.newTransport (Transport.TransportOptions "http://localhost:4000" Set.empty (const unused) (pure ()))
   owned <- Client.newClient transport contents Nothing busOptions Timing.protocolSettings Nothing
   let options = Session.SessionOptions "clock" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
-        (const (pure ())) (const (pure ())) now
+        (const (pure ())) now
   session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
   Session.ready session
   pure (Scenario (pure ()) (readTVarIO calls) (Session.dispose session `finally` Client.dispose owned))

@@ -49,8 +49,11 @@ clock and host callbacks; provide `sessionValidate` to confirm a person with
 the supplied client and token. A service can omit that callback. `ready` waits for startup;
 `token`, `user` and `streamState` are read-only observations. Refusals that arrive
 together share one renewal. An issuer refusal forgets the grant; an outage
-keeps it and retries with reconnect backoff. Disposing a session joins its
-work and leaves its client open; `closeOpenedSession` closes both.
+keeps it and retries with reconnect backoff. What goes wrong, the session's
+own errors and its transport's failures, is said once each on `errors`; what
+is said before anyone reads is kept for the first reader. Disposing a session
+joins its work, ends `errors` and leaves its client open; `closeOpenedSession`
+closes both, and ends `errors` once the client's closing flush is done.
 
 ```haskell
 module DeviceSignIn where
@@ -105,7 +108,9 @@ withAccount options authority clientId pem wallNow use = do
 account and keeps the DID the gateway actually returned. Supply its startup
 `RetryBudget` explicitly: unreachable peers and boot-transient responses retry,
 and a refused freshly issued credential ends the attempt. The service token
-remains owned by its caller. Session renewal callbacks receive the token held;
+remains owned by its caller. Each renewal is handed the token it renews: the
+one held, expired or not, at the start the stored one though it has expired,
+and after a renewal that got no answer, the one that renewal was for;
 `Auth.me auth (Just token)` validates an explicit credential in one attempt,
 without renewing or quarantining the inherited token. `Auth.me auth Nothing`
 uses the client's own token and retry policy.

@@ -1,6 +1,8 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes, ScopedTypeVariables #-}
 -- | One connection's token and confirmed person. Disposal ends the session's
 -- work and observations; the client remains owned by whoever constructed it.
+-- What went wrong, the session's own errors and its transport's failures, is
+-- said once each on its one errors stream.
 module Semiont.Session
   ( Session, SessionOptions(..), OpenedSession(..), SessionEndReason(..)
   , newSession, fromHttp, fromIssuedSession, fromKeptSession, signInDevice, signInAgent, id, kb, client, token, user, streamState, errors, ready
@@ -9,10 +11,11 @@ module Semiont.Session
 
 import Prelude hiding (id)
 import qualified Prelude
-import Control.Concurrent.Async (race)
+import Control.Concurrent.Async (Async, cancel, race, waitCatch, waitCatchSTM)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, SomeAsyncException, fromException, throwIO, try, mask, onException, finally, toException)
 import Control.Monad (forM_, unless, void, when)
+import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (isJust)
 import Data.IORef
 import Data.Scientific (Scientific)
@@ -25,6 +28,7 @@ import qualified Semiont.Issuer as Issuer
 import qualified Semiont.ServiceToken as Service
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Gateway as Gateway
+import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Retry as Retry
@@ -35,6 +39,8 @@ import qualified Semiont.Transport as Transport
 import Semiont.Timing (RetryBudget)
 import Semiont.Types (KbTarget(..), StoredSession(..), UserResponse, KbEndpoint(..), HttpEndpoint, DeviceCode, IssuerEndpoints(..), IssuedTokens(..), SessionEndReason(..))
 import Streaming (Of, Stream)
+import qualified Streaming.Prelude as Stream
+import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 
 data SessionOptions = SessionOptions
   { sessionId :: Text
@@ -44,7 +50,6 @@ data SessionOptions = SessionOptions
   , sessionRefresh :: Maybe (Maybe Text -> IO (Maybe Text))
   , sessionValidate :: Maybe (Client.Client -> Text -> IO (Maybe UserResponse))
   , sessionOnAuthFailed :: SessionEndReason -> IO ()
-  , sessionOnError :: SessionError -> IO ()
   , sessionWallNow :: IO Scientific
   -- ^ Epoch seconds. Waits use the separate monotonic clock, never this reading.
   }
@@ -61,12 +66,19 @@ data Session = Session
   , timings :: Timing.Settings
   , life :: Lifetime.Lifetime
   , heldToken :: State.StateValue (Maybe Text)
+  , renewing :: TVar (Maybe Text)
+  -- ^ Handed to each renewal: the token held, expired or not, the one found
+  -- stored at the start though expired, or, once a renewal that got no answer
+  -- left none held, the one that renewal was for.
   , heldUser :: State.StateValue (Maybe UserResponse)
   , initialized :: TMVar (Either SomeException ())
   , commands :: TQueue Command
   , refusing :: TVar (Maybe (TMVar (Either SomeException (Maybe Text))))
   , revision :: TVar Integer
   , unsubscribe :: IO ()
+  , said :: Broadcast.Broadcast (Either SessionError TransportError)
+  , forwarding :: Async ()
+  -- ^ Says the transport's failures on the session's stream.
   }
 
 data Command = Refusal (Maybe Text) (TMVar (Either SomeException (Maybe Text))) | Changed Integer (Maybe StoredSession)
@@ -89,8 +101,16 @@ user :: Session -> State.StateValue (Maybe UserResponse)
 user = heldUser
 streamState :: Session -> State.StateValue Transport.ConnectionState
 streamState = Client.state . owner
-errors :: Session -> (Stream (Of TransportError) IO () -> IO result) -> IO result
-errors = Transport.errors . Client.transport . owner
+-- | What went wrong, each said once: the session's own errors and its
+-- transport's failures. What is said before anyone reads is kept for the
+-- first reader. The stream ends when the session ends; for a session this
+-- module opens with its client, once that client's closing flush is done.
+errors :: Session -> (Stream (Of (Either SessionError TransportError)) IO () -> IO result) -> IO result
+errors session consume = Broadcast.withSubscription (said session) $ \reader ->
+  let reading = do
+        value <- liftIO (atomically (Broadcast.next reader))
+        case value of Nothing -> pure (); Just next -> Stream.yield next >> reading
+  in consume reading
 ready :: Session -> IO ()
 ready session = atomically (readTMVar (initialized session)) >>= either throwIO pure
 expiresAt :: Session -> STM (Maybe Scientific)
@@ -100,7 +120,8 @@ newSession :: Client.Client -> SessionOptions -> Retry.RetryOptions -> Timing.Se
 newSession owned options time settings = do
   initial <- seed options
   shared <- atomically (State.newStateValue initial)
-  construct owned options time settings shared
+  stream <- atomically Broadcast.newKeptEvents
+  construct owned options time settings shared stream
 
 seed :: SessionOptions -> IO (Maybe Text)
 seed options = do
@@ -114,11 +135,13 @@ seed options = do
 
 -- | The transport reads the session's actual token cell. Its renewal callback
 -- waits for construction, so even a refusal on the first stream uses this
--- session. The returned closer joins both owners, session before client.
+-- session. The returned closer stops the session's work, closes the client,
+-- its closing flush done, and only then ends the session's errors.
 fromHttp :: Http.HttpOptions -> Maybe Client.CachePersistence -> SessionOptions -> IO OpenedSession
 fromHttp http persistence options = mask $ \restore -> do
   initial <- restore (seed options)
   shared <- atomically (State.newStateValue initial)
+  stream <- atomically Broadcast.newKeptEvents
   holder <- newEmptyTMVarIO :: IO (TMVar (Either SomeException Session))
   let readToken = atomically (State.current shared)
       refreshRefused refused = do
@@ -126,11 +149,12 @@ fromHttp http persistence options = mask $ \restore -> do
         refresh session (Just refused)
       actual = http { Http.httpToken=readToken, Http.httpRenewToken=refreshRefused }
   owned <- restore (Client.fromHttp actual persistence)
-  outcome <- try (restore (construct owned options (Http.httpTime http) (Http.httpTiming http) shared))
+  outcome <- try (restore (construct owned options (Http.httpTime http) (Http.httpTiming http) shared stream))
   atomically (putTMVar holder outcome)
   case outcome of
     Left problem -> Client.dispose owned >> throwIO problem
-    Right session -> pure (OpenedSession session (dispose session `finally` Client.dispose owned))
+    Right session -> pure (OpenedSession session (halt session `finally` (Client.dispose owned
+      `finally` (void (waitCatch (forwarding session)) `finally` silence session))))
 
 -- | Persist an issued grant and own its rotating refresh callback. A person's
 -- confirmation, when required, is the validate callback in SessionOptions.
@@ -214,10 +238,11 @@ httpTarget options = case kbTargetEndpoint (sessionKb options) of
     "This sign-in requires an HTTP knowledge base" (kbTargetId (sessionKb options)))
 
 construct :: Client.Client -> SessionOptions -> Retry.RetryOptions -> Timing.Settings
-  -> State.StateValue (Maybe Text) -> IO Session
-construct owned options time settings shared = mask $ \restore -> do
+  -> State.StateValue (Maybe Text) -> Broadcast.Broadcast (Either SessionError TransportError) -> IO Session
+construct owned options time settings shared stream = mask $ \restore -> do
   lifetime <- Lifetime.newLifetime "Session is closed"
   person <- atomically (State.newStateValue Nothing)
+  handed <- newTVarIO Nothing
   done <- newEmptyTMVarIO
   queue <- newTQueueIO
   flight <- newTVarIO Nothing
@@ -228,6 +253,7 @@ construct owned options time settings shared = mask $ \restore -> do
       modifyTVar' generation (+1)
       version <- readTVar generation
       State.update shared (storedSessionAccess <$> stored)
+      writeTVar handed Nothing
       when (stored==Nothing) (State.update person Nothing)
       writeTQueue queue (Changed version stored)) `onException` Lifetime.close lifetime
   released <- newTVarIO False
@@ -237,7 +263,8 @@ construct owned options time settings shared = mask $ \restore -> do
           writeTVar released True
           pure (not previous)
         when first (maybe (pure ()) Prelude.id detach)
-      session = Session options owned time settings lifetime shared person done queue flight generation detachOnce
+  forwarder <- forward restore owned stream `onException` (detachOnce `finally` Lifetime.close lifetime)
+  let session = Session options owned time settings lifetime shared handed person done queue flight generation detachOnce stream forwarder
       finish = do
         atomically $ do
           let failure = Left (toException (BusRequestError Code.BusRequestClosed "Session is closed" Nothing))
@@ -253,8 +280,19 @@ construct owned options time settings shared = mask $ \restore -> do
         atomically (putTMVar done started)
         either throwIO (const (loop session schedule)) started
   void (Lifetime.start lifetime (restore work `finally` finish))
-    `onException` (unsubscribe session `finally` Lifetime.close lifetime)
+    `onException` (unsubscribe session `finally` Lifetime.close lifetime `finally` cancel forwarder)
   pure session
+
+-- | Says each of the client's transport failures on the session's stream,
+-- from before this returns until the transport ends.
+forward :: (forall a. IO a -> IO a) -> Client.Client -> Broadcast.Broadcast (Either SessionError TransportError) -> IO (Async ())
+forward restore owned stream = do
+  subscribed <- newEmptyTMVarIO
+  forwarder <- tracedAsync $ restore $ Transport.errors (Client.transport owned) $ \failures -> do
+    atomically (putTMVar subscribed ())
+    Stream.mapM_ (atomically . Broadcast.publish stream . Right) failures
+  atomically (readTMVar subscribed `orElse` void (waitCatchSTM forwarder))
+  pure forwarder
 
 -- | Refusal of an already replaced token returns the held token immediately,
 -- in the same transaction that chooses whether a renewal must be queued.
@@ -312,8 +350,10 @@ attempt session = case sessionRefresh (configuration session) of
   Nothing -> pure NoGrant
   Just action -> do
     version <- readTVarIO (revision session)
-    currentAccess <- atomically (State.current (token session))
-    outcome <- trySync (action currentAccess)
+    renewed <- atomically $ do
+      current <- State.current (token session)
+      maybe (readTVar (renewing session)) (pure . Just) current
+    outcome <- trySync (action renewed)
     current <- readTVarIO (revision session)
     pure $ if current/=version then Superseded else case outcome of
       Right (Just value) -> Renewed value
@@ -341,6 +381,7 @@ startup session schedule = do
       now <- sessionWallNow (configuration session)
       let expired = Tokens.isTokenExpired (storedSessionAccess value) now
       if not expired then validate session schedule (storedSessionAccess value) False True else do
+        atomically (writeTVar (renewing session) (Just (storedSessionAccess value)))
         outcome <- attempt session
         case outcome of
           Renewed access -> accept session schedule access >> validate session schedule access True True
@@ -348,7 +389,7 @@ startup session schedule = do
           NoGrant -> forget session >> clear session schedule
           Unrenewed True -> forget session >> clear session schedule
           Unrenewed False -> do
-            atomically (State.update (token session) Nothing)
+            withhold session
             later session schedule
             report session Code.SessionAuthFailed "The issuer could not renew the stored credential"
 
@@ -376,25 +417,40 @@ renew session schedule ask reportUnreachable = do
   case outcome of
     Superseded -> pure ()
     NoGrant -> do
-      kept <- SignIn.held (sessionKept (configuration session))
+      kept <- trySync (SignIn.held (sessionKept (configuration session)))
       case kept of
-        Nothing -> do
-          atomically (State.update (token session) Nothing >> State.update (user session) Nothing)
+        Left _ -> unanswered
+        Right Nothing -> do
+          atomically (State.update (token session) Nothing >> State.update (user session) Nothing
+            >> writeTVar (renewing session) Nothing)
           clear session schedule
-        Just _ -> signedOut session schedule SessionEndReasonExpired Code.SessionRefreshExhausted
+        Right (Just _) -> signedOut session schedule SessionEndReasonExpired Code.SessionRefreshExhausted
     Renewed access -> do
       accept session schedule access
       when ask (validate session schedule access True reportUnreachable)
     Unrenewed terminal -> do
-      stored <- SignIn.held (sessionKept (configuration session))
+      stored <- trySync (SignIn.held (sessionKept (configuration session)))
       case stored of
-        Nothing | not hadToken && not hadPerson -> atomically (State.update (token session) Nothing) >> clear session schedule
+        Left _ -> unanswered
+        Right Nothing | not hadToken && not hadPerson -> do
+          atomically (State.update (token session) Nothing >> writeTVar (renewing session) Nothing)
+          clear session schedule
         _ | terminal -> signedOut session schedule SessionEndReasonExpired Code.SessionRefreshExhausted
-        _ -> do
-          atomically (State.update (token session) Nothing)
-          later session schedule
-          report session Code.SessionRefreshExhausted "The issuer could not renew the credential"
+        _ -> unanswered
   atomically (State.current (token session))
+  where
+    unanswered = do
+      withhold session
+      later session schedule
+      report session Code.SessionRefreshExhausted "The issuer could not renew the credential"
+
+-- | A renewal got no answer: no token is held, and the next renewal is for
+-- the one this was for.
+withhold :: Session -> IO ()
+withhold session = atomically $ do
+  current <- State.current (token session)
+  forM_ current (writeTVar (renewing session) . Just)
+  State.update (token session) Nothing
 
 accept :: Session -> IORef Schedule -> Text -> IO ()
 accept session schedule access = do
@@ -405,7 +461,8 @@ accept session schedule access = do
 forget :: Session -> IO ()
 forget session = do
   SignIn.forget (sessionKept (configuration session))
-  atomically (modifyTVar' (revision session) (+1) >> State.update (token session) Nothing >> State.update (user session) Nothing)
+  atomically (modifyTVar' (revision session) (+1) >> State.update (token session) Nothing >> State.update (user session) Nothing
+    >> writeTVar (renewing session) Nothing)
 
 signedOut :: Session -> IORef Schedule -> SessionEndReason -> Code.SessionCode -> IO ()
 signedOut session schedule reason code = do
@@ -415,7 +472,7 @@ signedOut session schedule reason code = do
   report session code (case reason of SessionEndReasonExpired -> "The credential could not be renewed"; SessionEndReasonRefused -> "The gateway refused a newly issued credential")
 
 report :: Session -> Code.SessionCode -> Text -> IO ()
-report session code message = sessionOnError (configuration session) (SessionError code message (kbTargetId (kb session)))
+report session code message = atomically (Broadcast.publish (said session) (Left (SessionError code message (kbTargetId (kb session)))))
 
 clear :: Session -> IORef Schedule -> IO ()
 clear session schedule = writeIORef schedule (Schedule Nothing (Timing.reconnectMs (timings session)))
@@ -437,6 +494,14 @@ later session schedule = do
   let wait = ceiling (fromInteger (step*1000000)*(1+toRational draw)/2)
   writeIORef schedule (Schedule (Just (now+wait,Unanswered)) (min (2*step) (Timing.maxReconnectMs (timings session))))
 
+-- | Ends the session's work, observations and errors stream. The client
+-- stays its owner's.
 dispose :: Session -> IO ()
-dispose session = Lifetime.close (life session) `finally`
+dispose session = halt session `finally` (cancel (forwarding session) `finally` silence session)
+
+halt :: Session -> IO ()
+halt session = Lifetime.close (life session) `finally`
   (unsubscribe session `finally` atomically (State.complete (token session) >> State.complete (user session)))
+
+silence :: Session -> IO ()
+silence session = atomically (Broadcast.close (said session))

@@ -14,6 +14,7 @@ import qualified Data.UUID.Types as UUID
 import qualified Data.ByteString as Bytes
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Either (lefts)
 import Data.Foldable (toList)
 import Data.List (find)
 import Data.IORef
@@ -33,13 +34,14 @@ import qualified Semiont.StateValue as State
 import qualified Semiont.Transport as Transport
 import qualified Semiont.Issuer as Issuer
 import qualified Semiont.ErrorCodes as Code
-import Semiont.Errors (SignInError(..), TransportError(..), SessionError(..))
+import Semiont.Errors (SignInError(..), TransportError(..))
 import qualified Semiont.Retry as Retry
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Timing as Budget
 import Semiont.Types
+import qualified Streaming.Prelude as Stream
 import qualified ControlledTime as Time
 -- Runs protocol/specs/src/client/clock-cases.json through the shared clock runner.
 import ClockCases (clockCasesFor, Scenario(..))
@@ -186,8 +188,7 @@ issuerCases fixtures = do
   atomically (writeTVar status 200 >> writeTVar tokenBody (object ["access_token" .= String "fresh"]))
   let targetKb=KbTarget (KbEndpointBranch1 endpoint) "http-factory" "HTTP factory" KM.empty
       sessionOptions=Session.SessionOptions "http-factory" targetKb (Stored.keptIn storage (kbTargetId targetKb)) Nothing Nothing Nothing
-        (const (ioError (userError "factory unexpectedly ended sign-in")))
-        (const (ioError (userError "factory reported a startup failure"))) (pure 1800000000)
+        (const (ioError (userError "factory unexpectedly ended sign-in"))) (pure 1800000000)
       http=Http.HttpOptions "http://unused.test:1" (Issuer.issuerHttpClient options)
         (ioError (userError "factory did not replace the original token reader"))
         (const (ioError (userError "factory did not replace the original renewer")))
@@ -209,8 +210,9 @@ issuerCases fixtures = do
     Session.closeOpenedSession opened
     require "opened session closer left the client open" . (==Transport.Closed)
       =<< atomically (State.current (Client.state (Session.client session)))
+    require "factory said a startup failure" . null . lefts =<< Session.errors session Stream.toList_
   let agentKb=targetKb { kbTargetId="agent-factory" }
-      agentOptions=sessionOptions { Session.sessionKb=agentKb, Session.sessionOnError=const (pure ()) }
+      agentOptions=sessionOptions { Session.sessionKb=agentKb }
   atomically (writeTVar identities [503,200])
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service -> do
     opening <- async (Session.signInAgent http Nothing agentOptions (Budget.RetryBudget 2 10 20) service)
@@ -240,11 +242,9 @@ issuerCases fixtures = do
     require "agent disposal disposed its borrowed service account" . (=="fresh") =<< Service.token service
   atomically (writeTVar identities [401])
   ended <- newTVarIO []
-  errors <- newTVarIO []
   beforeRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
   let refusedOptions=agentOptions {
-        Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[reason])),
-        Session.sessionOnError = \failure -> atomically (modifyTVar' errors (<>[sessionErrorCode failure])) }
+        Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[reason])) }
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service ->
     bracket (async (try (Session.signInAgent http Nothing refusedOptions (Budget.RetryBudget 2 10 20) service)
       :: IO (Either TransportError Session.OpenedSession))) cancel $ \attempt -> do
@@ -256,7 +256,6 @@ issuerCases fixtures = do
   afterRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
   require "agent refusal caused extra account grants" (afterRefusal==beforeRefusal+1)
   require "agent refusal was not reported as a refused session" . (==[SessionEndReasonRefused]) =<< readTVarIO ended
-  require "agent refusal lost the session diagnostic" . (==[Code.SessionCredentialRefused]) =<< readTVarIO errors
   putStrLn "PASS issuer discovery, RFC PKCE, one-shot redirect, atomic rotation, explicit credentials and agent startup over real HTTP parsing"
 
 deviceClockCases :: FilePath -> IO [Text]

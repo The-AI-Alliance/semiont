@@ -32,8 +32,7 @@ newHttpSessionFactory http wall = SessionFactory open revoke
           kept=Stored.keptIn (sessionFactoryOptionsStorage options) (knowledgeBaseId kb)
           settings=Session.SessionOptions (knowledgeBaseId kb) (KbTarget (knowledgeBaseEndpoint kb) (knowledgeBaseId kb) (knowledgeBaseLabel kb) mempty) kept
             Nothing Nothing (Just validate)
-            (atomically . Signals.notifySessionEnded (sessionFactoryOptionsSignals options))
-            (sessionFactoryOptionsOnError options) wall
+            (atomically . Signals.notifySessionEnded (sessionFactoryOptionsSignals options)) wall
           persistence=Just (Client.CachePersistence (sessionFactoryOptionsStorage options) (knowledgeBaseId kb) ((*1000) <$> wall))
       Session.fromKeptSession http persistence settings
     validate client access=case Client.auth client of

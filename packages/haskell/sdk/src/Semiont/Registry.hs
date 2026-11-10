@@ -14,7 +14,7 @@ module Semiont.Registry
   ) where
 
 import Control.Concurrent (myThreadId)
-import Control.Concurrent.Async (Async, asyncThreadId, cancel, wait, mapConcurrently)
+import Control.Concurrent.Async (Async, asyncThreadId, wait, waitCatch, mapConcurrently)
 import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 import Control.Concurrent.QSem (newQSem, waitQSem, signalQSem)
 import Control.Concurrent.MVar
@@ -177,7 +177,7 @@ project owner=do
       State.update (viewed owner) (KM.lookup key lastSeen >>= readValue)
 
 closeLive :: Live -> IO ()
-closeLive (Live _ openedSession signals routing)=Session.closeOpenedSession openedSession `finally` (cancel routing `finally` Signals.dispose signals)
+closeLive (Live _ openedSession signals routing)=Session.closeOpenedSession openedSession `finally` (void (waitCatch routing) `finally` Signals.dispose signals)
 takeLive :: SemiontBrowser -> STM (Maybe Live)
 takeLive owner=do
   previous <- readTVar (live owner)
@@ -240,7 +240,8 @@ activate owner version key=do
           Nothing -> throwIO problem
         Right openedSession -> do
           let session=Session.openedSession openedSession
-              route failure=atomically $ do
+              route (Left failure)=failed failure
+              route (Right failure)=atomically $ do
                 case transportErrorCode failure of
                   Code.TransportForbidden -> Signals.notifyPermissionDenied signals (Just (transportErrorMessage failure))
                   _ -> pure ()

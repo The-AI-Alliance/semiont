@@ -99,8 +99,7 @@ rig time fixtures = do
         kept <- SignIn.newMemorySignIn
         let target=KbTarget (knowledgeBaseEndpoint kb) (knowledgeBaseId kb) (knowledgeBaseLabel kb) mempty
             settings=Session.SessionOptions (knowledgeBaseId kb) target kept Nothing Nothing Nothing
-              (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals inputs))
-              (Factory.sessionFactoryOptionsOnError inputs) (pure 1800000000)
+              (atomically . Signals.notifySessionEnded (Factory.sessionFactoryOptionsSignals inputs)) (pure 1800000000)
         session <- Session.newSession client settings clock Timing.protocolSettings
         closed <- newTVarIO False
         let close=do
