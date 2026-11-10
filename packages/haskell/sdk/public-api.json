@@ -457,7 +457,7 @@
     "internal/Semiont/Internal/Utf8.hs": "d06e96469c355ed9546f4a5d10d6f0070a7098374e9573bde91e99d0e7eb3374",
     "internal/Semiont/Internal/Yield.hs": "60b3761d09694f46fd82d6ad07adbdd7ae65f247768d722dd3ce1642f955a0ea",
     "public-api.inputs.json": "daff8f71925f0b59ac4d58a29fe25a0173117fdb28467c41cb565fcadcf61b00",
-    "semiont.cabal.in": "45cf6b8afa59c1ef71beafc98084f198b39170cc2dbac1f8f20221341d44a204",
+    "semiont.cabal.in": "3144fad0468edbf98eee399b254d41a47603b10801361c7542e5e7fcf249ff8c",
     "src/Semiont/Annotations.hs": "46055e3f3081f92d6e79d8ac1d75c67a3639a7604a5f76e71b04d418c6c508e8",
     "src/Semiont/Auth.hs": "17e1e25fdd2bb6e80e54abd3a015374d1806f4e900afb4e931e54db2dfa5e5d2",
     "src/Semiont/Beckon.hs": "c6e90eab2db81fbb73f990c15eb6e818051b2790ffdaf4f7a2ff29fdccc5ecff",
