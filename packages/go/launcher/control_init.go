@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,17 @@ import (
 // controlRootsInit: initialize a local clone through semiont init itself, so
 // the machine API and the command share one implementation of KB birth.
 func controlRootsInit(req *controlRequest, u *UI) (any, *controlFailure) {
+	return controlRootsInitWith(req, u, os.Executable, exec.CommandContext)
+}
+
+// controlRootsInitWith keeps process discovery and invocation injectable for
+// tests without splitting the machine API's implementation from `semiont init`.
+func controlRootsInitWith(
+	req *controlRequest,
+	u *UI,
+	findExecutable func() (string, error),
+	command func(context.Context, string, ...string) *exec.Cmd,
+) (any, *controlFailure) {
 	var p ControlRootsInitParams
 	if f := req.decode(&p); f != nil {
 		return nil, f
@@ -25,7 +37,7 @@ func controlRootsInit(req *controlRequest, u *UI) (any, *controlFailure) {
 		return nil, failed(u, controlCodeInvalidRequest)
 	}
 
-	executable, err := os.Executable()
+	executable, err := findExecutable()
 	if err != nil {
 		u.Fail("cannot locate the launcher executable: %v", err)
 		return nil, failed(u, controlCodeFailed)
@@ -50,7 +62,7 @@ func controlRootsInit(req *controlRequest, u *UI) (any, *controlFailure) {
 	add("--ollama-registry", p.OllamaRegistry)
 
 	output := &controlInitOutput{ui: u}
-	cmd := exec.CommandContext(req.ctx, executable, args...)
+	cmd := command(req.ctx, executable, args...)
 	cmd.Dir = p.Path
 	cmd.Env = withoutSemiontRoot(os.Environ())
 	cmd.Stdout, cmd.Stderr = output, output
