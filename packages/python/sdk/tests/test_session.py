@@ -593,7 +593,7 @@ def test_an_idle_session_renews_its_token_once_per_half_life_and_no_oftener() ->
     run(scenario())
 
 
-def test_each_renewal_is_handed_the_token_the_session_holds() -> None:
+def test_each_renewal_is_handed_the_token_it_renews() -> None:
     first, due, renewed = token(300, 0), token(300, 1), token(3600, 2)
     world = World(kept=first, renewals=[due, unanswered_by_the_issuer(), renewed])
 
@@ -607,9 +607,10 @@ def test_each_renewal_is_handed_the_token_the_session_holds() -> None:
             # Refused by the gateway: the token refused, which it holds; the renewal gets no answer.
             assert await soon(session.refresh(session.token.value)) is None
             assert world.handed == [first, due]
-            # On the reconnect backoff it holds none, and is handed none.
+            # On the reconnect backoff it holds none, and is handed the token
+            # whose renewal got no answer: the one it renews.
             await pass_time(FIRST_RETRY_HELD, step=0.1)
-            assert world.handed == [first, due, None]
+            assert world.handed == [first, due, due]
             assert session.token.value == renewed
 
     run(scenario())
