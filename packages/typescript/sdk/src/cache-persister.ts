@@ -21,7 +21,7 @@
 
 import { CACHE_VALUES, MAX_STORED_BYTES_COUNT, faultOf, isAnnotationId, isObject, isResourceId, isString } from '@semiont/core';
 import type { AnnotationId, CachePer, CacheValues, PersistedQuery, ResourceId } from '@semiont/core';
-import type { CachePersister } from './cache';
+import { warnRefusedSave, type CachePersister } from './cache';
 import type { SemiontClient } from './client';
 import { SemiontSessionError } from './session/errors';
 import type { SessionStorage } from './session/session-storage';
@@ -41,6 +41,24 @@ export interface CachePersistence {
 }
 
 /**
+ * B17 — where a save each persistence a session keeps for its person
+ * (`personKeeping`) is refused is told: the session's errors. Written by
+ * `personKeeping`, read by `refusedSaveOf`. Held here rather than on the
+ * persistence, so that a session's saying is no part of what a client is
+ * given.
+ */
+const refusalsOf = new WeakMap<CachePersistence, (cause: unknown) => void>();
+
+/**
+ * Where a save `persistence`'s storage refuses is told: the session's
+ * errors, as `session.save-refused`, for one a session keeps for its person;
+ * a console line for one a client was given directly, which has no session.
+ */
+export function refusedSaveOf(persistence: CachePersistence): (cause: unknown) => void {
+  return refusalsOf.get(persistence) ?? warnRefusedSave;
+}
+
+/**
  * `storage`, written for one person only while the sign-in `kept` holds names
  * them, as `kept` says before each write. Once it does not (the sign-in was
  * forgotten, here or in another context, or another sign-in replaced it), it
@@ -49,17 +67,20 @@ export interface CachePersistence {
  * put back what forgetting it deleted. A renewal keeps the person, so writes
  * go on through it. A sign-in that cannot be read counts as one that no
  * longer names the person, and `unreadable` is told of it once, as it
- * happens. A write `storage` refuses is its own failure, and is let through.
+ * happens. Once `ended` says the keeping is over for another reason, it
+ * writes nothing more either. A write `storage` refuses is its own failure,
+ * and is let through.
  */
 export function whileSignedIn(
   storage: SessionStorage,
   kept: SignInKept,
   personKey: string,
   unreadable: (cause: unknown) => void,
+  ended: () => boolean,
 ): SessionStorage {
   let signedOut = false;
   const signedIn = (): boolean => {
-    if (signedOut) return false;
+    if (signedOut || ended()) return false;
     let held: StoredSession | null;
     try {
       held = kept.held();
@@ -292,7 +313,9 @@ export interface PersonKeeping {
    * on the kept sign-in while it still holds `token`, and a session keeping
    * nothing yet keeps for them from now on: the places coupled to `client`,
    * its kept caches attached, and `transport` given the places kept for the
-   * scopes it holds none for.
+   * scopes it holds none for. A sign-in that cannot record them is said as
+   * `session.keep-failed`, once, and the client keeps nothing more: what
+   * kept from the start writes nothing after it, and nothing begins.
    */
   named(
     token: string,
@@ -306,26 +329,40 @@ export interface PersonKeeping {
  * B17 — what a session over the sign-in `kept` keeps on the knowledge base
  * `kbId`, in `storage`, for the person the sign-in names: written only while
  * it names them (`whileSignedIn`), the places carried by the caches' writes.
- * A sign-in that cannot be read before a save is told to `keepFailed` once,
- * as `session.keep-failed`: the client keeps nothing more.
+ * What goes wrong with it is said as the session's own error, to `say`: a
+ * sign-in that cannot be read before a save, or cannot record the person the
+ * gateway named, as `session.keep-failed`, once, and the client keeps
+ * nothing more for the rest of its life; each write the storage refuses, as
+ * `session.save-refused`, the save then owed.
  */
 export function personKeeping(
   storage: SessionStorage,
   kbId: string,
   kept: SignInKept,
-  keepFailed: (error: SemiontSessionError) => void,
+  say: (error: SemiontSessionError) => void,
 ): PersonKeeping {
-  const unreadable = (cause: unknown): void => {
-    const why = cause instanceof Error ? cause.message : String(cause);
-    keepFailed(new SemiontSessionError(
-      'session.keep-failed',
-      `The sign-in could not be read before what the client keeps was saved, so it keeps nothing more: ${why}`,
-      kbId,
-    ));
+  const said = (code: 'session.keep-failed' | 'session.save-refused', what: string, cause: unknown): void => {
+    say(new SemiontSessionError(code, `${what}: ${cause instanceof Error ? cause.message : String(cause)}`, kbId));
   };
+  /** Whether the client keeps nothing more for the rest of its life, as `session.keep-failed` said once. */
+  let keepsNothingMore = false;
+  const keepFailed = (what: string, cause: unknown): void => {
+    if (keepsNothingMore) return;
+    keepsNothingMore = true;
+    said('session.keep-failed', what, cause);
+  };
+  const unreadable = (cause: unknown): void =>
+    keepFailed('The sign-in could not be read before what the client keeps was saved, so it keeps nothing more', cause);
+  const refused = (cause: unknown): void =>
+    said('session.save-refused', "The storage refused a write of what the client keeps, which is owed until the client's next change or its closing", cause);
   const keepingFor = (person: string): Keeping => {
-    const places = coupledLastEventId(whileSignedIn(storage, kept, person, unreadable), lastEventIdKey(kbId, person));
-    return { places, persistence: { storage: places.storage, kbId, personKey: person } };
+    const places = coupledLastEventId(
+      whileSignedIn(storage, kept, person, unreadable, () => keepsNothingMore),
+      lastEventIdKey(kbId, person),
+    );
+    const persistence: CachePersistence = { storage: places.storage, kbId, personKey: person };
+    refusalsOf.set(persistence, refused);
+    return { places, persistence };
   };
   const named = kept.held()?.personKey;
   const fromStart = named === undefined ? null : keepingFor(named);
@@ -336,8 +373,16 @@ export function personKeeping(
       if (keeping !== null) keeping.places.saveLastEventId(scope, id);
     },
     named: (token, did, client, transport) => {
+      if (keepsNothingMore) return;
       const person = personKey(did);
-      if (!kept.recordPersonKey(token, person) || keeping !== null) return;
+      let recorded: boolean;
+      try {
+        recorded = kept.recordPersonKey(token, person);
+      } catch (cause) {
+        keepFailed('The sign-in could not record the person the gateway named, so the client keeps nothing more', cause);
+        return;
+      }
+      if (!recorded || keeping !== null) return;
       const begun = keepingFor(person);
       keeping = begun;
       begun.places.coupleTo(client);

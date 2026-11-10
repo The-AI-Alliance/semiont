@@ -490,8 +490,8 @@ dropping cannot do: wait.
 |---|---|---|
 | `SemiontClient` | Its queries end, its transport closes so that every request still pending fails as closed, and its own bus ends. | Its queries and its own bus end. The transport is left to whoever else holds it. |
 | `SemiontSession` | It is a state unit: `dispose()`, which is not async, stops its renewal and ends what it holds. Its client is left open. | The same. |
-| `OpenedSession` | Its session ends, then its client is closed. | Its session ends. The client is dropped with it, not closed. |
-| `SemiontBrowser` | The active session ends, then its client is closed, and everything it holds ends. The first failure of what it ran in the background is its error. | Everything it holds ends. The active session is dropped, and its client with it, not closed. |
+| `OpenedSession` | Its client is closed, then its session ends. | Its session ends. The client is dropped with it, not closed. |
+| `SemiontBrowser` | The active session's client is closed, then the session ends, and everything it holds ends. The first failure of what it ran in the background is its error. | Everything it holds ends. The active session is dropped, and its client with it, not closed. |
 | a state unit | `dispose()`, which is not async: it is inert and its readers have ended. | The same. |
 | `Running<T>`, `Delegation<C>`, `Upload` | | The operation is abandoned; an upload is cancelled. |
 | a watcher of a query | | The resource's scope it held is let go. |

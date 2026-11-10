@@ -77,7 +77,7 @@ type transportShared struct {
 	random   *rand.Rand
 	hub      *FrameHub
 	router   *ReplyRouter
-	failures *failureStream
+	failures *failureStream[*TransportError]
 }
 
 // HTTPTransport is the Transport over HTTP. Its stream opens in the
@@ -109,7 +109,7 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		random:    config.Random,
 		hub:       NewFrameHub(),
 		router:    NewReplyRouter(),
-		failures:  newFailureStream(),
+		failures:  newFailureStream[*TransportError](),
 	}
 	state := NewVariable(ConnectionStateInitial)
 	s := newStream(shared, state, config.Bookmarks)

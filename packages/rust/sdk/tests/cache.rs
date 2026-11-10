@@ -772,7 +772,7 @@ async fn b17_a_save_that_fails_leaves_the_cache_as_it_was_and_the_next_save_trie
     cache.set(&key("a"), key("one"));
     tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
     assert_eq!(kept.saves().len(), 1);
-    assert!(!cache.persistence_pending());
+    assert!(cache.persistence_pending(), "a refused save stays owed");
     assert_eq!(cache.get(&key("a")), Some(key("one")));
 
     kept.full.store(false, Ordering::SeqCst);

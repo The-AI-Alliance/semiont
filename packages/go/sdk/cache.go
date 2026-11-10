@@ -102,7 +102,10 @@ type Cache[K comparable, V any] struct {
 	fetch     func(ctx context.Context, key K) (V, error)
 	run       func(work func(ctx context.Context))
 	persister CachePersister[K, V]
-	saveWait  time.Duration
+	// refused is told each save the persister refuses, as the persister
+	// answered it.
+	refused  func(error)
+	saveWait time.Duration
 	// saves is held by each save from the moment it takes the values until
 	// the persister has answered, and by Close throughout: one save at a
 	// time. Taken before mu, never while mu is held.
@@ -125,26 +128,28 @@ var _ StateUnit = (*Cache[string, string])(nil)
 
 // NewCache is a cache whose fetches run by run and ask fetch. With a
 // persister, it begins with what that kept, and saves to it saveWait after
-// its values last changed; persister is nil for a cache that keeps nothing.
+// its values last changed, logging a save the persister refuses; persister is
+// nil for a cache that keeps nothing.
 func NewCache[K comparable, V any](fetch func(ctx context.Context, key K) (V, error), run func(work func(ctx context.Context)), persister CachePersister[K, V], saveWait time.Duration) *Cache[K, V] {
 	c := &Cache[K, V]{fetch: fetch, run: run, saveWait: saveWait, keys: map[K]*cacheKey[V]{}, kept: map[K]bool{}}
 	if persister != nil {
-		c.attach(persister)
+		c.attach(persister, unsaved)
 	}
 	return c
 }
 
 // attach has a cache that keeps nothing keep its values in persister from
-// now on. What persister kept is shown for each key the cache holds nothing
-// of, and is asked for again the first time it is observed; a key the cache
-// holds stands. Nothing is saved until a value changes.
-func (c *Cache[K, V]) attach(persister CachePersister[K, V]) {
+// now on, telling refused each save the persister refuses. What persister
+// kept is shown for each key the cache holds nothing of, and is asked for
+// again the first time it is observed; a key the cache holds stands. Nothing
+// is saved until a value changes.
+func (c *Cache[K, V]) attach(persister CachePersister[K, V], refused func(error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
 		return
 	}
-	c.persister = persister
+	c.persister, c.refused = persister, refused
 	for key, value := range persister.Load() {
 		if _, held := c.keys[key]; held {
 			continue
@@ -187,7 +192,8 @@ func (c *Cache[K, V]) values() map[K]V {
 // While the save is being made nothing is owed, so the write it makes reads
 // this cache as at rest; a save the persister refuses is owed again, and is
 // made by the next change or by the cache's closing, never by a timer of its
-// own. Close waits for a save being made, so it reads a refusal's owing.
+// own. Close waits for a save being made, so it reads a refusal's owing. The
+// refusal is told once the save is owed again, as the persister refused it.
 // Called with mu held.
 func (c *Cache[K, V]) oweASave() {
 	if c.persister == nil {
@@ -197,7 +203,7 @@ func (c *Cache[K, V]) oweASave() {
 	if c.saving != nil {
 		c.saving.Stop()
 	}
-	persister := c.persister
+	persister, refused := c.persister, c.refused
 	c.saving = time.AfterFunc(c.saveWait, func() {
 		c.saves.Lock()
 		defer c.saves.Unlock()
@@ -211,18 +217,19 @@ func (c *Cache[K, V]) oweASave() {
 		values := c.values()
 		c.mu.Unlock()
 		if err := persister.Save(values); err != nil {
-			unsaved(err)
 			// Close is waiting for saves, if it has begun: it has not yet read
 			// what is owed.
 			c.mu.Lock()
 			c.owed = true
 			c.mu.Unlock()
+			refused(err)
 		}
 	})
 }
 
-// unsaved says that the cache's values were not kept. Keeping them is a
-// convenience: the cache goes on as it was, and the save stays owed.
+// unsaved logs that a cache's values were not kept, for a client no session
+// keeps for. Keeping them is a convenience: the cache goes on as it was, and
+// the save stays owed.
 func unsaved(err error) {
 	slog.Warn("semiont: the cache's values were not kept", "error", err)
 }
@@ -506,7 +513,7 @@ func (c *Cache[K, V]) Close() {
 		c.owed = false
 		owed = c.values()
 	}
-	persister := c.persister
+	persister, refused := c.persister, c.refused
 	c.closed = true
 	for _, k := range c.keys {
 		close(k.changed)
@@ -516,7 +523,8 @@ func (c *Cache[K, V]) Close() {
 	c.mu.Unlock()
 	if owed != nil {
 		if err := persister.Save(owed); err != nil {
-			unsaved(err)
+			// Lost: nothing is written after the closing.
+			refused(err)
 		}
 	}
 }

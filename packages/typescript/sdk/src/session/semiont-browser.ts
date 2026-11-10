@@ -985,12 +985,14 @@ export class SemiontBrowser {
   }
 
   /**
-   * End a session the registry's factory made, the client it was made with
-   * (the session only used it), and the signals made beside it.
+   * End a session the registry's factory made: the client it was made with
+   * (the session only used it) first, so that what the client's closing flush
+   * says reaches the session's errors before they end, then the session, and
+   * the signals made beside it.
    */
   private endSession(session: SemiontSession | null, signals: SessionSignals | null): void {
-    session?.dispose();
     session?.client.dispose();
+    session?.dispose();
     signals?.dispose();
   }
 

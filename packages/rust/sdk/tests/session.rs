@@ -126,6 +126,8 @@ struct World {
     renewed: Arc<Mutex<usize>>,
     /// When each renewal was asked for.
     renewed_at: Arc<Mutex<Vec<tokio::time::Instant>>>,
+    /// The token each renewal was handed, in order.
+    handed: Arc<Mutex<Vec<Option<String>>>>,
     /// What the gateway says of a token, in order; Alice once it is spent.
     validations: Arc<Mutex<VecDeque<Validation>>>,
     validated: Arc<Mutex<Vec<String>>>,
@@ -154,6 +156,7 @@ impl World {
             renewals: Arc::default(),
             renewed: Arc::default(),
             renewed_at: Arc::default(),
+            handed: Arc::default(),
             validations: Arc::default(),
             validated: Arc::default(),
             answered: Arc::default(),
@@ -183,7 +186,7 @@ impl World {
 
     fn config(&self) -> SemiontSessionConfig {
         let (renewals, renewed) = (self.renewals.clone(), self.renewed.clone());
-        let renewed_at = self.renewed_at.clone();
+        let (renewed_at, handed) = (self.renewed_at.clone(), self.handed.clone());
         let (validations, validated) = (self.validations.clone(), self.validated.clone());
         let answered = self.answered.clone();
         let auth_failed = self.auth_failed.clone();
@@ -192,8 +195,9 @@ impl World {
             kept: kept_in(self.storage.clone(), KB),
             client: self.client.clone(),
             token: watch::channel(None).0,
-            refresh: Some(Arc::new(move |_holding| {
+            refresh: Some(Arc::new(move |holding| {
                 *renewed.lock().expect("renewed") += 1;
+                handed.lock().expect("handed").push(holding);
                 renewed_at
                     .lock()
                     .expect("renewed at")
@@ -245,6 +249,19 @@ impl World {
 
     fn renewed(&self) -> usize {
         *self.renewed.lock().expect("renewed")
+    }
+
+    /// Every renewal so far was handed `renewing`, the token it renews
+    /// (protocol/specs/src/session/cases.json): a renewal handed any other
+    /// fails the test.
+    fn each_renewal_was_handed(&self, renewing: Option<&str>, why: &str) {
+        for (n, handed) in self.handed.lock().expect("handed").iter().enumerate() {
+            assert_eq!(
+                handed.as_deref(),
+                renewing,
+                "{why}: what renewal {n} was handed"
+            );
+        }
     }
 
     fn validated(&self) -> Vec<String> {
@@ -696,11 +713,15 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             other => panic!("{why}: the issuer {other}"),
         });
         let world = World::new().validating(validations).renewing(renewing);
-        let world = match case["stored"].as_str().expect("stored") {
-            "none" => world,
-            "unexpired" => world.storing(&token(3600, 0)),
-            "expired" => world.storing(&expired()),
+        let stored = match case["stored"].as_str().expect("stored") {
+            "none" => None,
+            "unexpired" => Some(token(3600, 0)),
+            "expired" => Some(expired()),
             other => panic!("{why}: a stored token that is {other}"),
+        };
+        let world = match &stored {
+            Some(access) => world.storing(access),
+            None => world,
         };
         let session = world.session();
         ready(&session).await;
@@ -710,6 +731,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             (asks, renewals),
             "{why}: how often the gateway and the issuer were asked"
         );
+        world.each_renewal_was_handed(stored.as_deref(), why);
         let ends = match (
             session.token().borrow().is_some(),
             session.user().borrow().is_some(),
@@ -759,6 +781,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
                 (answered_asks, answered_renewals),
                 "{why}: what was asked and renewed once the reconnect wait passed"
             );
+            world.each_renewal_was_handed(stored.as_deref(), why);
             then_ends_as_stated(why, later, &world, &session);
         } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
@@ -824,8 +847,9 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             "unreachable" => Err(unanswered_by_the_issuer()),
             other => panic!("{why}: the issuer {other}"),
         });
+        let started_on = token(3600, 0);
         let world = World::new()
-            .storing(&token(3600, 0))
+            .storing(&started_on)
             .validating(validations)
             .renewing(renewing);
         let session = world.session();
@@ -851,6 +875,7 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             (asks, renewals),
             "{why}: how often the gateway and the issuer were asked"
         );
+        world.each_renewal_was_handed(Some(&started_on), why);
         assert_eq!(
             given.is_some(),
             case["given"].as_bool().expect("given"),
@@ -903,6 +928,7 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
                 (answered_asks, answered_renewals),
                 "{why}: what was asked and renewed once the reconnect wait passed"
             );
+            world.each_renewal_was_handed(Some(&started_on), why);
             then_ends_as_stated(why, later, &world, &session);
         } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;

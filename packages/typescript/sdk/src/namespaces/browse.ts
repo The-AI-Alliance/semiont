@@ -22,7 +22,7 @@ import { Bus, BusRequestError, LIMITS_OPERATIONS } from '@semiont/core';
 import { PERSISTED_QUERIES, type CacheQuery, type CacheRefresh, type CacheValues, type PersistedQuery } from '@semiont/core';
 import { CacheRefresher, ScopedSources, type QueryActs, type RefreshSubject } from '../cache-refresh';
 import { createCache, createPersistableCache, type CacheState, type Cache, type PersistableCache } from '../cache';
-import { WHOLE_KEY, keptPersister, type CachePersistence, type KeptKey, type WholeKey } from '../cache-persister';
+import { WHOLE_KEY, keptPersister, refusedSaveOf, type CachePersistence, type KeptKey, type WholeKey } from '../cache-persister';
 import type {
   BrowseNamespace as IBrowseNamespace,
   AnnotationHistoryResponse,
@@ -233,7 +233,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.tagSchemasCache = tagSchemas.cache;
 
     const keeping = <Q extends PersistedQuery>(query: Q, made: PersistableCache<KeptKey<Q>, CacheValues[Q]>) => (persistence: CachePersistence): PersistableCache<KeptKey<Q>, CacheValues[Q]> => {
-      made.attach(keptPersister(query, persistence));
+      made.attach(keptPersister(query, persistence), refusedSaveOf(persistence));
       return made;
     };
     this.keepers = {

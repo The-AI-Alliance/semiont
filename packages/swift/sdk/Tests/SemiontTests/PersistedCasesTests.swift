@@ -325,24 +325,23 @@ private final class ClosingWrites: SessionFactory {
             session: signIn(
               personKey: named, expired: expired, tokenEndpoint: "http://127.0.0.1:\(port)/token"))
         }
-        let (failures, into) = AsyncStream<any Error>.makeStream()
+        let (failures, into) = AsyncStream<SessionErrorCode>.makeStream()
         let opened = try await HttpSessionFactory(httpClient: http).session(
           SessionFactoryOptions(
             kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
-            onError: { into.yield($0) }))
+            onError: { into.yield($0.reason) }))
         defer { opened.dispose() }
         // Its start ends as the row says: it is ready once it has forgotten the stored sign-in.
         try await withinTestDeadline { try await opened.session.ready() }
-        opened.dispose()
-        into.finish()
-        var ended: [SessionErrorCode] = []
-        for await failure in failures {
-          if let failure = failure as? SessionError { ended.append(failure.reason) }
-        }
-        #expect(try storedSession(storage, kbId: "kb-a") == nil, "\(why): the sign-in is kept")
         if by == "refusal" {
-          #expect(ended.contains(.sessionCredentialRefused), "\(why): it ended \(ended)")
+          // The factory hands on what the session's errors say, as they say it.
+          try await withinTestDeadline {
+            for await code in failures where code == .sessionCredentialRefused { return }
+            throw SpecFailure.shape("\(why): it never ended as session.credential-refused")
+          }
         }
+        opened.dispose()
+        #expect(try storedSession(storage, kbId: "kb-a") == nil, "\(why): the sign-in is kept")
       }
     case let other: throw SpecFailure.shape("by \(other)")
     }
@@ -969,12 +968,12 @@ private final class HeardErrors: Sendable {
     }
   }
 
-  /// Waits until the stream has said a `session.keep-failed`.
-  func keepFailed() async throws {
+  /// Waits until the stream has said a SessionError of `reason`.
+  func said(_ reason: SessionErrorCode) async throws {
     let heard = heard
     try await withinTestDeadline {
-      for await said in heard where !keepFailures(said).isEmpty { return }
-      throw SpecFailure.shape("The errors stream ended before it said session.keep-failed")
+      for await said in heard where !sessionErrors(said, reason).isEmpty { return }
+      throw SpecFailure.shape("The errors stream ended before it said \(reason.rawValue)")
     }
   }
 
@@ -986,9 +985,9 @@ private final class HeardErrors: Sendable {
   }
 }
 
-/// The `session.keep-failed` errors of `said`.
-private func keepFailures(_ said: [any Error]) -> [SessionError] {
-  said.compactMap { $0 as? SessionError }.filter { $0.reason == .sessionKeepFailed }
+/// The SessionErrors of `reason` among `said`.
+private func sessionErrors(_ said: [any Error], _ reason: SessionErrorCode) -> [SessionError] {
+  said.compactMap { $0 as? SessionError }.filter { $0.reason == reason }
 }
 
 @Test func aScriptSessionWhoseSignInCannotBeReadWhenItsClientSavesKeepsNothingMore() async throws {
@@ -1018,7 +1017,7 @@ private func keepFailures(_ said: [any Error]) -> [SessionError] {
     }
     kept.setReadable(false)
     clock.advance(by: .milliseconds(Timings.saveDebounceMs))
-    try await heard.keepFailed()
+    try await heard.said(.sessionKeepFailed)
     #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written by the save")
     #expect(session.token.value != nil, "the session went on")
     // Readable again, the sign-in names jo; the client keeps nothing more all the same.
@@ -1031,7 +1030,7 @@ private func keepFailures(_ said: [any Error]) -> [SessionError] {
     await opened.client.closed()
     #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written after the save")
     let reported = try await heard.ended()
-    let failed = keepFailures(reported)
+    let failed = sessionErrors(reported, .sessionKeepFailed)
     #expect(failed.count == 1, "\(reported)")
     #expect(failed.first?.kbId == "kb-a")
   }
@@ -1072,7 +1071,7 @@ private func keepFailures(_ said: [any Error]) -> [SessionError] {
     await opened.client.closed()
     #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written by the closing save")
     let reported = try await heard.ended()
-    let failed = keepFailures(reported)
+    let failed = sessionErrors(reported, .sessionKeepFailed)
     #expect(failed.count == 1, "\(reported)")
     #expect(failed.first?.kbId == "kb-a")
   }
@@ -1128,7 +1127,7 @@ private struct UnrecordedPerson: Error {}
     await opened.client.closed()
     #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written for nobody recorded")
     let reported = try await heard.ended()
-    let failed = keepFailures(reported)
+    let failed = sessionErrors(reported, .sessionKeepFailed)
     #expect(failed.count == 1, "\(reported)")
     #expect(failed.first?.kbId == "kb-a")
     #expect(
@@ -1153,6 +1152,116 @@ private struct UnrecordedPerson: Error {}
         kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
         httpClient: http, storage: ListedStorage(), clock: TestClock())
     }
+  }
+}
+
+// ── A write the storage refuses ─────────────────────────────────────────
+
+/// What a storage in this process says when it refuses a write.
+private struct RefusedStorageWrite: Error, CustomStringConvertible {
+  var description: String { "the storage refuses every write" }
+}
+
+/// A storage in this process that can say every key it holds, and refuses every write of a value
+/// while it is made to.
+private final class RefusingStorage: SessionStorage {
+  private let listed = ListedStorage()
+  private let refusing = Mutex(false)
+
+  var held: [String: String] { listed.held }
+
+  /// Every later write is refused (true), or made (false).
+  func setRefusing(_ value: Bool) { refusing.withLock { $0 = value } }
+
+  func get(_ key: String) -> String? { listed.get(key) }
+  func set(_ key: String, _ value: String) throws {
+    try refuseWhileRefusing()
+    listed.set(key, value)
+  }
+  func delete(_ key: String) { listed.delete(key) }
+  func update(_ key: String, _ change: @Sendable (String?) throws -> String?) throws {
+    try refuseWhileRefusing()
+    try listed.update(key, change)
+  }
+  func subscribe(_ key: String) -> AsyncStream<String?>? { nil }
+
+  private func refuseWhileRefusing() throws {
+    if refusing.withLock({ $0 }) { throw RefusedStorageWrite() }
+  }
+}
+
+/// `run` with a script session over a sign-in naming jo, whose client keeps in a storage that
+/// takes every write until it is made to refuse them, and owes the save of res-1's value, due
+/// saveDebounceMs from now by a clock that has not moved; what its errors say is heard from its
+/// start.
+private func owingASave(
+  _ run: @Sendable (OpenedSession, RefusingStorage, TestClock, HeardErrors) async throws -> Void
+) async throws {
+  let table = try casesTable()
+  let jo = try personKeyOf(table, "jo")
+  let user = try JSONEncoder().encode(required(table, "whoAmI"))
+  try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
+    let kept = try MemorySignIn(
+      signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
+    let caches = RefusingStorage()
+    let kb = knowledgeBase("kb-a", port: port)
+    let clock = TestClock()
+    let opened = try await sessionFromKept(
+      kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
+      httpClient: http, storage: caches, clock: clock)
+    defer { opened.dispose() }
+    let heard = HeardErrors(opened.session)
+    try await withinTestDeadline { try await opened.session.ready() }
+    let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
+    _ = try await withinTestDeadline { try await observed.first() }
+    observed.stop()
+    let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
+    try await withinTestDeadline {
+      while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
+    }
+    try await run(opened, caches, clock, heard)
+  }
+}
+
+// A write the storage refuses is said once on the session's errors, as session.save-refused with
+// what the storage said, and stays owed: the client's closing writes it.
+@Test func aScriptSessionsRefusedSaveIsSaidOnceAndStaysOwed() async throws {
+  let table = try casesTable()
+  let resourceKey = try keysOf(table, kbId: "kb-a", personKey: personKeyOf(table, "jo"))
+    .query("resource")
+  try await owingASave { opened, caches, clock, heard in
+    caches.setRefusing(true)
+    clock.advance(by: .milliseconds(Timings.saveDebounceMs))
+    try await heard.said(.sessionSaveRefused)
+    #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written by the refused save")
+    #expect(opened.client.keeping?.pending == true, "the refused save is owed no more")
+    caches.setRefusing(false)
+    opened.dispose()
+    await opened.client.closed()
+    let written = try keptValue(caches.held[resourceKey], key: .string("res-1"))
+    #expect(try written?.object["name"] == .string("fresh"), "the closing wrote nothing owed")
+    let reported = try await heard.ended()
+    let refused = sessionErrors(reported, .sessionSaveRefused)
+    #expect(refused.map(\.code) == ["session.save-refused"], "\(reported)")
+    #expect(refused.first?.kbId == "kb-a")
+    #expect(
+      refused.first?.description.contains(RefusedStorageWrite().description) == true,
+      "what the storage said is not said: \(refused)")
+  }
+}
+
+// A write the closing flush cannot make is lost, and its refusal is said once before the
+// session's errors end.
+@Test func aScriptSessionsRefusedClosingSaveIsSaidOnceBeforeItsErrorsEnd() async throws {
+  try await owingASave { opened, caches, _, heard in
+    caches.setRefusing(true)
+    opened.dispose()
+    await opened.client.closed()
+    #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written by the closing save")
+    let reported = try await heard.ended()
+    let refused = sessionErrors(reported, .sessionSaveRefused)
+    #expect(refused.map(\.code) == ["session.save-refused"], "\(reported)")
+    #expect(refused.first?.kbId == "kb-a")
   }
 }
 

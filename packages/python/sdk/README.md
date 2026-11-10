@@ -115,11 +115,17 @@ async def as_me(kb: KbTarget, home: str) -> None:
   renew ends it as `expired`, and a token the issuer has just issued and the
   gateway refuses ends it as `refused` (`on_auth_failed`). The sign-in is
   then forgotten, so a dead credential is never sent again. A renewal that
-  got no answer, whenever it is made, ends nothing: the session holds no
-  token, keeps the sign-in, says why (`session.auth-failed` at its start,
-  `session.refresh-exhausted` after), and renews it on the reconnect backoff
-  or when a request is refused. What a session does at its start and when it is refused is
+  got no answer, whenever it is made, a sign-in that could not be read among
+  them, ends nothing: the session holds no token, keeps the sign-in, says why
+  (`session.auth-failed` at its start, `session.refresh-exhausted` after),
+  and renews it on the reconnect backoff or when a request is refused, handed
+  the token that renewal was for. What a session does at its start and when it is refused is
   [`protocol/specs/src/session/cases.json`][session-cases], row for row.
+- **What went wrong is said once, on `session.errors()`**: the session's own
+  errors, each a `SessionError`, beside its transport's failures. It takes no
+  callback for them. Its first reader hears what the session said as it
+  started, before `session_from_kept` handed it over, and the stream ends
+  only after the closing has written what the client still owed.
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer, a renewal the issuer did not refuse is tried
   again inside a bounded budget, and one under way runs to its end whoever
@@ -388,14 +394,19 @@ async def watch(client: SemiontClient[Transport], resource: ResourceId) -> None:
   description, its annotations, one annotation, the entity types, the tag
   schemas. The next client of the same knowledge base and person shows them
   at once and asks for each anew the first time it is watched.
-  `session_from_kept(..., storage=...)` does this for a session once the
-  gateway names its person and its kept sign-in records them, and keeps the
+  `session_from_kept(..., storage=...)` does this for a session from the
+  start when its kept sign-in names its person, asked or not (`validate`),
+  and otherwise once the gateway names them and the sign-in records them; a
+  session that does not ask keeps for nobody then. It keeps the
   stream's place in each resource's scope with it (`semiont.resume`), so the
   next session is sent what was recorded since. Forgetting a registry's
   stored sign-in, however it is forgotten, signing in again included, deletes
   what was kept for its person. A session the SDK builds writes only while
-  the sign-in it holds names its person; a client you construct with a cache
-  persistence of your own writes unchecked.
+  the sign-in it holds names its person, and says each write its storage
+  refuses on its errors (`session.save-refused`): the write stays owed, and
+  is made with the next, or at the close, which loses what it still cannot
+  write. A client you construct with a cache persistence of your own writes
+  unchecked.
 
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].

@@ -96,8 +96,12 @@ class SessionCasesTest {
         return count(stated, "asks") to count(stated, "renewals")
     }
 
-    /** The session ended as the row states, and one that ended signed out asks nobody anything afterwards, however long it is held. */
-    private suspend fun kotlinx.coroutines.test.TestScope.isAsStated(row: JsonObject, world: SessionWorld, session: SemiontSession, askedBefore: Int) {
+    /**
+     * The session ended as the row states, one that ended signed out asks nobody anything afterwards, however long it is
+     * held, and every renewal it made, then or later, was handed `renews`: the token the row stored, or the one the
+     * session started on.
+     */
+    private suspend fun kotlinx.coroutines.test.TestScope.isAsStated(row: JsonObject, world: SessionWorld, session: SemiontSession, askedBefore: Int, renews: String?) {
         val asks = count(row, "asks")
         val renewals = count(row, "renewals")
         assertEquals(asks to renewals, (world.validated.size - askedBefore) to world.renewed, "how often the gateway and the issuer were asked")
@@ -119,6 +123,7 @@ class SessionCasesTest {
             runCurrent()
             assertEquals(asks to renewals, (world.validated.size - askedBefore) to world.renewed, "what was asked once the session was over")
         }
+        assertEquals(List(world.renewed) { renews }, world.handed, "the token each renewal was handed")
     }
 
     @TestFactory
@@ -135,7 +140,7 @@ class SessionCasesTest {
                 world.session().use { session ->
                     session.start()
                     session.ready()
-                    isAsStated(row, world, session, 0)
+                    isAsStated(row, world, session, 0, kept)
                 }
             }
         }
@@ -147,7 +152,8 @@ class SessionCasesTest {
             runTest {
                 val (asks, renewals) = answers(row)
                 // The session starts signed in: the gateway accepts the kept token. Then the row's answers.
-                val world = SessionWorld(token(3600, 0), (0 until renewals).map { issuerSays(row, it, token(3600, 1)) }, listOf<Any>(alice) + (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
+                val startedOn = token(3600, 0)
+                val world = SessionWorld(startedOn, (0 until renewals).map { issuerSays(row, it, token(3600, 1)) }, listOf<Any>(alice) + (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
                 world.session().use { session ->
                     session.start()
                     session.ready()
@@ -160,7 +166,7 @@ class SessionCasesTest {
                     val given = session.refresh(refused)
                     assertEquals(row.getValue("given").jsonPrimitive.content.toBooleanStrict(), given != null, "whether refresh gives a token")
                     if (given != null) assertEquals(session.token.value, given)
-                    isAsStated(row, world, session, 1)
+                    isAsStated(row, world, session, 1, startedOn)
                 }
             }
         }

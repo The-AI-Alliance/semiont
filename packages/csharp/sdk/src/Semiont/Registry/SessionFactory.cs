@@ -52,16 +52,12 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
     {
         if (options.Kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "This factory requires an HTTP endpoint.");
-        var errors = new Broadcast<SessionError>(keepForFirst: true);
+        var errors = new Broadcast<SemiontError>(keepForFirst: true);
         // The client writes only while the sign-in stored beside it names its person, read through what holds it there.
         var persistence = new CachePersistence(options.Storage, options.Kb.Id, RegistryStorage.KeptIn(options.Storage, options.Kb.Id), errors.Publish);
         var signIn = RegistryStorage.KeptFor(persistence);
         if (RegistryStorage.StoredSession(options.Storage, options.Kb.Id) is { PersonKey: { } named }) persistence.Attach(named);
-        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, errors, answered: async (token, user, recording) =>
-        {
-            var person = RegistryStorage.PersonKey(user.Did);
-            if (await signIn.RecordPersonKeyAsync(token, person, recording).ConfigureAwait(false)) persistence.Attach(person);
-        });
+        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, errors, validates: true, answered: persistence.RecordAsync);
         HttpTransport? transport = null;
         try
         {
@@ -73,34 +69,18 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
             var client = new SemiontClient(http, persistence);
             var session = new SemiontSession(new KbTarget { Id = options.Kb.Id, Endpoint = options.Kb.Endpoint, Label = options.Kb.Label },
                 client, kept);
-            var watching = Task.WhenAll(FollowErrorsAsync(), FollowPermissionAsync());
+            var telling = session.TellAsync(options);
             return new OpenedSession(client, async () =>
             {
-                // The client first: what its closing save tells reaches the session's errors while they are open.
-                try { client.Dispose(); }
-                finally { session.Dispose(); }
-                await watching.ConfigureAwait(false);
-            }, session);
-
-            async Task FollowErrorsAsync()
-            {
-                var told = false;
-                await foreach (var error in kept.Errors().ConfigureAwait(false))
+                // The client first, its closing save awaited: what that save says reaches the session's errors before they end.
+                try
                 {
-                    if (!told && kept.EndReason is { } ended)
-                    {
-                        told = true;
-                        options.Signals.NotifySessionEnded(ended);
-                    }
-                    options.OnError(error);
+                    client.Dispose();
+                    await client.Flushed.ConfigureAwait(false);
                 }
-            }
-
-            async Task FollowPermissionAsync()
-            {
-                await foreach (var error in http.Errors().ConfigureAwait(false))
-                    if (error.Status == 403) options.Signals.NotifyPermissionDenied(error.Message);
-            }
+                finally { session.Dispose(); }
+                await telling.ConfigureAwait(false);
+            }, session);
         }
         catch
         {

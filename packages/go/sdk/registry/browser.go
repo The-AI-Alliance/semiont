@@ -265,11 +265,12 @@ func (b *SemiontBrowser) LastViewedResource() semiont.Watched[api.ResourceId] {
 	return b.lastViewed.Reading()
 }
 
-// Errors is the failures its sessions say (semiont.SessionConfig's OnError):
-// those that made a session unusable, and those that stopped a session's
-// client keeping what it holds, from this call on, until ctx is done or the
-// registry is closed. A reader that falls more than a few dozen behind misses
-// those after.
+// Errors is the failures its sessions say of their own (each a
+// *semiont.SessionError among semiont.Session's Errors): those that made a
+// session unusable, those that stopped a session's client keeping what it
+// holds, and each write its storage refused, from this call on, until ctx is
+// done or the registry is closed. A reader that falls more than a few dozen
+// behind misses those after.
 func (b *SemiontBrowser) Errors(ctx context.Context) iter.Seq[*semiont.SessionError] {
 	return b.failures.from(ctx)
 }
@@ -828,7 +829,8 @@ func (b *SemiontBrowser) activate(id string) {
 	// The signals exist before the session does: the session says it is over
 	// through them, and may be over before it is ready.
 	signals := semiont.NewSessionSignals()
-	handed, ok := b.build(SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals, OnError: b.failed})
+	options := SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals, OnError: b.failed}
+	handed, ok := b.build(options)
 	if !ok {
 		return
 	}
@@ -841,7 +843,7 @@ func (b *SemiontBrowser) activate(id string) {
 		return
 	}
 	b.spawn(func() error {
-		b.route(session, signals)
+		b.route(session, options)
 		return nil
 	})
 	_ = session.Ready(b.alive)
@@ -895,12 +897,24 @@ func constructFailed(err error, kbID string) *semiont.SessionError {
 	return &semiont.SessionError{Code: semiont.SessionErrorCodeConstructFailed, Message: err.Error(), KbID: kbID}
 }
 
-// route routes what the session's transport fails at. A refusal for want of a
-// valid token renews the session: it heals quietly, or the session ends itself
-// and says so once. A refusal for lack of permission has no remedy, and is
-// said. It ends when the transport closes.
-func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.SessionSignals) {
-	for failure := range session.Errors() {
+// route reads the session's errors, as their one reader, and so from what
+// was said at its start: each of the session's own it hands to the factory's
+// OnError, and each failure of its transport it routes. A refusal for want of
+// a valid token renews the session: it heals quietly, or the session ends
+// itself and says so once. A refusal for lack of permission has no remedy,
+// and is said. It ends when the session's errors do, once the session, its
+// client and its transport have closed.
+func (b *SemiontBrowser) route(session *semiont.Session, options SessionFactoryOptions) {
+	for each := range session.Errors() {
+		var own *semiont.SessionError
+		if errors.As(each, &own) {
+			options.OnError(own)
+			continue
+		}
+		var failure *semiont.TransportError
+		if !errors.As(each, &failure) {
+			continue
+		}
 		switch failure.Code {
 		case semiont.TransportErrorCodeUnauthorized:
 			// Refusals that arrive together are answered by one renewal: the
@@ -913,7 +927,7 @@ func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.Sessio
 			})
 		case semiont.TransportErrorCodeForbidden:
 			detail := failure.Message
-			signals.NotifyPermissionDenied(&detail)
+			options.Signals.NotifyPermissionDenied(&detail)
 		}
 	}
 }

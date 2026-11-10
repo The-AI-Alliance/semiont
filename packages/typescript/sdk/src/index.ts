@@ -209,7 +209,7 @@ export {
   completeAuthorization,
   signInWithDeviceGrant,
   refreshAtIssuer,
-  refreshStoredSession,
+  renewKept,
   revokeAtIssuer,
 } from './session/oauth';
 export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection } from './session/connect';

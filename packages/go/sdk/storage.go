@@ -105,6 +105,10 @@ type CachePersistence struct {
 	KbID    string
 	// PersonKey is the person's key (PersonKey).
 	PersonKey string
+	// refused is told each write the storage refuses: the session's errors,
+	// for a client a session keeps for; a log line, for a client given its
+	// persistence directly (ClientConfig).
+	refused func(error)
 }
 
 // PersonKey is the key what a client keeps of a person is kept under, made of

@@ -216,7 +216,6 @@ func (s *ScriptedSessions) Session(ctx context.Context, options registry.Session
 			return *user, nil
 		},
 		OnAuthFailed: options.Signals.NotifySessionEnded,
-		OnError:      options.OnError,
 		Timing:       semiont.DefaultTiming(),
 		Random:       s.random,
 	})

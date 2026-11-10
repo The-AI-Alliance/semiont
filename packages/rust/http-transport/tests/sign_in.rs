@@ -22,6 +22,7 @@ use futures::FutureExt;
 use quick_clock::QuickClock;
 use ring::signature::{RSA_PKCS1_2048_8192_SHA256, RsaPublicKeyComponents};
 use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
+use semiont::cache::CacheState;
 use semiont::channels::PrincipalProfile;
 use semiont::claims::{ClaimOptions, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, JobFailure};
 use semiont::client::ClientOptions;
@@ -41,10 +42,12 @@ use semiont::session::{
     save_knowledge_bases, store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
-use semiont::storage::{InMemorySessionStorage, SessionStorage};
+use semiont::storage::{
+    InMemorySessionStorage, SessionStorage, StorageChange, StorageSubscription,
+};
 use semiont::testing::as_id;
 use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows};
-use semiont::timing::{DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT};
+use semiont::timing::{DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT, REFRESH_RETRY, SAVE_DEBOUNCE};
 use semiont::transport::{BoxFuture, Envelope, Events, Lagged, PutBinaryRequest};
 use semiont::types::{
     AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
@@ -1274,7 +1277,7 @@ impl Said {
 
     /// Everything said until the stream ends, which it must, ten seconds at
     /// the latest after its session was closed.
-    async fn to_its_end(mut self) -> Vec<SessionError> {
+    async fn until_it_ends(mut self) -> Vec<SessionError> {
         loop {
             let next = tokio::time::timeout(Duration::from_secs(10), self.errors.next())
                 .await
@@ -1475,7 +1478,7 @@ async fn a_closing_save_whose_sign_in_cannot_be_read_is_said_before_the_sessions
     opened.close().await;
 
     assert_eq!(
-        codes(&said.to_its_end().await),
+        codes(&said.until_it_ends().await),
         [SessionErrorCode::KeepFailed]
     );
     let key = cache_key("a-script", &person_key(ALICE), CacheQuery::EntityTypes);
@@ -1520,7 +1523,7 @@ async fn a_sign_in_that_cannot_record_who_the_gateway_named_keeps_nothing_and_sa
         .expect("the entity types");
     opened.close().await;
 
-    let said = said.to_its_end().await;
+    let said = said.until_it_ends().await;
     assert_eq!(codes(&said), [SessionErrorCode::KeepFailed]);
     assert!(
         said[0]
@@ -1563,6 +1566,295 @@ async fn a_sign_in_that_cannot_be_read_as_its_session_is_opened_fails_the_openin
     }
     assert!(world.staged.asked_who.lock().unwrap().is_empty());
     assert!(world.token_forms().is_empty());
+}
+
+/// A sign-in that names its person has its session's client keep for them
+/// from the start. One that then cannot record who the gateway named keeps
+/// nothing more for the rest of its life (codes.json, `keep-failed`): the
+/// session says so once, writes nothing more, and goes on, signed in.
+#[tokio::test]
+async fn a_sign_in_that_names_its_person_and_cannot_record_them_keeps_nothing_more() {
+    let world = World::start().await;
+    world.answers_entity_types();
+    let kept = ReadAsAFile::holding(StoredSession {
+        person_key: Some(person_key(ALICE)),
+        ..world.stored(&jwt(3600, 1), "r1")
+    })
+    .await;
+    kept.unrecordable.store(true, Ordering::SeqCst);
+    let storage: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
+
+    let opened = session_from_kept(SessionFromKept {
+        storage: Some(storage.clone()),
+        ..from_kept(&world, kept.clone())
+    })
+    .await
+    .expect("a session");
+    // Said as the session started, before it was given.
+    let said = Said::by(opened.session());
+    assert_eq!(
+        opened
+            .session()
+            .user()
+            .borrow()
+            .as_ref()
+            .and_then(|user| user.email.clone()),
+        Some("alice@example.org".to_owned())
+    );
+    opened
+        .session()
+        .client()
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+    opened.close().await;
+
+    assert_eq!(
+        codes(&said.until_it_ends().await),
+        [SessionErrorCode::KeepFailed]
+    );
+    for key in kept_for("a-script", ALICE) {
+        assert_eq!(storage.get(&key), None, "{key}");
+    }
+}
+
+/// Whom a stored sign-in names before any gateway is asked.
+const JO: &str = "did:web:example.org:users:jo";
+
+/// A session that does not ask the gateway who its token is still keeps
+/// for the person its kept sign-in names, from its start: what was kept for
+/// them is read as its client is made, and given at once
+/// (protocol/specs/src/session/persisted-cases.json, `startup`). Nobody is
+/// asked who the token is.
+#[tokio::test]
+async fn startup_without_asking_keeps_for_the_person_the_sign_in_names() {
+    let world = World::start().await;
+    let storage: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
+    store_session(
+        storage.as_ref(),
+        "a-script",
+        &StoredSession {
+            person_key: Some(person_key(JO)),
+            ..world.stored(&jwt(3600, 1), "r1")
+        },
+    )
+    .expect("stored");
+    let kept_for_jo = json!({
+        "version": 1,
+        "entries": [[
+            "res-1",
+            { "@context": "https://schema.org/", "@id": "res-1", "name": "kept", "representations": [] },
+            1_700_000_000_000_u64,
+        ]],
+    });
+    storage
+        .set(
+            &cache_key("a-script", &person_key(JO), CacheQuery::Resource),
+            &kept_for_jo.to_string(),
+        )
+        .expect("kept");
+
+    let opened = session_from_kept(SessionFromKept {
+        validate: false,
+        storage: Some(storage.clone()),
+        ..from_kept(&world, kept_in(storage.clone(), "a-script"))
+    })
+    .await
+    .expect("a session");
+    let mut res_1 = opened
+        .session()
+        .client()
+        .browse
+        .resource(&as_id("res-1"))
+        .watch();
+
+    let first = tokio::time::timeout(Duration::from_secs(10), res_1.next())
+        .await
+        .expect("a state at once");
+    let Some(CacheState::Ready(given)) = &first else {
+        panic!("was given {first:?} at once, not the kept value");
+    };
+    assert_eq!(given.name, "kept");
+    assert!(world.staged.asked_who.lock().unwrap().is_empty());
+    opened.close().await;
+}
+
+/// A storage that refuses every write while it is `full`.
+#[derive(Default)]
+struct Full {
+    stored: InMemorySessionStorage,
+    full: AtomicBool,
+}
+
+impl Full {
+    fn taking(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        if self.full.load(Ordering::SeqCst) {
+            return Err("the storage is full".into());
+        }
+        Ok(())
+    }
+}
+
+impl SessionStorage for Full {
+    fn get(&self, key: &str) -> Option<String> {
+        self.stored.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.taking()?;
+        self.stored.set(key, value)
+    }
+
+    fn delete(&self, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.stored.delete(key)
+    }
+
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.taking()?;
+        self.stored.update(key, change)
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.stored.subscribe(on_change)
+    }
+}
+
+/// A script's session of "a-script" over a sign-in the gateway names alice
+/// by, keeping what its client keeps in `storage`.
+async fn keeping_in(world: &World, storage: &Arc<Full>) -> OpenedSession {
+    world.answers_entity_types();
+    let kept = kept_holding(world, &jwt(3600, 1)).await;
+    session_from_kept(SessionFromKept {
+        storage: Some(storage.clone()),
+        ..from_kept(world, kept)
+    })
+    .await
+    .expect("a session")
+}
+
+/// A write of what the client keeps that its storage refuses is said once,
+/// as `session.save-refused`, in the storage's own words, and stays owed:
+/// the client's closing writes it, once the storage takes it.
+#[tokio::test]
+async fn a_write_the_storage_refuses_is_said_once_and_stays_owed() {
+    let world = World::start().await;
+    let storage = Arc::new(Full::default());
+    let opened = keeping_in(&world, &storage).await;
+    let mut said = Said::by(opened.session());
+
+    storage.full.store(true, Ordering::SeqCst);
+    opened
+        .session()
+        .client()
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+    tokio::time::sleep(SAVE_DEBOUNCE * 4).await;
+
+    let refused = said.so_far();
+    assert_eq!(codes(refused), [SessionErrorCode::SaveRefused]);
+    assert!(
+        refused[0].message.contains("the storage is full"),
+        "{}",
+        refused[0].message
+    );
+    let key = cache_key("a-script", &person_key(ALICE), CacheQuery::EntityTypes);
+    assert_eq!(storage.get(&key), None);
+
+    storage.full.store(false, Ordering::SeqCst);
+    opened.close().await;
+
+    assert_eq!(
+        codes(&said.until_it_ends().await),
+        [SessionErrorCode::SaveRefused]
+    );
+    assert!(
+        storage.get(&key).is_some(),
+        "what was owed is written as the client closes"
+    );
+}
+
+/// A closing write the storage refuses is said once, as
+/// `session.save-refused`, before the session's errors end.
+#[tokio::test]
+async fn a_closing_write_the_storage_refuses_is_said_before_the_sessions_errors_end() {
+    let world = World::start().await;
+    let storage = Arc::new(Full::default());
+    let opened = keeping_in(&world, &storage).await;
+    let said = Said::by(opened.session());
+    opened
+        .session()
+        .client()
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+
+    // Owed, and not yet written, as the storage fills.
+    storage.full.store(true, Ordering::SeqCst);
+    opened.close().await;
+
+    let said = said.until_it_ends().await;
+    assert_eq!(codes(&said), [SessionErrorCode::SaveRefused]);
+    assert!(
+        said[0].message.contains("the storage is full"),
+        "{}",
+        said[0].message
+    );
+    let key = cache_key("a-script", &person_key(ALICE), CacheQuery::EntityTypes);
+    assert_eq!(storage.get(&key), None);
+}
+
+/// A renewal the issuer did not answer leaves the session with no token,
+/// and is made again on the reconnect backoff, handed the token it renews:
+/// the one the unanswered renewal was for (protocol/specs/src/session/cases.json).
+/// So the issuer is asked again, and the token it was asked to renew is not
+/// taken up again from the sign-in as though another holder had renewed it.
+#[tokio::test(start_paused = true)]
+async fn a_renewal_the_issuer_did_not_answer_is_made_again_for_the_token_it_renews() {
+    let world = World::on_a_quick_clock().await;
+    let (first, renewed) = (jwt(3600, 1), jwt(3600, 2));
+    let kept = kept_holding(&world, &first).await;
+    let opened = session_from_kept(SessionFromKept {
+        validate: false,
+        ..from_kept(&world, kept.clone())
+    })
+    .await
+    .expect("a session");
+    let session = opened.session();
+    let mut said = Said::by(session);
+    let attempts = REFRESH_RETRY.attempts as usize;
+    world.answers(
+        std::iter::repeat_n((503, Value::Null), attempts).chain([granted(&renewed, Some("r2"))]),
+    );
+
+    assert_eq!(session.refresh(Some(&first)).await, None);
+    assert_eq!(world.token_forms().len(), attempts);
+    assert_eq!(codes(said.so_far()), [SessionErrorCode::RefreshExhausted]);
+
+    let mut token = session.token();
+    tokio::time::timeout(
+        Duration::from_secs(120),
+        token.wait_for(|held| held.as_deref() == Some(renewed.as_str())),
+    )
+    .await
+    .expect("renewed on the backoff")
+    .expect("the session lives");
+    assert_eq!(world.token_forms().len(), attempts + 1);
+    assert_eq!(
+        held_by(kept.as_ref()).await,
+        Some(world.stored(&renewed, "r2"))
+    );
+    opened.close().await;
 }
 
 /// A script renews a sign-in it keeps with no session over it
@@ -1643,6 +1935,9 @@ async fn a_knowledge_base_not_reached_over_http_has_no_session_over_a_gateway() 
     .err()
     .expect("no session is built");
 
+    let refused = refused
+        .downcast_ref::<SessionError>()
+        .expect("a session error");
     assert_eq!(refused.code, SessionErrorCode::ConstructFailed);
     assert_eq!(refused.kb_id.as_deref(), Some("in-process"));
     assert!(world.staged.asked_who.lock().unwrap().is_empty());
@@ -3469,7 +3764,7 @@ async fn a_script(
     .await?;
 
     let about = opened.session().client().browse.kb().await?;
-    // The session, then the client it was built with.
+    // The client, the saves it owed made, then the session.
     opened.close().await;
     // </readme:script>
     Ok(about.name)

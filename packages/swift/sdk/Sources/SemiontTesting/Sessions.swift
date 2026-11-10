@@ -9,7 +9,6 @@ public struct TestSessionOptions: Sendable {
   public let validate: @Sendable (String) async throws -> UserResponse
   public let renew: @Sendable (String?) async throws -> String?
   public let onAuthFailed: (@Sendable (SessionEndReason) -> Void)?
-  public let onError: (@Sendable (SessionError) -> Void)?
 
   public init(
     kb: KbTarget, kept: any SignInKept = MemorySignIn(),
@@ -21,8 +20,7 @@ public struct TestSessionOptions: Sendable {
         name: nil)
     },
     renew: @escaping @Sendable (String?) async throws -> String? = { _ in nil },
-    onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-    onError: (@Sendable (SessionError) -> Void)? = nil
+    onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil
   ) {
     self.kb = kb
     self.kept = kept
@@ -31,7 +29,6 @@ public struct TestSessionOptions: Sendable {
     self.validate = validate
     self.renew = renew
     self.onAuthFailed = onAuthFailed
-    self.onError = onError
   }
 }
 
@@ -48,7 +45,7 @@ public func createTestSession(_ options: TestSessionOptions) async throws -> Tes
   let session = SemiontSession(
     kb: options.kb, client: client, kept: kept, forget: { try await kept.forget() },
     renew: options.renew, validate: options.validate, random: options.random,
-    onAuthFailed: options.onAuthFailed, onError: options.onError)
+    onAuthFailed: options.onAuthFailed)
   await session.start()
   return TestSession(
     opened: OpenedSession(session: session), transport: options.transport, kept: options.kept)
@@ -108,7 +105,8 @@ public actor ScriptedSessions: SessionFactory {
           }
           guard let next = try await self.issue() else { return nil }
           return try await kept.renewed(read: read, access: next, refresh: read.refresh)
-        }, onAuthFailed: options.signals.notifySessionEnded, onError: options.onError))
+        }, onAuthFailed: options.signals.notifySessionEnded))
+    options.handOnErrors(of: opened.opened.session)
     return opened.opened
   }
 

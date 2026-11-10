@@ -48,7 +48,7 @@ use super::stored::{
     forget_kept, is_token_expired, load_knowledge_bases, replace_stored_session,
     save_knowledge_bases, store_session, stored_session,
 };
-use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
+use crate::errors::{BusRequestErrorCode, SemiontError, SessionError};
 use crate::event_bus::EventBus;
 use crate::locked;
 use crate::resources::primary_media_type;
@@ -629,11 +629,13 @@ struct Ended {
 }
 
 impl Ended {
-    /// The session ends, then the client it was built with, which it only
-    /// used: the factory built both for this browser.
+    /// The client the session was built with closes, which the session only
+    /// used, and makes the saves its caches owe; then the session ends, so
+    /// what those saves meet is said before its errors end. The factory
+    /// built both for this browser.
     async fn close(self) {
-        crate::state_unit::StateUnit::dispose(self.session.as_ref());
         self.session.client().close().await;
+        crate::state_unit::StateUnit::dispose(self.session.as_ref());
         if let Some(signals) = self.signals {
             crate::state_unit::StateUnit::dispose(signals.as_ref());
         }
@@ -865,6 +867,10 @@ impl Inner {
                 }
             }),
         });
+        // The factory tells the browser what the session says
+        // (`super::tell_registry`): its own errors, to `failed`; a refusal
+        // of its token renews it; a refusal for lack of permission, to the
+        // signals.
         let session = match built {
             Ok(session) => Arc::new(session),
             Err(refused) => {
@@ -872,11 +878,6 @@ impl Inner {
                 return;
             }
         };
-        let routing = route(session.clone(), signals.clone());
-        self.spawn(async move {
-            routing.await;
-            Ok(())
-        });
         session.ready().await;
         if self.closed() || self.active_kb_id.now().as_deref() != Some(id) {
             Ended {
@@ -1179,35 +1180,6 @@ async fn check_open_resource(session: &SemiontSession, id: &ResourceId) -> TabCh
         }
         // Anything else is a symptom, not a verdict.
         Err(_) => TabCheck::Unknown,
-    }
-}
-
-/// Route what the session's transport fails at. A refusal for want of a
-/// valid token renews the session: it heals quietly, or the session ends
-/// itself and says so once. A refusal for lack of permission has no remedy,
-/// and is said. Ends when the transport closes.
-async fn route(session: Arc<SemiontSession>, signals: Arc<SessionSignals>) {
-    let mut failures = session.errors();
-    let mut renewing = JoinSet::new();
-    while let Some(failure) = failures.next().await {
-        // A failure that was missed is not known, and is not acted on.
-        let Ok(failure) = failure else { continue };
-        while renewing.try_join_next().is_some() {}
-        match failure.code {
-            TransportErrorCode::Unauthorized => {
-                let session = session.clone();
-                // A failure does not say which token was refused: the one the
-                // session holds as it is read is.
-                let refused = session.token().borrow().clone();
-                renewing.spawn(async move {
-                    session.refresh(refused.as_deref()).await;
-                });
-            }
-            TransportErrorCode::Forbidden => {
-                signals.notify_permission_denied(Some(&failure.message));
-            }
-            _ => {}
-        }
     }
 }
 

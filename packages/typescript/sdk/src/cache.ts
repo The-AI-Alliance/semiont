@@ -165,8 +165,19 @@ export function createCache<K, V>(
   },
 ): Cache<K, V> {
   const made = createPersistableCache(fetchFn, options?.saveDebounceMs);
-  if (options?.persister) made.attach(options.persister);
+  if (options?.persister) made.attach(options.persister, warnRefusedSave);
   return made.cache;
+}
+
+/**
+ * B17 — a save the storage refused, as a cache with no session says it: a
+ * console line. A session's client says it on the session's errors instead
+ * (`session.save-refused`).
+ */
+export function warnRefusedSave(cause: unknown): void {
+  // eslint-disable-next-line no-console
+  console.warn('[cache PERSIST] the storage refused the save; it is owed until the next change or disposal:',
+    cause instanceof Error ? cause.message : cause);
 }
 
 /**
@@ -178,9 +189,11 @@ export interface PersistableCache<K, V> {
   /**
    * B17 — keep the cache's values with `persister` from now on: each entry
    * it loads fills a key the cache does not know, as restored-from-disk
-   * (B18), and every later change is saved. Once; inert after disposal (B16).
+   * (B18), and every later change is saved. Each save the storage refuses
+   * is told to `refused`, with what it threw, as it is refused, the save
+   * then owed. Once; inert after disposal (B16).
    */
-  attach(persister: CachePersister<K, V>): void;
+  attach(persister: CachePersister<K, V>, refused: (cause: unknown) => void): void;
   /**
    * B17 — a fetch is in flight, or disposal dropped one: what holds the
    * stream's places back at disposal's one reading of them. A save owed does
@@ -346,7 +359,7 @@ export function createPersistableCache<K, V>(
 
   const knownKeys = (): K[] => [...new Set([...store$.value.keys(), ...failures$.value.keys(), ...inflight.keys()])];
 
-  const attach = (persister: CachePersister<K, V>): void => {
+  const attach = (persister: CachePersister<K, V>, refused: (cause: unknown) => void): void => {
     if (attached) throw new Error('A cache keeps its values with one persister');
     attached = true;
     if (disposed) return; // B16
@@ -367,18 +380,17 @@ export function createPersistableCache<K, V>(
       if (pendingSave !== null && pendingSave.timer !== null) clearTimeout(pendingSave.timer);
       // Owed no more while it is written, so the places' gate the write
       // reads finds this cache at rest. A write the storage refuses (its
-      // quota, a broken adapter) breaks neither the cache nor dispose(), on
-      // the KB-switch teardown path: the save is owed again, and the places
-      // stay held back.
+      // quota, a broken adapter), of the document or of the places it
+      // carries, breaks neither the cache nor dispose(), on the KB-switch
+      // teardown path: the save is owed again, the places stay held back,
+      // and the refusal is told.
       const save = (): void => {
         pendingSave = null;
         try {
           persister.save(entries);
         } catch (e) {
           pendingSave = { timer: null, save };
-          // eslint-disable-next-line no-console
-          console.warn('[cache PERSIST] the storage refused the save; it is owed until the next change or disposal:',
-            e instanceof Error ? e.message : e);
+          refused(e);
         }
       };
       pendingSave = { timer: setTimeout(save, saveDebounceMs), save };

@@ -188,7 +188,7 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 		}
 	}
 	session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
-		Kb: kb, Kept: kept, HTTP: http.DefaultClient, Timing: timing, AskWhoTokenIs: true, Channels: bus.BridgedChannels,
+		Kb: kb, Kept: kept, HTTP: http.DefaultClient, Timing: timing, Channels: bus.BridgedChannels,
 	})
 	if err != nil {
 		return err
@@ -522,8 +522,11 @@ func Watch(ctx context.Context, client *semiont.Client, resource api.ResourceId)
   `persisted`, each one document under its own key that a client of any SDK
   reads and writes alike. The next client of the same knowledge base and
   person shows them at once and asks for each anew the first time it is
-  watched. `SessionFromKeptConfig.Storage` does this for a session once the
-  gateway names its person and its kept sign-in records them, and keeps the
+  watched. `SessionFromKeptConfig.Storage` does this for a session, from the
+  start for the person its kept sign-in names, whether or not it asks who
+  its token is; over a sign-in that names nobody yet, once the gateway names
+  its person and the sign-in records them (one that does not ask keeps for
+  nobody); and it keeps the
   stream's place in each resource's scope with it (`CoupledBookmarks`), so
   the next session is sent what was recorded since. Forgetting a registry's
   stored sign-in, however it is forgotten, signing in again included, deletes
@@ -940,7 +943,11 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
 - **Failures** are `semiont.Error`s under the codes of
   [`protocol/specs/src/errors/codes.json`][codes]: `*TransportError`,
   `*BusRequestError`, `*SessionError`, `*SignInError` and `*JobError`. What a
-  server refused is also on `transport.Failures()`.
+  server refused is also on `transport.Failures()`. A session says once, on
+  `session.Errors()`, its transport's failures and its own `*SessionError`s
+  (a write the storage refused among them, `session.save-refused`); the first
+  reader hears what was said before it listened, and the stream ends once the
+  session, its client and the client's transport have closed.
 - **The token** is a `*Variable[string]` the transport watches: when it
   changes, the next request carries the new one. A stream refused for its
   token asks its `Refresher` for another, once per outage, and with none

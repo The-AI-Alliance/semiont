@@ -358,6 +358,36 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
         expect(keptKeys.sort()).toEqual(Object.keys(table.startupStorage).sort());
       }
     });
+
+    it('a session over a kept sign-in told not to ask keeps for the person the sign-in names: what was kept for them is shown, and the gateway is never asked who', async () => {
+      const storage = new SharedStorage();
+      seed(storage, table.startupStorage);
+      storeSignIn(storage, KB_A.id, 'named', jo.personKey, freshJwt());
+      let asked = 0;
+      const gateway = fakeGateway({
+        whoIs: async () => {
+          asked += 1;
+          return Response.json(table.whoAmI);
+        },
+        issuer: renews,
+        resourceName: 'fresh',
+      });
+      const opened = await SemiontSession.fromKept({
+        kb: KB_A,
+        kept: keptIn(storage, KB_A.id),
+        storage,
+        fetch: gateway.fetch,
+        validate: false,
+      });
+      try {
+        expect(await firstName(opened.session, 'res-2')).toBe('kept');
+      } finally {
+        opened.dispose();
+        gateway.close();
+      }
+
+      expect(asked).toBe(0);
+    });
   });
 
   /** Whether jo's `resource` key holds res-1 as the gateway answered it. */

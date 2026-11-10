@@ -857,6 +857,41 @@ func TestARefusalForLackOfPermissionIsSaidAndAnyOtherFailureIsNot(t *testing.T) 
 	})
 }
 
+// forbiddenAtTheStart is a factory whose every session's transport is refused
+// for lack of permission before the session is handed back: at its start,
+// before the registry reads what it says.
+type forbiddenAtTheStart struct{ *semionttest.ScriptedSessions }
+
+func (f forbiddenAtTheStart) Session(ctx context.Context, options registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
+	session, end, err := f.ScriptedSessions.Session(ctx, options)
+	if err == nil {
+		transports := f.Transports(options.Kb.Id)
+		transports[len(transports)-1].Fail(refusal(semiont.TransportErrorCodeForbidden, 403))
+	}
+	return session, end, err
+}
+
+// A refusal for lack of permission that a session's start meets is said: the
+// registry is the one reader of its session's errors, and hears them from the
+// start.
+func TestARefusalForLackOfPermissionAtASessionsStartIsSaid(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: forbiddenAtTheStart{w.factory.sessions}})
+		must(t, err)
+		closedAtTheEnd(t, browser)
+		live(t, browser)
+		settle()
+
+		if got := denied(browser); got == nil || got.Detail == nil || *got.Detail != "HTTP 403" {
+			t.Errorf("the refusal said is %+v", got)
+		}
+		if sessionEnded(browser) != nil {
+			t.Error("a refusal of permission ended the session")
+		}
+	})
+}
+
 // ── A write the storage refuses ─────────────────────────────────────────
 
 var errFull = errors.New("the storage is full")

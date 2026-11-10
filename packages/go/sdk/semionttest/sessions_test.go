@@ -140,11 +140,7 @@ func newAsked() *asked {
 }
 
 func (a *asked) of(kbID string) registry.SessionFactoryOptions {
-	return registry.SessionFactoryOptions{Kb: knowledgeBase(kbID), Storage: a.storage, Signals: a.signals, OnError: func(err *semiont.SessionError) {
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		a.said = append(a.said, err)
-	}}
+	return registry.SessionFactoryOptions{Kb: knowledgeBase(kbID), Storage: a.storage, Signals: a.signals}
 }
 
 func (a *asked) signedIn(t *testing.T, kbID string) {
@@ -154,19 +150,36 @@ func (a *asked) signedIn(t *testing.T, kbID string) {
 	}
 }
 
+// errors is what the sessions built said of their own so far. Each is heard
+// from a session's errors as its reader takes them, so the bubble is let run
+// until that reader waits for more.
 func (a *asked) errors() []*semiont.SessionError {
+	synctest.Wait()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]*semiont.SessionError(nil), a.said...)
 }
 
-// built is a session the factory built, ended when the test ends.
-func built(t *testing.T, sessions *semionttest.ScriptedSessions, options registry.SessionFactoryOptions) *semiont.Session {
+// built is a session the factory built for kbID, ended when the test ends.
+// What it says of its own is heard as a registry, its errors' one reader,
+// hears it: from its start.
+func (a *asked) built(t *testing.T, sessions *semionttest.ScriptedSessions, kbID string) *semiont.Session {
 	t.Helper()
-	session, end, err := sessions.Session(context.Background(), options)
+	session, end, err := sessions.Session(context.Background(), a.of(kbID))
 	if err != nil {
 		t.Fatal(err)
 	}
+	errs := session.Errors()
+	go func() {
+		for failure := range errs {
+			var own *semiont.SessionError
+			if errors.As(failure, &own) {
+				a.mu.Lock()
+				a.said = append(a.said, own)
+				a.mu.Unlock()
+			}
+		}
+	}()
 	t.Cleanup(end)
 	if err := session.Ready(context.Background()); err != nil {
 		t.Fatal(err)
@@ -191,7 +204,7 @@ func TestScriptedSessionsAnswerWhatEachKnowledgeBaseWasToldToAndRefuseTheRestByN
 			return nil, fmt.Errorf("%s does not answer %s", kbID, operation)
 		}, nil)
 		a := newAsked()
-		ofA, ofB := built(t, sessions, a.of("kb-a")), built(t, sessions, a.of("kb-b"))
+		ofA, ofB := a.built(t, sessions, "kb-a"), a.built(t, sessions, "kb-b")
 
 		if said, err := ofA.Client().Browse.Kb(context.Background()); err != nil || said.Name != "A" {
 			t.Errorf("A says %+v, %v", said, err)
@@ -206,7 +219,7 @@ func TestScriptedSessionsAnswerWhatEachKnowledgeBaseWasToldToAndRefuseTheRestByN
 
 		// One built with nothing to answer refuses everything, naming both.
 		silent := semionttest.NewScriptedSessions(nil, nil)
-		ofC := built(t, silent, a.of("kb-c"))
+		ofC := a.built(t, silent, "kb-c")
 		if _, err := ofC.Client().Browse.Kb(context.Background()); err == nil || !strings.Contains(message(err), `No response scripted for "browse:kb-requested" of knowledge base "kb-c"`) {
 			t.Errorf("C: %v", err)
 		}
@@ -231,7 +244,7 @@ func TestScriptedSessionsSayWhoATokenIsOnlyWhenToldAndAfterAsLongAsTold(t *testi
 		a.signedIn(t, "kb-a")
 
 		// Nobody said who: the session is ready, knows nobody, and says why.
-		unnamed := built(t, sessions, a.of("kb-a"))
+		unnamed := a.built(t, sessions, "kb-a")
 		if unnamed.User().Value() != nil {
 			t.Error("a session nobody said who of knows who it is")
 		}
@@ -242,7 +255,7 @@ func TestScriptedSessionsSayWhoATokenIsOnlyWhenToldAndAfterAsLongAsTold(t *testi
 		sessions.SaysWho(alice())
 		sessions.AnswersAfter(2 * time.Second)
 		started := time.Now()
-		named := built(t, sessions, a.of("kb-a"))
+		named := a.built(t, sessions, "kb-a")
 		if elapsed := time.Since(started); elapsed != 2*time.Second {
 			t.Errorf("it was ready after %v", elapsed)
 		}
@@ -258,7 +271,7 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 		sessions.SaysWho(alice())
 		a := newAsked()
 		a.signedIn(t, "kb-a")
-		session := built(t, sessions, a.of("kb-a"))
+		session := a.built(t, sessions, "kb-a")
 		sessions.QueueRenewals(semionttest.Renewal{Token: "renewed"})
 
 		if token, ok := session.Refresh(context.Background(), session.Token().Value()); !ok || token != "renewed" {
@@ -310,7 +323,7 @@ func TestScriptedSessionsRenewalsFailWithTheSignInErrorTheyWereGiven(t *testing.
 				sessions.SaysWho(alice())
 				a := newAsked()
 				a.signedIn(t, "kb-a")
-				session := built(t, sessions, a.of("kb-a"))
+				session := a.built(t, sessions, "kb-a")
 				sessions.QueueRenewals(row.renewal)
 
 				if token, ok := session.Refresh(context.Background(), session.Token().Value()); ok || token != "" {
@@ -344,7 +357,7 @@ func TestScriptedSessionsCanRefuseToBuildAndKeepWhatWasRevoked(t *testing.T) {
 		}
 
 		sessions.RefuseToBuild("")
-		built(t, sessions, a.of("kb-a"))
+		a.built(t, sessions, "kb-a")
 		if len(sessions.Transports("kb-a")) != 1 {
 			t.Error("no session was built once building was allowed again")
 		}

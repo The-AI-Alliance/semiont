@@ -17,22 +17,23 @@ actor SessionGate {
     throw CancellationError()
   }
   func failed(_ error: SessionError) { session?.failed(error) }
-  func relay(_ error: any Error) { session?.relay(error) }
 }
-/// A session with the knowledge base `kb`, over the sign-in `kept` holds. Given a `storage`, its
-/// client keeps its persisted queries' answers there for the person the gateway says the token
-/// is, once `kept` records them (``SignInKept/recordPersonKey(holding:_:)``), and from the start
-/// when it names them already. Before each write it asks `kept` whether the sign-in still names
-/// that person, and once it does not (forgotten, or another sign-in kept in its place), or `kept`
-/// cannot say, the client writes nothing more; that `kept` could not say is reported once, as a
-/// ``SessionError`` of `session.keep-failed`. Over the sign-in a registry keeps there
+/// A session with the knowledge base `kb`, over the sign-in `kept` holds. Unless `validate` is
+/// false, it asks the gateway who its token is, and so learns the person whose caches its client
+/// keeps. Given a `storage`, its client keeps its persisted queries' answers there for the person
+/// the gateway says the token is, once `kept` records them (``SignInKept/recordPersonKey(holding:_:)``),
+/// and from the start when it names them already. Before each write it asks `kept` whether the
+/// sign-in still names that person, and once it does not (forgotten, or another sign-in kept in its
+/// place), or `kept` cannot say or cannot record who the gateway named, the client writes nothing
+/// more; that `kept` could not is said once on the session's errors, as a ``SessionError`` of
+/// `session.keep-failed`. Each write the storage refuses is said there once, as
+/// `session.save-refused`, and stays owed. Over the sign-in a registry keeps there
 /// (``keptIn(_:kbId:)``), forgetting the saved sign-in deletes what was kept of its person, and
 /// nothing the client was writing lands after the session's own forgetting of it.
 public func sessionFromKept(
-  kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
+  kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient, validate: Bool = true,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-  onError: (@Sendable (SessionError) -> Void)? = nil, storage: (any SessionStorage)? = nil,
-  clock: any Clock<Duration> = ContinuousClock(),
+  storage: (any SessionStorage)? = nil, clock: any Clock<Duration> = ContinuousClock(),
   random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
 ) async throws -> OpenedSession {
   try Task.checkCancellation()
@@ -50,7 +51,8 @@ public func sessionFromKept(
       isTokenExpired($0.access, now: Date().timeIntervalSince1970) ? nil : $0.access
     }, clock: clock, random: draws, refresher: { try await gate.refresh($0) })
   let failures = transport.failures()
-  let writer = WritesWhileNamed(kept: kept, report: { await gate.failed($0) })
+  let writer = WritesWhileNamed(
+    kept: kept, report: { code, what in await gate.failed(SessionError(code, what, kbId: kb.id)) })
   let persistence = storage.map {
     CachePersistence(storage: $0, kbId: kb.id, person: found?.personKey, writer: writer)
   }
@@ -63,27 +65,28 @@ public func sessionFromKept(
     transport.dispose()
     throw error
   }
+  let asking: (@Sendable (String) async throws -> UserResponse)?
+  if validate {
+    asking = { token in
+      let user = try await whoAmI(
+        baseUrl: base, token: token, httpClient: httpClient, clock: clock)
+      guard persistence != nil else { return user }
+      // Recorded on the sign-in that holds the token asked about, or not at all.
+      let person = personKey(user.did)
+      if await writer.recorded(person, holding: token) { await client.attach(person) }
+      return user
+    }
+  } else {
+    asking = nil
+  }
   let session = SemiontSession(
     kb: kb, client: client, kept: kept,
     forget: { try await writer.forgetting { try await kept.forget() } },
     renew: {
       try await renewKept(kept, holding: $0, httpClient: httpClient, clock: clock, random: draws)
     },
-    validate: { token in
-      let user = try await whoAmI(
-        baseUrl: base, token: token, httpClient: httpClient, clock: clock)
-      guard persistence != nil else { return user }
-      // Recorded on the sign-in that holds the token asked about, or not at all.
-      let person = personKey(user.did)
-      do {
-        if try await kept.recordPersonKey(holding: token, person) { await client.attach(person) }
-      } catch {
-        await gate.relay(error)
-      }
-      return user
-    },
-    publish: { await transport.setToken($0) }, random: draws, onAuthFailed: onAuthFailed,
-    onError: onError)
+    validate: asking, publish: { await transport.setToken($0) }, random: draws,
+    onAuthFailed: onAuthFailed)
   let id = UUID()
   let life = session.lifetime
   let forwarding = Task { [weak session] in
@@ -106,9 +109,11 @@ public final class OpenedSession: Sendable {
     self.session = session
   }
 
+  /// Closes the client, then the session: what the client's closing flush says reaches the
+  /// session's errors before they end.
   public func dispose() {
-    session.dispose()
     client.dispose()
+    session.dispose()
   }
 
   deinit { dispose() }

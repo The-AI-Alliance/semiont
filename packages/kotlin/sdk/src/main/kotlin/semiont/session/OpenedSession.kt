@@ -3,9 +3,11 @@ package semiont.session
 import semiont.SemiontClient
 
 /**
- * A session with what it was opened over: closing it ends the session, then
- * its client, then what the session was built on, its transport and what
- * renews its token. What a factory of sessions gives a registry.
+ * A session with what it was opened over: closing it ends its client, whose
+ * closing flush writes what it owes, then the session, whose errors end once
+ * that flush has been made, so what the flush met is said on them first, then
+ * what the session was built on, its transport and what renews its token.
+ * What a factory of sessions gives a registry.
  */
 public class OpenedSession internal constructor(
     public val session: SemiontSession,
@@ -16,8 +18,8 @@ public class OpenedSession internal constructor(
     public val client: SemiontClient get() = session.client
 
     override fun close() {
-        session.close()
         session.client.close()
+        session.close()
         built.close()
     }
 

@@ -152,9 +152,9 @@ private object Sessions : AxiomSubject<SemiontSession>() {
         return Fresh(SemiontSession(TARGET, client, MutableStateFlow(null), MemorySignIn(), null, null, null, Random(0))).given(client)
     }
 
-    // Its stream state is its client's, and ends with it. Its errors end only once the flush of its disposal has been
-    // made, which closing its client makes, after the session's own close: held by SessionFromKeptTest, not here.
-    override fun surfaces(unit: SemiontSession): List<Flow<*>> = listOf(unit.token, unit.user)
+    // Its stream state is its client's, and ends with it. Its errors end with it once its client's closing flush has been
+    // made: its client here keeps nothing, so there is none to wait for.
+    override fun surfaces(unit: SemiontSession): List<Flow<*>> = listOf(unit.token, unit.user, unit.errors())
 }
 
 /** A subject for each state unit the SDK has. */

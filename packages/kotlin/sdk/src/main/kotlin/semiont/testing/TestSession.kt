@@ -56,13 +56,13 @@ public class TestSession internal constructor(
  * A real `SemiontSession` over a test client, started: it renews nothing and
  * asks nobody who it is, so it is ready as soon as it has read where its
  * sign-in is kept, and holds a token only if one was kept there. It only uses
- * its client: the caller ends the session and then the client, and whoever
+ * its client: the caller ends the client and then the session, and whoever
  * made the transport closes it.
  */
 public suspend fun createTestSession(options: TestSessionOptions): TestSession {
     val made = options.client
     val tokens = MutableStateFlow<String?>(null)
-    val session = SemiontSession(options.kb, made.client, tokens, options.kept, null, null, null, null, options.random)
+    val session = SemiontSession(options.kb, made.client, tokens, options.kept, null, null, null, options.random)
     session.start()
     return TestSession(session, made.client, made.transport, made.content, made.gateway, options.kept, tokens)
 }

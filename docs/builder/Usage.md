@@ -77,7 +77,7 @@ const opened = await SemiontSession.fromKept({ kb, kept });
 // manages the access-token lifecycle around it (proactive refresh,
 // validation, each renewal kept in `kept`).
 
-opened.dispose(); // when done: the session, then the client it was built with
+opened.dispose(); // when done: the client it was built with, then the session
 ```
 
 `fromKept` gives an `OpenedSession`: the session and the client it was built with. A session only uses its client, so the two end together, and `opened.dispose()` is what ends them. `opened.session.dispose()` alone would leave the client's event stream open.
@@ -726,7 +726,7 @@ Bus-layer and session-layer errors keep their own code namespaces:
 | `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.unauthorized`, `bus.not-found`, `bus.unsubscribed`, `bus.peer-unavailable`, `bus.none-pending` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the gateway is genuinely down or slow.) |
 | `JobFailedError` | `job.failed` — the job a call was following failed and will not be tried again; `jobId` names it, and `failureClass`, where the failure has one, says whether the provider withheld its answer (`withheld`), the job broke (`deterministic`) or it ran out of attempts at something that may pass later (`transient`) | `mark.delegate`, `yield.delegate` |
 | `GenerationStallError` | `job.stalled` — a generation said nothing for its stall deadline, and its cancellation was requested | `yield.delegate` |
-| `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.credential-refused`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
+| `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.credential-refused`, `session.construct-failed`, `session.keep-failed`, `session.save-refused` | the session layer — said on the session's `errors$` (and, for the sessions a `SemiontBrowser` opens, its `error$`), not as a per-call rejection |
 
 **What ends a session.** Two things, each with its own code.
 
@@ -800,7 +800,7 @@ if (error instanceof APIError) {
 }
 ```
 
-`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. The transport-level `errors$` stream (`client.transport.errors$`) carries every transport-mediated error just before it's thrown, so a host layer (e.g. `SemiontBrowser`'s session-ended / permission-denied modal routing) can subscribe once and surface them globally.
+`SemiontSessionError` is asynchronous — a session says it on its `errors$`, not as a thrown rejection on a namespace call, and a `SemiontBrowser` passes those of the sessions it opens to its `error$`. The session's `errors$` is its one stream of what went wrong: its own errors and its transport's failures (every transport-mediated error, just before it's thrown), each said once, so a host layer (e.g. `SemiontBrowser`'s session-ended / permission-denied modal routing) can subscribe once and surface them globally.
 
 ## Logging
 

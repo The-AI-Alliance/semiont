@@ -19,6 +19,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -56,6 +57,7 @@ import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
 
 private val alice = Json.parseToJsonElement(
     """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}""",
@@ -133,6 +135,33 @@ private class RefusingTheFirstWriteOf(private val beneath: SessionStorage, priva
         if (refuses(key)) throw IOException("the storage refuses the write of $refused")
         beneath.update(key, change)
     }
+}
+
+/** A storage that refuses every write of `refused`, keeping nothing of it, and takes every other write as `beneath` does. */
+private class RefusingEveryWriteOf(private val beneath: SessionStorage, private val refused: String) : SessionStorage by beneath {
+    /** How many writes it has refused. */
+    val refusals = AtomicInteger()
+
+    private fun refuse(key: String) {
+        if (key != refused) return
+        refusals.incrementAndGet()
+        throw IOException("the storage refuses the write of $refused")
+    }
+
+    override fun set(key: String, value: String) {
+        refuse(key)
+        beneath.set(key, value)
+    }
+
+    override fun update(key: String, change: (String?) -> String?) {
+        refuse(key)
+        beneath.update(key, change)
+    }
+}
+
+/** A random source whose every draw is the lowest it can give: each jittered wait is as short as it can be. */
+private object LowestDraw : Random() {
+    override fun nextBits(bitCount: Int): Int = 0
 }
 
 /** Whether a stream's subscription holds the scope of `resource`: one that names no scopes holds none. */
@@ -358,8 +387,89 @@ class SessionFromKeptTest {
                 }
             }
             withTimeout(5_000) { listening.join() }
-            assertEquals(1, said.count { refusal in it.message }, "$said")
+            assertEquals(listOf(SessionErrorCode.SaveRefused.code), said.filter { refusal in it.message }.map { it.code }, "$said")
             assertEquals(emptyList<Throwable>(), uncaught.toList())
+        }
+    }
+
+    @Test
+    fun aWriteTheStorageRefusesIsSaidOnceAsRefusedAndStaysOwedForTheClosingToMake() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = RefusingTheFirstWriteOf(MemoryStorage(), KEPT_FOR_ALICE.first)
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY))
+            val opened = sessionFromKept(kb(realm), kept, storage = storage)
+            val said = CopyOnWriteArrayList<SemiontError>()
+            val errors = opened.session.errors()
+            val listening = launch(Dispatchers.Unconfined) { errors.collect { said += it } }
+            opened.use {
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                withTimeout(5_000) {
+                    while (said.none { it is SessionError }) delay(5)
+                }
+                // Said as the storage refused it, in the storage's words, and owed still: the client is not at rest.
+                val refused = said.filterIsInstance<SessionError>().single()
+                assertEquals(SessionErrorCode.SaveRefused to "local", refused.reason to refused.kbId)
+                assertTrue("the storage refuses the write of ${KEPT_FOR_ALICE.first}" in refused.message, refused.message)
+                assertFalse(opened.client.persistenceSettled)
+                assertNull(storage.get(KEPT_FOR_ALICE.first))
+            }
+            withTimeout(5_000) { listening.join() }
+            // The closing flush made the write that was owed, before the errors ended, and nothing more was said.
+            assertNotNull(storage.get(KEPT_FOR_ALICE.first))
+            assertEquals(1, storage.refusals.get())
+            assertEquals(listOf(SessionErrorCode.SaveRefused), said.filterIsInstance<SessionError>().map { it.reason }, "$said")
+        }
+    }
+
+    @Test
+    fun aWriteTheClosingFlushCannotMakeIsSaidOnceMoreBeforeTheSessionsErrorsEnd() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = RefusingEveryWriteOf(MemoryStorage(), KEPT_FOR_ALICE.first)
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY))
+            val opened = sessionFromKept(kb(realm), kept, storage = storage)
+            val errors = opened.session.errors()
+            opened.use {
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                withTimeout(5_000) {
+                    while (storage.refusals.get() == 0) delay(5)
+                }
+            }
+            // The closing flush made the write it owed, which the storage still refused: that is said, and then the errors end.
+            val said = withTimeout(5_000) { errors.toList() }
+            assertEquals(listOf(SessionErrorCode.SaveRefused, SessionErrorCode.SaveRefused), said.filterIsInstance<SessionError>().map { it.reason }, "$said")
+            assertEquals(2, storage.refusals.get())
+            assertNull(storage.get(KEPT_FOR_ALICE.first))
+        }
+    }
+
+    @Test
+    fun aRenewalOnTheBackoffIsHandedTheTokenTheGatewayRefusedSoTheIssuerIsAsked() = runBlocking {
+        Realm().use { realm ->
+            realm.script("/api/users/me", Said(200, alice))
+            val access = tokenFor("access-1")
+            val renewed = tokenFor("access-2")
+            // The issuer does not answer the renewal of the refused token, through its whole retry budget, and then renews it.
+            repeat(semiont.Timings.REFRESH_RETRY.attempts) { realm.script("/token", Said(503, buildJsonObject { put("error", "unavailable") })) }
+            realm.script("/token", issued(renewed, "refresh-2"))
+            val kept = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
+            sessionFromKept(kb(realm), kept, random = LowestDraw).use { opened ->
+                val session = opened.session
+                session.errors().use { errors ->
+                    // The gateway refused the token the session holds, which has not expired, and its renewal got no answer.
+                    assertNull(session.refresh(access))
+                    assertEquals(SessionErrorCode.RefreshExhausted, withTimeout(5_000) { errors.filterIsInstance<SessionError>().first() }.reason)
+                }
+                assertEquals(access, kept.held()?.access)
+                // The renewal on the reconnect backoff is handed the token that renewal was for, the one kept, which the
+                // gateway refused: so the issuer is asked, and its new token is the session's, not the refused one.
+                withTimeout(15_000) { session.token.first { it == renewed } }
+                assertEquals(semiont.Timings.REFRESH_RETRY.attempts + 1, realm.of("/token").size)
+                assertEquals(renewed, kept.held()?.access)
+            }
         }
     }
 
@@ -531,15 +641,30 @@ class SessionFromKeptTest {
     }
 
     @Test
-    fun aSessionThatNeverAsksWhoItsTokenIsKeepsNothingEvenForASignInThatNamesItsPerson() = runBlocking {
+    fun aSessionThatNeverAsksWhoItsTokenIsShowsWhatWasKeptForThePersonItsSignInNames() = runBlocking {
         Realm().use { realm ->
             val storage = MemoryStorage()
             storage.set(KEPT_FOR_ALICE.first, KEPT_FOR_ALICE.second)
             val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY))
             sessionFromKept(kb(realm), kept, validate = false, storage = storage).use { opened ->
+                val shown = withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first() }
+                assertEquals("kept", (shown as? CacheState.Ready)?.value?.name, "$shown")
+            }
+            assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
+        }
+    }
+
+    @Test
+    fun aSessionThatNeverAsksWhoItsTokenIsKeepsForNobodyWhenItsSignInNamesNobodyYet() = runBlocking {
+        Realm().use { realm ->
+            val storage = MemoryStorage()
+            storage.set(KEPT_FOR_ALICE.first, KEPT_FOR_ALICE.second)
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
+            sessionFromKept(kb(realm), kept, validate = false, storage = storage).use { opened ->
                 assertEquals(CacheState.Pending, withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first() })
             }
             assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
+            assertNull(kept.held()?.personKey)
         }
     }
 

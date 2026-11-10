@@ -163,11 +163,15 @@ survive. `MemorySignIn` follows the same renewal rules. `stateDir` computes the
 launcher’s directory from values the application supplies; it reads no environment.
 
 `sessionFromKept` returns an `OpenedSession`, which owns the session and its HTTP
-transport. Dispose that owner before shutting down the HTTP client. The session’s
-`ready()` raises startup task failures; `errors()` reports session, transport and
-storage failures. Pass `onError` to hear the session’s own `SessionError`s from the start of
-construction, including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
-network renewal keeps the stored sign-in for another attempt. The transport tells the session the token refused:
+transport. Dispose that owner before shutting down the HTTP client. The session asks the
+gateway who its token is unless it is opened with `validate: false`. Its `ready()` raises
+startup task failures; `errors()` is its one stream of what went wrong: its own
+`SessionError`s (a sign-in it could not check, renew, read or record, a write its storage
+refused) and its transport’s failures, each said once. What it says before anyone reads
+`errors()` is kept for the first reader, and the stream ends only after the client’s closing
+flush, so what that flush says arrives first. Startup is bounded, overlapping refusals share
+one renewal, and a renewal that gets no answer, whatever failed, keeps the stored sign-in for
+another attempt. The transport tells the session the token refused:
 a refusal of a token the session has already replaced is given the token it holds, and renews nothing. Session token and
 user state are read-only, and their sequences finish on disposal.
 

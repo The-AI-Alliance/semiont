@@ -51,7 +51,7 @@ const { session } = opened;
 
 // … use session.client.{browse,gather,yield,mark,bind,match,frame,beckon} …
 
-opened.dispose();   // the session, then the client it was built with
+opened.dispose();   // the client it was built with, then the session
 ```
 
 Sign-in happens at the knowledge base's identity provider, never at the gateway:
@@ -508,7 +508,7 @@ when the session is disposed. `await` or `.catch` every call you start.
 
 ```typescript
 sub.unsubscribe();
-opened.dispose();   // the session (its refresh timer), then its client (the SSE connection and the bus)
+opened.dispose();   // its client (the SSE connection and the bus), then the session (its refresh timer)
 ```
 
 Disposal is terminal, in both directions:

@@ -474,7 +474,7 @@ pub async fn refresh_at_issuer(
 /// written back, and its new token is given to nobody, since a session that
 /// is over is not handed a credential again. What the sign-in kept could not
 /// read or write is its own error.
-pub(crate) async fn renew_kept(
+pub async fn renew_kept(
     kept: &dyn SignInKept,
     holding: Option<&str>,
     http: &reqwest::Client,

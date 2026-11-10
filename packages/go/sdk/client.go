@@ -90,7 +90,11 @@ func NewClient(config ClientConfig) *Client {
 	config.Transport.BridgeInto(own)
 	queries := newLive(l, config.Content)
 	if config.Persistence != nil {
-		queries.attach(config.Persistence)
+		// No session keeps for this client: a write its storage refuses is
+		// logged.
+		persistence := *config.Persistence
+		persistence.refused = unsaved
+		queries.attach(&persistence)
 	}
 	keeping := newRefresher(l, queries)
 	keeping.start()

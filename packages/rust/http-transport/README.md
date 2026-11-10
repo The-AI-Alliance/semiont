@@ -117,14 +117,13 @@ let opened = session_from_kept(SessionFromKept {
     validate: true,
     storage: None,
     on_auth_failed: None,
-    on_error: None,
     http,
     random: None,
 })
 .await?;
 
 let about = opened.session().client().browse.kb().await?;
-// The session, then the client it was built with.
+// The client, the saves it owed made, then the session.
 opened.close().await;
 ```
 
@@ -157,7 +156,6 @@ let opened = session_from_kept(SessionFromKept {
     validate: true,
     storage: None,
     on_auth_failed: None,
-    on_error: None,
     http,
     random: None,
 })

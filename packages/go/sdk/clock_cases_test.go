@@ -550,10 +550,12 @@ func renewalSubject(t *testing.T, given clockGiven) clockSubject {
 	if err := kept.Keep(context.Background(), semiont.HeldSignIn{Access: tokenFor(lifetime, 0), Refresh: "a-refresh-token", ClientID: "semiont-cli", TokenEndpoint: issuerOrigin + "/token"}); err != nil {
 		t.Fatal(err)
 	}
+	client := semionttest.NewTestClient(semionttest.TestClientConfig{Timing: semiont.DefaultTiming()})
 	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
-		Kb:    api.KbTarget{Id: kb},
-		Token: semiont.NewVariable(""),
-		Kept:  kept,
+		Kb:     api.KbTarget{Id: kb},
+		Client: client.Client,
+		Token:  semiont.NewVariable(""),
+		Kept:   kept,
 		Refresh: func(context.Context, string) (string, error) {
 			return tokenFor(lifetime, int(renewals.Add(1))), nil
 		},
@@ -562,9 +564,15 @@ func renewalSubject(t *testing.T, given clockGiven) clockSubject {
 		Random:   lowest,
 	})
 	if err != nil {
+		client.Client.Close()
+		client.Transport.Close()
 		t.Fatal(err)
 	}
-	t.Cleanup(session.Close)
+	t.Cleanup(func() {
+		session.Close()
+		client.Client.Close()
+		client.Transport.Close()
+	})
 	return clockSubject{counted: func() int { return int(renewals.Load()) }}
 }
 

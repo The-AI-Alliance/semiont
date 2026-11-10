@@ -13,6 +13,7 @@
   live_facts
   client_query
   registry_facts
+  kept_renewal
   state_task
   oauth_facts
   assertion_facts

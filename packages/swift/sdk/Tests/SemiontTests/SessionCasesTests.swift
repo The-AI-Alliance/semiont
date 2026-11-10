@@ -11,6 +11,8 @@ private actor SessionScript {
   let gateway: [String]
   var asks = 0
   var renewals = 0
+  /// What each renewal was handed, in order.
+  var handed: [String?] = []
   init(kept: MemorySignIn, issuer: [String], gateway: [String]) {
     self.kept = kept
     self.issuer = issuer
@@ -19,6 +21,7 @@ private actor SessionScript {
   func renew(_ holding: String?) async throws -> String? {
     let reply = issuer[min(renewals, issuer.count - 1)]
     renewals += 1
+    handed.append(holding)
     switch reply {
     case "refuses": throw SignInError(.exchange, "refused", status: 400)
     case "unreachable": throw SignInError(.exchange, "unreachable")
@@ -158,6 +161,12 @@ private func status(_ session: SemiontSession) -> String {
         let after = await script.counts()
         #expect(after == counts)
       }
+      // Every renewal is handed the token it renews: the token the row stored, the one its session
+      // started on, held or expired, and on the backoff the one whose renewal got no answer.
+      let handed = await script.handed
+      #expect(
+        handed.allSatisfy { $0 == held?.access },
+        "\(row["why"] ?? .null): renewals handed \(handed)")
       session.dispose()
       _ = try await observing.value
     }
@@ -507,4 +516,65 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
   session.dispose()
   try await withinTestDeadline { try await hearing.value }
   #expect(said.value == expected, "\(why): the renewal on the backoff")
+}
+
+// ── What a renewal is handed ────────────────────────────────────────────
+
+// A renewal on the reconnect backoff is handed the token whose renewal got no answer, so the kept
+// sign-in's renewal asks the issuer for it: handed none, it would give back the kept token, which
+// has not expired, and is the one the gateway refused.
+@Test func aRenewalOnTheBackoffIsHandedTheTokenTheGatewayRefused() async throws {
+  let reconnectMs = 200
+  let stored = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
+  let renewed = try jwt(
+    .object(["exp": .number(Date().timeIntervalSince1970 + 3600), "name": .string("renewed")]))
+  let kept = MemorySignIn(
+    HeldSignIn(
+      access: stored, clientId: scriptClientID, refresh: "refresh",
+      tokenEndpoint: "http://issuer/token"))
+  let clock = TestClock()
+  let handed = Mutex<[String?]>([])
+  let grants = Mutex(0)
+  let session = SemiontSession(
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
+    kept: kept, forget: { await kept.forget() },
+    renew: { holding in
+      handed.withLock { $0.append(holding) }
+      return try await renewKept(kept, holding: holding) { _ in
+        let grant = grants.withLock { grants in
+          grants += 1
+          return grants
+        }
+        // The issuer does not answer the first grant.
+        if grant == 1 { throw SignInError(.exchange, "The issuer did not answer") }
+        return IssuedTokens(access: renewed, refresh: "renewed")
+      }
+    },
+    validate: { _ in
+      try UserResponse(
+        did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
+    }, reconnectMs: reconnectMs, random: RandomSource(SystemRandomNumberGenerator()))
+  defer { session.dispose() }
+  let (said, hearing) = errorsOf(session)
+  await session.start()
+  try await withinTestDeadline { try await session.ready() }
+  // The gateway refuses the token the session holds, and its renewal gets no answer.
+  let given = try await withinTestDeadline { try await session.refresh(stored) }
+  #expect(given == nil, "a renewal with no answer gives a token")
+  let latest = clock.now.advanced(by: .milliseconds(reconnectMs))
+  try await withinTestDeadline {
+    while !clock.wakes.contains(where: { $0 <= latest }) {
+      try await Task.sleep(for: .milliseconds(1))
+    }
+  }
+  clock.advance(by: .milliseconds(reconnectMs * 6 / 5))
+  try await withinTestDeadline {
+    for await token in session.token where token == renewed { return }
+    throw SpecFailure.shape("The token readout ended before the backoff renewed the token")
+  }
+  #expect(handed.withLock { $0 } == [stored, stored])
+  #expect(grants.withLock { $0 } == 2, "the issuer was not asked on the backoff")
+  session.dispose()
+  try await withinTestDeadline { try await hearing.value }
+  #expect(said.value == ["session.refresh-exhausted"])
 }

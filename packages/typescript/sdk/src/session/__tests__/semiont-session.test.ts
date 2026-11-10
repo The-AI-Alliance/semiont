@@ -36,9 +36,11 @@ vi.mock('../../client', async () => {
 
 import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
-import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, SignInError, type AccessToken, type SemiontError } from '@semiont/core';
+import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, REFRESH_RETRY, SignInError, type AccessToken, type SemiontError } from '@semiont/core';
 import { SESSION_PREFIX_RE, UNREADABLE, UnreadableSignIn, freshJwt, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession, keptIn } from '../storage';
+import { MemorySignIn } from '../sign-in-kept';
+import { renewKept } from '../oauth';
 
 const KB = {
   id: 'kb-alpha',
@@ -758,6 +760,59 @@ describe('SemiontSession — a kept sign-in that cannot be read when the session
   });
 });
 
+describe('SemiontSession — every renewal is handed the token it renews', () => {
+  // A kept sign-in's renewal (`renewKept`) gives back a kept token that has
+  // not expired, with no grant, when it is handed another token or none: a
+  // renewal made elsewhere meanwhile. So a session that gave up the token the
+  // gateway refused, its renewal unanswered, hands that token to the renewal
+  // on the backoff, and the issuer is asked; handed none, the session would be
+  // given back the token the gateway had just refused.
+
+  it('the renewal on the backoff, after the renewal of a token the gateway refused got no answer, is handed that token, and the kept sign-in asks the issuer', async () => {
+    vi.useFakeTimers();
+    try {
+      const refused = freshJwt();
+      const renewed = freshJwt();
+      const kept = new MemorySignIn(testSession(refused, 'refresh-tok'));
+      let reachable = false;
+      const issuer = vi.fn(async (_input: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+        if (!reachable) throw new TypeError('fetch failed');
+        return Response.json({ access_token: renewed, refresh_token: 'refresh-2' });
+      });
+      const handed: (string | null)[] = [];
+      const session = newSession({
+        kept,
+        refresh: (holding) => {
+          handed.push(holding);
+          return renewKept(kept, holding, issuer);
+        },
+      });
+      await session.ready;
+      expect(session.token$.getValue()).toBe(refused);
+
+      // The gateway refuses the token, and the issuer does not answer its renewal within the grant's retry budget.
+      const answered = session.refresh(refused);
+      await vi.advanceTimersByTimeAsync(3500);
+      expect(await answered).toBeNull();
+      expect(session.token$.getValue()).toBeNull();
+      expect(issuer).toHaveBeenCalledTimes(REFRESH_RETRY.attempts);
+
+      // The issuer answers again. Past the latest the renewal on the backoff falls due:
+      // it is handed the token the gateway refused, and a grant is made for it.
+      reachable = true;
+      await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
+      expect(handed).toEqual([refused, refused]);
+      expect(issuer).toHaveBeenCalledTimes(REFRESH_RETRY.attempts + 1);
+      expect(session.token$.getValue()).toBe(renewed);
+      expect(kept.held()).toMatchObject({ access: renewed, refresh: 'refresh-2' });
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('SemiontSession — instance identity', () => {
   // `kb.id` says WHICH knowledge base; `session.id` says WHICH LIVE SESSION
   // of it. Consumers that bind derived state to a session (React state units
@@ -819,8 +874,8 @@ describe('SemiontSession — StateUnit axioms', () => {
       // No `refresh` or `validate`: a session of nobody, so nothing it is
       // driven with reaches past it.
       setup: () => newSession({ refresh: undefined, validate: undefined }),
-      // `streamState$` and `errors$` are the client's, and end with it.
-      surfaces: (u) => [u.token$, u.user$],
+      // `errors$` is the session's, and ends with it; `streamState$` is the client's, and ends with the client.
+      surfaces: (u) => [u.token$, u.user$, u.errors$],
       invocations: (u) => [() => void u.refresh(u.token$.getValue())],
     });
   });

@@ -150,7 +150,7 @@ func keptCacheFor(t *testing.T, query CacheQuery) func(v *live) queryCache {
 // casesPerson on casesKb. Nothing they hold is fetched.
 func casesLive(storage SessionStorage) *live {
 	v := newLive(&links{timing: DefaultTiming()}, nil)
-	v.attach(&CachePersistence{Storage: storage, KbID: casesKb, PersonKey: casesPerson})
+	v.attach(&CachePersistence{Storage: storage, KbID: casesKb, PersonKey: casesPerson, refused: unsaved})
 	return v
 }
 

@@ -10,6 +10,7 @@ let token_expiry = Tokens.token_expiry
 let refresh_delay = Tokens.refresh_delay
 
 type task = {
+  holding : string option;
   refused : string option;
   generation : unit ref;
   result : renewal Promise.t;
@@ -19,10 +20,11 @@ type task = {
 type t = {
   clock : Clock.t;
   keep_on_unavailable : bool;
-  renew : refused:string option -> renewal;
+  renew : holding:string option -> renewal;
   on_rejected : string -> unit;
   work : task Eio.Stream.t;
   mutable token : string option;
+  mutable holding : string option;
   mutable managed :
     (current:(unit -> bool) -> refused:string option -> renewal -> renewal)
     option;
@@ -40,6 +42,7 @@ let credential t = if active t then t.token else None
 
 let publish t token =
   t.token <- token;
+  if token <> None then t.holding <- token;
   let _, notify = t.changed in
   t.changed <- Promise.create ();
   Promise.resolve notify ()
@@ -58,7 +61,15 @@ let renew_once t refused =
       | Some task -> task
       | None ->
           let result, complete = Promise.create () in
-          let task = { refused; generation = t.generation; result; complete } in
+          let task =
+            {
+              holding = t.holding;
+              refused;
+              generation = t.generation;
+              result;
+              complete;
+            }
+          in
           t.pending <- Some task;
           Eio.Stream.add t.work task;
           task
@@ -80,7 +91,7 @@ let worker t =
   while true do
     let task = Eio.Stream.take t.work in
     let outcome =
-      try t.renew ~refused:task.refused with Eio.Io _ -> Unavailable
+      try t.renew ~holding:task.holding with Eio.Io _ -> Unavailable
     in
     let outcome =
       match t.managed with
@@ -160,6 +171,7 @@ let start ?(keep_on_unavailable = false) ?(on_rejected = ignore) ~sw ~clock
       on_rejected;
       work = Eio.Stream.create 1;
       token = initial_token;
+      holding = initial_token;
       managed = None;
       retry_due = false;
       generation = ref ();

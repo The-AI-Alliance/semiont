@@ -60,11 +60,15 @@ await SemiontSession.signInDevice({
 });
 const opened = await SemiontSession.fromKept({ kb, kept });
 const { resources } = await opened.session.client.browse.resources({ limit: 10 }).fresh();
-opened.dispose(); // the session, then the client it was built with
+opened.dispose(); // the client it was built with, then the session
 ```
 
 `fromKept` gives an `OpenedSession`: the session, and the client it was built with. The session
-only uses its client, so the two end together.
+only uses its client, so the two end together. The session asks the gateway who its token is,
+and so learns who is signed in, unless it is given `validate: false`. What goes wrong, it says
+on `session.errors$`, its one stream of it: its own errors (a `SemiontSessionError`, such as
+`session.refresh-exhausted`, or `session.save-refused` for a write its storage refused) and its
+client's transport failures, each once, until it ends.
 
 Where the sign-in is kept decides what a restart does. A `MemorySignIn` lives as long as the
 process. `keptIn(storage, kb.id)` keeps it in a `SessionStorage` under `kb.id`, so distinct
@@ -73,8 +77,9 @@ scripts sharing one storage use distinct ids. An entry of the `SignInStore` is t
 
 Already hold tokens? Keep the access and refresh pair in a `MemorySignIn` and open it with
 `SemiontSession.fromKept(...)`. `SemiontSession.fromHttp(...)` takes a bare access token and the
-`refresh` that renews it, which is given the token the session holds, and gives an
-`OpenedSession` too.
+`refresh` that renews it, which is given the token it renews, and gives an
+`OpenedSession` too. A holder of tokens that builds no session over them renews a kept
+sign-in with `renewKept(kept, holding)`.
 `SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
 a one-shot script that finishes inside one token's life.
 
@@ -188,7 +193,7 @@ if (done.result && 'resourceId' in done.result) {
   console.log('The summary is', done.result.resourceId);
 }
 
-opened.dispose(); // what the sign-in gave (Connect): the session, then its client
+opened.dispose(); // what the sign-in gave (Connect): its client, then the session
 ```
 
 Both resources, and every annotation the model made, are in the knowledge base

@@ -34,7 +34,7 @@ import { fetchOf } from '../fetch-of';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
 import type { SignInKept } from './sign-in-kept';
-import { base64url, isJwtExpired, kbGatewayUrl, keptIn } from './storage';
+import { base64url, isJwtExpired, kbGatewayUrl } from './storage';
 
 // All of `crypto` this module may use: what a browser gives every page.
 // `crypto.subtle` and `crypto.randomUUID` exist only in a secure context, and
@@ -421,20 +421,6 @@ export async function renewKept(
       error.status,
     );
   }
-}
-
-/**
- * Renew a knowledge base's sign-in stored in `storage` at its issuer, and
- * keep the rotation there: `renewKept` over `keptIn(storage, kbId)`, for a
- * holder of tokens that builds no session over them (the desktop shell's).
- */
-export function refreshStoredSession(
-  storage: SessionStorage,
-  kbId: string,
-  holding: string | null,
-  fetch?: typeof globalThis.fetch,
-): Promise<string | null> {
-  return renewKept(keptIn(storage, kbId), holding, fetch);
 }
 
 /**

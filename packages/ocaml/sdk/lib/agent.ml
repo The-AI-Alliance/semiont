@@ -18,7 +18,7 @@ let sign_in ~sw ~clock ~issuer ~http ~client_id ~proof ~key ~call () =
   match grant () with
   | Error error -> Error (Issuer error)
   | Ok initial ->
-      let renew ~refused:_ =
+      let renew ~holding:_ =
         match grant () with
         | Ok tokens -> Session.Renewed tokens.access_token
         | Error _ -> Session.Unavailable

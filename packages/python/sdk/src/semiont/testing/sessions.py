@@ -20,6 +20,7 @@ from typing import Final, final, override
 
 from pydantic import JsonValue
 
+from semiont._telling import tell
 from semiont.errors import SessionError, SignInError, TransportError
 from semiont.registry import SessionFactory, SessionFactoryOptions, kept_in
 from semiont.session import SemiontSession
@@ -121,7 +122,7 @@ class ScriptedSessions(SessionFactory):
         self._built.append((kb_id, transport))
         user, wait = self._user, self._answers_after
 
-        async def renew() -> str | None:
+        async def renew(_holding: str | None) -> str | None:
             self._renewed += 1
             if not self._renewals:
                 raise SignInError("exchange", f"ScriptedSessions: not scripted: a renewal of {kb_id!r}. Script one with queue_renewals.")
@@ -144,12 +145,16 @@ class ScriptedSessions(SessionFactory):
             refresh=renew,
             validate=validate,
             on_auth_failed=options.signals.notify_session_ended,
-            on_error=options.on_error,
         )
+        telling: asyncio.Task[None] | None = None
         try:
             async with client, session:
+                # Its errors' one reader, as `semiont.http.session.HttpSessionFactory`'s: what it said as it started is told too.
+                telling = asyncio.create_task(tell(session, options))
                 yield session
         finally:
+            if telling is not None:
+                await telling
             await transport.close()
 
     @override

@@ -10,9 +10,9 @@
 //! `auth` and `system` are there when the client was given a gateway: a
 //! transport with no gateway behind it has neither.
 //!
-//! `close` is the graceful end: the queries end and save what they owed, the
-//! transport stops, every stream ends and every request still pending fails
-//! as closed. A client that is only dropped ends its queries and its own
+//! `close` is the graceful end: the queries end and save what they owed,
+//! waited for, the transport stops, every stream ends and every request
+//! still pending fails as closed. A client that is only dropped ends its queries and its own
 //! bus; its transport stops when the last holder of it lets go.
 //!
 //! A client is built inside a Tokio runtime: it listens, from the moment it
@@ -20,7 +20,7 @@
 
 use crate::bus::{Bus, payload_of};
 use crate::channels::{Channel, Request};
-use crate::errors::SemiontError;
+use crate::errors::{SemiontError, SessionErrorCode};
 use crate::event_bus::EventBus;
 use crate::namespaces::{
     AuthNamespace, BeckonNamespace, BindNamespace, BrowseNamespace, FrameNamespace,
@@ -28,6 +28,7 @@ use crate::namespaces::{
     YieldNamespace,
 };
 use crate::resume::CoupledBookmarks;
+use crate::session::SignInKept;
 use crate::storage::SessionStorage;
 use crate::timing::{BUS_REQUEST_TIMEOUT, INVALIDATION_WINDOW, JOB_SILENCE, JOB_STATUS_POLL};
 use crate::transport::{ConnectionState, ContentTransport, Envelope, GatewayOperations, Transport};
@@ -73,6 +74,14 @@ pub struct CachePersistence {
     pub storage: Arc<dyn SessionStorage>,
     pub kb_id: String,
     pub person_key: String,
+}
+
+/// The session a client is owned by (`SemiontClient::owned_by`): the
+/// sign-in what the client keeps is written for, and how the session says
+/// what goes wrong with it.
+pub(crate) struct Owner {
+    pub(crate) kept: Arc<dyn SignInKept>,
+    pub(crate) says: Arc<dyn Fn(SessionErrorCode, String) + Send + Sync>,
 }
 
 /// What a client is built with, beyond what it speaks through.
@@ -278,19 +287,43 @@ impl SemiontClient {
         self.refresher.couple(places);
     }
 
+    /// The client is owned by a session from now on: what it keeps is
+    /// written only while the session's sign-in names the person it is kept
+    /// for, and what goes wrong with it is said by the session. A client is
+    /// owned once.
+    pub(crate) fn owned_by(&self, owner: Owner) {
+        self.browse.owned_by(owner);
+    }
+
+    /// Record on the sign-in of the session that owns the client that the
+    /// gateway named the person whose key is `person_key` as who `access`
+    /// is (`crate::session::SignInKept::record_person_key`). Whether the
+    /// sign-in names them now: one that will not take the record does not,
+    /// and nothing is kept of them. A sign-in that cannot record them is
+    /// said by the session once, as `session.keep-failed`, and the client
+    /// keeps nothing more for the rest of its life, whoever it kept for:
+    /// nothing is written, or recorded, after it. A client no session owns
+    /// records nothing.
+    pub async fn record_person_key(&self, access: &str, person_key: &str) -> bool {
+        self.browse.record_person_key(access, person_key).await
+    }
+
     /// Write nothing more of what the client keeps, for the rest of its
     /// life: what its session does before it forgets its saved sign-in. It
     /// returns once a write under way has finished, its check of the
     /// sign-in included, so nothing the forget then deletes is written
     /// after it.
-    pub(crate) fn stop_persisting(&self) {
-        self.browse.stop_persisting();
+    pub(crate) async fn stop_persisting(&self) {
+        self.browse.stop_persisting().await;
     }
 
     /// Stop. The queries end first, so nothing they had in flight asks
-    /// again of a transport that is going; then the transport closes, so
-    /// every stream ends and every request still pending fails as closed;
-    /// then the client's own bus ends. Closing twice is closing once.
+    /// again of a transport that is going, and the save each owed is made,
+    /// and waited for: one its storage refuses is said, by a session that
+    /// owns the client, before the session ends. Then the transport closes,
+    /// so every stream ends and every request still pending fails as
+    /// closed; then the client's own bus ends. Closing twice is closing
+    /// once.
     ///
     /// Before anything is disposed, the places the closing flush may write
     /// are taken: those noted so far, when no fetch is in flight and no
@@ -306,6 +339,7 @@ impl SemiontClient {
         self.browse.dispose();
         self.gather.dispose();
         self.match_.dispose();
+        self.browse.flushed().await;
         self.transport.close().await;
         self.own.destroy();
     }

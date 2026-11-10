@@ -11,7 +11,9 @@ package semiont
 // is kept is forgotten only when the issuer refuses: a renewal that got no
 // answer leaves the session no usable token and keeps what is kept, and the
 // next refusal renews again, and so does the session on its own, on the
-// reconnect backoff.
+// reconnect backoff. What goes wrong, the session says once on its one errors
+// stream (Errors), beside its transport's failures: it takes no callback for
+// it.
 
 import (
 	"context"
@@ -141,16 +143,21 @@ type SessionConfig struct {
 	// Kb is the knowledge base the session is with: where it is reached, and
 	// Id, the key its sign-in is kept under.
 	Kb api.KbTarget
-	// Client is the client whose transport sends the session's token. The
-	// session only uses it: whoever made the client and the session ends both.
+	// Client is the client whose transport sends the session's token, and
+	// whose transport's failures the session's errors carry. The session only
+	// uses it: whoever made the client and the session ends both, the session
+	// first, then the client, then its transport.
 	Client *Client
 	// Token is the token the transport sends: "" for none.
 	Token *Variable[string]
 	// Kept is where the session's sign-in is kept.
 	Kept SignInKept
-	// Refresh renews renewing, the session's token, at the issuer: the new
-	// token, "" when nothing is kept to renew, or the failure, a
-	// *SignInError. Nil: the session renews nothing.
+	// Refresh renews renewing, the token the session holds, at the issuer:
+	// the new token, "" when nothing is kept to renew, or the failure, a
+	// *SignInError. renewing is the token found kept at the start, though it
+	// has expired, and, once a renewal that got no answer has left the
+	// session holding none, the token that renewal was for: "" only for a
+	// session that has held none. Nil: the session renews nothing.
 	Refresh func(ctx context.Context, renewing string) (string, error)
 	// Validate asks the gateway who token is; a refusal of the token is a
 	// *TransportError of code unauthorized. Nil: nobody is asked, as a
@@ -158,12 +165,7 @@ type SessionConfig struct {
 	Validate func(ctx context.Context, token string) (api.UserResponse, error)
 	// OnAuthFailed is told why the session ended, when it ends. May be nil.
 	OnAuthFailed func(SessionEndReason)
-	// OnError is told each failure that makes the session unusable, and, for
-	// a session whose client keeps what it holds (SessionFromKeptConfig's
-	// Storage), the one that stops it keeping (session.keep-failed), after
-	// which the session goes on. May be nil.
-	OnError func(*SessionError)
-	Timing  Timing
+	Timing       Timing
 	// Random is what the jitter of a renewal tried again after it got no
 	// answer is drawn from, as EqualJitter draws it.
 	Random *rand.Rand
@@ -194,6 +196,12 @@ type Session struct {
 	// unanswered holds while a renewal that got no answer is owed another
 	// attempt.
 	unanswered *Variable[bool]
+	// renewedMu guards renewed: the token the session last handed a renewal,
+	// which a renewal made while it holds none is handed.
+	renewedMu sync.Mutex
+	renewed   string
+	// failures is the session's errors (Errors).
+	failures *failureStream[Error]
 }
 
 var (
@@ -218,6 +226,13 @@ func notRenewed(failure error) string {
 // one that asks nobody gives it at once. What the session does at its start,
 // it does on its own: Ready says when it is done.
 func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
+	return startSession(ctx, config, newFailureStream[Error]())
+}
+
+// startSession is StartSession, saying what goes wrong on failures: made
+// before the session, so that what keeps its sign-in can say there what it
+// meets while the session starts.
+func startSession(ctx context.Context, config SessionConfig, failures *failureStream[Error]) (*Session, error) {
 	kept, has, err := config.Kept.Held(ctx)
 	if err != nil {
 		return nil, err
@@ -227,7 +242,10 @@ func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
 		config.Token.Set(kept.Access)
 	}
 	alive, cancel := context.WithCancel(context.Background())
-	s := &Session{config: config, alive: alive, cancel: cancel, ready: make(chan struct{}), id: "session-" + uuid.NewString(), user: NewVariable[*api.UserResponse](nil), unanswered: NewVariable(false)}
+	s := &Session{config: config, alive: alive, cancel: cancel, ready: make(chan struct{}), id: "session-" + uuid.NewString(), user: NewVariable[*api.UserResponse](nil), unanswered: NewVariable(false), failures: failures}
+	// Taken now: a failure the transport meets once the session is made is
+	// among the session's errors.
+	go s.carry(config.Client.Transport.Failures())
 	s.work.Add(3)
 	go func() {
 		defer s.work.Done()
@@ -281,9 +299,29 @@ func (s *Session) User() Watched[*api.UserResponse] { return s.user.Reading() }
 // StreamState is the state of the client's connection.
 func (s *Session) StreamState() Watched[ConnectionState] { return s.config.Client.Transport.State() }
 
-// Errors is the failures the client's transport meets, from now on. A host
-// routes them: a refusal for want of a valid token is a reason to Refresh.
-func (s *Session) Errors() iter.Seq[*TransportError] { return s.config.Client.Transport.Failures() }
+// Errors is the session's one stream of what went wrong: its own failures
+// (a *SessionError) and its client's transport's (a *TransportError), each
+// said once. Its first reader is given everything said since the session was
+// made, and every later one what is said from then on; saying never waits for
+// a reader. It ends once the session, its client and the client's transport
+// have all closed, so what the client's closing flush meets is said before it
+// ends. A host routes them: a refusal for want of a valid token is a reason to
+// Refresh.
+func (s *Session) Errors() iter.Seq[Error] { return s.failures.failures() }
+
+// carry says among the session's errors each failure the transport meets,
+// until the transport closes; the errors end then, once the session and its
+// client have closed too. It is not the session's work, which Close waits
+// for: the transport closes after the session.
+func (s *Session) carry(transportFailures iter.Seq[*TransportError]) {
+	for failure := range transportFailures {
+		s.failures.report(failure)
+	}
+	<-s.alive.Done()
+	s.work.Wait()
+	<-s.config.Client.links.life.Done()
+	s.failures.close()
+}
 
 // ExpiresAt is when the token the session holds expires; false when it holds
 // none, or the token names no time.
@@ -298,7 +336,8 @@ func (s *Session) ExpiresAt() (time.Time, bool) {
 // Close ends the session: it renews nothing more and asks nobody anything,
 // its token and who is signed in change no more, and it returns once what it
 // was running has stopped. Closing twice is closing once. Its client is left
-// to whoever made it.
+// to whoever made it, and its errors end once the client and its transport
+// have closed too.
 func (s *Session) Close() {
 	s.cancel()
 	s.markReady()
@@ -352,18 +391,33 @@ func (s *Session) Refresh(_ context.Context, refused string) (string, bool) {
 	return current, current != ""
 }
 
-// tryRefresh asks Refresh to renew renewing: the token, or "" and why there is
-// none. A renewal that could not be made and one that was refused both leave
-// the session without a token.
-func (s *Session) tryRefresh(renewing string) (string, error) {
+// tryRefresh asks Refresh to renew holding, the token the session holds: the
+// token, or "" and why there is none. A renewal that could not be made and one
+// that was refused both leave the session without a token.
+func (s *Session) tryRefresh(holding string) (string, error) {
 	if s.config.Refresh == nil {
 		return "", nil
 	}
-	renewed, err := s.config.Refresh(s.alive, renewing)
+	renewed, err := s.config.Refresh(s.alive, s.renewing(holding))
 	if err != nil {
 		return "", err
 	}
 	return renewed, nil
+}
+
+// renewing is the token a renewal of holding is handed, and remembers it:
+// holding, or, while the session holds none, the token it last handed a
+// renewal. A renewal that got no answer leaves the session holding none, and
+// the next is handed the token that one was for: handed none, what keeps the
+// sign-in gives back a kept token that has not expired without asking the
+// issuer, which after a refusal is the token the gateway refused.
+func (s *Session) renewing(holding string) string {
+	s.renewedMu.Lock()
+	defer s.renewedMu.Unlock()
+	if holding != "" {
+		s.renewed = holding
+	}
+	return s.renewed
 }
 
 // renew renews renewing, the session's token, at the issuer, with nobody asked
@@ -383,11 +437,14 @@ func (s *Session) renew(renewing string) (string, bool) {
 	}
 	s.config.Token.Set("")
 	// A session that never had a credential cannot expire: it is signed out,
-	// which is no failure. One whose store cannot say is ended, which forgets
-	// what may be there.
-	if _, held, err := s.config.Kept.Held(s.alive); err != nil || held {
+	// which is no failure. One whose store cannot say whether it has one got
+	// no answer, and keeps what may be there.
+	switch _, held, err := s.config.Kept.Held(s.alive); {
+	case err != nil && failure == nil:
+		s.unrenewed(err)
+	case err != nil || held:
 		s.unrenewed(failure)
-	} else {
+	default:
 		s.unanswered.Set(false)
 	}
 	return "", false
@@ -468,11 +525,8 @@ func notForgotten(err *SessionError, forgotten error) *SessionError {
 	return &SessionError{Code: err.Code, Message: err.Message + "; and the sign-in could not be forgotten: " + forgotten.Error(), KbID: err.KbID}
 }
 
-func (s *Session) failed(err *SessionError) {
-	if s.config.OnError != nil {
-		s.config.OnError(err)
-	}
-}
+// failed says err among the session's errors.
+func (s *Session) failed(err *SessionError) { s.failures.report(err) }
 
 // start is what a session does at its start, with the sign-in it found kept.
 // It renews one that has expired, then asks the gateway who it is. A token

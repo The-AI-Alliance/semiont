@@ -198,7 +198,7 @@ final class KeptQueries: Sendable {
   /// caches.
   let underway = Unsettled()
   private let storage: any SessionStorage
-  fileprivate let kbId: String
+  private let kbId: String
   private let writer: any KeptWriter
   private let clock: any Clock<Duration>
   private let state = Mutex(State())
@@ -296,8 +296,8 @@ final class KeptQueries: Sendable {
   /// Writes what `query`'s document has not yet written at once, while nothing it holds changes.
   fileprivate func writeNow(_ query: KeptQuery) {
     state.withLock { state in
-      guard let writing = taken(&state, of: [query]), let unwritten = put(writing) else { return }
-      Self.restore(&state, unwritten)
+      guard let writing = taken(&state, of: [query]), let refused = put(writing) else { return }
+      Self.restore(&state, refused.unwritten)
     }
   }
 
@@ -325,9 +325,10 @@ final class KeptQueries: Sendable {
     }
   }
 
-  /// Writes `writing`, taken before, and keeps what it could not write to be written again. A
-  /// document a write since could not put still owes its save, and holds the places back (B17).
-  fileprivate func write(_ writing: Writing) {
+  /// Writes `writing`, taken before, and keeps what it could not write to be written again; gives
+  /// what the storage said when it refused the write, and nil when it wrote it. A document a write
+  /// since could not put still owes its save, and holds the places back (B17).
+  fileprivate func write(_ writing: Writing) -> (any Error)? {
     var writing = writing
     let owing = state.withLock { state in
       guard state.attached?.owed.isEmpty == false else { return false }
@@ -335,8 +336,9 @@ final class KeptQueries: Sendable {
       return true
     }
     if owing { writing.places = [:] }
-    guard let unwritten = put(writing) else { return }
-    state.withLock { Self.restore(&$0, unwritten) }
+    guard let refused = put(writing) else { return nil }
+    state.withLock { Self.restore(&$0, refused.unwritten) }
+    return refused.refusal
   }
 
   /// Its sign-in is not known to name its person: what is not yet written goes, and nothing is
@@ -357,9 +359,11 @@ final class KeptQueries: Sendable {
     }
   }
 
-  /// Puts `writing` in storage, and gives what it could not put: nil when it put everything.
+  /// Puts `writing` in storage, and gives what it could not put, with what the storage said when it
+  /// refused it: nil when it put everything. What was not written is written with the next save,
+  /// or the close.
   @discardableResult
-  private func put(_ writing: Writing) -> Writing? {
+  private func put(_ writing: Writing) -> (unwritten: Writing, refusal: any Error)? {
     var written = 0
     do {
       for (query, text) in writing.documents {
@@ -374,10 +378,10 @@ final class KeptQueries: Sendable {
       }
       return nil
     } catch {
-      // Keeping is optional: what was not written is written with the next save, or the close.
-      return Writing(
+      let unwritten = Writing(
         person: writing.person, documents: Array(writing.documents.dropFirst(written)),
         places: writing.places)
+      return (unwritten, error)
     }
   }
 
@@ -439,14 +443,19 @@ struct WritesAsGiven: KeptWriter {
 /// forgetting of its sign-in is a step too, after which nothing is written, so no save lands after
 /// what forgetting deletes, within one process. A sign-in that is gone, or names nobody or someone
 /// else, drops what is not yet written, and nothing is written again. So does one that cannot be
-/// read, which is reported once, as a ``SessionError`` of `session.keep-failed`.
+/// read, or cannot record who the gateway named, which is reported once, as `session.keep-failed`.
+/// Each write the storage refuses is reported once, as `session.save-refused` with what the storage
+/// said, and stays owed.
 final class WritesWhileNamed: KeptWriter {
   private let kept: any SignInKept
-  private let report: @Sendable (SessionError) async -> Void
+  /// Reports what kept it from keeping: the session error's code, and what failed.
+  private let report: @Sendable (SessionErrorCode, String) async -> Void
   private let steps = SerialSteps()
-  private let forgotten = Mutex(false)
+  /// It writes nothing more: the session forgot its sign-in, or the sign-in could not record who
+  /// the gateway named.
+  private let stopped = Mutex(false)
 
-  init(kept: any SignInKept, report: @escaping @Sendable (SessionError) async -> Void) {
+  init(kept: any SignInKept, report: @escaping @Sendable (SessionErrorCode, String) async -> Void) {
     self.kept = kept
     self.report = report
   }
@@ -473,29 +482,51 @@ final class WritesWhileNamed: KeptWriter {
   /// landed; nothing is written after it.
   func forgetting(_ forget: @escaping @Sendable () async throws -> Void) async throws {
     try await steps.then { [self] in
-      forgotten.withLock { $0 = true }
+      stopped.withLock { $0 = true }
       try await forget()
     }.value
+  }
+
+  /// Records on what holds the sign-in that the gateway named `person` as the one whose token is
+  /// `access`, and says whether the sign-in now names them. One that cannot record it is not known
+  /// to name the person kept for: nothing is recorded or written after it.
+  func recorded(_ person: String, holding access: String) async -> Bool {
+    guard !stopped.withLock({ $0 }) else { return false }
+    do {
+      return try await kept.recordPersonKey(holding: access, person)
+    } catch {
+      let first = stopped.withLock { stopped in
+        defer { stopped = true }
+        return !stopped
+      }
+      if first {
+        await report(
+          .sessionKeepFailed,
+          "The kept sign-in could not record who the gateway named: " + String(describing: error))
+      }
+      return false
+    }
   }
 
   /// Writes `writing`, taken before this step began, unless it was dropped since.
   private func write(_ writing: KeptQueries.Writing, of keeping: KeptQueries) async {
     guard !keeping.ended else { return }
-    guard !forgotten.withLock({ $0 }) else { return keeping.drop() }
+    guard !stopped.withLock({ $0 }) else { return keeping.drop() }
     let named: String?
     do {
       named = try await kept.held()?.personKey
     } catch {
       keeping.drop()
       await report(
-        SessionError(
-          .sessionKeepFailed,
-          "The kept sign-in could not be read before a save: " + String(describing: error),
-          kbId: keeping.kbId))
+        .sessionKeepFailed,
+        "The kept sign-in could not be read before a save: " + String(describing: error))
       return
     }
     guard named == writing.person else { return keeping.drop() }
-    keeping.write(writing)
+    guard let refusal = keeping.write(writing) else { return }
+    await report(
+      .sessionSaveRefused,
+      "The storage refused a write of what the client keeps: " + String(describing: refusal))
   }
 }
 

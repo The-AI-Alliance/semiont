@@ -37,7 +37,7 @@ Every way makes its requests, of the gateway and of the identity provider, with 
 | Rust | a `reqwest::Client` | `http` in `SessionFromKept`, and the argument `http` of `sign_in_device`, `sign_out`, `ServiceToken::new`, `AgentToken::sign_in`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory::new` | none: it is required |
 | Go | a `*http.Client` | `HTTP` in the `Issuer` that `SignInWithDevice`, `NewServiceToken`, `BeginSignIn` and `CompleteSignIn` take, and in `AgentConfig`, `SessionFromKeptConfig` and `registry.HttpSessionFactory` | none: it is required |
 | Kotlin | a `java.net.http.HttpClient` | the last argument `http` of `sessionFromKept`, `beginSignIn`, `completeSignIn`, `ServiceToken`, `AgentToken` and `HttpSessionFactory`, and of `signInDevice` before its `onCode` | the JDK's, with its default proxy selector and trust store |
-| .NET | a `System.Net.Http.HttpClient` | `httpClient` on `Issuer`, `KeptSession`, `ServiceToken`, `AgentToken`, `HttpSessionFactory`, and the client and transport constructors. The redirect helpers also accept it. | an SDK-owned HTTP handler with proxy use disabled |
+| .NET | a `System.Net.Http.HttpClient` | `httpClient` on `Issuer`, `SemiontSession.FromKeptAsync`, `ServiceToken`, `AgentToken`, `HttpSessionFactory`, and the client and transport constructors. The redirect helpers also accept it. | an SDK-owned HTTP handler with proxy use disabled |
 | Haskell | an `HttpClient`, which `Http.newHttpClient` builds from `http-client` `ManagerSettings` and a proxy policy | `httpClient` in the `HttpOptions` that `Session.signInDevice`, `fromKeptSession`, `fromIssuedSession` and `signInAgent`, `Client.fromHttp`, `newHttpSessionFactory` and the registry take, and `issuerHttpClient` in the `IssuerOptions` of `Issuer` and `ServiceToken` | none: it is required |
 | OCaml | an `OAuth.http` callback for the issuer and a streaming HTTP adapter for the gateway | the issuer callback goes to the sign-in functions, and the gateway adapter goes to `Client.connect` | both are supplied by the application |
 
@@ -69,16 +69,16 @@ await SemiontSession.signInDevice({
 const opened = await SemiontSession.fromKept({ kb, kept });
 ```
 
-- **The device grant keeps the sign-in, and `SemiontSession.fromKept` gives an `OpenedSession`**, which holds the session and its client. Call `opened.dispose()` to end the session and then close the client.
+- **The device grant keeps the sign-in, and `SemiontSession.fromKept` gives an `OpenedSession`**, which holds the session and its client. Call `opened.dispose()` to close the client and then end the session.
 - **It needs a person each time the script starts**, unless the script keeps its sign-in. A pipeline of several scripts asks once per script.
 - **To keep the sign-in between runs**, keep it in `keptIn(storage, kb.id)` over a `SessionStorage` that writes to a file: [`semiont-session`](./skills/semiont-session/SKILL.md#keeping-tokens-across-restarts) has one. The file holds tokens. Keep it where only you can read it, and outside the knowledge base's working tree, which is a git repository.
 - **`kb.id` is the key `keptIn` stores the sign-in under.** Two scripts that share one storage use different ids.
 
 In .NET, `Issuer.SignInDeviceAsync` stores the granted credentials in the
-supplied `ISignInKept`. Construct a `KeptSession` over that same entry. Await
-`ReadyAsync` and read `State` for the token and validated user. The
-[.NET SDK guide](../../packages/csharp/sdk/README.md#signing-in) explains
-how to attach the session to a client.
+supplied `ISignInKept`. Open a session over that same entry with
+`SemiontSession.FromKeptAsync`, which gives the session with the client it
+was built with. The
+[.NET SDK guide](../../packages/csharp/sdk/README.md#signing-in) shows it.
 
 [Usage](./Usage.md#setup) has the TypeScript options, and [`semiont-session`](./skills/semiont-session/SKILL.md) a long-running script built on it.
 
@@ -113,8 +113,8 @@ In TypeScript, the entry point depends on the credentials you hold.
 - **An access token alone** goes to `SemiontClient.fromHttp`. Use it for a program that finishes within the token's lifetime.
 
 In .NET, pass an existing access token to `SemiontClient`. For a credential
-with a refresh token, store the grant in an `ISignInKept` and open a
-`KeptSession`. A host with its own renewal logic can pass a `refresher` to
+with a refresh token, store the grant in an `ISignInKept` and open it with
+`SemiontSession.FromKeptAsync`. A host with its own renewal logic can pass a `refresher` to
 `HttpTransport` and construct the client over that transport.
 
 In every SDK a transport's refresher is told the token the gateway refused,

@@ -106,7 +106,7 @@ val queue_session :
 
 val factory : scripted_sessions -> Registry.session_factory
 val queue_renewal : scripted_sessions -> renewal -> unit
-val renew : scripted_sessions -> refused:string option -> renewal
+val renew : scripted_sessions -> holding:string option -> renewal
 
 type shared_storage
 

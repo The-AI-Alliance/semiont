@@ -131,6 +131,7 @@ async fn a_failure_reply_that_is_not_its_channels_is_refused_naming_its_fault() 
             correlation_id,
             scope: None,
             trace: None,
+            stream_id: None,
         });
         let error = asked.await.expect("the request ran").expect_err("it fails");
         let SemiontError::Transport(refusal) = error else {

@@ -131,6 +131,10 @@ internal sealed class LiveQueries : IDisposable
 
     private bool RefetchOwed() => caches.Any(cache => cache.RefetchOwed);
 
+    /// <summary>Complete once the persistence's closing flush has written what it could; a client that keeps nothing has
+    /// nothing to flush.</summary>
+    internal Task Flushed => persistence is null ? Task.CompletedTask : persistence.Flushed;
+
     /// <summary>The engines the knowledge base names, once the services that hold the inference credentials have reported
     /// their limits too; those reports are kept beside them, to be joined as the engines are shown.</summary>
     private async Task<IReadOnlyList<EngineEntry>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)

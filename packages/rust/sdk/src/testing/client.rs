@@ -109,7 +109,6 @@ pub fn create_test_session(options: TestSessionOptions) -> TestSession {
         refresh: None,
         validate: None,
         on_auth_failed: None,
-        on_error: None,
         random: None,
     });
     TestSession {

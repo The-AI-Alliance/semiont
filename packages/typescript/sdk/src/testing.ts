@@ -195,7 +195,7 @@ export interface TestSessionOptions extends TestClientOptions {
  * No token is seeded and no
  * `validate`/`refresh` callbacks are wired, so `session.ready` settles
  * immediately; tests that need an authenticated shape push into `token$`.
- * The caller ends the session and then the client: the session only uses it.
+ * The caller ends the client and then the session: the session only uses it.
  */
 export function createTestSession(options: TestSessionOptions = {}): {
   session: SemiontSession;

@@ -10,7 +10,8 @@
  *
  * A factory builds a client and a session over it, and its caller owns
  * both: the session only uses its client, so whoever calls the factory
- * disposes the session and then `session.client`.
+ * disposes `session.client` and then the session, so that what the client's
+ * closing flush says reaches the session's errors before they end.
  *
  * The HTTP factory is provided by `createHttpSessionFactory`.
  */
@@ -28,7 +29,7 @@ export interface SessionFactoryOptions {
   storage: SessionStorage;
   /** Modal-signal sink for auth-failed / permission-denied notifications. */
   signals: SessionSignals;
-  /** Receives session-level errors (auth-failed, refresh-exhausted, ...). */
+  /** Told the session's own errors (auth-failed, refresh-exhausted, ...), as its errors stream says them. */
   onError: (err: SemiontSessionError) => void;
 }
 

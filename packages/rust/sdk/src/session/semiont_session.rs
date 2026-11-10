@@ -5,16 +5,26 @@
 //! and shows nobody anything. What it needs of its environment it is given:
 //!
 //! - `refresh` renews the token: after it expires, and when the gateway
-//!   refuses it. It is given the token the session holds, and answers the
-//!   new token, nothing when there is nothing to renew with, or why it
-//!   failed.
+//!   refuses it. It is handed the token it renews: the one the session
+//!   holds, expired or not; while it holds none, the one found stored at
+//!   its start, though it has expired, or the one a renewal that got no
+//!   answer was for. It is handed none only by a session that has held
+//!   none. It answers the new token, nothing when there is nothing to renew
+//!   with, or why it failed.
 //! - `validate` asks the gateway who a token is: when the session starts,
 //!   and of a token renewed because the gateway refused the one before. A
 //!   session of a service has none: there is nobody to ask about.
 //! - `on_auth_failed` is told when the session is over, and why: its issuer
 //!   refused to renew it (`Expired`), or the gateway refused a token the
 //!   issuer had just issued (`Refused`). What a person reads of it is the host's.
-//!   `on_error` is told of every failure that makes the session unusable.
+//!
+//! What a session says, it says once, on its errors stream (`errors`),
+//! beside the failures its client's transport meets: each failure that
+//! makes it unusable, and what goes wrong with what its client keeps (a
+//! sign-in that cannot be read before a save, or cannot record the person
+//! the gateway named, `session.keep-failed`; a write the storage refuses,
+//! `session.save-refused`). What it says before anyone reads its errors is
+//! kept for the first reader. The stream ends when the session ends.
 //!
 //! A session is built from where its sign-in is kept (`SignInKept`). A
 //! session whose issuer refuses to renew it, or whose gateway refuses a
@@ -33,36 +43,41 @@
 //! The token is renewed before it expires, by the schedule every Semiont
 //! client keeps (`super::refresh_delay`).
 //!
-//! A session is a state unit: it writes its token and its user, so `dispose`
-//! ends them, and stops its renewal. It only uses its client, so it never
-//! closes it: whoever built the client and the session closes the client
-//! after ending the session. A session that is only dropped ends the same
-//! things. A session is built inside a Tokio runtime.
+//! A session is a state unit: it writes its token, its user and its errors,
+//! so `dispose` ends them, and stops its renewal. It only uses its client,
+//! so it never closes it: whoever built the client and the session closes
+//! the client, which makes the saves its caches owe, and then ends the
+//! session, so what those saves meet is said before its errors end. A
+//! session that is only dropped ends the same things. A session is built
+//! inside a Tokio runtime, and owns its client from then on
+//! (`SemiontClient::record_person_key`).
 
 use super::kept::SignInKept;
 use super::signals::SessionEndReason;
 use super::stored::{StoredSession, is_token_expired};
 use super::{renew_when_due, token_expiry};
-use crate::client::SemiontClient;
+use crate::client::{Owner, SemiontClient};
 use crate::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportErrorCode,
 };
+use crate::locked;
 use crate::retry::{REFRESH, RetryFacts, equal_jitter};
 use crate::state::{Held, Tasks};
 use crate::state_unit::StateUnit;
 use crate::timing::{MAX_RECONNECT, RECONNECT};
-use crate::transport::{BoxFuture, ConnectionState, Failures};
+use crate::transport::{BoxFuture, ConnectionState, Events, Failures, STREAM_BACKLOG};
 use crate::types::{KbTarget, UserResponse};
 use rand_core::Rng;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::SystemTime;
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 
-/// Renew the token the session holds, which it is given (none when it holds
-/// none): the new one, `None` when there is nothing to renew with, or why
-/// the renewal failed: a `SignInError` of the issuer's answer, or of its
-/// absence, or the failure of whatever else the renewal needed.
+/// Renew the token it is handed, the one the session renews (see the
+/// module's documentation; none only when the session has held none): the
+/// new one, `None` when there is nothing to renew with, or why the renewal
+/// failed: a `SignInError` of the issuer's answer, or of its absence, or the
+/// failure of whatever else the renewal needed.
 pub type Refresh = Arc<
     dyn Fn(
             Option<String>,
@@ -79,8 +94,8 @@ pub type Validate =
 /// Told that the session is over, and why.
 pub type OnAuthFailed = Arc<dyn Fn(SessionEndReason) + Send + Sync>;
 
-/// Told of a session's failure: one that makes it unusable, or one that ends
-/// what its client keeps (`SessionErrorCode::KeepFailed`).
+/// Told of what a session says of its own on its errors stream
+/// (`super::tell_registry`).
 pub type OnSessionError = Arc<dyn Fn(SessionError) + Send + Sync>;
 
 /// Why a renewal gave no token, for whoever reads the error.
@@ -126,7 +141,6 @@ pub struct SemiontSessionConfig {
     pub refresh: Option<Refresh>,
     pub validate: Option<Validate>,
     pub on_auth_failed: Option<OnAuthFailed>,
-    pub on_error: Option<OnSessionError>,
     /// What the renewal retry's jitter is drawn from; the system's source
     /// when none is given.
     pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
@@ -142,10 +156,18 @@ struct Shared {
     ready: Held<bool>,
     /// Holds while a renewal that got no answer is owed another attempt.
     unanswered: Held<bool>,
+    /// The token the last renewal was handed: what the next is handed while
+    /// the session holds none (`Shared::renewing`).
+    renewed_for: Mutex<Option<String>>,
     refresh: Option<Refresh>,
     validate: Option<Validate>,
     on_auth_failed: Option<OnAuthFailed>,
-    on_error: Option<OnSessionError>,
+    /// What the session says on its errors stream: the one sender, let go
+    /// of as the session ends, so the stream ends then.
+    errors: Mutex<Option<broadcast::Sender<SemiontError>>>,
+    /// What the session has said since it was made, for the first reader of
+    /// its errors.
+    first: Mutex<Option<broadcast::Receiver<SemiontError>>>,
     random: Option<Arc<Mutex<dyn Rng + Send>>>,
     tasks: Tasks,
     closed: AtomicBool,
@@ -161,6 +183,23 @@ pub struct SemiontSession {
 
 impl SemiontSession {
     pub fn new(config: SemiontSessionConfig) -> SemiontSession {
+        let (errors, first) = broadcast::channel(STREAM_BACKLOG);
+        let failures = config.client.transport().failures();
+        let saying = errors.downgrade();
+        let kb_id = config.kb.id.clone();
+        // Before anything runs: what goes wrong with what the client keeps
+        // is the session's to say from the first save on.
+        config.client.owned_by(Owner {
+            kept: config.kept.clone(),
+            says: Arc::new(move |code, message| {
+                if let Some(errors) = saying.upgrade() {
+                    let _ = errors.send(SemiontError::Session(SessionError::new(
+                        code, message, &kb_id,
+                    )));
+                }
+            }),
+        });
+        let relaying = errors.downgrade();
         let shared = Arc::new(Shared {
             id: format!("session-{}", uuid::Uuid::new_v4()),
             kb: config.kb,
@@ -170,15 +209,19 @@ impl SemiontSession {
             user: Held::new(None),
             ready: Held::new(false),
             unanswered: Held::new(false),
+            renewed_for: Mutex::new(None),
             refresh: config.refresh,
             validate: config.validate,
             on_auth_failed: config.on_auth_failed,
-            on_error: config.on_error,
+            errors: Mutex::new(Some(errors)),
+            first: Mutex::new(Some(first)),
             random: config.random,
             tasks: Tasks::new(),
             closed: AtomicBool::new(false),
             answering: tokio::sync::Mutex::new(()),
         });
+
+        shared.tasks.spawn(relayed(failures, relaying));
 
         let renewing = shared.clone();
         shared
@@ -233,10 +276,20 @@ impl SemiontSession {
         self.shared.client.state()
     }
 
-    /// The failures the client's transport meets, from now on. A host routes
-    /// them: a refusal for want of a valid token is a reason to `refresh`.
-    pub fn errors(&self) -> Failures {
-        self.shared.client.transport().failures()
+    /// What the session says, each once: what it says of its own (a
+    /// `SessionError`), and the failures its client's transport meets. The
+    /// first reader is given everything said since the session was made;
+    /// each later one, what is said from then on. It ends when the session
+    /// ends. A host routes the transport's failures: a refusal for want of a
+    /// valid token is a reason to `refresh`.
+    pub fn errors(&self) -> Events<SemiontError> {
+        if let Some(first) = locked(&self.shared.first).take() {
+            return Events::new(first);
+        }
+        match locked(&self.shared.errors).as_ref() {
+            Some(errors) => Events::new(errors.subscribe()),
+            None => Events::new(broadcast::channel(1).1),
+        }
     }
 
     /// Resolves when the session has done what it does at its start: read
@@ -275,11 +328,24 @@ impl SemiontSession {
 }
 
 impl StateUnit for SemiontSession {
-    /// End the session: its renewal stops, and its token, its user and its
-    /// readiness end. Its client is left to
-    /// whoever built it. Ending twice is ending once.
+    /// End the session: its renewal stops, and its token, its user, its
+    /// readiness and its errors end. Its client is left to whoever built
+    /// it. Ending twice is ending once.
     fn dispose(&self) {
         self.shared.end();
+    }
+}
+
+/// Say each failure `failures` reports on the session's errors stream, while
+/// the session has one. A failure the reader missed is not known, and is
+/// not said.
+async fn relayed(mut failures: Failures, errors: broadcast::WeakSender<SemiontError>) {
+    while let Some(failure) = failures.next().await {
+        let Ok(failure) = failure else { continue };
+        let Some(errors) = errors.upgrade() else {
+            return;
+        };
+        let _ = errors.send(SemiontError::Transport(failure));
     }
 }
 
@@ -300,11 +366,12 @@ impl OpenedSession {
         &self.session
     }
 
-    /// End the session, then close its client. Closing twice is closing
-    /// once.
+    /// Close the client, which makes the saves its caches owe, and then end
+    /// the session: what those saves meet is said before the session's
+    /// errors end. Closing twice is closing once.
     pub async fn close(&self) {
-        self.session.dispose();
         self.session.client().close().await;
+        self.session.dispose();
     }
 }
 
@@ -346,23 +413,37 @@ impl Shared {
         self.user.end();
         self.ready.end();
         self.unanswered.end();
+        locked(&self.errors).take();
     }
 
-    /// Ask `refresh`, with a failure to ask read as there being no token:
-    /// a renewal that could not be made and one that was refused both leave
-    /// the session without one. The reason is kept for whoever reads why.
+    /// The token a renewal renews, which it is handed: the one the session
+    /// holds, expired or not; while it holds none, the one found stored at
+    /// its start, or the one the renewal that left it none was for. None
+    /// only when it has held none (protocol/specs/src/session/cases.json).
+    fn renewing(&self) -> Option<String> {
+        self.token
+            .now()
+            .or_else(|| locked(&self.renewed_for).clone())
+    }
+
+    /// Ask `refresh`, handing it the token it renews, with a failure to ask
+    /// read as there being no token: a renewal that could not be made and
+    /// one that was refused both leave the session without one. The reason
+    /// is kept for whoever reads why.
     async fn try_refresh(
         &self,
     ) -> (
         Option<String>,
         Option<Arc<dyn std::error::Error + Send + Sync>>,
     ) {
-        match &self.refresh {
-            None => (None, None),
-            Some(refresh) => match refresh(self.token.now()).await {
-                Ok(token) => (token, None),
-                Err(failure) => (None, Some(failure)),
-            },
+        let Some(refresh) = &self.refresh else {
+            return (None, None);
+        };
+        let renewing = self.renewing();
+        locked(&self.renewed_for).clone_from(&renewing);
+        match refresh(renewing).await {
+            Ok(token) => (token, None),
+            Err(failure) => (None, Some(failure)),
         }
     }
 
@@ -384,17 +465,22 @@ impl Shared {
         self.token.set(None);
         // A session that never had a credential cannot expire: it is signed
         // out, which is no failure. Ending the session below also forgets the
-        // credential, so the refusals that follow it are quiet too.
+        // credential, so the refusals that follow it are quiet too. A
+        // sign-in that cannot be read is not known to have ended: the
+        // renewal got no answer, and is tried again on the backoff.
         match self.kept.held().await {
             Ok(Some(_)) => self.unrenewed(failure).await,
             Ok(None) => self.unanswered.set(false),
-            Err(unread) => self.failed(
-                SessionErrorCode::RefreshExhausted,
-                format!(
-                    "{}; and the sign-in could not be read: {unread}",
-                    not_renewed(failure.as_deref())
-                ),
-            ),
+            Err(unread) => {
+                self.unanswered.set(true);
+                self.failed(
+                    SessionErrorCode::RefreshExhausted,
+                    format!(
+                        "{}; and the sign-in could not be read: {unread}",
+                        not_renewed(failure.as_deref())
+                    ),
+                );
+            }
         }
         None
     }
@@ -524,25 +610,33 @@ impl Shared {
         self.failed(code, why);
     }
 
+    /// Say `message`, under `code`, once, on the session's errors stream.
     fn failed(&self, code: SessionErrorCode, message: String) {
-        if let Some(on_error) = &self.on_error {
-            on_error(SessionError::new(code, message, &self.kb.id));
+        if let Some(errors) = locked(&self.errors).as_ref() {
+            let _ = errors.send(SemiontError::Session(SessionError::new(
+                code,
+                message,
+                &self.kb.id,
+            )));
         }
     }
 
     /// Forget the session's kept sign-in, and with it what was kept for the
-    /// person it named. Its client writes nothing more first: a save
-    /// already past its check of the sign-in finishes before anything is
-    /// deleted, and none is made after, so nothing deleted here is put back.
+    /// person it named. Its client writes nothing more first: a save already
+    /// past its check of the sign-in finishes before anything is deleted,
+    /// and none is made after, so nothing deleted here is put back.
     async fn forget_sign_in(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.client.stop_persisting();
+        self.client.stop_persisting().await;
         self.kept.forget().await
     }
 
     /// Read the kept sign-in: a token of it that is still good is what the
-    /// transport sends first, unless it was given one already. Then what a
-    /// session does at its start with it (`validate`). A sign-in that cannot
-    /// be read says why, and the session starts with none.
+    /// transport sends first, unless it was given one already, and the
+    /// token it holds, good or not, is what a renewal renews while the
+    /// session holds none. Then what a session does at its start with it
+    /// (`validate`). A sign-in that cannot be read says why, and the session
+    /// starts with none. (Whoever opens a session from a kept sign-in reads
+    /// it first, and is given its failure: `session_from_kept`.)
     async fn start(&self) {
         let held = match self.kept.held().await {
             Ok(held) => held,
@@ -557,11 +651,11 @@ impl Shared {
         if self.closed() {
             return;
         }
-        if let Some(held) = &held
-            && !is_token_expired(&held.access, SystemTime::now())
-            && self.token.now().is_none()
-        {
-            self.token.set(Some(held.access.clone()));
+        if let Some(held) = &held {
+            *locked(&self.renewed_for) = Some(held.access.clone());
+            if !is_token_expired(&held.access, SystemTime::now()) && self.token.now().is_none() {
+                self.token.set(Some(held.access.clone()));
+            }
         }
         self.validate(held).await;
     }

@@ -164,7 +164,7 @@ private func saved(
   let keeping = KeptQueries(
     CachePersistence(
       storage: storage, kbId: "kb", person: jo,
-      writer: WritesWhileNamed(kept: kept, report: { _ in })),
+      writer: WritesWhileNamed(kept: kept, report: { _, _ in })),
     clock: TestClock())
   #expect(keeping.attach(jo) == [:])
   keeping.heard("p-res-1-8", in: resource)

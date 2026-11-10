@@ -122,8 +122,10 @@ type world struct {
 	token    *semiont.Variable[string]
 	renewals []renewal // what refresh answers, in order; nothing once they are spent
 	renewed  int
-	// renewedAt is when each renewal was asked for.
+	// renewedAt is when each renewal was asked for, and handed what each was
+	// handed: the token it renews.
 	renewedAt []time.Time
+	handed    []string
 	// takes is how long the issuer takes to answer a renewal.
 	takes       time.Duration
 	validations []error // what the gateway says of a token, in order: nil accepts
@@ -149,12 +151,13 @@ func newWorld(t *testing.T, kept string) *world {
 	return w
 }
 
-func (w *world) refresh(context.Context, string) (string, error) {
+func (w *world) refresh(_ context.Context, renewing string) (string, error) {
 	time.Sleep(w.takes)
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.renewed++
 	w.renewedAt = append(w.renewedAt, time.Now())
+	w.handed = append(w.handed, renewing)
 	if len(w.renewals) == 0 {
 		return "", nil
 	}
@@ -368,11 +371,22 @@ func ends(session *semiont.Session, w *world) string {
 	return "signed-in"
 }
 
-func isAsStated(t *testing.T, row sessionRow, w *world, session *semiont.Session, askedBefore int) {
+// isAsStated holds the session to the row, and each of its renewals to being
+// handed renews, the token it renews: the token the row stored, at the start,
+// or the one its session started on, at a refusal.
+func isAsStated(t *testing.T, row sessionRow, w *world, session *semiont.Session, askedBefore int, renews string) {
 	t.Helper()
 	asks, renewals := w.counts()
 	if asks-askedBefore != row.Asks || renewals != row.Renewals {
 		t.Errorf("%s: asked %d and renewed %d, want %d and %d", row.Why, asks-askedBefore, renewals, row.Asks, row.Renewals)
+	}
+	w.mu.Lock()
+	handed := slices.Clone(w.handed)
+	w.mu.Unlock()
+	for n, each := range handed {
+		if each != renews {
+			t.Errorf("%s: renewal #%d was handed %q, want the token it renews", row.Why, n+1, each)
+		}
 	}
 	if got := ends(session, w); got != row.Ends {
 		t.Errorf("%s: ended %s, want %s", row.Why, got, row.Ends)
@@ -421,7 +435,7 @@ func TestASessionStartsAsTheTableStates(t *testing.T) {
 			}
 			w.validations = append(w.validations, oneTooMany)
 			session := w.start(t)
-			isAsStated(t, row, w, session, 0)
+			isAsStated(t, row, w, session, 0, stored)
 		})
 	}
 }
@@ -432,7 +446,8 @@ func TestARefusedSessionRenewsAndAsksAsTheTableStates(t *testing.T) {
 		t.Run(row.Why, func(t *testing.T) {
 			// The session starts signed in: the gateway accepts the kept token.
 			// Then the row's answers.
-			w := newWorld(t, tokenFor(time.Hour, 0))
+			startedOn := tokenFor(time.Hour, 0)
+			w := newWorld(t, startedOn)
 			for n := range row.Renewals {
 				w.renewals = append(w.renewals, issuerSays(t, row, n, tokenFor(time.Hour, 1)))
 			}
@@ -461,7 +476,7 @@ func TestARefusedSessionRenewsAndAsksAsTheTableStates(t *testing.T) {
 			if ok && given != w.token.Value() {
 				t.Errorf("%s: refresh gave a token that is not the session's", row.Why)
 			}
-			isAsStated(t, row, w, session, 1)
+			isAsStated(t, row, w, session, 1, startedOn)
 		})
 	}
 }
@@ -683,7 +698,7 @@ func TestARefusalMetWhileTheStartAsksWaitsForIt(t *testing.T) {
 	var mu sync.Mutex
 	grants := 0
 	var asked []ask
-	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+	session, _, _ := started(t, testClient(), semiont.SessionConfig{
 		Kb: api.KbTarget{Id: kb}, Token: token, Kept: kept,
 		Refresh: func(context.Context, string) (string, error) {
 			mu.Lock()
@@ -715,10 +730,6 @@ func TestARefusalMetWhileTheStartAsksWaitsForIt(t *testing.T) {
 		},
 		Timing: semiont.DefaultTiming(),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(session.Close)
 	select {
 	case <-asking:
 	case <-time.After(5 * time.Second):
@@ -943,10 +954,16 @@ func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) 
 			time.Sleep(all + 30*time.Second)
 			synctest.Wait()
 			w.mu.Lock()
-			renewedAt := slices.Clone(w.renewedAt)
+			renewedAt, handed := slices.Clone(w.renewedAt), slices.Clone(w.handed)
 			w.mu.Unlock()
 			if len(renewedAt) != len(steps)+1 {
 				t.Fatalf("renewed %d times, want %d", len(renewedAt), len(steps)+1)
+			}
+			// Each is handed the token whose renewal got no answer.
+			for n, each := range handed {
+				if each != first {
+					t.Errorf("renewal #%d was handed %q, want the token the gateway refused", n+1, each)
+				}
 			}
 			for n, step := range steps {
 				if gap := renewedAt[n+1].Sub(renewedAt[n]); gap < step/2 || gap > step {
@@ -1214,7 +1231,7 @@ func TestASignInUnreadableAtTheStartIsGivenToTheCaller(t *testing.T) {
 		t.Run(row.why, func(t *testing.T) {
 			session, end, err := semiont.SessionFromKept(context.Background(), semiont.SessionFromKeptConfig{
 				Kb: localTarget(t), Kept: &failsAfter{MemorySignIn: &semiont.MemorySignIn{}},
-				HTTP: &http.Client{}, Timing: semiont.DefaultTiming(), AskWhoTokenIs: true, Storage: row.storage,
+				HTTP: &http.Client{}, Timing: semiont.DefaultTiming(), Storage: row.storage,
 			})
 			if err == nil {
 				end()
@@ -1258,7 +1275,7 @@ func TestASignInUnreadableAtARenewalIsARenewalWithNoAnswer(t *testing.T) {
 				client := testClient()
 				session, err := semiont.ResumeSession(context.Background(), semiont.ResumeConfig{
 					Kb: localTarget(t), Client: client.Client, Kept: kept, Token: semiont.NewVariable(""),
-					HTTP: &http.Client{}, Timing: timing,
+					HTTP: &http.Client{}, Timing: timing, SkipAskingWhoTokenIs: true,
 					OnAuthFailed: func(reason semiont.SessionEndReason) {
 						mu.Lock()
 						defer mu.Unlock()

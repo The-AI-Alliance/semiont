@@ -2,8 +2,10 @@ package semiont.registry
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import semiont.errors.SessionError
 import semiont.session.OpenedSession
+import semiont.session.SemiontSession
 import semiont.session.SessionSignals
 import semiont.storage.SessionStorage
 import semiont.telemetry.futureOf
@@ -21,9 +23,19 @@ public class SessionFactoryOptions(
     public val storage: SessionStorage,
     /** Where the session says it is over, for a host to show. */
     public val signals: SessionSignals,
-    /** Told each failure that makes the session unusable. */
+    /** Told each error the session says of its own, read from its errors. */
     public val onError: (SessionError) -> Unit,
 )
+
+/**
+ * Hand `onError` each error `session` says of its own, read from its errors on
+ * `context` until they end: how a factory tells its registry. What the session
+ * said before is kept for this, its first reader of them.
+ */
+internal fun SessionFactoryOptions.handOnErrorsOf(session: SemiontSession, context: CoroutineContext) {
+    val said = session.said()
+    CoroutineScope(context).launch { said.collect { onError(it) } }
+}
 
 /**
  * What builds the sessions a registry activates, and ends the credentials of
@@ -33,8 +45,8 @@ public class SessionFactoryOptions(
 public interface SessionFactory {
     /**
      * The session of a knowledge base, over a client of its own, started: the
-     * registry waits for it to be ready. Closing what it gives ends the
-     * session, then its client, then what it was built on. A knowledge base
+     * registry waits for it to be ready. Closing what it gives closes its
+     * client, then ends the session, then closes what it was built on. A knowledge base
      * this factory cannot reach is refused with a `SessionError`
      * (`session.construct-failed`).
      */

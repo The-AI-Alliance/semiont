@@ -59,7 +59,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont._endpoints import same_place
 from semiont._reading import Reading
-from semiont.errors import BusRequestError, SemiontError, SessionError, TransportError
+from semiont.errors import BusRequestError, SemiontError, SessionError
 from semiont.event_bus import EventBus
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
@@ -396,9 +396,9 @@ class SessionFactoryOptions:
     storage: SessionStorage
     """Where its tokens are kept: the registry's own storage."""
     signals: SessionSignals
-    """Where the session says it is over, for a host to show."""
+    """Where the session says it is over, and that a request was refused for lack of permission, for a host to show."""
     on_error: Callable[[SessionError], None]
-    """Told each failure that makes the session unusable, and of its client keeping nothing more (`session.keep-failed`)."""
+    """Told each of the session's own errors (a `SessionError`), as the session says it on its errors: the factory reads them there."""
 
 
 class SessionFactory(Protocol):
@@ -411,9 +411,15 @@ class SessionFactory(Protocol):
         """The session of a knowledge base, over a client of its own.
 
         Held with `async with`: inside, the session has started, and the
-        registry waits for it to be ready. On the way out the session is
-        ended, then its client. A knowledge base this factory cannot reach is
-        refused on the way in with a `SessionError` (`session.construct-failed`).
+        registry waits for it to be ready. Its errors have one reader, the
+        factory's, from the moment it is held: each of its own errors is told
+        `on_error`; a request its gateway refused for want of a valid token
+        renews it, and one refused for lack of permission is said on
+        `signals`. On the way out the session and its client are ended, and
+        every one of the session's own errors, the closing's among them, has
+        been told `on_error` by the time it is left. A knowledge base this
+        factory cannot reach is refused on the way in with a `SessionError`
+        (`session.construct-failed`).
         """
         ...
 
@@ -527,11 +533,12 @@ class _Live:
         self.signals: Final = signals
 
     async def close(self) -> None:
-        """End the session, then the client it was built with, then what a host was shown of it.
+        """End the session and the client it was built with, as its factory does, then what a host was shown of it.
 
-        What the holder failed with, the session's closing among it, is not
-        this caller's: the registry raises it from its `close`, as it does
-        every failure of what it runs (`SemiontBrowser._done`).
+        What the closing met is said on the session's errors, and so told the
+        registry. What the holder failed with is not this caller's: the
+        registry raises it from its `close`, as it does every failure of what
+        it runs (`SemiontBrowser._done`).
         """
         self._stop.set()
         await asyncio.gather(self._holder, return_exceptions=True)
@@ -1031,39 +1038,11 @@ class SemiontBrowser:
                     if not self._closing.is_set():
                         self._failed(_construct_failed(refused, kb.id))
                     return
-                # Heard from the moment it is held: a refusal while it starts is routed too.
-                failures = session.errors()
-                routing = asyncio.create_task(self._route(session, failures, signals))
                 came_up.set_result(session)
-                try:
-                    await stop.wait()
-                finally:
-                    routing.cancel()
-                    await asyncio.gather(routing, return_exceptions=True)
+                await stop.wait()
         finally:
             if not came_up.done():
                 came_up.set_result(None)
-
-    async def _route(self, session: SemiontSession[Transport], failures: Events[SemiontError], signals: SessionSignals) -> None:
-        """Route what the session's transport fails at.
-
-        A refusal for want of a valid token renews the session: it heals
-        quietly, or the session ends itself and says so once. A refusal for
-        lack of permission has no remedy, and is said.
-        """
-        async with failures:
-            async for failure in failures:
-                if not isinstance(failure, TransportError):
-                    continue
-                match failure.code:
-                    case "unauthorized":
-                        # Refusals that arrive together are answered by one renewal: the session holds them while it renews.
-                        # A failure does not say which token was refused: the one the session holds as it is read is.
-                        self._spawn(session.refresh(session.token.value))
-                    case "forbidden":
-                        signals.notify_permission_denied(failure.message)
-                    case _:
-                        pass
 
     # ── What is shown ───────────────────────────────────────────────────
 

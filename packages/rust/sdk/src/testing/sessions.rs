@@ -19,7 +19,7 @@ use crate::errors::{
 use crate::locked;
 use crate::session::{
     SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions, StoredSession,
-    kept_in,
+    kept_in, tell_registry,
 };
 use crate::transport::BoxFuture;
 use crate::types::UserResponse;
@@ -188,8 +188,8 @@ impl SessionFactory for ScriptedSessions {
             (scripted.user.clone(), scripted.answers_after)
         };
         let (renewing, renews_for) = (self.inner.clone(), kb_id.clone());
-        let signals = options.signals;
-        Ok(SemiontSession::new(SemiontSessionConfig {
+        let (signals, telling) = (options.signals.clone(), options.signals);
+        let session = SemiontSession::new(SemiontSessionConfig {
             kb: options.kb.target(),
             kept: kept_in(options.storage, &kb_id),
             client,
@@ -230,9 +230,10 @@ impl SessionFactory for ScriptedSessions {
             on_auth_failed: Some(Arc::new(move |reason| {
                 signals.notify_session_ended(reason);
             })),
-            on_error: Some(options.on_error),
             random: self.inner.random.clone(),
-        }))
+        });
+        tell_registry(&session, options.on_error, telling);
+        Ok(session)
     }
 
     fn revoke(&self, stored: StoredSession) -> BoxFuture<'static, ()> {

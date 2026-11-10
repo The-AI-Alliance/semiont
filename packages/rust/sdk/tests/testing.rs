@@ -388,6 +388,8 @@ async fn scripted_sessions_say_who_a_token_is_only_when_told_and_after_as_long_a
     let unnamed = sessions.session(asked.of("kb-a")).expect("a session");
     unnamed.ready().await;
     assert_eq!(*unnamed.user().borrow(), None);
+    // The registry is told what the session says as its errors are read.
+    tokio::time::sleep(Duration::from_millis(1)).await;
     let said = asked.errors();
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(
@@ -429,6 +431,8 @@ async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_sc
     let held = session.token().borrow().clone();
     assert_eq!(session.refresh(held.as_deref()).await, None);
     assert_eq!(sessions.renewed(), 2);
+    // The registry is told what the session says as its errors are read.
+    tokio::time::sleep(Duration::from_millis(1)).await;
     let said = asked.errors();
     assert!(
         said.iter().any(|error| error

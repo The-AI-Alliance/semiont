@@ -22,9 +22,11 @@ type SessionFactoryOptions struct {
 	Storage semiont.SessionStorage
 	// Signals is where the session says it is over, for a host to show.
 	Signals *semiont.SessionSignals
-	// OnError is told each failure the session says (semiont.SessionConfig's
-	// OnError): one that makes it unusable, and one that stops its client
-	// keeping what it holds, after which it goes on.
+	// OnError is told each of the session's own failures by the registry,
+	// the one reader of the session's errors (semiont.Session's Errors): one
+	// that makes it unusable, and one that stops its client keeping what it
+	// holds, or that its storage refused a write of it, after which it goes
+	// on. A factory reads nothing of the session's errors.
 	OnError func(*semiont.SessionError)
 }
 
@@ -66,16 +68,14 @@ var _ SessionFactory = HttpSessionFactory{}
 
 func (f HttpSessionFactory) Session(ctx context.Context, options SessionFactoryOptions) (*semiont.Session, func(), error) {
 	return semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
-		Kb:            api.KbTarget{Endpoint: options.Kb.Endpoint, Id: options.Kb.Id, Label: options.Kb.Label},
-		Kept:          KeptIn(options.Storage, options.Kb.Id),
-		HTTP:          f.HTTP,
-		Timing:        f.Timing,
-		Random:        f.Random,
-		AskWhoTokenIs: true,
-		Channels:      bus.BridgedChannels,
-		Storage:       options.Storage,
-		OnAuthFailed:  options.Signals.NotifySessionEnded,
-		OnError:       options.OnError,
+		Kb:           api.KbTarget{Endpoint: options.Kb.Endpoint, Id: options.Kb.Id, Label: options.Kb.Label},
+		Kept:         KeptIn(options.Storage, options.Kb.Id),
+		HTTP:         f.HTTP,
+		Timing:       f.Timing,
+		Random:       f.Random,
+		Channels:     bus.BridgedChannels,
+		Storage:      options.Storage,
+		OnAuthFailed: options.Signals.NotifySessionEnded,
 	})
 }
 

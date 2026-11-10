@@ -73,7 +73,7 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
                 refresher: kept.RefreshAsync, httpClient: http, timeProvider: clock, random: random);
             var openedClient = client = new SemiontClient(bus);
             var session = new SemiontSession(new KbTarget { Id = kb.Id, Label = kb.Label, Endpoint = kb.Endpoint }, openedClient, kept);
-            var watching = Task.WhenAll(ErrorsAsync(), PermissionsAsync());
+            var telling = session.TellAsync(options);
             return new OpenedSession(openedClient, async () =>
             {
                 try { session.Dispose(); }
@@ -82,28 +82,8 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
                     try { openedClient.Dispose(); }
                     finally { http.Dispose(); }
                 }
-                await watching.ConfigureAwait(false);
+                await telling.ConfigureAwait(false);
             }, session);
-
-            async Task ErrorsAsync()
-            {
-                var told = false;
-                await foreach (var error in kept.Errors().ConfigureAwait(false))
-                {
-                    if (!told && kept.EndReason is { } ended)
-                    {
-                        told = true;
-                        options.Signals.NotifySessionEnded(ended);
-                    }
-                    options.OnError(error);
-                }
-            }
-
-            async Task PermissionsAsync()
-            {
-                await foreach (var error in bus.Errors().ConfigureAwait(false))
-                    if (error.Status == 403) options.Signals.NotifyPermissionDenied(error.Message);
-            }
         }
         catch
         {

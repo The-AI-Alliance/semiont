@@ -37,10 +37,11 @@ Per-KB lifetime object, and a state unit. Holds:
 - `client: SemiontClient` — public `readonly`; components say things through
   its typed namespace methods and listen through react-ui's event hooks
   (`useEventSubscription` and its kin), which read `client.bus`. The session
-  only uses its client: the `SemiontBrowser` that had both built ends the
-  session, then the client.
+  only uses its client: the `SemiontBrowser` that had both built closes the
+  client, then ends the session.
 - `token$`, `user$` — observable auth state.
-- `errors$` — the transport's errors, republished.
+- `errors$` — the session's errors: its own (a `SemiontSessionError`) and its
+  transport's, each said once.
 - `refresh(refused)` — renews the token the gateway refused (null when the
   request carried none). A token the session has already replaced is answered
   with the one it holds, and nothing is renewed.

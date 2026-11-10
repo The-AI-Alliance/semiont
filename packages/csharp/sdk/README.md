@@ -39,25 +39,30 @@ sign-in for that stack; `MemorySignIn` keeps one in memory instead. Changes use 
 launcher's native lock and atomic rename, preserve unknown entries and fields, and
 keep the directory and credential files private to their owner.
 
-`Semiont.Session.KeptSession` starts from an HTTP endpoint and an `ISignInKept`.
-Await `ReadyAsync()` for startup to settle, then read `State` or enumerate
-`States()` for the current token and gateway-validated user. An empty store
-or failed startup can leave either value absent. Read `Errors()` for startup
-errors. An expired credential is renewed
-before validation; a refused credential is renewed once and validated once more.
-`RefreshAsync(refusedToken)` handles a transport refusal; simultaneous callers share
-one renewal, and canceling a caller's wait leaves that renewal running for the others.
-Transient renewal failure retains the kept sign-in and retries on the reconnect backoff.
-`EndReason` distinguishes issuer expiry from gateway refusal of a newly issued token;
-`Errors()` reports the generated session error codes. Disposal cancels owned work and
-completes observers without signing out the kept credentials.
+`SemiontSession.FromKeptAsync(kb, kept)` opens a session over a knowledge base's HTTP
+endpoint and an `ISignInKept`, and gives it with the client it is made over as an
+`OpenedSession`. A kept sign-in that cannot be read fails the call. Await the session's
+`ReadyAsync()` for startup to settle, then read or enumerate `Token` and `User` for the
+current token and gateway-validated user. An empty store or failed startup can leave
+either value absent. The session asks the gateway who its token is unless it is given
+`validate: false`. An expired credential is renewed before validation; a refused
+credential is renewed once and validated once more. `RefreshAsync(refusedToken)`
+handles a transport refusal; simultaneous callers share one renewal, and canceling a
+caller's wait leaves that renewal running for the others. Transient renewal failure
+retains the kept sign-in and retries on the reconnect backoff.
 
-Use `HttpSessionFactory` with `SemiontBrowser` to bind a registered knowledge
-base's session to its client. When building the client yourself, pass
-`kept.RefreshAsync` as the `HttpTransport` refresher and subscribe the
-transport to the result and failure channels for the operations you call.
-A `SemiontSession` over that client and kept session applies credential
-updates to the transport. Dispose the session before closing the client.
+`Errors()` is the session's one stream of what went wrong: its own errors, each a
+`SessionError` with one of the generated session error codes, and its client's
+transport's failures, each said once. What it says before anyone reads it is kept for
+the first reader. Given a storage, the client keeps its persisted queries there for the
+person the gateway names; a write the storage refuses is said as `session.save-refused`
+and written again with the client's next change or its closing. Disposing the
+`OpenedSession` disposes the client, waits for its closing save, and then ends the
+session and its errors, without signing out the kept credentials.
+
+Use `HttpSessionFactory` with `SemiontBrowser` to bind a registered knowledge base's
+session to its client. The factory tells the session's own errors to its options'
+`OnError`.
 
 `Issuer.RenewAsync(kept, holding)` exchanges the stored refresh token at its stored
 endpoint. It adopts another writer's usable renewal before spending a refresh token,
@@ -76,7 +81,7 @@ trusts and begins a device sign-in. The callback receives the user code and veri
 address for the application to display. Polling follows the issuer's interval and
 slow-down replies, expires on the supplied clock, and stops on cancellation or issuer
 disposal. A successful grant saves the access and refresh tokens in `kept`.
-Use that same entry when constructing a `KeptSession`.
+Pass that same entry to `SemiontSession.FromKeptAsync`.
 `Issuer.SignOutAsync(kept)` attempts revocation and forgets the local credentials even
 when the issuer cannot be reached. Discovery rejects an issuer document that describes
 a different issuer or provides invalid endpoint addresses.
@@ -223,7 +228,7 @@ keeps for the person from when the knowledge base's stored sign-in names them,
 and forgetting that sign-in, however it is forgotten, signing in again
 included, deletes what was kept. Such a session writes only while the sign-in
 it holds names its person; a client you construct with a `CachePersistence` of
-your own writes unchecked. A restored value is visible immediately and
+your own writes unchecked, and keeps a write its storage refuses owed without saying so. A restored value is visible immediately and
 revalidated when first read.
 
 ## State units

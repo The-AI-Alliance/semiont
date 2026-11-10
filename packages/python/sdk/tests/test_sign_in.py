@@ -8,6 +8,7 @@ is spent once.
 
 import asyncio
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Final, final, override
 from urllib.parse import parse_qs
@@ -1399,7 +1400,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
     run(scenario())
 
 
-def test_a_session_that_never_asks_who_its_token_is_keeps_nothing_and_names_nobody() -> None:
+def test_a_session_that_never_asks_who_its_token_is_over_a_sign_in_naming_nobody_keeps_for_nobody() -> None:
     async def scenario() -> None:
         storage = MemoryStorage()
         resource = ResourceId("res-1")
@@ -1509,10 +1510,15 @@ def test_a_write_a_sessions_storage_refuses_is_still_owed_and_its_close_makes_it
                 assert storage.get(kept_types) is None
                 # Nothing of it was kept, so the client still owes it, and is not at rest.
                 assert not client.persistence_settled
+                # The refusal is said once, as it happened, in the storage's words.
+                said = await heard.so_far()
+                assert [error.code for error in said] == ["session.save-refused"]
+                assert refusals_said(said) == 1
 
-            # The close's flush makes the write the storage refused, and the storage takes it: nothing failed, the
-            # close raised nothing, and the session said nothing.
-            assert await heard.ended() == []
+            # The close's flush makes the write the storage refused, and the storage takes it: the close raised
+            # nothing, and the session said nothing more.
+            said = await heard.ended()
+            assert [error.code for error in said] == ["session.save-refused"]
             stored = storage.get(kept_types)
             assert stored is not None
             document = _JSON.validate_json(stored)
@@ -1588,6 +1594,16 @@ def said_by_the_session(said: Sequence[SemiontError]) -> list[tuple[str, str]]:
     return [(error.code, error.kb_id) for error in said if isinstance(error, SessionError)]
 
 
+def refusals_said(said: Sequence[SemiontError]) -> int:
+    """How many writes a session of `kb` said its storage refused: each in what the storage said, and with it as the cause."""
+    refused = [error for error in said if isinstance(error, SessionError) and error.code == "session.save-refused"]
+    for error in refused:
+        assert error.kb_id == "kb"
+        assert error.message.endswith("the storage is full"), error.message
+        assert isinstance(error.__cause__, OSError)
+    return len(refused)
+
+
 def test_a_sign_in_that_cannot_be_read_as_its_session_starts_is_raised_to_whoever_asked_for_the_session() -> None:
     async def scenario(storage: SessionStorage | None) -> None:
         async with GatewayServer() as gateway:
@@ -1648,7 +1664,8 @@ def test_a_renewal_that_cannot_read_the_sign_in_got_no_answer_says_so_and_is_tri
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
-            first = access(1)
+            first, renewed = access(1), access(2)
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": renewed, "refresh_token": "refresh-2"})]
             kept = Unreadable(held(gateway, first))
             told: list[SessionEndReason] = []
 
@@ -1662,12 +1679,123 @@ def test_a_renewal_that_cannot_read_the_sign_in_got_no_answer_says_so_and_is_tri
                 assert said_by_the_session(await heard.so_far()) == [("session.refresh-exhausted", "kb")]
                 assert gateway.of("POST", TOKEN) == []
 
-                # The sign-in is kept, and can be read again: the reconnect backoff renews.
+                # The sign-in is kept, and can be read again: the reconnect backoff renews the token the gateway
+                # refused, so the issuer is asked, and the refused token is not handed back.
                 kept.failing = False
                 assert await kept.held() == held(gateway, first)
-                assert await soon(hurried(reached(session.token, lambda held_token: held_token is not None))) is not None
+                assert await soon(hurried(reached(session.token, lambda held_token: held_token == renewed))) == renewed
+                assert [form(asked)["refresh_token"] for asked in gateway.of("POST", TOKEN)] == ["refresh-1"]
             assert told == []
             assert said_by_the_session(await heard.ended()) == [("session.refresh-exhausted", "kb")]
+
+    run(scenario())
+
+
+def test_a_renewal_on_the_backoff_is_handed_the_token_the_gateway_refused_and_asks_the_issuer_for_a_new_one() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            first, renewed = access(1), access(2)
+            # The issuer does not answer the renewal of the refused token, however often it is tried; then it does.
+            gateway.scripted[("POST", TOKEN)] = [*[Answer(hang_up=True)] * 4, says({"access_token": renewed, "refresh_token": "refresh-2"})]
+            kept = MemorySignIn(held(gateway, first))
+            told: list[SessionEndReason] = []
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, on_auth_failed=told.append) as session:
+                heard = Heard(session.errors())
+                assert session.token.value == first
+                # The gateway refused the token, which has not expired, and its renewal got no answer.
+                assert await hurried(session.refresh(first)) is None
+                assert (now(session.token), told) == (None, [])
+                assert said_by_the_session(await heard.so_far()) == [("session.refresh-exhausted", "kb")]
+                assert len(gateway.of("POST", TOKEN)) == 4
+
+                # The reconnect backoff renews the token that renewal was for: the issuer is asked again, and the
+                # token the gateway refused is not handed back without a grant.
+                assert await soon(hurried(reached(session.token, lambda held_token: held_token == renewed))) == renewed
+                assert len(gateway.of("POST", TOKEN)) == 5
+                assert await kept.held() == held(gateway, renewed, "refresh-2")
+            assert told == []
+            assert said_by_the_session(await heard.ended()) == [("session.refresh-exhausted", "kb")]
+
+    run(scenario())
+
+
+@final
+class Unrecording(InMemory):
+    """A kept sign-in that is read and renewed as any is, on which no person can be recorded: recording one raises."""
+
+    @override
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        raise OSError("the person could not be recorded")
+
+
+def test_a_sign_in_that_cannot_record_who_the_gateway_named_says_keep_failed_once_keeps_nothing_and_the_session_goes_on() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.on_emit = describing(gateway)
+            first, renewed = access(1), access(2)
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": renewed, "refresh_token": "refresh-2"})]
+            kept = Unrecording(held(gateway, first))
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage) as session:
+                # Said as the session started, before it was handed over: its errors' first reader hears it.
+                heard = Heard(session.errors())
+                said = [error for error in await heard.so_far() if isinstance(error, SessionError)]
+                assert said_by_the_session(said) == [("session.keep-failed", "kb")]
+                assert isinstance(said[0].__cause__, OSError)
+                # The session goes on: its token is held, and its person signed in.
+                assert session.token.value == first
+                assert session.user.value == UserResponse.model_validate(ALICE)
+                await soon(session.client.browse.resource(ResourceId("res-1")).fresh())
+                await pass_time(0.2, step=0.01)
+
+                # A refusal renews the token, and the gateway is asked who the renewed one is: nothing more is said.
+                assert await soon(session.refresh(first)) == renewed
+                assert session.user.value == UserResponse.model_validate(ALICE)
+                await soon(session.client.browse.resource(ResourceId("res-2")).fresh())
+                await pass_time(0.2, step=0.01)
+                assert len(said_by_the_session(await heard.so_far())) == 1
+
+            assert said_by_the_session(await heard.ended()) == [("session.keep-failed", "kb")]
+            held_now = await kept.held()
+            assert held_now is not None
+            assert held_now.person_key is None
+            assert_nothing_kept(storage)
+
+    run(scenario())
+
+
+def test_a_sign_in_that_names_its_person_and_cannot_record_who_the_gateway_named_ends_the_keeping_it_began_with() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.on_emit = describing(gateway)
+            first = access(1)
+            # The sign-in names her already: the client keeps for her from the start, before the gateway is asked.
+            kept = Unrecording(replace(held(gateway, first), person_key=ALICE_KEY))
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage) as session:
+                heard = Heard(session.errors())
+                said = [error for error in await heard.so_far() if isinstance(error, SessionError)]
+                assert said_by_the_session(said) == [("session.keep-failed", "kb")]
+                assert isinstance(said[0].__cause__, OSError)
+                # The session goes on, and what its client holds is written nowhere.
+                assert session.token.value == first
+                assert session.user.value == UserResponse.model_validate(ALICE)
+                await soon(session.client.browse.resource(ResourceId("res-1")).fresh())
+                await pass_time(0.2, step=0.01)
+                assert_nothing_kept(storage)
+                assert len(said_by_the_session(await heard.so_far())) == 1
+
+            # Closing writes nothing, and says nothing more.
+            assert said_by_the_session(await heard.ended()) == [("session.keep-failed", "kb")]
+            assert_nothing_kept(storage)
 
     run(scenario())
 
@@ -1757,17 +1885,20 @@ def test_a_write_the_storage_still_refuses_after_the_closing_flush_is_said_on_th
                 await soon(reached(client.transport.state, lambda state: state == "open"))
                 assert await soon(client.browse.entity_types().fresh()) == ["Person", "Place"]
 
-                # The storage refuses the save: it is still owed, and nothing is said while the close can still make it.
+                # The storage refuses the save: it is said once, as it happens, and the save is still owed.
                 await pass_time(0.2, step=0.01)
                 assert storage.refusals == 1
                 assert not client.persistence_settled
-                assert await heard.so_far() == []
+                said = await heard.so_far()
+                assert [error.code for error in said] == ["session.save-refused"]
+                assert refusals_said(said) == 1
 
-            # The close's flush is refused too. Closing raised nothing; the failure is said once, and the errors end.
+            # The close's flush is refused too, and what it could not write is lost. Closing raised nothing; each
+            # refusal is said once, the closing's among them, and then the errors end.
             assert storage.refusals > 1
             assert storage.get(kept_types) is None
             said = await heard.ended()
-            # Which code says it is not ruled yet.
-            assert len(said) == 1
+            assert [error.code for error in said] == ["session.save-refused"] * storage.refusals
+            assert refusals_said(said) == storage.refusals
 
     run(scenario())

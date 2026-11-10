@@ -919,7 +919,7 @@ func TestB17ACacheAttachedOnceItHasBegunTakesUpWhatWasKeptOnlyForTheKeysItHoldsN
 	c, service, _ := cacheWorld(t, nil, time.Hour)
 	held := ready(t, c, service, 7)
 	persister := &keptBack{kept: map[string]int{cacheKeyOne: 1, "kept": 2}}
-	c.attach(persister)
+	c.attach(persister, unsaved)
 
 	held.nothingMore(t)
 	if value, _ := c.Get(cacheKeyOne); value != 7 {

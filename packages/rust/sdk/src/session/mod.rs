@@ -40,7 +40,7 @@ mod stored;
 pub use browser::{
     Expected, KbReadVerdict, SemiontBrowser, SemiontBrowserConfig, SignInOutcome, SignedIn,
 };
-pub use factory::{SessionFactory, SessionFactoryOptions};
+pub use factory::{SessionFactory, SessionFactoryOptions, tell_registry};
 pub use kept::{MemorySignIn, SignInKept};
 pub use knowledge_base::{KbSessionStatus, is_valid_hostname};
 pub use open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_resources};

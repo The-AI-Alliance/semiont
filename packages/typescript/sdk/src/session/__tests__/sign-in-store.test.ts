@@ -487,7 +487,7 @@ describe('SemiontSession.fromKept over an entry of the sign-in store', () => {
     const entry = new SignInStore(directory.files$()).entry(KEY);
     const issuer = issuerOf(tokens, { token: 'access-2', refreshToken: 'refresh-2' }, nothing);
 
-    opened = await SemiontSession.fromKept({ kb, kept: entry, fetch: issuer.fetch });
+    opened = await SemiontSession.fromKept({ kb, kept: entry, fetch: issuer.fetch, validate: false });
     expect(opened.session.token$.getValue()).toBe(tokens.of('access-1'));
 
     expect(await opened.session.refresh(tokens.of('access-1'))).toBe(tokens.of('access-2'));
@@ -502,7 +502,7 @@ describe('SemiontSession.fromKept over an entry of the sign-in store', () => {
     const entry = new SignInStore(directory.files$()).entry(KEY);
     const issuer = issuerOf(tokens, { token: 'access-2', refreshToken: 'refresh-2' }, nothing);
 
-    opened = await SemiontSession.fromKept({ kb, kept: entry, fetch: issuer.fetch });
+    opened = await SemiontSession.fromKept({ kb, kept: entry, fetch: issuer.fetch, validate: false });
 
     expect(issuer.spent).toEqual(['refresh-1']);
     expect(opened.session.token$.getValue()).toBe(tokens.of('access-2'));

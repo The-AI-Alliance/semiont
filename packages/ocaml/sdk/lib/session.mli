@@ -14,10 +14,12 @@ val start :
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   initial_token:string option ->
-  renew:(refused:string option -> renewal) ->
+  renew:(holding:string option -> renewal) ->
   unit ->
   t
-(** Own a proactive timer and a single renewal worker on the caller's switch. *)
+(** Own a proactive timer and a single renewal worker on the caller's switch.
+    Every renewal is handed the token it renews: the last token the session
+    held, expired or not, and none only when it has held none. *)
 
 val credential : t -> string option
 val replace : t -> string option -> unit

@@ -168,9 +168,10 @@ func newLive(l *links, content ContentTransport) *live {
 	return v
 }
 
-// keepIn attaches cache to a persister of what it holds, under query's key.
+// keepIn attaches cache to a persister of what it holds, under query's key,
+// telling persistence's refused each write its storage refuses.
 func keepIn[K comparable, V any](cache *Cache[K, V], persistence *CachePersistence, query CacheQuery, timing Timing) {
-	cache.attach(NewStoragePersister[K, V](persistence.Storage, CacheKey(persistence.KbID, persistence.PersonKey, query), timing.MaxStoredBytesCount))
+	cache.attach(NewStoragePersister[K, V](persistence.Storage, CacheKey(persistence.KbID, persistence.PersonKey, query), timing.MaxStoredBytesCount), persistence.refused)
 }
 
 // limitsOf is the engines one key holder reports the limits of. A holder

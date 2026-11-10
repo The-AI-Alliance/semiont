@@ -26,16 +26,19 @@ it is.
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Sequence
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from typing import Final, final, override
 
 import httpx
 
+from semiont._telling import tell
 from semiont.bus import reply_channels_for
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
+from semiont.error_codes import SemiontSessionErrorCode
 from semiont.errors import BusRequestError, IdentityUnverifiableError, SemiontError, SessionError, SignInError
+from semiont.events import Broadcast, Events
 from semiont.http.endpoint import gateway_url
 from semiont.http.oauth import (
     BeginAuthorizationOptions,
@@ -82,23 +85,22 @@ def _heard(renewal: asyncio.Task[str | None]) -> None:
 class _Renewing:
     """A kept sign-in's renewals at its issuer, one at a time: a renewal asked for while one is under way is that one."""
 
-    def __init__(self, kept: SignInKept, token: Variable[str | None], http: httpx.AsyncClient | None) -> None:
+    def __init__(self, kept: SignInKept, http: httpx.AsyncClient | None) -> None:
         self._kept: Final = kept
-        self._token: Final = token
         self._http: Final = http
         self._under_way: asyncio.Task[str | None] | None = None
 
-    async def __call__(self) -> str | None:
+    async def __call__(self, holding: str | None) -> str | None:
         if self._under_way is None:
-            self._under_way = asyncio.create_task(self._once())
+            self._under_way = asyncio.create_task(self._once(holding))
             # A renewal everyone stopped waiting for has nobody to tell how it ended.
             self._under_way.add_done_callback(_heard)
         # Whoever stops waiting does not stop the renewal.
         return await asyncio.shield(self._under_way)
 
-    async def _once(self) -> str | None:
+    async def _once(self, holding: str | None) -> str | None:
         try:
-            return await renew_kept(self._kept, self._token.value, http=self._http)
+            return await renew_kept(self._kept, holding, http=self._http)
         finally:
             self._under_way = None
 
@@ -141,18 +143,29 @@ class _WhileNamed(SessionStorage):
     one that no longer names the person, and `unreadable` is told of it once,
     as it happens. A write the storage refuses is still owed, and so is every
     write after it (`owes_a_refused_write`): they are made, in order, when
-    another write is owed, or at `close`. What is owed reads as written.
+    another write is owed, or at `close`, and what `close` cannot make is
+    lost. `refused` is told of each refusal, as it happens. What is owed
+    reads as written.
     """
 
-    def __init__(self, storage: SessionStorage, kept: SignInKept, person: str, unreadable: Callable[[Exception], None]) -> None:
+    def __init__(
+        self,
+        storage: SessionStorage,
+        kept: SignInKept,
+        person: str,
+        *,
+        unreadable: Callable[[Exception], None],
+        refused: Callable[[Exception], None],
+    ) -> None:
         self._storage: Final = storage
         self._kept: Final = kept
         self._person: Final = person
         self._unreadable: Final = unreadable
+        self._told_refused: Final = refused
         self._owed: list[tuple[str, str | None]] = []
         """Each write not yet made, in order: a key, and its value, or nothing for its removal."""
-        self._refused: Exception | None = None
-        """Why the storage refused the first write still owed, while it is: `close` raises it when that write is still owed after it."""
+        self._refused = False
+        """Whether the storage refused the first write still owed."""
         self._owing: Final = asyncio.Event()
         self._closing = False
         self._dropped = False
@@ -182,7 +195,13 @@ class _WhileNamed(SessionStorage):
     @property
     def owes_a_refused_write(self) -> bool:
         """Whether a write the storage refused is still owed: until it is made, so is every write after it."""
-        return self._refused is not None and not self._dropped
+        return self._refused and not self._dropped
+
+    def stop(self) -> None:
+        """Write nothing more from now: what is owed is dropped, and nothing is owed again."""
+        self._dropped = True
+        self._owed.clear()
+        self._owing.set()
 
     def _owe(self, key: str, value: str | None) -> None:
         if not self._dropped:
@@ -190,7 +209,7 @@ class _WhileNamed(SessionStorage):
             self._owing.set()
 
     async def _write(self) -> None:
-        """Make what is owed whenever something is, until closing, or until the sign-in no longer names the person or cannot be read.
+        """Make what is owed whenever something is, until closing, `stop`, or the sign-in no longer names the person or cannot be read.
 
         However it ends, what is owed is dropped and nothing is written again.
         """
@@ -206,7 +225,7 @@ class _WhileNamed(SessionStorage):
                         return
                     # Nothing is awaited from here to the last write: where `held` answers without waiting,
                     # as this SDK's holders do, no forgetting falls between its answer and the writes.
-                    if held is None or held.person_key != self._person:
+                    if self._dropped or held is None or held.person_key != self._person:
                         return
                     self._make()
                 if self._closing:
@@ -220,7 +239,7 @@ class _WhileNamed(SessionStorage):
 
         A refusal ends the turn, and that write is still owed with every
         write after it, so a place never lands without the cache document it
-        rides with.
+        rides with. It is told as it happens.
         """
         made = 0
         try:
@@ -231,22 +250,21 @@ class _WhileNamed(SessionStorage):
                 else:
                     self._storage.set(key, value)
                 made += 1
-            self._refused = None
+            self._refused = False
         except Exception as refused:
-            self._refused = refused
+            self._refused = True
+            self._told_refused(refused)
         finally:
             del self._owed[:made]
 
     async def close(self) -> None:
         """Make what is owed, as every write is made, and then nothing more.
 
-        Raises why the storage refused a write still owed after that, when one is.
+        A write the storage still refuses is lost, and told as every refusal is.
         """
         self._closing = True
         self._owing.set()
         await self._writer
-        if self._refused is not None:
-            raise self._refused
 
 
 @final
@@ -254,6 +272,8 @@ class _Keeping:
     """What a session's client keeps in `storage` for the person its token is, from when it knows who they are.
 
     It is written only while the sign-in `kept` holds names them (`_WhileNamed`).
+    What goes wrong with it is said on `said`, for the session to say, as it
+    goes wrong: `said` ends once `close` has made what was owed.
     """
 
     def __init__(
@@ -263,21 +283,24 @@ class _Keeping:
         kept: SignInKept,
         transport: HttpTransport,
         client: SemiontClient[HttpTransport],
-        on_error: Callable[[SessionError], None] | None,
     ) -> None:
         self._kb_id: Final = kb_id
         self._storage: Final = storage
         self._kept: Final = kept
         self._transport: Final = transport
         self._client: Final = client
-        self._on_error: Final = on_error
+        self._saying: Final = Broadcast[SessionError]()
+        self.said: Final[Events[SessionError]] = self._saying.listen()
+        """Why what the client holds could not be kept (`session.keep-failed`) or written (`session.save-refused`), each once."""
         self._person: str | None = None
+        self._ended = False
+        """Whether what the client keeps has ended for good: the sign-in could not be read before a write, or record its person."""
         self._beneath: _WhileNamed | None = None
 
     def attach(self, person: str) -> None:
         """Keep what the client holds for `person` from now on: their caches begin with what was kept, and the stream with its places."""
         self._person = person
-        beneath = self._beneath = _WhileNamed(self._storage, self._kept, person, self._unreadable)
+        beneath = self._beneath = _WhileNamed(self._storage, self._kept, person, unreadable=self._unreadable, refused=self._save_refused)
         # The stream's place rides the caches' writes, and only when the client is at rest:
         # a place kept ahead of a cache still taking in the event it names would have the
         # next session skip that event.
@@ -292,36 +315,61 @@ class _Keeping:
 
         async def validate(token: str) -> UserResponse:
             user = await ask(token)
-            if self._person is None:
+            if self._may_record():
                 person = person_key(user.did)
                 # Recorded only on a sign-in that still holds the token asked
                 # about: an answer of who an older token was names nobody of a
                 # sign-in that has moved on.
-                if await self._kept.record_person_key(token, person) and self._person is None:
+                try:
+                    recorded = await self._kept.record_person_key(token, person)
+                except Exception as unrecorded:
+                    self._end(
+                        f"The sign-in could not record the person the gateway named, so the client keeps nothing more: {unrecorded}",
+                        unrecorded,
+                    )
+                    return user
+                if recorded and self._person is None and self._may_record():
                     self.attach(person)
             return user
 
         return validate
 
-    def _unreadable(self, unread: Exception) -> None:
-        """Tell the session's host that its client keeps nothing more: the sign-in could not be read before a save."""
-        if self._on_error is None:
+    def _may_record(self) -> bool:
+        """Whether the person the gateway names is still recorded and kept for: what the client keeps has not ended, and it is open."""
+        return not self._ended and not self._client.bus.destroyed
+
+    def _end(self, message: str, cause: Exception) -> None:
+        """End what the client keeps, for good: nothing more is written, and it is said, once (`session.keep-failed`)."""
+        if self._ended:
             return
-        failed = SessionError(
-            "session.keep-failed",
-            f"The sign-in could not be read before what the client keeps was saved, so it keeps nothing more: {unread}",
-            kb_id=self._kb_id,
-        )
-        failed.__cause__ = unread
-        self._on_error(failed)
+        self._ended = True
+        if self._beneath is not None:
+            self._beneath.stop()
+        self._say("session.keep-failed", message, cause)
+
+    def _unreadable(self, unread: Exception) -> None:
+        """End what the client keeps: the sign-in could not be read before a save."""
+        self._end(f"The sign-in could not be read before what the client keeps was saved, so it keeps nothing more: {unread}", unread)
+
+    def _save_refused(self, refused: Exception) -> None:
+        """Say that the storage refused a write of what the client keeps: it stays owed, until the closing, which loses it."""
+        self._say("session.save-refused", f"The storage refused a write of what the client keeps: {refused}", refused)
+
+    def _say(self, code: SemiontSessionErrorCode, message: str, cause: Exception) -> None:
+        failed = SessionError(code, message, kb_id=self._kb_id)
+        failed.__cause__ = cause
+        self._saying.deliver(failed)
 
     async def close(self) -> None:
         """Make what the client still owes once it has closed, as every write is made: only while the sign-in names its person.
 
-        Raises why the storage refused a write still owed after that (`_WhileNamed.close`).
+        Then `said` ends, once it has said whatever the writes met.
         """
-        if self._beneath is not None:
-            await self._beneath.close()
+        try:
+            if self._beneath is not None:
+                await self._beneath.close()
+        finally:
+            self._saying.close()
 
 
 def _gateway_of(kb: KbTarget) -> str:
@@ -350,15 +398,17 @@ async def session_from_kept(
     channels: Sequence[str] = BRIDGED_CHANNELS,
     storage: SessionStorage | None = None,
     on_auth_failed: Callable[[SessionEndReason], None] | None = None,
-    on_error: Callable[[SessionError], None] | None = None,
     http: httpx.AsyncClient | None = None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """A session with the knowledge base `kb`, at the gateway its endpoint names, over the sign-in `kept` holds.
 
     Held with `async with`, and ready inside it: the session, its client and
-    the client's transport are open, and each is closed on the way out. A
-    token the gateway refuses is renewed through the session, so the transport
-    and the session never hold different ones.
+    the client's transport are open, and each is closed on the way out, the
+    client first, then what it still owes is written, then the session ends,
+    and its errors with it. A token the gateway refuses is renewed through the
+    session, so the transport and the session never hold different ones. What
+    the session said as it started, before it was handed over, is given to
+    the first reader of its `errors`.
 
     With nothing kept, the session is signed out: its `token` is none, and a
     request made through its client is refused. `validate` is whether the
@@ -370,20 +420,25 @@ async def session_from_kept(
     them, and the stream's place in each scope with it: their next session
     over the same storage shows what was kept at once, and is sent what was
     recorded since. A sign-in that names its person already begins with what
-    was kept for them. A session that does not `validate` keeps nothing, and
-    neither does one whose `kept` records nobody (a `SignInStore`'s).
+    was kept for them, whether or not the session `validate`s: asking is how
+    it learns the person when the sign-in names nobody yet, so a session that
+    does not ask then keeps for nobody, and neither does one whose `kept`
+    records nobody (a `SignInStore`'s).
     Whatever holds the sign-in, it is asked before each write what it holds,
     and once it no longer names the person, because it was forgotten or a new
     sign-in was kept in its place, the session writes nothing more. Forgetting
     a saved sign-in deletes what was kept for its person only where what holds
     it keeps it in `storage` itself, for `kb` (`semiont.registry.kept_in`), as
     a registry's does; a `MemorySignIn` cannot reach the storage, and deletes
-    nothing. A sign-in that cannot be read before a write ends what the
-    client keeps, and `on_error` is told once (`session.keep-failed`). A write
-    the storage refuses is still owed, with every write after it, and the
-    client is not at rest until they are made: they are made with the next
-    write, or on the way out, which raises why a write still owed after that
-    was refused.
+    nothing. A sign-in that cannot be read before a write, and one that
+    cannot record the person the gateway named, ends what the client keeps,
+    though it kept for the person the sign-in named from the start, and the
+    session says so once on its errors (`session.keep-failed`). A
+    write the storage refuses is said there as it is refused
+    (`session.save-refused`), and is still owed, with every write after it:
+    the client is not at rest until they are made, with the next write, or on
+    the way out. What the way out cannot write is lost, its refusal said
+    before the session's errors end; the way out raises nothing.
 
     With `http`, every request of the session, of the gateway and of the
     issuer, is made with that client, which its caller built and closes
@@ -400,7 +455,6 @@ async def session_from_kept(
         channels=channels,
         storage=storage,
         on_auth_failed=on_auth_failed,
-        on_error=on_error,
         http=http,
     ) as session:
         await session.ready()
@@ -416,32 +470,32 @@ async def _session_started(
     channels: Sequence[str],
     storage: SessionStorage | None,
     on_auth_failed: Callable[[SessionEndReason], None] | None,
-    on_error: Callable[[SessionError], None] | None,
     http: httpx.AsyncClient | None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself.
 
-    What its client still owes once it has closed is made as every write is,
-    only while `kept` names the person, so what forgetting the sign-in deleted
-    stays deleted. A write the storage refused and that is still owed after
-    that is raised on the way out: a registry raises it from its `close`, as it
-    does every failure of what it runs.
+    On the way out its client closes first, then its transport, and what the
+    client still owes then is made as every write is, only while `kept`
+    names the person, so what forgetting the sign-in deleted stays deleted.
+    Only then does the session end, so whatever that flush met is said on its
+    errors before they end.
     """
     base_url = _gateway_of(kb)
     # Read before anything is built: the client begins with what was kept for the person the sign-in names.
-    named = await kept.held() if storage is not None and validate else None
+    named = await kept.held() if storage is not None else None
     token = Variable[str | None](None)
-    renewing = _Renewing(kept, token, http)
+    renewing = _Renewing(kept, http)
     transport = HttpTransport(base_url, token=token, refresher=lambda refused: session.refresh(refused), channels=channels, http=http)
     client = SemiontClient(transport, transport.content, transport)
     asking = _asking(base_url, http) if validate else None
     keeping: _Keeping | None = None
-    # A session that never asks who its token is never learns whose its caches would be, and keeps nothing.
-    if storage is not None and asking is not None:
-        keeping = _Keeping(kb.id, storage, kept, transport, client, on_error)
+    if storage is not None:
+        keeping = _Keeping(kb.id, storage, kept, transport, client)
         if named is not None and named.person_key is not None:
             keeping.attach(named.person_key)
-        asking = keeping.recording(asking)
+        # A session that never asks who its token is learns of nobody the sign-in does not name already.
+        if asking is not None:
+            asking = keeping.recording(asking)
     session: SemiontSession[HttpTransport] = SemiontSession(
         kb=kb,
         client=client,
@@ -450,15 +504,18 @@ async def _session_started(
         refresh=renewing,
         validate=asking,
         on_auth_failed=on_auth_failed,
-        on_error=on_error,
+        said=None if keeping is None else keeping.said,
     )
-    try:
-        async with transport, client, session:
+    # Entered transport, client, session; left client, transport, the flush, then the session.
+    async with AsyncExitStack() as ending:
+        ending.push_async_callback(renewing.close)
+        async with AsyncExitStack() as closing:
+            if keeping is not None:
+                closing.push_async_callback(keeping.close)
+            await closing.enter_async_context(transport)
+            await closing.enter_async_context(client)
+            await ending.enter_async_context(session)
             yield session
-    finally:
-        await renewing.close()
-        if keeping is not None:
-            await keeping.close()
 
 
 async def sign_in_device(
@@ -539,7 +596,10 @@ class HttpSessionFactory(SessionFactory):
     which deletes what was kept for them, nothing more is written. Its token
     is renewed at the issuer its stored session names. Each session renews
     its own: a knowledge base's old session and its new one, during a
-    sign-in, are closed in turn. With `http`, every request of each session,
+    sign-in, are closed in turn. What a session says on its errors is told
+    the registry, its own errors (`SessionFactoryOptions.on_error`), the
+    closing flush's among them, and what its gateway refused
+    (`semiont._telling.tell`). With `http`, every request of each session,
     and each revocation, is made with that client, which its caller built and
     closes.
     """
@@ -550,20 +610,36 @@ class HttpSessionFactory(SessionFactory):
     @override
     def session(self, options: SessionFactoryOptions) -> AbstractAsyncContextManager[SemiontSession[HttpTransport]]:
         kb = options.kb
-        return _session_started(
+        started = _session_started(
             KbTarget(id=kb.id, label=kb.label, endpoint=kb.endpoint),
             kept=kept_in(options.storage, kb.id),
             validate=True,
             channels=BRIDGED_CHANNELS,
             storage=options.storage,
             on_auth_failed=options.signals.notify_session_ended,
-            on_error=options.on_error,
             http=self._http,
         )
+        return _telling(started, options)
 
     @override
     async def revoke(self, stored: StoredSession) -> None:
         await _revoked(stored.revocation_endpoint, stored.client_id, stored.refresh, self._http)
+
+
+@asynccontextmanager
+async def _telling(
+    started: AbstractAsyncContextManager[SemiontSession[HttpTransport]], options: SessionFactoryOptions
+) -> AsyncGenerator[SemiontSession[HttpTransport]]:
+    """`started`'s session, whose errors' one reader tells the registry what it says until they end, which is awaited."""
+    telling: asyncio.Task[None] | None = None
+    try:
+        async with started as session:
+            # Its first reader: what it said as it started is told too.
+            telling = asyncio.create_task(tell(session, options))
+            yield session
+    finally:
+        if telling is not None:
+            await telling
 
 
 # ── What a completed sign-in learns ─────────────────────────────────────

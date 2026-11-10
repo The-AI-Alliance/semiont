@@ -66,7 +66,7 @@ class World:
         self.renewed_at: list[float] = []
         """When each renewal was asked for, by the loop's clock."""
         self.handed: list[str | None] = []
-        """The token each renewal was handed: the one the session held."""
+        """The token each renewal was handed: the one it renews."""
         self.validations = deque(validations)
         """What the gateway says of a token, in order; Alice once it is spent."""
         self.validated: list[str] = []
@@ -209,8 +209,13 @@ def ends(session: SemiontSession[FaultyTransport]) -> str:
     return "unconfirmed" if session.user.value is None else "signed-in"
 
 
-async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[FaultyTransport], asked_before: int) -> None:
-    """The session ended as the row states, and one that ended signed out asks nobody anything afterwards, however long it is held."""
+async def is_as_stated(
+    row: JsonObject, world: World, session: SemiontSession[FaultyTransport], asked_before: int, renews: str | None
+) -> None:
+    """The session ended as the row states, and one that ended signed out asks nobody anything afterwards, however long it is held.
+
+    Every renewal, at any point, was handed `renews`: the token the row is about.
+    """
     asks, renewals = count(row, "asks"), count(row, "renewals")
     assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "how often the gateway and the issuer were asked"
     assert ends(session) == row["ends"]
@@ -231,6 +236,7 @@ async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Fa
     elif ends(session) == "signed-out":
         await pass_time(2 * 60 * 60, step=60)
         assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "what was asked once the session was over"
+    assert world.handed == [renews] * world.renewed, "the token each renewal was handed: the one it renews"
 
 
 @pytest.mark.parametrize("row", STARTUP, ids=why)
@@ -246,7 +252,8 @@ def test_a_session_starts_as_the_table_states(row: JsonObject) -> None:
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            await is_as_stated(row, world, session, 0)
+            # The token found stored, though it has expired.
+            await is_as_stated(row, world, session, 0, kept)
 
     run(scenario())
 
@@ -254,9 +261,10 @@ def test_a_session_starts_as_the_table_states(row: JsonObject) -> None:
 @pytest.mark.parametrize("row", REFUSAL, ids=why)
 def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) -> None:
     asks, renewals = answers(row)
+    started_on = token(3600, 0)
     # The session starts signed in: the gateway accepts the kept token. Then the row's answers.
     world = World(
-        kept=token(3600, 0),
+        kept=started_on,
         renewals=[issuer_says(row, n, token(3600, 1)) for n in range(renewals)],
         validations=[alice(), *(gateway_says(row, n) for n in range(asks)), one_too_many()],
     )
@@ -271,7 +279,8 @@ def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) 
             assert (given is not None) == row["given"], "whether `refresh` gives a token"
             if given is not None:
                 assert given == session.token.value
-            await is_as_stated(row, world, session, 1)
+            # The token its session started on, whether the gateway refused it or one it held before.
+            await is_as_stated(row, world, session, 1, started_on)
 
     run(scenario())
 

@@ -8,7 +8,9 @@ person's `resource` key when its sign-in names them, as a client closing with
 a save owed could; an expiry and a refusal are those of the registry's own
 session, of its HTTP factory, over a scripted gateway and issuer. `startup`: a
 session of the registry's HTTP factory, over a scripted gateway that names the
-person, or cannot be reached, only once the test lets it answer. `crossTab`: a
+person, or cannot be reached, only once the test lets it answer; and a
+session that does not ask who its token is, over a stored sign-in that names
+the person. `crossTab`: a
 registry's session whose stored sign-in another context deletes or replaces
 before the client has written what it holds. `holder`: a script's session over
 a memory sign-in, keeping in a storage of its own, whose sign-in is forgotten,
@@ -439,6 +441,25 @@ def test_a_registrys_session_reads_and_records_what_the_table_says(row: JsonObje
             if "untouched" in row:
                 kept = {key: value for key, value in storage.held.items() if key.startswith(PREFIXES)}
                 assert (kept == STARTUP_STORAGE) is row["untouched"]
+
+    run(scenario())
+
+
+def test_a_session_that_does_not_ask_who_its_token_is_keeps_for_the_person_its_stored_sign_in_names() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            answers_fresh(gateway)
+            storage = Held(STARTUP_STORAGE)
+            store_session(storage, KB, signed_in(JO))
+
+            async with session_from_kept(gateway.target(KB), kept=kept_in(storage, KB), validate=False, storage=storage) as session:
+                client = session.client
+                await soon(reached(client.transport.state, lambda state: state == "open"))
+                async with client.browse.resource(ResourceId("res-2")) as live:
+                    assert await soon(shown(live)) == "kept"
+
+            assert gateway.of("GET", ME) == []
 
     run(scenario())
 

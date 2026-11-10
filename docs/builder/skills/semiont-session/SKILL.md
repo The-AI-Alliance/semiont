@@ -46,15 +46,15 @@ const opened = await SemiontSession.fromKept({
   kb,
   kept,
   onAuthFailed: (reason) => console.error(`The session ended: ${reason}`),
-  onError: (err) => console.error('session error:', err.code, err.message),
 });
 const { session } = opened;
+session.errors$.subscribe((err) => console.error('session error:', err.code, err.message));
 
 const me = await session.client.auth?.me();
 console.error(`Signed in as ${me?.email}`);
 ```
 
-`fromKept` gives an `OpenedSession`: the session, and the client it was built with. The session only uses its client, so the two end together: `opened.dispose()` ends the session, then closes the client.
+`fromKept` gives an `OpenedSession`: the session, and the client it was built with. The session only uses its client, so the two end together: `opened.dispose()` closes the client, then ends the session.
 
 `onAuthFailed` is called once, when the session ends: `expired` when the issuer would not renew it, `refused` when the gateway would not accept a token the issuer had just issued. Neither is a prompt to retry, because the session already did. Signing in again is what is left.
 
@@ -214,9 +214,9 @@ async function main(): Promise<void> {
       console.error(`The session ended: ${reason}`);
       process.exit(1);
     },
-    onError: (err) => console.error('session error:', err.code, err.message),
   });
   const { session } = opened;
+  session.errors$.subscribe((err) => console.error('session error:', err.code, err.message));
 
   async function detect(rId: ResourceId): Promise<void> {
     const done = await session.client.mark.delegate(rId, { motivation: 'linking', entityTypes: ENTITY_TYPES });
@@ -248,16 +248,16 @@ main().catch((e) => {
 });
 ```
 
-`opened.dispose()` ends the session, which stops its renewal, then closes its client, which closes the event stream. Without it the open stream keeps the process alive. `session.dispose()` alone ends the session and leaves its client, and the stream, open.
+`opened.dispose()` closes its client, which makes what its caches owe and closes the event stream, then ends the session, which stops its renewal. Without it the open stream keeps the process alive. `session.dispose()` alone ends the session and leaves its client, and the stream, open.
 
 ## Guidance for the AI assistant
 
 - **Check the channel's audience before you subscribe.** A channel delivered to a resource's scope is read on the wire for its resource, `session.client.wire.frames(channel, rId)`, which holds the scope while it is read. `session.client.bus.on(channel)` does not compile for such a channel, and is refused when called.
-- **End what you opened.** `opened.dispose()` ends the session and then its client. `session.dispose()` ends only the session.
+- **End what you opened.** `opened.dispose()` closes the client and then ends the session. `session.dispose()` ends only the session.
 - **A watcher hears its own writes.** A daemon that creates resources in response to `yield:created` hears those too. Decide what stops the loop: an entity type it skips, or a check on who created the resource.
 - **Nothing awaits a handler.** Start the work, attach a `.catch`, and return. A rejection from an `async` handler goes unhandled.
 - **`fromKept` handles renewal.** Write a `refresh` callback only when the token comes from somewhere other than a kept sign-in, and then open the session with `fromHttp`.
 - **Choose where the sign-in is kept by what a restart should do.** In a `MemorySignIn`, the script signs in again at every start. In a storage on disk (`keptIn`), or the sign-in store `semiont login` keeps, it resumes.
 - **Prefer a namespace method to a channel.** `mark.delegate`, `yield.delegate` and the others follow their own jobs and replies. Subscribe to a channel only for what no method covers.
-- **Two kinds of error.** A call rejects with a `SemiontError`: catch it and route on its `code`, narrowing to `BusRequestError` or `JobFailedError` where that helps. A failure of the session itself (`session.refresh-exhausted`, `session.credential-refused`) arrives at `onError` as a `SemiontSessionError`, and the session's end at `onAuthFailed`. See [Error Handling](../../Usage.md#error-handling).
+- **Two kinds of error.** A call rejects with a `SemiontError`: catch it and route on its `code`, narrowing to `BusRequestError` or `JobFailedError` where that helps. A failure of the session itself (`session.refresh-exhausted`, `session.credential-refused`, `session.keep-failed`, `session.save-refused`) is a `SemiontSessionError` the session says on its `errors$`, beside its transport's failures, and the session's end reaches `onAuthFailed`. See [Error Handling](../../Usage.md#error-handling).
 - **From the command line.** `semiont listen --channel <name>` prints a channel's events, and `--scope <resourceId>` joins a resource's scope. Use it to see what a channel carries before writing the handler.

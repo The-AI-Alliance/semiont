@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Net;
 using System.Threading.Channels;
@@ -39,7 +40,7 @@ public sealed class SessionTests
             TokenEndpoint = "https://issuer.example/token",
         });
         var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("{\"kind\":\"http\",\"host\":\"kb.example\",\"port\":443,\"protocol\":\"https\"}") ?? throw new InvalidOperationException("No endpoint");
-        using (var session = new KeptSession(endpoint, kept, client, clock, new ZeroRandom(), new Broadcast<SessionError>(keepForFirst: true),
+        using (var session = new KeptSession(endpoint, kept, client, clock, new ZeroRandom(), new Broadcast<SemiontError>(keepForFirst: true), validates: true,
             static (_, _, _) => Task.CompletedTask))
         {
             await session.ReadyAsync();
@@ -61,7 +62,7 @@ public sealed class SessionTests
         var error = Assert.Throws<SessionError>(() =>
         {
             using var session = new KeptSession(endpoint, new MemorySignIn(), null, new TestClock(), new ZeroRandom(),
-                new Broadcast<SessionError>(keepForFirst: true), static (_, _, _) => Task.CompletedTask);
+                new Broadcast<SemiontError>(keepForFirst: true), validates: true, static (_, _, _) => Task.CompletedTask);
         });
         Assert.Equal("session.construct-failed", error.Code);
     }
@@ -277,6 +278,45 @@ public sealed class SessionTests
         Assert.Equal(stored, await signIn.HeldAsync(deadline.Token));
     }
 
+    // Every renewal is handed the token it renews (protocol/specs/src/session/cases.json): once a renewal of the token the
+    // gateway refused got no answer, the renewal on the reconnect backoff is handed that token, so the kept sign-in's
+    // renewal asks the issuer for another instead of giving back the token the gateway refused.
+    [Fact]
+    public async Task TheRenewalOnTheBackoffIsHandedTheRefusedTokenWhoseRenewalGotNoAnswer()
+    {
+        var clock = new TestClock();
+        var kept = Stored(clock);
+        var refused = (await kept.HeldAsync())?.Access ?? throw new InvalidOperationException("Nothing is stored");
+        var issued = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 7200 });
+        var handed = new ConcurrentQueue<string?>();
+        var grants = 0;
+        Task<(string Access, string? Refresh)> Grant(StoredSession read, CancellationToken cancellation) =>
+            Interlocked.Increment(ref grants) == 1
+                ? Task.FromException<(string, string?)>(new SignInError(ProtocolFacts.SignInError("exchange"), "The issuer did not answer"))
+                : Task.FromResult<(string, string?)>((issued, "refresh-2"));
+        Task<string?> Renew(string? holding, CancellationToken cancellation)
+        {
+            handed.Enqueue(holding);
+            return KeptRenewal.RenewAsync(kept, holding, Grant, clock, cancellation);
+        }
+        using var session = new KeptSession(kept, Renew, (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        await session.ReadyAsync(deadline.Token);
+        Assert.Equal(refused, session.State.Token);
+        Assert.Null(await session.RefreshAsync(refused, deadline.Token));
+        Assert.True(await errors.MoveNextAsync(), "the renewal with no answer was not said");
+        Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+        var wait = Backoff().First();
+        await clock.WaitForAsync(wait);
+        clock.Advance(wait);
+        await EventuallyAsync(() => session.State.Token is not null);
+        Assert.Equal(new string?[] { refused, refused }, handed.ToArray());
+        Assert.True(Volatile.Read(ref grants) == 2, "the renewal on the backoff gave a token back without asking the issuer");
+        Assert.Equal(issued, session.State.Token);
+        Assert.Equal(issued, (await kept.HeldAsync(deadline.Token))?.Access);
+    }
+
     /// <summary>The reconnect backoff's waits as ZeroRandom draws them: half of each step, the step reconnectMs doubling
     /// to maxReconnectMs.</summary>
     private static IEnumerable<TimeSpan> Backoff()
@@ -301,6 +341,7 @@ public sealed class SessionTests
             var clock = new TestClock();
             var asks = 0;
             var renewals = 0;
+            var handed = new ConcurrentQueue<string?>();
             var running = false;
             var gateway = row.GetProperty("gateway").EnumerateArray().Select(value => value.GetString()).ToArray();
             var issuer = row.GetProperty("issuer").EnumerateArray().Select(value => value.GetString()).ToArray();
@@ -323,6 +364,7 @@ public sealed class SessionTests
             }
             async Task<string?> Renew(string? holding, CancellationToken cancellation)
             {
+                handed.Enqueue(holding);
                 var answer = issuer[Math.Min(renewals++, issuer.Length - 1)];
                 if (answer == "refuses") throw new SignInError("exchange", "refused", 400);
                 if (answer == "unreachable") throw new SignInError("exchange", "unreachable");
@@ -372,6 +414,9 @@ public sealed class SessionTests
                     clock.Advance(pause);
                     await EventuallyAsync(() => renewals == next.GetProperty("renewals").GetInt32() && asks == next.GetProperty("asks").GetInt32() && End(session) == next.GetProperty("ends").GetString());
                 }
+                // Each renewal is handed the token the row stored (startup), or the one its session started on (refusal).
+                foreach (var token in handed)
+                    Assert.True(token == original.Access, part + ", " + row.GetProperty("why").GetString() + ": a renewal was handed " + (token ?? "no token"));
             }
             finally
             {

@@ -86,6 +86,10 @@ public sealed partial class HttpTransport : IDisposable
     public IAsyncEnumerable<ConnectionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
     public IAsyncEnumerable<SemiontError> Errors(CancellationToken cancellation = default) => failures.Observe(cancellation);
 
+    /// <summary>Hands <paramref name="to"/> each failure as the transport meets it, a reader of <see cref="Errors"/> as any
+    /// other is, until the relay is disposed or the transport closes.</summary>
+    internal IDisposable RelayFailures(Action<SemiontError> to) => failures.Relay(to);
+
     public void SetToken(string? value)
     {
         lock (gate)

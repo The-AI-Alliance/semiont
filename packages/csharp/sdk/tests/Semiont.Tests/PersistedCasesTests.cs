@@ -619,6 +619,142 @@ public sealed partial class TransportTests
         Assert.Same(signIn.Failure, thrown);
     }
 
+    // A write the storage refuses is said on the session's errors once, as session.save-refused, with what the storage said
+    // (protocol/specs/src/errors/codes.json); its save stays owed, and the client's closing writes it.
+    [Fact]
+    public async Task AWriteTheStorageRefusesIsSaidOnTheSessionsErrorsOnceAndItsSaveStaysOwed()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joResource = Text(PersonKeysRow(root, CaseKb, jo).GetProperty("cacheKeys"), "resource");
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var storage = new RefusingStorage(joResource, refusals: 1);
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")),
+            new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) }), storage, gateway.Http, clock,
+            cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await using IAsyncEnumerator<SemiontError> errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        try
+        {
+            await session.ReadyAsync(deadline.Token);
+            Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+            await clock.WaitForAsync(SaveDebounce);
+            clock.Advance(SaveDebounce);
+            await UntilAsync(() => storage.Refused == 1, deadline.Token);
+            Assert.True(storage.Get(joResource) is null, "the storage kept the write it refused: " + storage.Get(joResource));
+        }
+        finally { await EndAsync(opened, told); }
+        var said = await SaidUntilEndAsync(errors, told, deadline.Token);
+        var refused = said.Where(error => error.Code == "session.save-refused").ToArray();
+        Assert.True(refused.Length == 1, "the refused write was not said once: [" + string.Join(", ", said.Select(error => error.Code)) + "]");
+        Assert.Same(storage.Refusal, refused[0].InnerException);
+        Assert.Contains(storage.Refusal.Message, refused[0].Message, StringComparison.Ordinal);
+        Assert.True(HoldsFresh(storage.Get(joResource), "res-1"), "the closing did not write the save the storage refused: " + storage.Get(joResource));
+    }
+
+    // A write the client's closing cannot make is lost, and its refusal is said once on the session's errors, before they end.
+    [Fact]
+    public async Task AClosingWriteTheStorageRefusesIsSaidOnTheSessionsErrorsOnceBeforeTheyEnd()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joResource = Text(PersonKeysRow(root, CaseKb, jo).GetProperty("cacheKeys"), "resource");
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var storage = new RefusingStorage(joResource, refusals: int.MaxValue);
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")),
+            new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) }), storage, gateway.Http, clock,
+            cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await using IAsyncEnumerator<SemiontError> errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        try
+        {
+            await session.ReadyAsync(deadline.Token);
+            // The save res-1 owes waits for a debounce that never passes here: the closing's flush is that save.
+            Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+        }
+        finally { await EndAsync(opened, told); }
+        var said = await SaidUntilEndAsync(errors, told, deadline.Token);
+        var refused = said.Where(error => error.Code == "session.save-refused").ToArray();
+        Assert.True(refused.Length == 1, "the closing's refused write was not said once: [" + string.Join(", ", said.Select(error => error.Code)) + "]");
+        Assert.Same(storage.Refusal, refused[0].InnerException);
+        Assert.Equal(1, storage.Refused);
+        Assert.True(storage.Get(joResource) is null, "the storage kept the write it refused: " + storage.Get(joResource));
+    }
+
+    // A session opened over a kept sign-in asks the gateway who its token is, and so learns the person whose caches its
+    // client keeps, unless it is told not to (protocol/specs/src/client/surface.json, the kept sign-in's docs): validate is
+    // true when it is left out.
+    [Theory]
+    [InlineData(null)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ASessionOverAKeptSignInAsksWhoItsTokenIsUnlessToldNotTo(bool? validate)
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var access = TokenTests.Jwt(new { exp = now + 3600 });
+        var signIn = new MemorySignIn(RegistryTokens() with { Access = access });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var kb = Target(RegistryKb(CaseKb, "kb-a.test"));
+        await using var opened = validate is { } told
+            ? await SemiontSession.FromKeptAsync(kb, signIn, httpClient: gateway.Http, timeProvider: clock, validate: told, cancellation: deadline.Token)
+            : await SemiontSession.FromKeptAsync(kb, signIn, httpClient: gateway.Http, timeProvider: clock, cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await session.ReadyAsync(deadline.Token);
+        var asks = validate is false ? 0 : 1;
+        Assert.True(gateway.Asks == asks, "the gateway was asked who the token is " + gateway.Asks + " times, not " + asks);
+        Assert.Equal(access, session.Token.Value);
+        Assert.True((session.User.Value is not null) == (asks == 1), "who is signed in is whoever the gateway was asked to name");
+    }
+
+    // A session told not to ask still keeps for the person its kept sign-in names, from the start, as the `startup` row whose
+    // sign-in names its person has it (protocol/specs/src/client/surface.json, the kept sign-in's docs); asking is how a
+    // session learns the person when the sign-in names nobody, so one that names nobody keeps for nobody, and records no one.
+    [Theory]
+    [InlineData("named")]
+    [InlineData("unnamed")]
+    public async Task ASessionToldNotToAskKeepsForThePersonItsSignInNamesAndForNobodyElse(string signedIn)
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var row = root.GetProperty("startup").EnumerateArray().First(each => Text(each, "signedIn") == signedIn);
+        var why = Text(row, "why");
+        var storage = new MemoryStorage();
+        foreach (var entry in root.GetProperty("startupStorage").EnumerateObject())
+            storage.Set(entry.Name, entry.Value.GetString() ?? throw new InvalidOperationException("Nothing kept under " + entry.Name));
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var named = signedIn == "named" ? Text(root.GetProperty("people").GetProperty("jo"), "personKey") : null;
+        var holder = new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }), PersonKey = named });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")), holder, storage, gateway.Http, clock,
+            validate: false, cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await session.ReadyAsync(deadline.Token);
+        await using var first = session.Client.Browse.Resource(ResourceId.Parse("res-2")).GetAsyncEnumerator(deadline.Token);
+        Assert.True(await KeptOrFreshAsync(first) == Text(row, "first"), why + ": res-2, asked first");
+        Assert.True(gateway.Asks == 0, why + ": the gateway was asked who the token is " + gateway.Asks + " times");
+        Assert.True((await holder.HeldAsync(deadline.Token))?.PersonKey == named, why + ": the sign-in names someone else now");
+    }
+
     /// <summary>Ends <paramref name="opened"/>, and waits for <paramref name="reading"/>, a read of its session's errors, to
     /// finish however it does: an enumerator cannot be disposed while a read is under way.</summary>
     private static async Task EndAsync(OpenedSession opened, Task<bool> reading)
@@ -936,6 +1072,7 @@ public sealed partial class TransportTests
         private volatile bool names;
         private volatile bool renewalRefused;
         private volatile string[] refused = [];
+        private int asks;
 
         internal PersonGateway(string whoAmI, string renewed)
         {
@@ -947,9 +1084,7 @@ public sealed partial class TransportTests
             };
             Server.Other = (request, _) => request.RequestUri?.AbsolutePath switch
             {
-                "/api/users/me" => Refused(request) ? Answered(HttpStatusCode.Unauthorized, "{}")
-                    : names ? Answered(HttpStatusCode.OK, whoAmI)
-                    : Task.FromException<HttpResponseMessage>(new HttpRequestException("The gateway is unreachable.")),
+                "/api/users/me" => WhoIs(request, whoAmI),
                 "/api/status" => Refused(request) ? Answered(HttpStatusCode.Unauthorized, "{}") : Answered(HttpStatusCode.OK, Status),
                 "/token" => renewalRefused ? Answered(HttpStatusCode.BadRequest, """{"error":"invalid_grant"}""")
                     : Answered(HttpStatusCode.OK, JsonSerializer.Serialize(new { access_token = renewed, refresh_token = "renewed refresh" })),
@@ -963,6 +1098,17 @@ public sealed partial class TransportTests
         internal void Name(bool answer) => names = answer;
         internal void Refuse(string token) => refused = [.. refused, token];
         internal void RefuseRenewal() => renewalRefused = true;
+
+        /// <summary>How many times the gateway has been asked who a token is.</summary>
+        internal int Asks => Volatile.Read(ref asks);
+
+        private Task<HttpResponseMessage> WhoIs(HttpRequestMessage request, string whoAmI)
+        {
+            Interlocked.Increment(ref asks);
+            return Refused(request) ? Answered(HttpStatusCode.Unauthorized, "{}")
+                : names ? Answered(HttpStatusCode.OK, whoAmI)
+                : Task.FromException<HttpResponseMessage>(new HttpRequestException("The gateway is unreachable."));
+        }
 
         private bool Refused(HttpRequestMessage request) =>
             request.Headers.Authorization?.Parameter is { } bearer && refused.Contains(bearer);
@@ -1066,6 +1212,35 @@ public sealed partial class TransportTests
         public Task ForgetAsync(CancellationToken cancellation = default) => kept.ForgetAsync(cancellation);
         public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default) =>
             Task.FromException<bool>(Failure);
+    }
+
+    /// <summary>A storage in memory that refuses the first <paramref name="refusals"/> writes of <paramref name="refused"/>,
+    /// each with <see cref="Refusal"/>, as a host's storage that cannot write does.</summary>
+    private sealed class RefusingStorage(string refused, int refusals) : ISessionStorage
+    {
+        private readonly MemoryStorage values = new();
+        private int left = refusals;
+        private int made;
+        internal IOException Refusal { get; } = new("The storage cannot write " + refused);
+
+        /// <summary>How many writes the storage has refused.</summary>
+        internal int Refused => Volatile.Read(ref made);
+
+        public string? Get(string key) => values.Get(key);
+
+        public void Set(string key, string value)
+        {
+            if (key == refused && Interlocked.Decrement(ref left) >= 0)
+            {
+                Interlocked.Increment(ref made);
+                throw Refusal;
+            }
+            values.Set(key, value);
+        }
+
+        public void Delete(string key) => values.Delete(key);
+        public void Update(string key, Func<string?, string?> change) => values.Update(key, change);
+        public IDisposable? Subscribe(Action<string, string?> onChange) => null;
     }
 
     /// <summary>A storage whose reads of one key fail once the test says so.</summary>

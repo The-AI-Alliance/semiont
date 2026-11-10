@@ -12,15 +12,16 @@
  * across concurrent session reactivations for the same KB id.
  *
  * Every request of every session it builds, of the gateway and of the
- * issuer, is sent with `fetch`, or the runtime's own.
+ * issuer, is sent with `fetch`, or the runtime's own. What a session says of
+ * itself on its errors stream, its host's `onError` is told.
  */
 
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, filter } from 'rxjs';
 import { HttpTransport, HttpContentTransport, currentUserOf } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
 import { personKeeping } from '../cache-persister';
-import { SemiontSession, type UserInfo } from './semiont-session';
+import { SemiontSession, sayOn, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
 import { kbGatewayUrl, keptIn } from './storage';
 import { renewKept } from './oauth';
@@ -31,6 +32,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
 
   return (opts: SessionFactoryOptions): SemiontSession => {
     const { kb, storage, signals, onError } = opts;
+    let session!: SemiontSession;
 
     if (kb.endpoint.kind !== 'http') {
       throw new SemiontSessionError(
@@ -65,18 +67,16 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
 
     // B17: what the session keeps for one person, the stream's places and
     // the caches, kept from the start when the kept sign-in names its
-    // person; until the gateway names them otherwise, nothing is kept. A
-    // sign-in that cannot be read before a save is told to the session's
-    // host once.
-    const keeps = personKeeping(storage, kb.id, signIn, onError);
+    // person; until the gateway names them otherwise, nothing is kept. What
+    // goes wrong with it, the session says on its errors.
+    const keeps = personKeeping(storage, kb.id, signIn, (error) => sayOn(session, error));
 
     // Build transport stack: factory owns token$ and threads it through
     // transport (which reads it on every request) and session (which
-    // writes refreshed values into it). The `tokenRefresher` closure
-    // resolves `session` lazily — `session` is defined right after,
-    // before any 401 could fire.
+    // writes refreshed values into it). The `tokenRefresher` closure, and
+    // what the keeping says, resolve `session` lazily — `session` is
+    // defined right after, before any 401 or save could happen.
     const token$ = new BehaviorSubject<AccessToken | null>(null);
-    let session!: SemiontSession;
     const transport = new HttpTransport({
       baseUrl: gateway,
       token$,
@@ -121,8 +121,12 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       refresh: performRefresh,
       validate: performValidate,
       onAuthFailed: (reason) => signals.notifySessionEnded(reason),
-      onError,
     });
+    // The host is told the session's own errors, read from its errors
+    // stream; its transport's failures are the host's to read there.
+    session.errors$
+      .pipe(filter((error): error is SemiontSessionError => error instanceof SemiontSessionError))
+      .subscribe(onError);
     return session;
   };
 }
