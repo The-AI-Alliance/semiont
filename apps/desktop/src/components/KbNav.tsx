@@ -21,8 +21,6 @@ export interface KbNavProps {
   onNewChat: (kbUri: string) => void;
   onNewDocument: (kbUri: string) => void;
   onSelectSession: (sessionId: string) => void;
-  onRenameSession: (sessionId: string, name: string) => void;
-  onDeleteSession: (sessionId: string) => void;
   onOpenAbout: () => void;
   onOpenInference: () => void;
   onOpenSecrets: () => void;
@@ -130,7 +128,7 @@ function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, m
           aria-expanded="false"
           onClick={() => setOpen(true)}
         >
-          <span className="semiont-panel-toggle__s">S</span><span aria-hidden="true">‹</span>
+          <GearIcon /><span aria-hidden="true">‹</span>
         </button>
       )}
       <div className="semiont-brand" aria-label="Semiont">
@@ -151,8 +149,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
     onNewChat,
     onNewDocument,
     onSelectSession,
-    onRenameSession,
-    onDeleteSession,
   } = props;
 
   const conn = connections[kb.uri];
@@ -247,8 +243,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
                   session={s}
                   active={s.id === activeSessionId}
                   onSelect={() => onSelectSession(s.id)}
-                  onRename={(name) => onRenameSession(s.id, name)}
-                  onDelete={() => onDeleteSession(s.id)}
                 />
               ))}
             </ul>
@@ -259,91 +253,17 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
   );
 }
 
-function SessionRow({
-  session,
-  active,
-  onSelect,
-  onRename,
-  onDelete,
-}: {
+function SessionRow({ session, active, onSelect }: {
   session: AppChatSession;
   active: boolean;
   onSelect: () => void;
-  onRename: (name: string) => void;
-  onDelete: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-
-  if (editing) {
-    return (
-      <li className="kb__session">
-        <InlineEdit
-          value={session.name ?? sessionTitle(session)}
-          placeholder="Chat name"
-          onSave={(v) => {
-            onRename(v);
-            setEditing(false);
-          }}
-          onCancel={() => setEditing(false)}
-        />
-      </li>
-    );
-  }
-
   return (
     <li className={`kb__session${active ? ' kb__session--active' : ''}`}>
       <button type="button" className="kb__session-name" onClick={onSelect} title={sessionTitle(session)}>
         {sessionTitle(session)}
       </button>
-      {confirming ? (
-        <span className="kb__session-confirm">
-          <button type="button" className="kb__confirm-yes" onClick={onDelete}>
-            Delete
-          </button>
-          <button type="button" className="kb__confirm-no" onClick={() => setConfirming(false)}>
-            ×
-          </button>
-        </span>
-      ) : (
-        <>
-          <button type="button" className="kb__icon" onClick={() => setEditing(true)} aria-label="Rename chat" title="Rename">
-            <PencilIcon />
-          </button>
-          <button type="button" className="kb__icon" onClick={() => setConfirming(true)} aria-label="Delete chat" title="Delete">
-            <TrashIcon />
-          </button>
-        </>
-      )}
     </li>
-  );
-}
-
-function InlineEdit({
-  value,
-  placeholder,
-  onSave,
-  onCancel,
-}: {
-  value: string;
-  placeholder: string;
-  onSave: (v: string) => void;
-  onCancel: () => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  return (
-    <input
-      className="kb__edit"
-      autoFocus
-      value={draft}
-      placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => onSave(draft.trim())}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') onSave(draft.trim());
-        if (e.key === 'Escape') onCancel();
-      }}
-    />
   );
 }
 
@@ -441,6 +361,15 @@ function StatusIcon() {
   );
 }
 
+function GearIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.69 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.69a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.31 9c.36.6.99 1 1.69 1h.09a2 2 0 1 1 0 4H21a1.65 1.65 0 0 0-1.6 1Z" />
+    </svg>
+  );
+}
+
 function Chevron({ open }: { open: boolean }) {
   return (
     <svg className={`kb__chevron${open ? ' kb__chevron--open' : ''}`} width="10" height="10" {...ICON_PROPS}>
@@ -463,26 +392,6 @@ function PlusIcon() {
   return (
     <svg width="16" height="16" {...ICON_PROPS}>
       <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg width="13" height="13" {...ICON_PROPS}>
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="13" height="13" {...ICON_PROPS}>
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <line x1="10" y1="11" x2="10" y2="17" />
-      <line x1="14" y1="11" x2="14" y2="17" />
     </svg>
   );
 }

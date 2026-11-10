@@ -1692,12 +1692,6 @@ button:disabled {
 .app--electron .semiont-panel-toggle--collapsed {
   top: 1.8rem;
 }
-.semiont-panel-toggle__s {
-  font-family: Orbitron, system-ui, sans-serif;
-  font-size: 1.2rem;
-  font-weight: 700;
-  line-height: 1;
-}
 .semiont-panel-toggle--open {
   width: 100%;
   height: 3.6rem;
@@ -1971,37 +1965,6 @@ body.resizing {
   gap: 0.5rem;
 }
 
-.kb__confirm {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-.kb__confirm-yes,
-.kb__confirm-no {
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: 0.8rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: 6px;
-}
-.kb__confirm-yes {
-  color: var(--danger);
-  font-weight: 500;
-}
-.kb__confirm-yes:hover {
-  background: var(--danger-soft);
-}
-.kb__confirm-no {
-  color: var(--muted);
-}
-.kb__confirm-no:hover {
-  background: var(--field);
-}
-
 /* Collapsible nav sections (Documents, Chats): a disclosure header + its content. */
 .kb__section-group {
   display: flex;
@@ -2134,28 +2097,6 @@ body.resizing {
 .kb__session--active .kb__session-name {
   color: var(--accent);
   font-weight: 500;
-}
-
-.kb__session-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.kb__edit {
-  flex: 1;
-  min-width: 0;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid var(--accent);
-  border-radius: 7px;
-  font: inherit;
-  font-size: 0.85rem;
-  color: var(--text);
-  background: var(--field);
-}
-.kb__edit:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* ── Main pane empty / connect-prompt states ──────────────────────────── */

@@ -855,28 +855,6 @@ export function App() {
     setSessions((prev) => [...prev, s]);
     setActiveSessionIdsByKb((current) => ({ ...current, [kbUri]: s.id })); // any open document for this KB stays put
   };
-  const handleRenameSession = (id: string, name: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, name: name.trim() ? name.trim() : null, updatedAt: Date.now() } : s)),
-    );
-  };
-  const handleDeleteSession = (id: string) => {
-    const target = sessions.find((s) => s.id === id);
-    const remaining = sessions.filter((s) => s.id !== id);
-    setSessions(remaining);
-    if (activeSessionId === id) {
-      const sameKb = target ? sessionsForKb(remaining, target.kbUri) : [];
-      if (target !== undefined) {
-        setActiveSessionIdsByKb((current) => {
-          const next = { ...current };
-          if (sameKb[0] === undefined) delete next[target.kbUri];
-          else next[target.kbUri] = sameKb[0].id;
-          return next;
-        });
-      }
-    }
-  };
-
   // Mutate the active session's entries (App owns the sessions store; ChatPane drives it).
   const setActiveEntries = (updater: (prev: LogEntry[]) => LogEntry[]) => {
     setSessions((prev) =>
@@ -1011,8 +989,6 @@ export function App() {
             onNewChat={handleNewChat}
             onNewDocument={openNewDocument}
             onSelectSession={selectSession}
-            onRenameSession={handleRenameSession}
-            onDeleteSession={handleDeleteSession}
             onOpenAbout={openAbout}
             onOpenInference={openInference}
             onOpenSecrets={openSecrets}
