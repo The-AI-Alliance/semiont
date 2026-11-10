@@ -64,12 +64,12 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} hasLocalRootTab={props.hasLocalRootTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ hasActiveKbTab, hasLocalRootTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'hasActiveKbTab' | 'hasLocalRootTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -105,27 +105,41 @@ function SemiontMenu({ hasActiveKbTab, hasLocalRootTab, onOpenKnowledgeBase, onO
                 <span aria-hidden="true">›</span>
               </button>
             </header>
-            <nav className="semiont-panel__items">
-              {hasActiveKbTab && <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Knowledge Base</span></button>}
-              {hasLocalRootTab && <button type="button" onClick={() => choose(() => onOpenServiceGroup('record'))}><RecordIcon /><span>Record</span></button>}
-              <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
-              <button type="button" onClick={() => choose(() => onOpenServiceGroup('index'))}><IndexIcon /><span>Index</span></button>
-              <button type="button" onClick={() => choose(() => onOpenServiceGroup('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
-              <button type="button" onClick={() => choose(() => onOpenServiceGroup('issuer'))}><IdentityIcon /><span>Identity &amp; Stores</span></button>
-              <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secret Managers</span></button>
-              <button type="button" onClick={() => choose(onOpenMcp)}>
-                <McpIcon running={mcpStatus.state === 'running'} />
-                <span className="semiont-menu__item-copy">
-                  <span>MCP</span>
-                  {mcpStatus.state === 'running' && mcpStatus.pid !== null && <small>Running · PID {mcpStatus.pid}</small>}
-                  {mcpStatus.state !== 'running' && <small>{mcpStatus.state === 'failed' ? 'Failed' : 'Stopped'}</small>}
-                </span>
-              </button>
-              <button type="button" onClick={() => choose(onOpenLanguage)}><LanguageIcon /><span>Language</span></button>
-              <button type="button" onClick={() => choose(onOpenAppearance)}><ThemeIcon /><span>Appearance</span></button>
-              <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
-              <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
-              <button type="button" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
+            <nav className="semiont-panel__items" aria-label="Semiont menu items">
+              <section className="semiont-menu__group" aria-labelledby="semiont-menu-app">
+                <h2 id="semiont-menu-app">App</h2>
+                <button type="button" onClick={() => choose(onOpenLanguage)}><LanguageIcon /><span>Language</span></button>
+                <button type="button" onClick={() => choose(onOpenAppearance)}><ThemeIcon /><span>Appearance</span></button>
+                <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
+                <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secret Managers</span></button>
+              </section>
+              {hasActiveKbTab && (
+                <section className="semiont-menu__group" aria-labelledby="semiont-menu-kb">
+                  <h2 id="semiont-menu-kb">Knowledge Base</h2>
+                  <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Overview</span></button>
+                  <div className="semiont-menu__subgroup">
+                    <h3>Record</h3>
+                    <button type="button" onClick={() => choose(() => onOpenServiceGroup('record'))}><RecordIcon /><span>Services</span></button>
+                    <button type="button" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
+                  </div>
+                </section>
+              )}
+              <section className="semiont-menu__group" aria-labelledby="semiont-menu-shared">
+                <h2 id="semiont-menu-shared">Shared, Local Services</h2>
+                <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
+                <button type="button" onClick={() => choose(() => onOpenServiceGroup('index'))}><IndexIcon /><span>Index</span></button>
+                <button type="button" onClick={() => choose(() => onOpenServiceGroup('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
+                <button type="button" onClick={() => choose(() => onOpenServiceGroup('issuer'))}><IdentityIcon /><span>Identity &amp; Stores</span></button>
+                <button type="button" onClick={() => choose(onOpenMcp)}>
+                  <McpIcon running={mcpStatus.state === 'running'} />
+                  <span className="semiont-menu__item-copy">
+                    <span>MCP</span>
+                    {mcpStatus.state === 'running' && mcpStatus.pid !== null && <small>Running · PID {mcpStatus.pid}</small>}
+                    {mcpStatus.state !== 'running' && <small>{mcpStatus.state === 'failed' ? 'Failed' : 'Stopped'}</small>}
+                  </span>
+                </button>
+                <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
+              </section>
             </nav>
           </aside>
         </>

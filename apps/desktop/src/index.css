@@ -2057,9 +2057,32 @@ button.kb-location-picker__entry:hover {
 .semiont-panel__items {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding-top: 0.5rem;
+  gap: 0.65rem;
+  padding: 0.65rem 0 0.5rem;
   overflow-y: auto;
+}
+.semiont-menu__group + .semiont-menu__group {
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border-soft);
+}
+.semiont-menu__group > h2,
+.semiont-menu__subgroup > h3 {
+  margin: 0 0 0.25rem;
+  padding: 0.15rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.semiont-menu__subgroup {
+  margin-top: 0.2rem;
+  padding-left: 0.45rem;
+  border-left: 2px solid var(--border-soft);
+}
+.semiont-menu__subgroup > h3 {
+  padding-left: 0.55rem;
 }
 .semiont-panel__items button {
   display: flex;
