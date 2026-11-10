@@ -446,15 +446,6 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
       </div>
 
       <div className="knowledge-bases__detail-grid">
-        <section className="knowledge-bases__detail-section knowledge-bases__service-section" aria-labelledby="knowledge-bases-services-heading">
-          <h3 id="knowledge-bases-services-heading">Services</h3>
-          {root.services === undefined ? (
-            <p className="knowledge-bases__action-note">{root.status === 'checking' ? 'Checking service status…' : 'Service status is unavailable.'}</p>
-          ) : root.services.length === 0 ? (
-            <p className="knowledge-bases__action-note">{root.status === 'unknown' ? 'Service status is unavailable.' : 'No service details reported.'}</p>
-          ) : <ServiceGroups services={root.services} />}
-        </section>
-
         <div className="knowledge-bases__operations">
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-launcher-heading">
         <h3 id="knowledge-bases-launcher-heading">Launcher</h3>
@@ -600,61 +591,6 @@ function formatElapsed(startedAt: number | undefined, now: number): string {
   const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
   const minutes = Math.floor(seconds / 60);
   return minutes === 0 ? `${seconds}s elapsed` : `${minutes}m ${seconds % 60}s elapsed`;
-}
-
-const SERVICE_GROUPS = [
-  ['record', 'Record'],
-  ['index', 'Index'],
-  ['issuer', 'Issuer'],
-  ['knowledge-workers', 'Knowledge workers'],
-  ['providers', 'Providers'],
-  ['telemetry', 'Telemetry'],
-] as const;
-
-function ServiceGroups({ services }: { services: ControlServiceStatus[] }) {
-  if (services.length === 0) return <p className="knowledge-bases__action-note">No service details reported.</p>;
-  return (
-    <div className="knowledge-bases__service-groups">
-      {SERVICE_GROUPS.map(([group, label]) => {
-        const members = services.filter((service) => service.group === group);
-        if (members.length === 0) return null;
-        return (
-          <section className="knowledge-bases__service-group" key={group} aria-label={`${label} services`}>
-            <h4>{label}</h4>
-            <ul>
-              {members.map((service) => (
-                <li key={`${service.role}/${service.product ?? ''}`}>
-                  <span className="knowledge-bases__service-name">
-                    <strong>{service.role}</strong>
-                    {service.product !== undefined && <small>{service.product}</small>}
-                  </span>
-                  <span className={`knowledge-bases__service-state knowledge-bases__service-state--${serviceStateTone(service)}`}>
-                    {serviceStateLabel(service)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function serviceStateLabel(service: ControlServiceStatus): string {
-  switch (service.state) {
-    case 'running': return service.healthy ? 'Running · healthy' : 'Running · unhealthy';
-    case 'reachable': return service.healthy ? 'Reachable' : 'Reachable · unhealthy';
-    case 'stopped': return 'Stopped';
-    case 'unreachable': return 'Unreachable';
-    case 'absent': return 'Absent';
-    case 'not-configured': return 'Not configured';
-  }
-}
-
-function serviceStateTone(service: ControlServiceStatus): 'healthy' | 'unhealthy' | 'neutral' {
-  if (service.state === 'not-configured' || service.state === 'absent' || service.state === 'stopped') return 'neutral';
-  return service.healthy ? 'healthy' : 'unhealthy';
 }
 
 function statusLabel(status: KnowledgeBaseRuntimeStatus): string {

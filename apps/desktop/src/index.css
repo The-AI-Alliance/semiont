@@ -684,9 +684,46 @@ button.kb-location-picker__entry:hover {
   color: var(--muted);
   font-size: 0.88rem;
 }
+.settings__line-numbers {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.appearance-modal__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
 
 .config--launcher-status {
   max-width: 72rem;
+}
+.config--service-group {
+  max-width: 82rem;
+}
+.service-group__intro {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.service-group__body {
+  min-height: 5rem;
+  overflow-x: auto;
+}
+.service-group__empty,
+.service-group__progress {
+  color: var(--muted);
+}
+.service-group__busy {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.service-group__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
 }
 
 .about-modal {

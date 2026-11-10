@@ -85,7 +85,6 @@ export interface McpProcessStatus {
 }
 
 export interface LauncherBridge {
-  onStatusRequested(listener: () => void): () => void;
   /** Send a request of the launcher's control API (protocol/specs/src/control/methods.json).
    *  `listener` hears each of its notifications, then its answer. Resolves with its handle
    *  once the main process has taken it; rejects when what it was handed is no request. */

@@ -82,11 +82,6 @@ contextBridge.exposeInMainWorld('authBridge', authBridge);
 let nextControlHandle: ControlHandle = 1;
 
 const launcherBridge: LauncherBridge = {
-  onStatusRequested(listener) {
-    const handler = () => listener();
-    ipcRenderer.on('launcher:status-requested', handler);
-    return () => ipcRenderer.removeListener('launcher:status-requested', handler);
-  },
   startControl<M extends ControlMethod>(
     method: M,
     params: ControlRequestParams<M>,

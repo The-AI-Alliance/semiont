@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { LOCALES, type LocaleCode } from '@semiont/core';
-import { ErrorBoundary, TranslationProvider } from '@semiont/react-ui';
+import { ErrorBoundary, LineNumbersProvider, TranslationProvider } from '@semiont/react-ui';
 import { getPref, setPref } from './lib/prefs';
 
 const LOCALE_KEY = 'locale';
@@ -29,10 +29,15 @@ export function useDesktopLocale(): DesktopLocaleContextValue {
 export function AppProviders({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<LocaleCode>('en');
   const [loaded, setLoaded] = useState(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(false);
 
   useEffect(() => {
-    void getPref(LOCALE_KEY, 'en').then((saved) => {
-      setLocaleState(LOCALES.find((entry) => entry.code === saved)?.code ?? 'en');
+    void Promise.all([
+      getPref(LOCALE_KEY, 'en'),
+      getPref('showLineNumbers', false),
+    ]).then(([savedLocale, savedLineNumbers]) => {
+      setLocaleState(LOCALES.find((entry) => entry.code === savedLocale)?.code ?? 'en');
+      setShowLineNumbers(savedLineNumbers === true);
       setLoaded(true);
     });
   }, []);
@@ -42,11 +47,21 @@ export function AppProviders({ children }: { children: ReactNode }) {
     await setPref(LOCALE_KEY, nextLocale);
   }, []);
 
+  const toggleLineNumbers = useCallback(() => {
+    setShowLineNumbers((current) => {
+      const next = !current;
+      void setPref('showLineNumbers', next);
+      return next;
+    });
+  }, []);
+
   return (
     <ErrorBoundary fallback={(error, reset) => <RenderFailure error={error} onRetry={reset} />}>
       <DesktopLocaleContext.Provider value={{ locale, setLocale, loaded }}>
         <TranslationProvider locale={locale} loadingComponent={<p className="app__connecting">Loading…</p>}>
-          {children}
+          <LineNumbersProvider value={showLineNumbers} onToggle={toggleLineNumbers}>
+            {children}
+          </LineNumbersProvider>
         </TranslationProvider>
       </DesktopLocaleContext.Provider>
     </ErrorBoundary>

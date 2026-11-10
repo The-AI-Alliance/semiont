@@ -26,11 +26,11 @@ import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout, type ResourcePresentation } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
 import { WorkspaceTabs, localRootPathFromTabId, localRootTabId } from './components/WorkspaceTabs';
-import { ThemePanel } from './components/ThemePanel';
+import { AppearancePanel } from './components/AppearancePanel';
 import { LanguagePanel } from './components/LanguagePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
-import { LauncherStatusModal } from './components/LauncherStatusModal';
+import { ServiceGroupModal, type DesktopServiceGroup } from './components/ServiceGroupModal';
 import { KnowledgeBaseModal, KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
@@ -195,13 +195,13 @@ export function App() {
   // The document shown in the main pane. It coexists with the active chat: when both are
   // set and the pane is wide enough, the main pane splits (chat left, document right).
   const activeResource = activeKbTabUri === null ? null : activeResourcesByKb[activeKbTabUri] ?? null;
-  const [showTheme, setShowTheme] = useState(false);
+  const [showAppearance, setShowAppearance] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showInference, setShowInference] = useState(false);
   const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
-  const [showLauncherStatus, setShowLauncherStatus] = useState(false);
+  const [serviceGroup, setServiceGroup] = useState<DesktopServiceGroup | null>(null);
   const [showKnowledgeBasePicker, setShowKnowledgeBasePicker] = useState(false);
   const [showKnowledgeBaseDetails, setShowKnowledgeBaseDetails] = useState(false);
   const [focusKnowledgeBaseSearch, setFocusKnowledgeBaseSearch] = useState(false);
@@ -228,10 +228,11 @@ export function App() {
   });
   const [theme, setTheme] = useState<Theme>('system');
 
-  const refreshLauncherStatus = useCallback(() => {
-    setShowLauncherStatus(true);
+  const openServiceGroup = useCallback((group: DesktopServiceGroup) => {
+    setServiceGroup(group);
     askSnapshot({});
   }, [askSnapshot]);
+  const refreshServiceStatus = useCallback(() => askSnapshot({}), [askSnapshot]);
 
   const updateKnowledgeBase = useCallback((path: string, update: (row: KnowledgeBaseRow) => KnowledgeBaseRow) => {
     setKnowledgeBasesState((current) => current.status === 'result'
@@ -386,8 +387,6 @@ export function App() {
     }, 2000);
     return () => window.clearInterval(timer);
   }, [mcpStatus.state]);
-
-  useEffect(() => window.launcherBridge?.onStatusRequested(refreshLauncherStatus), [refreshLauncherStatus]);
 
   // App-global viewer prefs (TOOLBAR-PREFS-AS-PROPS): click action + selection motivation are
   // app settings (footer controls by the gear), passed as controlled props to every mounted
@@ -979,12 +978,12 @@ export function App() {
             onNewDocument={openNewDocument}
             onSelectSession={selectSession}
             onOpenInference={openInference}
+            onOpenServiceGroup={openServiceGroup}
             onOpenSecrets={openSecrets}
             onOpenMcp={openMcp}
             mcpStatus={mcpStatus}
-            onOpenTheme={() => setShowTheme(true)}
+            onOpenAppearance={() => setShowAppearance(true)}
             onOpenLanguage={() => setShowLanguage(true)}
-            onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
             onOpenGit={openGit}
@@ -1028,8 +1027,8 @@ export function App() {
           />
         </div>
       </div>
-      {showTheme && (
-        <ThemePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowTheme(false)} />
+      {showAppearance && (
+        <AppearancePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowAppearance(false)} />
       )}
       {showLanguage && <LanguagePanel onClose={() => setShowLanguage(false)} />}
       {showAbout && (
@@ -1047,11 +1046,13 @@ export function App() {
           onClose={() => setShowInference(false)}
         />
       )}
-      {showLauncherStatus && (
-        <LauncherStatusModal
+      {serviceGroup !== null && (
+        <ServiceGroupModal
+          group={serviceGroup}
           state={snapshot}
-          onRefresh={refreshLauncherStatus}
-          onClose={() => setShowLauncherStatus(false)}
+          selectedRootPath={activeRootPath}
+          onRefresh={refreshServiceStatus}
+          onClose={() => setServiceGroup(null)}
         />
       )}
       {showKnowledgeBasePicker && (

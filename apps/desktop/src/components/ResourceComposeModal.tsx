@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   HOVER_DELAY_MS,
-  LineNumbersProvider,
   ResourceComposePage,
   useObservable,
   type ResourceComposePageProps,
@@ -103,8 +102,7 @@ export function ResourceComposeModal({
         >
           ×
         </button>
-        <LineNumbersProvider>
-          <ResourceComposePage
+        <ResourceComposePage
             mode="new"
             availableEntityTypes={availableEntityTypes}
             initialLocale="en"
@@ -147,8 +145,7 @@ export function ResourceComposeModal({
             }}
             ToolbarPanels={NoToolbarPanels}
             Toolbar={NoToolbar}
-          />
-        </LineNumbersProvider>
+        />
       </section>
       {locationPickerDirectory !== null && (
         <KbLocationPickerModal

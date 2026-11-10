@@ -5,6 +5,7 @@ import { sessionsForKb, sessionTitle, type AppChatSession } from '../lib/chat-se
 import { KbResources } from './KbResources';
 import type { McpProcessStatus } from '../lib/launcher-bridge';
 import type { ResourcePresentation } from '../lib/split-layout';
+import type { DesktopServiceGroup } from './ServiceGroupModal';
 
 /** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
@@ -26,12 +27,12 @@ export interface KbNavProps {
   onNewDocument: (kbUri: string) => void;
   onSelectSession: (sessionId: string) => void;
   onOpenInference: () => void;
+  onOpenServiceGroup: (group: DesktopServiceGroup) => void;
   onOpenSecrets: () => void;
   onOpenMcp: () => void;
   mcpStatus: McpProcessStatus;
-  onOpenTheme: () => void;
+  onOpenAppearance: () => void;
   onOpenLanguage: () => void;
-  onOpenLauncherStatus: () => void;
   onOpenTelemetry: () => void;
   onOpenRuntime: () => void;
   onOpenGit: () => void;
@@ -63,12 +64,12 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenTheme={props.onOpenTheme} onOpenLanguage={props.onOpenLanguage} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} hasLocalRootTab={props.hasLocalRootTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onOpenSecrets, onOpenMcp, mcpStatus, onOpenTheme, onOpenLanguage, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenTheme' | 'onOpenLanguage' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ hasActiveKbTab, hasLocalRootTab, onOpenKnowledgeBase, onOpenInference, onOpenServiceGroup, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'hasActiveKbTab' | 'hasLocalRootTab' | 'onOpenKnowledgeBase' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -106,7 +107,11 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onO
             </header>
             <nav className="semiont-panel__items">
               {hasActiveKbTab && <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Knowledge Base</span></button>}
-              <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
+              {hasLocalRootTab && <button type="button" onClick={() => choose(() => onOpenServiceGroup('record'))}><RecordIcon /><span>Record</span></button>}
+              <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
+              <button type="button" onClick={() => choose(() => onOpenServiceGroup('index'))}><IndexIcon /><span>Index</span></button>
+              <button type="button" onClick={() => choose(() => onOpenServiceGroup('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
+              <button type="button" onClick={() => choose(() => onOpenServiceGroup('issuer'))}><IdentityIcon /><span>Identity &amp; Stores</span></button>
               <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secret Managers</span></button>
               <button type="button" onClick={() => choose(onOpenMcp)}>
                 <McpIcon running={mcpStatus.state === 'running'} />
@@ -117,11 +122,10 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onO
                 </span>
               </button>
               <button type="button" onClick={() => choose(onOpenLanguage)}><LanguageIcon /><span>Language</span></button>
-              <button type="button" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
+              <button type="button" onClick={() => choose(onOpenAppearance)}><ThemeIcon /><span>Appearance</span></button>
               <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
               <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
               <button type="button" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
-              <button type="button" onClick={() => choose(onOpenLauncherStatus)}><StatusIcon /><span>Status</span></button>
             </nav>
           </aside>
         </>
@@ -285,6 +289,22 @@ function KnowledgeBaseIcon() {
   );
 }
 
+function RecordIcon() {
+  return <svg width="18" height="18" {...ICON_PROPS}><path d="M4 5.5c0-1 3.6-2 8-2s8 1 8 2-3.6 2-8 2-8-1-8-2Z" /><path d="M4 5.5v6c0 1 3.6 2 8 2m8-8v6m-16 0v5c0 1 3.6 2 8 2" /></svg>;
+}
+
+function IndexIcon() {
+  return <svg width="18" height="18" {...ICON_PROPS}><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4M8 10.5h5M10.5 8v5" /></svg>;
+}
+
+function WorkersIcon() {
+  return <svg width="18" height="18" {...ICON_PROPS}><circle cx="9" cy="8" r="3" /><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-13a3 3 0 0 1 0 6m1 2a5 5 0 0 1 3 4v1" /></svg>;
+}
+
+function IdentityIcon() {
+  return <svg width="18" height="18" {...ICON_PROPS}><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M5.5 17a3.5 3.5 0 0 1 7 0m3-6h3m-3 4h3M8 5V3h8v2" /></svg>;
+}
+
 function InferenceIcon() {
   return (
     <svg width="18" height="18" {...ICON_PROPS}>
@@ -355,15 +375,6 @@ function GitIcon() {
       <circle cx="6" cy="19" r="2" />
       <circle cx="18" cy="5" r="2" />
       <path d="M6 7v10m12-10a8 8 0 0 1-8 8H6" />
-    </svg>
-  );
-}
-
-function StatusIcon() {
-  return (
-    <svg width="18" height="18" {...ICON_PROPS}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M4 12h4l2-4 4 8 2-4h4" />
     </svg>
   );
 }

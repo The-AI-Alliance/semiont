@@ -450,10 +450,6 @@ function setApplicationMenu(): void {
       click: () => mainWindow?.webContents.send('about:requested'),
     },
     { type: 'separator' },
-    {
-      label: 'Launcher Status…',
-      click: () => mainWindow?.webContents.send('launcher:status-requested'),
-    },
   ];
   if (process.platform === 'darwin') {
     appMenu.push(
