@@ -106,7 +106,7 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenInference, onO
             <nav className="semiont-panel__items">
               {hasActiveKbTab && <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Knowledge Base</span></button>}
               <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
-              <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secrets</span></button>
+              <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secret Managers</span></button>
               <button type="button" onClick={() => choose(onOpenMcp)}>
                 <McpIcon running={mcpStatus.state === 'running'} />
                 <span className="semiont-menu__item-copy">
