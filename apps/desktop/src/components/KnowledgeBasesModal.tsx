@@ -242,7 +242,7 @@ export function KnowledgeBaseModal({
               <span className={`knowledge-bases__status knowledge-bases__status--${connected ? 'running' : 'stopped'}`}>{connected ? 'Connected' : 'Not connected'}</span>
             </header>
             <dl className="knowledge-bases__metadata"><div><dt>Gateway</dt><dd>{kb.uri}</dd></div></dl>
-            <p className="knowledge-bases__action-note">Launcher controls and logs are in Services for knowledge bases registered as local roots.</p>
+            <p className="knowledge-bases__action-note">For local knowledge bases, stack controls and logs are under Gateway &amp; Archivist.</p>
           </div>
         ) : (
           <p className="knowledge-bases__empty">No knowledge base is selected.</p>

@@ -33,7 +33,7 @@ const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
 };
 
 const GROUP_DESCRIPTIONS: Record<DesktopServiceGroup, string> = {
-  'gateway-archivist': 'Gateway and Archivist status, launcher controls, logs, and Git for this knowledge base.',
+  'gateway-archivist': 'Gateway and Archivist status, stack controls, logs, and Git for this knowledge base.',
   'dispatcher-messaging': 'Dispatcher and Messaging status for this knowledge base.',
   index: 'Index services for search, extraction, graph, and vector data.',
   'knowledge-workers': 'Shared workers that process jobs for knowledge bases on this machine.',

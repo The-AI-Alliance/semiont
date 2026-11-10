@@ -22,10 +22,10 @@ export function KnowledgeBaseServiceControls({
 
   return (
     <div className="service-group__controls">
-      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-base-service-launcher-heading">
-        <h3 id="knowledge-base-service-launcher-heading">Launcher</h3>
+      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-base-stack-heading">
+        <h3 id="knowledge-base-stack-heading">Knowledge Base stack</h3>
         {root === null ? (
-          <p className="knowledge-bases__action-note">Launcher controls are available for local knowledge bases registered with the launcher.</p>
+          <p className="knowledge-bases__action-note">Stack controls are available for local knowledge bases registered on this machine.</p>
         ) : (
           <>
             <div className="knowledge-bases__controls">
@@ -49,7 +49,7 @@ export function KnowledgeBaseServiceControls({
               <div className="knowledge-bases__progress" role="status" aria-live="polite">
                 <p>{root.operation === 'starting' ? 'Start progress' : 'Stop progress'} · {formatElapsed(root.operationStartedAt, now)}</p>
                 {root.operationProgress === undefined || root.operationProgress.length === 0 ? (
-                  <span className="knowledge-bases__progress-waiting">Checking service status; waiting for launcher progress…</span>
+                  <span className="knowledge-bases__progress-waiting">Checking service status; waiting for progress…</span>
                 ) : (
                   <ol>
                     {root.operationProgress.slice(-5).map((progress, index) => (
@@ -80,7 +80,7 @@ export function KnowledgeBaseServiceControls({
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-base-service-logs-heading">
         <h3 id="knowledge-base-service-logs-heading">Logs</h3>
         {root === null ? (
-          <p className="knowledge-bases__action-note">Follow logs is available for local knowledge bases registered with the launcher.</p>
+          <p className="knowledge-bases__action-note">Log following is available for local knowledge bases registered on this machine.</p>
         ) : (
           <>
             <div className="knowledge-bases__controls">
