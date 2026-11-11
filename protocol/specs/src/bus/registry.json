@@ -3820,7 +3820,7 @@
     ]
   },
   "audience": {
-    "doc": "/**\n * WHO receives a wire-crossing channel — independent of `kind` and of\n * `recorded`. An OPERATION's channels are absent: a request reaches the one\n * service that answers it, and a reply is correlated-addressed to its owner.\n *\n *   everyone — every default client auto-subscribes (derives BRIDGED_CHANNELS)\n *   scoped   — delivered to clients that joined the frame's RESOURCE scope\n *              (derives RESOURCE_SCOPED_CHANNELS)\n *   declared — only clients whose manifest names it: workers, sidecars, and\n *              the gateway's own handlers\n */",
+    "doc": "/**\n * WHO receives a wire-crossing channel — independent of `kind` and of\n * `recorded`. An OPERATION's channels are absent: a request reaches the one\n * service that answers it, and a reply is correlated-addressed to its owner.\n *\n *   everyone — every full client subscribes, with every operation's reply channels (derives BRIDGED_CHANNELS)\n *   scoped   — delivered to clients that joined the frame's RESOURCE scope\n *              (derives RESOURCE_SCOPED_CHANNELS)\n *   declared — only clients whose manifest names it: workers, sidecars, and\n *              the gateway's own handlers\n */",
     "everyone": [
       "job:report-progress",
       "job:complete",
