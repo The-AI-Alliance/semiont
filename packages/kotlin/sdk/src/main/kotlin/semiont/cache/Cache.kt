@@ -55,11 +55,6 @@ private class Key<V : Any>(state: CacheState<V>) {
     var validation: Int? = null
     var revalidated = false
 
-    /** Let go of fetch `number` when it is the one in flight: an `invalidate` may have put a newer fetch in its place. */
-    fun letGo(number: Int) {
-        if (inFlight?.first == number) inFlight = null
-    }
-
     /** Whether anything asked for the key and has not let go of it. */
     fun known(): Boolean = inFlight != null || state.value !is CacheState.Pending
 }
@@ -213,13 +208,13 @@ public class Cache<K : Any, V : Any> internal constructor(
         val value = try {
             ask(key)
         } catch (failure: Throwable) {
-            synchronized(lock) { keys[key]?.let { settled(key, it, number, failure) } }
+            synchronized(lock) { current(key, number)?.let { settled(key, it, number, failure) } }
             throw failure
         }
-        // A value from any fetch is written, the newest last: each is at least as new as what was there. A failure writes
-        // nothing. One answered after the cache was closed has no key to write to.
+        // Only the key's current fetch writes (B9). One an `invalidate` or a `remove` let go of, or one answered after the
+        // cache was closed, answers whoever waited on it, and stores nothing. A failure writes nothing.
         synchronized(lock) {
-            keys[key]?.let {
+            current(key, number)?.let {
                 it.state.value = CacheState.Ready(value)
                 oweASave()
                 settled(key, it, number, null)
@@ -228,18 +223,21 @@ public class Cache<K : Any, V : Any> internal constructor(
         return value
     }
 
+    /** The key `key`, while fetch `number` is the fetch in flight for it. Called under the lock. */
+    private fun current(key: K, number: Int): Key<V>? = keys[key]?.takeIf { it.inFlight?.first == number }
+
     /**
-     * Fetch `number` of `key` has settled, with `failure` or with its value
-     * written and its save owed: the key lets go of it, and the live view's
-     * validation waiting on it ends, in this one step. So a key whose fetch
-     * has settled is not fetching, and one whose fetch is not settled is
-     * (protocol/contract/CACHE-SEMANTICS.md B17's "in flight"); and the retry
-     * a first failure owes is in flight in the step that failure settles in. A
-     * second ask that fails fails a key that holds no value. Called under the
-     * lock, by a key the cache still holds.
+     * Fetch `number`, `key`'s current fetch, has settled, with `failure` or
+     * with its value written and its save owed: the key lets go of it, and the
+     * live view's validation waiting on it ends, in this one step. So a key
+     * whose fetch has settled is not fetching, and one whose fetch is not
+     * settled is (protocol/contract/CACHE-SEMANTICS.md B17's "in flight"); and
+     * the retry a first failure owes is in flight in the step that failure
+     * settles in. A second ask that fails fails a key that holds no value.
+     * Called under the lock.
      */
     private fun settled(key: K, held: Key<V>, number: Int, failure: Throwable?) {
-        held.letGo(number)
+        held.inFlight = null
         if (held.validation != number) return
         held.validation = null
         if (failure !is Exception || failure is CancellationException) return

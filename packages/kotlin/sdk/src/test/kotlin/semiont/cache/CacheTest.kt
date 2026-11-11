@@ -234,22 +234,71 @@ class CacheTest {
     }
 
     @Test
-    fun b9InvalidatingWhileAFetchIsInFlightStartsAnotherAndTheLastAnswerIsTheValue() = runTest {
-        val world = World(this)
+    fun b9InvalidatingWhileAFetchIsInFlightStartsAnotherAndOnlyTheNewestWritesThoughTheOlderAnswersLast() = runTest {
+        val persister = Kept()
+        val world = World(this, persister)
         val observer = world.observe()
         assertEquals(PENDING, now(observer))
+        val older = async { world.cache.fetch(KEY) }
+        runCurrent()
         world.cache.invalidate(KEY)
         runCurrent()
         // Not joined: the one in flight may never be answered.
         assertEquals(listOf(KEY, KEY), world.service.asked)
         world.service.answer(1, 5)
         assertEquals(ready(5), now(observer))
-        // And when it is answered after all, it is as new as what was there.
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(listOf(mapOf(KEY to 5)), persister.saves)
+        // Answered after all, the older fetch answers its own read, and writes nothing, shows nothing and owes no save.
         world.service.answer(0, 3)
-        assertEquals(ready(3), now(observer))
+        assertEquals(3, older.await())
+        nothingMore(observer)
+        assertEquals(5, world.cache.get(KEY))
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(listOf(mapOf(KEY to 5)), persister.saves)
+        assertFalse(world.cache.persistencePending)
         // The newer fetch's end did not clear the way for a third: nothing is in flight, and the next observer asks nothing.
-        assertEquals(ready(3), now(world.observe()))
+        assertEquals(ready(5), now(world.observe()))
         assertEquals(listOf(KEY, KEY), world.service.asked)
+        world.close()
+    }
+
+    @Test
+    fun b9AnOlderFetchAnsweredFirstAnswersOnlyItsOwnReadAndTheNewestWrites() = runTest {
+        val persister = Kept()
+        val world = World(this, persister)
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        val older = async { world.cache.fetch(KEY) }
+        runCurrent()
+        world.cache.invalidate(KEY)
+        runCurrent()
+        world.service.answer(0, 3)
+        assertEquals(3, older.await())
+        // The key is as it was: pending, holding nothing, and owing no save.
+        nothingMore(observer)
+        assertNull(world.cache.get(KEY))
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(emptyList<Map<String, Int>>(), persister.saves)
+        world.service.answer(1, 5)
+        assertEquals(ready(5), now(observer))
+        world.close()
+    }
+
+    @Test
+    fun b17AKeyIsFetchingForItsNewestFetchAloneAndNotForOneAnInvalidationLetGoOf() = runTest {
+        val world = World(this, Kept())
+        world.observe()
+        runCurrent()
+        assertTrue(world.cache.keptFetchInFlight)
+        world.cache.invalidate(KEY)
+        assertTrue(world.cache.keptFetchInFlight)
+        // The newer fetch settles, and the one it replaced, never answered, holds nothing back.
+        world.service.answer(1, 5)
+        runCurrent()
+        assertFalse(world.cache.keptFetchInFlight)
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertFalse(world.cache.persistencePending)
         world.close()
     }
 
@@ -450,6 +499,28 @@ class CacheTest {
         runCurrent()
         assertEquals(listOf(KEY, KEY, KEY), world.service.asked)
         read.cancel()
+        world.close()
+    }
+
+    @Test
+    fun b13aAFetchARemovalLetGoOfStoresNothingWhenItIsAnswered() = runTest {
+        val persister = Kept()
+        val world = World(this, persister)
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        val gone = BusRequestError(BusRequestErrorCode.NotFound, "it was removed")
+        world.cache.remove(KEY, gone)
+        assertEquals(CacheState.Failed(gone), now(observer))
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        val saved = persister.saves.toList()
+        world.service.answer(0, 3)
+        runCurrent()
+        // Still gone, for every observer: the answer is stored nowhere, and owes no save.
+        nothingMore(observer)
+        assertNull(world.cache.get(KEY))
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(saved, persister.saves)
+        assertFalse(world.cache.persistencePending)
         world.close()
     }
 
