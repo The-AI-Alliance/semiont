@@ -29,8 +29,11 @@ public sealed partial class TransportTests
         using var table = ReadSpec(StateTable);
         var fixtures = table.RootElement.GetProperty("fixtures");
         var row = table.RootElement.GetProperty("cases").EnumerateArray().Single(row => Text(row, "unit") == unit && Text(row, "case") == name);
-        using var player = new StateCasePlayer(row, fixtures);
-        await player.RunAsync();
+        await CaseContext.PlayAsync(async context =>
+        {
+            using (var player = new StateCasePlayer(row, fixtures, context)) await player.RunAsync();
+            await context.DrainAsync();
+        });
     }
 
     [Fact]
@@ -66,15 +69,14 @@ public sealed partial class TransportTests
         private readonly ConcurrentQueue<(string Query, Channel<IReadOnlyList<string>?> Answers)> searches = new();
         private readonly Dictionary<string, IStateUnit> units = new(StringComparer.Ordinal);
         private readonly EventBus.Subscription listening;
-        private readonly CancellationTokenSource deadline = new(TimeSpan.FromSeconds(25));
-        private readonly CaseThreads threads;
+        private readonly CancellationTokenSource lifetime = new();
+        private readonly CaseContext context;
         private readonly string answers;
         private readonly TimeSpan delay;
 
-        internal StateCasePlayer(JsonElement row, JsonElement fixtures)
+        internal StateCasePlayer(JsonElement row, JsonElement fixtures, CaseContext context)
         {
-            // Before the client, whose transport sets its read loop going as it is made.
-            threads = new CaseThreads();
+            this.context = context;
             this.row = row;
             this.fixtures = fixtures;
             var transport = row.GetProperty("transport");
@@ -106,6 +108,7 @@ public sealed partial class TransportTests
                 catch (Exception error) { throw new InvalidOperationException($"Step {index} {step}", error); }
                 index++;
             }
+            await SettleAsync();
         }
 
         private IStateUnit Make(string name, JsonElement options) => name switch
@@ -126,7 +129,15 @@ public sealed partial class TransportTests
         {
             var channel = Channel.CreateUnbounded<IReadOnlyList<string>?>();
             searches.Enqueue((query, channel));
-            return channel.Reader.ReadAllAsync(cancellation);
+            return AnswersAsync(channel.Reader, cancellation);
+        }
+
+        /// <summary>A search's answers, read by awaits that resume on the case, where ChannelReader.ReadAllAsync's do not.</summary>
+        private static async IAsyncEnumerable<IReadOnlyList<string>?> AnswersAsync(ChannelReader<IReadOnlyList<string>?> reader,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation)
+        {
+            while (await reader.WaitToReadAsync(cancellation))
+                while (reader.TryRead(out var answer)) yield return answer;
         }
 
         private void QueueReply(string operation, JsonElement response) =>
@@ -134,7 +145,7 @@ public sealed partial class TransportTests
 
         private async Task AnswerAsync(JsonElement request)
         {
-            if (delay != TimeSpan.Zero) await Task.Delay(delay, clock, deadline.Token);
+            if (delay != TimeSpan.Zero) await Task.Delay(delay, clock, lifetime.Token);
             var name = Text(request, "channel");
             var operation = ProtocolFacts.Operation(name);
             if (replies.TryGetValue(name, out var queued) && queued.TryDequeue(out var response))
@@ -235,30 +246,21 @@ public sealed partial class TransportTests
         }
 
         /// <summary>
-        /// Let what is ready run, and what that makes ready, until nothing more is: no thread but this one runs the case's
-        /// work, the thread pool holds nothing queued, and every request that reached the gateway has had its answer.
+        /// Lets what is ready run, and what that makes ready, until nothing more is: the case's queue is empty and every
+        /// request that reached the gateway has had its answer. The case's work runs nowhere else, so none is left; that
+        /// none ran elsewhere is checked here.
         /// </summary>
         private async Task SettleAsync()
         {
             // Only settled steps release gateway answers. An immediate expect can inspect the
             // state set by an invocation before its wire response is available.
-            while (true)
+            do
             {
-                if (unanswered.TryDequeue(out var request))
-                {
-                    _ = AnswerAsync(request);
-                    continue;
-                }
-                // Two looks, the thread yielded between them: a worker that has taken an item off the queue but not yet
-                // taken up the case's context shows in neither the queue nor the threads, as long as it stays between them.
-                if (threads.Quiet())
-                {
-                    Thread.Yield();
-                    if (threads.Quiet() && unanswered.IsEmpty) return;
-                }
-                if (deadline.IsCancellationRequested) throw new TimeoutException("The case's work never came to rest");
-                await Task.Yield();
+                while (unanswered.TryDequeue(out var request)) _ = AnswerAsync(request);
+                await context.DrainAsync();
             }
+            while (!unanswered.IsEmpty);
+            context.ThrowIfEscaped();
         }
 
         private async Task<JsonElement[]> SentAsync(string operation)
@@ -270,19 +272,21 @@ public sealed partial class TransportTests
         private JsonElement Request(string name, int nth) =>
             requests.Where(request => Text(request, "channel") == name).ElementAt(nth);
 
+        /// <summary>Reads <paramref name="watch"/> to its end, which must come once what the case has made ready has run.</summary>
         private async Task EndedAsync(object watch)
         {
             var type = watch.GetType().GetGenericArguments().Single();
-            var method = typeof(StateCasePlayer).GetMethod(nameof(DrainAsync), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            var method = typeof(StateCasePlayer).GetMethod(nameof(ReadToEndAsync), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
                 ?? throw new InvalidOperationException("Missing reader probe.");
-            using var wait = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-            var draining = Assert.IsAssignableFrom<Task>(method.MakeGenericMethod(type).Invoke(null, [watch, wait.Token]));
-            await draining;
+            var reading = Assert.IsAssignableFrom<Task>(method.MakeGenericMethod(type).Invoke(null, [watch]));
+            await context.DrainAsync();
+            Assert.True(reading.IsCompleted, "The watch had not ended");
+            await reading;
         }
 
-        private static async Task DrainAsync<T>(StateValue<T> watch, CancellationToken cancellation)
+        private static async Task ReadToEndAsync<T>(StateValue<T> watch)
         {
-            await foreach (var _ in watch.WithCancellation(cancellation)) { }
+            await foreach (var _ in watch) { }
         }
 
         private static object Watch(IStateUnit unit, string member) =>
@@ -379,50 +383,8 @@ public sealed partial class TransportTests
             listening.Dispose();
             client.Dispose();
             http.Dispose();
-            deadline.Cancel();
-            deadline.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// Which threads are running what a case sets going. The execution context a case is marked in flows into all the work
-    /// it starts, the SDK's ConfigureAwait(false) continuations on the thread pool among it, and an AsyncLocal's handler is
-    /// told each time a thread takes that context up or puts it down: the one view .NET gives, from outside, of where the
-    /// SDK's async flows stand.
-    /// </summary>
-    private sealed class CaseThreads
-    {
-        private readonly object gate = new();
-        private readonly HashSet<int> running = [];
-        private readonly AsyncLocal<CaseThreads?> marked;
-
-        /// <summary>
-        /// Marks the caller's execution context, and so all the work it goes on to start, as the case's, and takes the caller
-        /// off its SynchronizationContext, so that whatever that work resumes is queued on the thread pool, where
-        /// <see cref="Quiet"/> sees it.
-        /// </summary>
-        internal CaseThreads()
-        {
-            marked = new AsyncLocal<CaseThreads?>(Changed);
-            marked.Value = this;
-            SynchronizationContext.SetSynchronizationContext(null);
-        }
-
-        /// <summary>Whether the thread pool holds nothing queued and no thread but the caller's runs the case's work.</summary>
-        internal bool Quiet()
-        {
-            if (ThreadPool.PendingWorkItemCount != 0) return false;
-            var caller = Environment.CurrentManagedThreadId;
-            lock (gate) return running.All(thread => thread == caller);
-        }
-
-        private void Changed(AsyncLocalValueChangedArgs<CaseThreads?> change)
-        {
-            lock (gate)
-            {
-                if (ReferenceEquals(change.CurrentValue, this)) running.Add(Environment.CurrentManagedThreadId);
-                else running.Remove(Environment.CurrentManagedThreadId);
-            }
+            lifetime.Cancel();
+            lifetime.Dispose();
         }
     }
 }
