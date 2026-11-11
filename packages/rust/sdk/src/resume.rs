@@ -214,6 +214,7 @@ impl SessionStorage for Carrying {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::channels::BRIDGED_CHANNELS;
     use crate::storage::InMemorySessionStorage;
     use crate::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
     use std::time::Duration;
@@ -275,6 +276,7 @@ mod tests {
         // are asked for.
         let client = create_test_client(TestClientOptions {
             transport: Some(FaultyTransport::answering(
+                BRIDGED_CHANNELS,
                 vec![FaultAction::Delay(Duration::from_secs(10))],
                 |_, _| Ok(Some(serde_json::json!({ "entityTypes": [] }))),
             )),

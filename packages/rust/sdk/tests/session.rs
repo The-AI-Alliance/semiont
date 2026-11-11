@@ -8,6 +8,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures_core::Stream;
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::SemiontClient;
 use semiont::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
@@ -144,7 +145,7 @@ struct World {
 impl World {
     fn new() -> World {
         let storage = Arc::new(SharedStorage::new());
-        let transport = FaultyTransport::new(vec![]);
+        let transport = FaultyTransport::new(BRIDGED_CHANNELS, vec![]);
         World {
             storage,
             client: create_test_client(TestClientOptions {

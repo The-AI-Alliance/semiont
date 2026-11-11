@@ -11,6 +11,7 @@
 //! that this SDK does not fails here.
 
 use semiont::cache::{CachePersister, StoragePersister};
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{CachePersistence, ClientOptions, SemiontClient};
 use semiont::namespaces::WholeKey;
 use semiont::refresh::CacheQuery;
@@ -229,7 +230,7 @@ struct Keeping {
 
 fn keeping(storage: Arc<dyn SessionStorage>) -> Keeping {
     let places = CoupledBookmarks::new(storage, &places_key());
-    let transport = FaultyTransport::new(vec![]);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, vec![]);
     let content = InMemoryContent::new();
     let client = create_test_client(TestClientOptions {
         transport: Some(transport.clone()),

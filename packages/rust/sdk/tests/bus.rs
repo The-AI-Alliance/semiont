@@ -3,6 +3,7 @@
 //! § Requests).
 
 use semiont::bus::{Bus, Operation, operation};
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::errors::{SemiontError, TransportErrorCode};
 use semiont::testing::{FaultAction, FaultyTransport};
 use semiont::transport::{ConnectionState, Frame, STREAM_BACKLOG, Transport};
@@ -24,7 +25,7 @@ fn asking(resource: &str) -> Map<String, Value> {
 }
 
 fn bus(schedule: Vec<FaultAction>) -> (Bus, FaultyTransport) {
-    let transport = FaultyTransport::new(schedule);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, schedule);
     (Bus::new(Arc::new(transport.clone())), transport)
 }
 

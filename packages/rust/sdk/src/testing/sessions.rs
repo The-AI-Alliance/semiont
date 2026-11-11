@@ -1,6 +1,7 @@
 //! A `SessionFactory` for tests of a registry (`SemiontBrowser`) and of what
 //! is built on one. Each session it builds is a real `SemiontSession` over a
-//! `FaultyTransport` of its own, and the factory keeps every transport it
+//! `FaultyTransport` of its own, whose stream names what a full client's
+//! does (`BRIDGED_CHANNELS`), and the factory keeps every transport it
 //! built, by knowledge base. As every factory, it reads nothing of what
 //! its sessions say: a registry reads their errors.
 //!
@@ -13,6 +14,7 @@
 //! for cannot say who a token is.
 
 use super::{FaultyTransport, TestClientOptions, create_test_client};
+use crate::channels::BRIDGED_CHANNELS;
 use crate::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
     TransportErrorCode,
@@ -169,9 +171,10 @@ impl SessionFactory for ScriptedSessions {
         }
 
         let (answering, answers_for) = (self.inner.clone(), kb_id.clone());
-        let transport = FaultyTransport::answering(vec![], move |operation, payload| {
-            (answering.answer)(&answers_for, operation, payload)
-        });
+        let transport =
+            FaultyTransport::answering(BRIDGED_CHANNELS, vec![], move |operation, payload| {
+                (answering.answer)(&answers_for, operation, payload)
+            });
         let (refusing, refuses_for) = (self.inner.clone(), kb_id.clone());
         transport.refuse_when(move |operation, payload| {
             let refuse = locked(&refusing.scripted).refuse.clone()?;

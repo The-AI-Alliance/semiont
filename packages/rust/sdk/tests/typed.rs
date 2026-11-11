@@ -3,9 +3,9 @@
 
 use semiont::bus::{Bus, StreamError};
 use semiont::channels::{
-    BeckonFocus, BrowseEntityTypesRequested, BrowseEntityTypesResult, Channel, JobCreate,
-    MarkAdded, MarkArchived, MarkEntityTagAdded, MarkEntityTagRemoved, Recorded, Request,
-    YieldCreate,
+    BRIDGED_CHANNELS, BeckonFocus, BrowseEntityTypesRequested, BrowseEntityTypesResult, Channel,
+    JobCreate, MarkAdded, MarkArchived, MarkEntityTagAdded, MarkEntityTagRemoved, Recorded,
+    Request, YieldCreate,
 };
 use semiont::errors::{SemiontError, TransportErrorCode};
 use semiont::testing::as_id;
@@ -25,7 +25,7 @@ fn object(value: Value) -> Map<String, Value> {
 }
 
 fn bus() -> (Bus, FaultyTransport) {
-    let transport = FaultyTransport::new(vec![]);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, vec![]);
     (Bus::new(Arc::new(transport.clone())), transport)
 }
 
@@ -141,7 +141,7 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
 async fn a_request_whose_reply_is_refused_fails_at_once_saying_so() {
     // The gateway's reply is lost on the wire; the refusal of a frame that
     // names the request is what comes.
-    let transport = FaultyTransport::new(vec![FaultAction::DropReply]);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, vec![FaultAction::DropReply]);
     transport.queue_reply(
         BrowseEntityTypesRequested::NAME,
         [Some(json!({ "entityTypes": [] }))],
@@ -278,6 +278,8 @@ async fn a_resources_channel_is_read_for_a_resource_whose_scope_the_read_holds()
     // Its scope is held from the call, with nothing else holding it: no query
     // of the resource is watched.
     assert_eq!((transport.holds(&mine), transport.holds(&theirs)), (1, 0));
+    // Another read holds the other's scope, so the stream carries both.
+    let _their_archived = bus.frames_of::<MarkArchived>(&theirs).expect("a stream");
 
     let recorded = |resource: &str, id: &str| Frame {
         channel: MarkArchived::NAME.to_owned(),

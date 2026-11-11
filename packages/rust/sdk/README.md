@@ -533,9 +533,13 @@ assert!(refused.is_err());
   and an `InMemoryContent`. `create_test_session` gives a real
   `SemiontSession` over one, ready at once.
 - `FaultyTransport` fails as a test scripts it: what the wire does to each
-  request, and what the gateway answers. A reply that names what it
-  answers for, as a gathered context names its resource, takes that from the
-  request, so a test queues the response alone. `InMemoryContent` keeps what is
+  request, and what the gateway answers. It is given the global channels its
+  stream names, as a wire transport is, and carries only those, and a
+  resource's channels on each scope it holds. A full client's stream names
+  `BRIDGED_CHANNELS`, and `create_test_client` and `ScriptedSessions` give
+  theirs that. A reply that names what it answers for, as a gathered context
+  names its resource, takes that from the request, so a test queues the
+  response alone. `InMemoryContent` keeps what is
   uploaded and fails a read of what nobody stored. `StubGateway` answers
   only what it was told to.
 - `ScriptedSessions` is a `SessionFactory` for a `SemiontBrowser`: each

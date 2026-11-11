@@ -15,6 +15,7 @@
 //! method a case invokes and each member it reads has an adapter here, and a
 //! census holds the adapters to the table both ways.
 
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::session::{KbIdentityConflict, SessionEndReason, SessionSignals};
@@ -1009,10 +1010,12 @@ fn transport_of(stated: &Value) -> Result<FaultyTransport, String> {
             if !schedule.is_empty() {
                 return Err("a transport that never answers holds no reply".to_owned());
             }
-            FaultyTransport::answering(vec![FaultAction::DropReply], |_, _| Ok(None))
+            FaultyTransport::answering(BRIDGED_CHANNELS, vec![FaultAction::DropReply], |_, _| {
+                Ok(None)
+            })
         }
-        "refuses" => FaultyTransport::new(schedule),
-        "jobs" => FaultyTransport::answering(schedule, jobs),
+        "refuses" => FaultyTransport::new(BRIDGED_CHANNELS, schedule),
+        "jobs" => FaultyTransport::answering(BRIDGED_CHANNELS, schedule, jobs),
         other => return Err(format!("no transport answers {other}")),
     };
     if let Some(replies) = stated.get("replies") {

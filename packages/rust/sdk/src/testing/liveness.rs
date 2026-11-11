@@ -19,6 +19,7 @@
 //! over real sockets, on a runtime its caller gives.
 
 use super::faulty_transport::{FaultAction, FaultyTransport};
+use crate::channels::BRIDGED_CHANNELS;
 use crate::transport::{BoxFuture, Transport};
 use proptest::collection::vec;
 use proptest::prelude::{Just, prop_oneof};
@@ -55,8 +56,9 @@ pub struct LivenessScenario {
 pub type Respond = dyn Fn(&str, &Map<String, Value>) -> Result<Option<Value>, String> + Send + Sync;
 
 pub struct LivenessSpec<Setup> {
-    /// Build a fresh composition over the transport it is given. Called once
-    /// per run, inside the run's runtime.
+    /// Build a fresh composition over the transport it is given, whose
+    /// stream names what a full client's does (`BRIDGED_CHANNELS`). Called
+    /// once per run, inside the run's runtime.
     pub setup: Setup,
     /// The time the composition gives a bus request. The bound is derived
     /// from it: (timeout × (1 + retry budget) + the schedule's delays) × 4.
@@ -132,11 +134,13 @@ where
                     let transport = match &spec.respond {
                         Some(respond) => {
                             let respond = respond.clone();
-                            FaultyTransport::answering(schedule.clone(), move |operation, payload| {
-                                respond(operation, payload)
-                            })
+                            FaultyTransport::answering(
+                                BRIDGED_CHANNELS,
+                                schedule.clone(),
+                                move |operation, payload| respond(operation, payload),
+                            )
                         }
-                        None => FaultyTransport::new(schedule.clone()),
+                        None => FaultyTransport::new(BRIDGED_CHANNELS, schedule.clone()),
                     };
                     let scenario = (spec.setup)(transport.clone());
                     let watch = |paths: Vec<BoxFuture<'static, ()>>| -> Vec<Arc<AtomicBool>> {

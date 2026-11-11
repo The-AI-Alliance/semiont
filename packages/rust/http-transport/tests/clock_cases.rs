@@ -39,7 +39,7 @@ use rand_core::{Rng, TryRng};
 use semiont::bus::{Bus, operation};
 use semiont::cache::{Cache, CachePersister};
 use semiont::channels::BRIDGED_CHANNELS;
-use semiont::claims::ClaimOptions;
+use semiont::claims::{ClaimOptions, JOB_CLAIM_CHANNELS};
 use semiont::client::SemiontClient;
 use semiont::discovery::{DiscoveryRead, DiscoveryState, DiscoveryTransport, subscribe_discovery};
 use semiont::errors::{BusRequestErrorCode, SemiontError};
@@ -955,7 +955,7 @@ fn dispatcher(operation: &str, _: &Map<String, Value>) -> Result<Option<Value>, 
 
 fn held_job_stall(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let transport = FaultyTransport::answering(vec![], dispatcher);
+        let transport = FaultyTransport::answering(&JOB_CLAIM_CHANNELS, vec![], dispatcher);
         let client = create_test_client(TestClientOptions {
             transport: Some(transport),
             ..TestClientOptions::default()
@@ -1047,7 +1047,7 @@ fn history(operation: &str, asked: &Map<String, Value>) -> Result<Option<Value>,
 
 fn invalidation_window(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let transport = FaultyTransport::answering(vec![], history);
+        let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], history);
         let client = create_test_client(TestClientOptions {
             transport: Some(transport.clone()),
             ..TestClientOptions::default()
@@ -1148,7 +1148,7 @@ fn job_queue(operation: &str, _: &Map<String, Value>) -> Result<Option<Value>, S
 
 fn job_follower(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let transport = FaultyTransport::answering(vec![], job_queue);
+        let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], job_queue);
         let client = create_test_client(TestClientOptions {
             transport: Some(transport.clone()),
             ..TestClientOptions::default()
@@ -1197,7 +1197,7 @@ type Polled = Arc<Mutex<Option<Result<JobStatusResponse, SemiontError>>>>;
 /// says the job is running whenever it is asked: the transport it asks over,
 /// the client, and how the poll ended, once it has.
 fn polling() -> (FaultyTransport, Arc<SemiontClient>, Polled) {
-    let transport = FaultyTransport::answering(vec![], job_queue);
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], job_queue);
     let client = create_test_client(TestClientOptions {
         transport: Some(transport.clone()),
         ..TestClientOptions::default()

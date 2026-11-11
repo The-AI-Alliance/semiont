@@ -15,11 +15,16 @@
 //! caller a reply whose every field is absent, which fails far from its
 //! cause.
 //!
+//! Its stream names the global channels it is given, as a wire transport's
+//! does, and carries a frame of one of them, or of a resource's channel on a
+//! scope it holds, and nothing else. A full client's stream names
+//! `BRIDGED_CHANNELS`; a worker's names the channels it claims and commits by.
+//!
 //! All of its variation comes in through the schedule, so a test that fixes
 //! the schedule fixes the run.
 
 use crate::bus::{operation, reply_names};
-use crate::channels::{BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
+use crate::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
@@ -89,6 +94,8 @@ pub type MakeResponse =
 pub type Refuse = dyn Fn(&str, &Map<String, Value>) -> Option<Value> + Send + Sync;
 
 struct Inner {
+    /// The global channels the stream names.
+    channels: Vec<String>,
     schedule: Vec<FaultAction>,
     make_response: Box<MakeResponse>,
     refuse: Mutex<Option<Box<Refuse>>>,
@@ -105,44 +112,33 @@ struct Inner {
     failures: Mutex<Option<broadcast::Sender<TransportError>>>,
     bridges: Mutex<Vec<Arc<EventBus>>>,
     closed: AtomicBool,
-    /// The channels a test has stopped naming in the stream.
-    unnamed: Mutex<Vec<String>>,
 }
 
 impl Inner {
-    /// A frame, or the refusal a transport delivers in its place: to the
-    /// request that awaits it, to the client's own bus when its channel is a
-    /// global one, and to its channel's readers, as a wire transport does.
+    /// Whether the stream carries a frame of `channel` on `scope`: one of the
+    /// global channels it names, or a resource's channel on a scope it holds.
+    fn carries(&self, channel: &str, scope: Option<&ResourceId>) -> bool {
+        self.channels.iter().any(|named| named == channel)
+            || (RESOURCE_SCOPED_CHANNELS.contains(&channel)
+                && scope.is_some_and(|scope| locked(&self.held).contains_key(scope)))
+    }
+
+    /// A frame, or the refusal a transport delivers in its place, when the
+    /// stream carries it: to the request that awaits it, to the client's own
+    /// bus, and to its channel's readers, as a wire transport does.
     fn deliver(&self, carried: Result<Frame, FrameRefusal>) {
         if self.closed.load(Ordering::SeqCst) {
             return;
         }
-        self.router.route(carried.as_ref());
-        let channel = match &carried {
-            Ok(frame) => &frame.channel,
-            Err(refusal) => &refusal.channel,
+        let (channel, scope) = match &carried {
+            Ok(frame) => (frame.channel.as_str(), frame.scope.as_ref()),
+            Err(refusal) => (refusal.channel.as_str(), refusal.scope.as_ref()),
         };
-        if BRIDGED_CHANNELS.contains(&channel.as_str()) {
-            self.bridge(&carried);
-        }
-        self.hub.deliver(carried);
-    }
-
-    /// A frame the stream delivered on its scope: to its channel's readers,
-    /// and to the client's own bus on a resource's channel as on a global
-    /// one, as a wire transport does.
-    fn deliver_on_its_scope(&self, frame: Frame) {
-        if self.closed.load(Ordering::SeqCst) {
+        if !self.carries(channel, scope) {
             return;
         }
-        let channel = frame.channel.as_str();
-        let bridged =
-            BRIDGED_CHANNELS.contains(&channel) || RESOURCE_SCOPED_CHANNELS.contains(&channel);
-        let carried = Ok(frame);
         self.router.route(carried.as_ref());
-        if bridged {
-            self.bridge(&carried);
-        }
+        self.bridge(&carried);
         self.hub.deliver(carried);
     }
 
@@ -176,11 +172,12 @@ pub struct FaultyTransport {
 }
 
 impl FaultyTransport {
-    /// A transport whose i-th request meets `schedule[i % len]`; with an
-    /// empty schedule every reply is delivered. Nothing is scripted to
-    /// answer: `queue_reply` says what the gateway answers.
-    pub fn new(schedule: Vec<FaultAction>) -> FaultyTransport {
-        FaultyTransport::answering(schedule, |operation, _| {
+    /// A transport whose stream names `channels` and whose i-th request
+    /// meets `schedule[i % len]`; with an empty schedule every reply is
+    /// delivered. Nothing is scripted to answer: `queue_reply` says what the
+    /// gateway answers.
+    pub fn new(channels: &[&str], schedule: Vec<FaultAction>) -> FaultyTransport {
+        FaultyTransport::answering(channels, schedule, |operation, _| {
             Err(format!(
                 "No response scripted for bus operation \"{operation}\". Script one with queue_reply(\"{operation}\", ...) or build the transport with FaultyTransport::answering."
             ))
@@ -190,6 +187,7 @@ impl FaultyTransport {
     /// The same, with `make_response` answering every request no queued
     /// response does.
     pub fn answering(
+        channels: &[&str],
         schedule: Vec<FaultAction>,
         make_response: impl Fn(&str, &Map<String, Value>) -> Result<Option<Value>, String>
         + Send
@@ -198,6 +196,7 @@ impl FaultyTransport {
     ) -> FaultyTransport {
         FaultyTransport {
             inner: Arc::new(Inner {
+                channels: channels.iter().map(ToString::to_string).collect(),
                 schedule,
                 make_response: Box::new(make_response),
                 refuse: Mutex::new(None),
@@ -212,7 +211,6 @@ impl FaultyTransport {
                 failures: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
                 bridges: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
-                unnamed: Mutex::new(Vec::new()),
             }),
         }
     }
@@ -287,39 +285,33 @@ impl FaultyTransport {
         }
     }
 
-    /// Deliver a frame as if the bus had carried it.
+    /// Deliver a frame as if the bus had carried it: one the stream does not
+    /// carry is lost, as on a wire.
     pub fn deliver(&self, frame: Frame) {
         self.inner.deliver(Ok(frame));
     }
 
     /// Deliver a frame as the stream delivers one on its scope, with the
-    /// event id `id` the stream gave it: it is published into the client's
-    /// own bus, on a resource's channel as on a global one, and keeps where
-    /// on the stream it was delivered (`Frame::stream_id`), as a wire
-    /// transport's does. A frame of no scope is no test of this.
+    /// event id `id` the stream gave it: it keeps where on the stream it was
+    /// delivered (`Frame::stream_id`), as a wire transport's does. A frame of
+    /// no scope is no test of this.
     pub fn deliver_recorded(&self, frame: Frame, id: &str) {
         let Some(scope) = frame.scope.clone() else {
             panic!("FaultyTransport: a recorded frame is delivered on its scope");
         };
-        self.inner.deliver_on_its_scope(Frame {
+        self.inner.deliver(Ok(Frame {
             stream_id: Some(StreamId {
                 scope,
                 event_id: id.to_owned(),
             }),
             ..frame
-        });
+        }));
     }
 
     /// Deliver a refusal as if the bus had carried a frame this transport
     /// refused that names its readers.
     pub fn deliver_refusal(&self, refusal: FrameRefusal) {
         self.inner.deliver(Err(refusal));
-    }
-
-    /// Stop naming `channel` in the stream: it is no longer delivered, as on
-    /// a transport built with a channel set that leaves it out.
-    pub fn unname(&self, channel: &str) {
-        locked(&self.inner.unnamed).push(channel.to_owned());
     }
 }
 
@@ -447,8 +439,10 @@ impl Transport for FaultyTransport {
         })
     }
 
+    /// A channel the stream names, or a resource's channel, which it carries
+    /// on each scope it holds.
     fn frames(&self, channel: &str) -> Result<Frames, BusRequestError> {
-        if !self.is_subscribed(channel) {
+        if !self.is_subscribed(channel) && !RESOURCE_SCOPED_CHANNELS.contains(&channel) {
             return Err(BusRequestError::new(
                 BusRequestErrorCode::Unsubscribed,
                 format!("FaultyTransport: the stream does not name {channel}"),
@@ -457,16 +451,12 @@ impl Transport for FaultyTransport {
         Ok(self.inner.hub.frames(channel))
     }
 
-    /// Every channel, but one a test has stopped naming (`unname`): this
-    /// transport delivers whatever is emitted through it.
     fn is_subscribed(&self, channel: &str) -> bool {
-        !locked(&self.inner.unnamed)
-            .iter()
-            .any(|unnamed| unnamed == channel)
+        self.inner.channels.iter().any(|named| named == channel)
     }
 
-    /// Nothing here is delivered by scope, so a hold changes only the count
-    /// of them (`holds`).
+    /// The stream carries the resource's channels on its scope from the
+    /// first hold until the last lets go.
     fn subscribe_to_resource(&self, resource_id: &ResourceId) -> ResourceHold {
         *locked(&self.inner.held)
             .entry(resource_id.clone())

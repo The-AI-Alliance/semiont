@@ -7,6 +7,7 @@
 //! here is bounded: a unit that never acts fails its test, and does not
 //! hang it.
 
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::SemiontClient;
 use semiont::state::{
     BeckonStateUnit, GatherStateUnit, HoverDwell, MarkStateUnit, MatchStateUnit, PendingAnnotation,
@@ -42,7 +43,7 @@ fn client_over(transport: &FaultyTransport) -> Arc<SemiontClient> {
 
 /// A transport that answers nothing, and its client.
 fn world() -> (Arc<SemiontClient>, FaultyTransport) {
-    let transport = FaultyTransport::new(vec![]);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, vec![]);
     (client_over(&transport), transport)
 }
 

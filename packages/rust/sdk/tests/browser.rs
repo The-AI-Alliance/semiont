@@ -12,6 +12,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures_core::Stream;
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{CachePersistence, ClientOptions};
 use semiont::errors::{SessionError, SessionErrorCode, TransportError, TransportErrorCode};
 use semiont::session::{
@@ -1974,10 +1975,11 @@ impl Tabled {
         })
         .await
         .expect("kept");
-        let transport = FaultyTransport::answering(vec![], |operation, _| match operation {
-            "browse:entity-types-requested" => Ok(Some(json!({ "entityTypes": ["Person"] }))),
-            other => Err(format!("{other} is not answered here")),
-        });
+        let transport =
+            FaultyTransport::answering(BRIDGED_CHANNELS, vec![], |operation, _| match operation {
+                "browse:entity-types-requested" => Ok(Some(json!({ "entityTypes": ["Person"] }))),
+                other => Err(format!("{other} is not answered here")),
+            });
         let refusing = Arc::new(Refusing {
             beneath: SharedStorage::new(),
             sets: AtomicBool::new(true),
