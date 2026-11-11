@@ -57,25 +57,34 @@ func closedRead() error {
 	return &BusRequestError{Code: BusRequestErrorCodeClosed, Message: "The client is closed"}
 }
 
-// flight is a fetch in flight for a key: its number, and what it came to
-// once done is closed.
+// flight is one fetch of a key: what it came to once done is closed.
 type flight[V any] struct {
-	number int
-	done   chan struct{}
-	value  V
-	err    error
+	done  chan struct{}
+	value V
+	err   error
 }
 
-// cacheKey is one key's: its state, and the fetch in flight for it.
+// liveAsk is which of the live view's asks a key's current flight is (B14).
+type liveAsk int
+
+const (
+	// noLiveAsk is a current flight no ask of the live view waits on.
+	noLiveAsk liveAsk = iota
+	// firstLiveAsk is owed one more ask if it fails.
+	firstLiveAsk
+	// retryLiveAsk is that one more.
+	retryLiveAsk
+)
+
+// cacheKey is one key's: its state, and its current fetch.
 type cacheKey[V any] struct {
 	state CacheState
 	// changed is closed when the state changes, and replaced.
-	changed  chan struct{}
+	changed chan struct{}
+	// inFlight is the key's current fetch. One an Invalidate or a Remove let
+	// go of is in flight no more, and what it answers is not stored (B9).
 	inFlight *flight[V]
-	// validation is the flight the live view's ask waits on, and
-	// revalidated whether that flight is the ask's second.
-	validation  *flight[V]
-	revalidated bool
+	asked    liveAsk
 }
 
 // known reports whether anything asked for the key and has not let go of it.
@@ -115,10 +124,9 @@ type Cache[K comparable, V any] struct {
 	// time. Taken before mu, never while mu is held.
 	saves sync.Mutex
 
-	mu      sync.Mutex
-	keys    map[K]*cacheKey[V]
-	kept    map[K]bool
-	fetches int
+	mu   sync.Mutex
+	keys map[K]*cacheKey[V]
+	kept map[K]bool
 	// saving makes the save owed once the values stop changing; nil while
 	// none is waiting.
 	saving *time.Timer
@@ -247,26 +255,20 @@ func (c *Cache[K, V]) fetching(key K) *flight[V] {
 	if k.inFlight != nil {
 		return k.inFlight
 	}
-	c.fetches++
-	f := &flight[V]{number: c.fetches, done: make(chan struct{})}
+	f := &flight[V]{done: make(chan struct{})}
 	k.inFlight = f
 	c.run(func(ctx context.Context) {
 		value, err := c.fetch(ctx, key)
 		c.mu.Lock()
-		// Only its own: an invalidate may have put a newer fetch in its place.
+		// Only the key's current flight acts on it. One an Invalidate, a
+		// Remove or the closing let go of answers its own waiters, and
+		// changes nothing.
 		if k, ok := c.keys[key]; ok && k.inFlight == f {
 			k.inFlight = nil
-		}
-		// A value from any fetch is written, the newest last: each is at
-		// least as new as what was there. A failure writes nothing. One
-		// answered after the cache was closed has no key to write to.
-		if err == nil {
-			if k, ok := c.keys[key]; ok {
+			if err == nil {
 				k.set(Ready[V]{Value: value})
 				c.oweASave()
 			}
-		}
-		if k, ok := c.keys[key]; ok && k.validation == f {
 			c.validated(key, k, err)
 		}
 		c.mu.Unlock()
@@ -296,25 +298,28 @@ func awaited[V any](ctx context.Context, f *flight[V]) (V, error) {
 // key with no value whose retry also fails becomes Failed. Called with mu
 // held.
 func (c *Cache[K, V]) revalidate(key K) {
-	k := c.held(key)
-	k.validation, k.revalidated = c.fetching(key), false
+	c.fetching(key)
+	c.held(key).asked = firstLiveAsk
 }
 
-// validated ends the live view's ask in the step that settles the flight it
-// waits on: a first ask that failed is asked once more at once, so the key is
-// fetching from that failure until its retry settles; a second that failed
-// fails a key with no value. Called with mu held.
+// validated ends the live view's ask in the step that settles the key's
+// current flight: a first ask that failed is asked once more at once, so the
+// key is fetching from that failure until its retry settles; a second that
+// failed fails a key with no value. Called with mu held.
 func (c *Cache[K, V]) validated(key K, k *cacheKey[V], err error) {
-	k.validation = nil
+	asked := k.asked
+	k.asked = noLiveAsk
 	if !retried(err) {
 		return
 	}
-	if !k.revalidated {
-		k.validation, k.revalidated = c.fetching(key), true
-		return
-	}
-	if _, ready := k.state.(Ready[V]); !ready {
-		k.set(Failed{Err: err})
+	switch asked {
+	case firstLiveAsk:
+		c.fetching(key)
+		k.asked = retryLiveAsk
+	case retryLiveAsk:
+		if _, ready := k.state.(Ready[V]); !ready {
+			k.set(Failed{Err: err})
+		}
 	}
 }
 
@@ -370,8 +375,9 @@ func (c *Cache[K, V]) Observe(ctx context.Context, key K) iter.Seq[CacheState] {
 }
 
 // Fetch asks for the key's value now: what the service answers, which
-// every observer of the key is given too; or the failure, which only this
-// caller is. Concurrent asks for one key share one fetch.
+// every observer of the key is given too unless an Invalidate or a Remove
+// let go of the fetch first; or the failure, which only this caller is.
+// Concurrent asks for one key share one fetch.
 func (c *Cache[K, V]) Fetch(ctx context.Context, key K) (V, error) {
 	c.mu.Lock()
 	if c.closed {
@@ -447,7 +453,7 @@ func (c *Cache[K, V]) anyInFlight() bool {
 
 // Invalidate says the key's value is out of date: it is asked for again,
 // shown meanwhile. A fetch already in flight is not waited on: its answer may
-// never come.
+// never come, and when it does it goes to that fetch's own waiters alone.
 func (c *Cache[K, V]) Invalidate(key K) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -470,7 +476,8 @@ func (c *Cache[K, V]) InvalidateAll() {
 }
 
 // Remove says the key's entity is gone: its value is dropped and the key is
-// failed with gone, at once, for every observer. Nothing is asked for.
+// failed with gone, at once, for every observer. Nothing is asked for, and a
+// fetch in flight is let go of: what it answers goes to its own waiters alone.
 func (c *Cache[K, V]) Remove(key K, gone error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -479,6 +486,7 @@ func (c *Cache[K, V]) Remove(key K, gone error) {
 	}
 	k := c.held(key)
 	k.inFlight = nil
+	k.asked = noLiveAsk
 	k.set(Failed{Err: gone})
 	c.oweASave()
 }
@@ -491,7 +499,9 @@ func (c *Cache[K, V]) Set(key K, value V) {
 		return
 	}
 	delete(c.kept, key)
-	c.held(key).set(Ready[V]{Value: value})
+	k := c.held(key)
+	k.asked = noLiveAsk
+	k.set(Ready[V]{Value: value})
 	c.oweASave()
 }
 
