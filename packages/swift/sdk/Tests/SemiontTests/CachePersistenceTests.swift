@@ -373,6 +373,13 @@ private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async thr
   let asked = Mutex(0)
   let (refetched, reached) = AsyncStream<Void>.makeStream()
   let (answered, answer) = AsyncStream<Void>.makeStream()
+  let firstAnswer = try keptDescriptor("res-1")
+  let refetchAnswer = try decoded(
+    ResourceDescriptor.self,
+    .object([
+      "@context": .string("https://schema.org/"), "@id": .string("res-1"),
+      "name": .string("archived"), "representations": .array([]),
+    ]))
   let probe = ProbeTransport(channels: bridgedChannels + ["test:drained"])
   probe.handle { operation, _ in
     guard operation == Operations.browseResourceRequested.request.name else {
@@ -383,14 +390,16 @@ private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async thr
       count += 1
       return count
     }
-    if count > 1 {
-      reached.yield()
-      for await _ in answered { break }
+    guard count > 1 else {
+      return try wirePayload(
+        BrowseResourceResult(
+          response: BrowseResourceResultResponse(lastSequence: 1, resource: firstAnswer)))
     }
+    reached.yield()
+    for await _ in answered { break }
     return try wirePayload(
       BrowseResourceResult(
-        response: BrowseResourceResultResponse(
-          lastSequence: 1, resource: try keptDescriptor("res-1"))))
+        response: BrowseResourceResultResponse(lastSequence: 2, resource: refetchAnswer)))
   }
   let client = try await SemiontClient(
     transport: probe, persistence: CachePersistence(storage: storage, kbId: "kb", personKey: jo),
@@ -423,6 +432,42 @@ private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async thr
   #expect(
     storedPlaces(storage.get(placesKey)) == [unheld: "p-res-2-1"],
     "A fetch in flight holds back the place of the event that started it")
+
+  // Answered, and seen through a read that waits on the refetch: the save its value owes, fired
+  // once, writes the place, the refetch having settled.
+  let joined = SpawnWatch()
+  let read = spawn {
+    try await Spawning.$executor.withValue(joined) {
+      try await client.browse.live.resources.fetch(held)
+    }
+  }
+  try await withinTestDeadline {
+    for await _ in joined.spawned { return }
+    throw SpecFailure.shape("The read spawned nothing")
+  }
+  answer.yield()
+  #expect(try await read.value.name == "archived")
+  clock.advance(by: .milliseconds(Timings.saveDebounceMs))
+  try await withinTestDeadline {
+    while storedPlaces(storage.get(placesKey))[held] == nil { await Task.yield() }
+  }
+  #expect(storedPlaces(storage.get(placesKey)) == [unheld: "p-res-2-1", held: "p-res-1-7"])
+  #expect(storage.get(cacheKey("kb", jo, .resource))?.contains("archived") == true)
+}
+
+/// Runs each job it is given on the global executor, and says it was given one. Bound as the
+/// executor the SDK spawns on for a read, its first job is the read's first task: in a read of a
+/// query, the wait on the fetch it joined or began.
+private final class SpawnWatch: TaskExecutor {
+  let spawned: AsyncStream<Void>
+  private let given: AsyncStream<Void>.Continuation
+
+  init() { (spawned, given) = AsyncStream<Void>.makeStream() }
+
+  func enqueue(_ job: consuming ExecutorJob) {
+    given.yield()
+    globalConcurrentExecutor.enqueue(job)
+  }
 }
 
 @Test func aRefetchAWindowOwesUnsettlesTheClientUntilItRuns() async throws {

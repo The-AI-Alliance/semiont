@@ -132,7 +132,8 @@ private actor CacheEntry<Value: Sendable> {
   private var flights: [UUID: Task<Value, any Error>] = [:]
   private var flightEdits: [UUID: [@Sendable (Value) -> Value]] = [:]
   private var current: UUID?
-  private var validation: UUID?
+  /// The flight a validation waits on, and whether it is the validation's second ask.
+  private var validation: (flight: UUID, revalidated: Bool)?
   private var mutation: UInt64 = 0
   private var windowOpen = false
   private var refreshOwed = false
@@ -224,8 +225,9 @@ private actor CacheEntry<Value: Sendable> {
     for listener in listeners.values { listener.yield(state) }
   }
 
-  private func fetching() -> Task<Value, any Error> {
-    if let current, let flight = flights[current] { return flight }
+  /// The flight in flight, or one begun.
+  private func fetching() -> (id: UUID, task: Task<Value, any Error>) {
+    if let current, let flight = flights[current] { return (current, flight) }
     rehydrated = false
     kept?.underway.begin()
     let id = UUID()
@@ -233,32 +235,42 @@ private actor CacheEntry<Value: Sendable> {
     let task = spawn(on: self) { entry in try await entry.fly(id, revision: revision) }
     current = id
     flights[id] = task
-    return task
+    return (id, task)
   }
 
   /// The flight `id`, begun at `revision`: its fetch, published unless the value changed since.
+  /// The step that settles it also ends the validation waiting on it, and a retry that validation
+  /// owes is under way before the flight's own count ends: so a key is fetching exactly while a
+  /// fetch of it has not settled (CACHE-SEMANTICS B17).
   private func fly(_ id: UUID, revision: UInt64) async throws -> Value {
+    var failure: (any Error)?
     defer {
-      kept?.underway.end()
       flights.removeValue(forKey: id)
       flightEdits.removeValue(forKey: id)
       if current == id { current = nil }
+      if validation?.flight == id { validated(failure) }
+      kept?.underway.end()
     }
-    try Task.checkCancellation()
-    let value = try await fetch()
-    guard !lifetime.ended else { throw CancellationError() }
-    if mutation == revision {
-      let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
-      publish(.ready(edited))
+    do {
+      try Task.checkCancellation()
+      let value = try await fetch()
+      guard !lifetime.ended else { throw CancellationError() }
+      if mutation == revision {
+        let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
+        publish(.ready(edited))
+      }
+      return value
+    } catch {
+      failure = error
+      throw error
     }
-    return value
   }
 
   func fresh() async throws -> Value {
     let closed = BusRequestError(.busClosed, "The client is closed")
     guard !lifetime.ended else { throw closed }
     try Task.checkCancellation()
-    let flight = fetching()
+    let flight = fetching().task
     let waiter = SharedWait<Value>()
     let ending = lifetime.onEnd { waiter.resolve(.failure(closed)) }
     defer { lifetime.forgetEnding(ending) }
@@ -282,26 +294,25 @@ private actor CacheEntry<Value: Sendable> {
 
   private func revalidate() {
     guard validation == nil else { return }
-    let id = UUID()
-    validation = id
-    let first = fetching()
-    kept?.underway.begin()
-    lifetime.start {
-      defer { self.kept?.underway.end() }
-      await self.validate(first, id: id)
-    }
+    validate(revalidated: false)
   }
 
-  private func validate(_ first: Task<Value, any Error>, id: UUID) async {
-    defer { if validation == id { validation = nil } }
-    guard case .failure(let error) = await first.result, !(error is CancellationError),
-      !lifetime.ended, validation == id
-    else { return }
-    guard case .failure(let retryError) = await fetching().result,
-      !(retryError is CancellationError),
-      !lifetime.ended, validation == id
-    else { return }
-    if case .pending = state { publish(.failed(retryError)) }
+  /// Validates with the flight in flight, starting one when none is.
+  private func validate(revalidated: Bool) {
+    validation = (fetching().id, revalidated)
+  }
+
+  /// Ends the validation, in the step that settles the flight it waits on. A first ask that fails
+  /// is asked once more; a second that fails fails a key that holds no value.
+  private func validated(_ failure: (any Error)?) {
+    guard let waited = validation else { return }
+    validation = nil
+    guard let failure, !(failure is CancellationError), !lifetime.ended else { return }
+    if !waited.revalidated {
+      validate(revalidated: true)
+    } else if case .pending = state {
+      publish(.failed(failure))
+    }
   }
 
   func refreshIfKnown(coalescing: Bool) {
