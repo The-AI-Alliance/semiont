@@ -72,6 +72,10 @@ type cacheKey[V any] struct {
 	// changed is closed when the state changes, and replaced.
 	changed  chan struct{}
 	inFlight *flight[V]
+	// validation is the flight the live view's ask waits on, and
+	// revalidated whether that flight is the ask's second.
+	validation  *flight[V]
+	revalidated bool
 }
 
 // known reports whether anything asked for the key and has not let go of it.
@@ -262,6 +266,9 @@ func (c *Cache[K, V]) fetching(key K) *flight[V] {
 				c.oweASave()
 			}
 		}
+		if k, ok := c.keys[key]; ok && k.validation == f {
+			c.validated(key, k, err)
+		}
 		c.mu.Unlock()
 		f.value, f.err = value, err
 		close(f.done)
@@ -289,30 +296,26 @@ func awaited[V any](ctx context.Context, f *flight[V]) (V, error) {
 // key with no value whose retry also fails becomes Failed. Called with mu
 // held.
 func (c *Cache[K, V]) revalidate(key K) {
-	first := c.fetching(key)
-	c.run(func(ctx context.Context) {
-		if _, err := awaited(ctx, first); !retried(err) {
-			return
-		}
-		c.mu.Lock()
-		if c.closed {
-			c.mu.Unlock()
-			return
-		}
-		second := c.fetching(key)
-		c.mu.Unlock()
-		_, err := awaited(ctx, second)
-		if !retried(err) {
-			return
-		}
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if k, ok := c.keys[key]; ok && !c.closed {
-			if _, ready := k.state.(Ready[V]); !ready {
-				k.set(Failed{Err: err})
-			}
-		}
-	})
+	k := c.held(key)
+	k.validation, k.revalidated = c.fetching(key), false
+}
+
+// validated ends the live view's ask in the step that settles the flight it
+// waits on: a first ask that failed is asked once more at once, so the key is
+// fetching from that failure until its retry settles; a second that failed
+// fails a key with no value. Called with mu held.
+func (c *Cache[K, V]) validated(key K, k *cacheKey[V], err error) {
+	k.validation = nil
+	if !retried(err) {
+		return
+	}
+	if !k.revalidated {
+		k.validation, k.revalidated = c.fetching(key), true
+		return
+	}
+	if _, ready := k.state.(Ready[V]); !ready {
+		k.set(Failed{Err: err})
+	}
 }
 
 // retried reports whether a failure of the live view's fetch is tried

@@ -826,6 +826,27 @@ func TestB17ValuesAreSavedOnceTheyHaveStoppedChangingAndOnlyValues(t *testing.T)
 	}
 }
 
+// In flight is a fetch whose promise has not settled: the caller given the
+// value finds the key fetching no more, and its save owed.
+func TestB17AFetchIsInFlightNoMoreOnceItsCallerHasItsValue(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
+	read := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	if !c.keptFetching() {
+		t.Fatal("a fetch asked and unanswered is not in flight")
+	}
+	service.answer(t, 0, 1)
+	if got := readEnded(t, read); got.err != nil || got.value != 1 {
+		t.Fatalf("the read came to %+v, want 1", got)
+	}
+	if c.keptFetching() {
+		t.Fatal("the key is fetching after its caller was given its value")
+	}
+	if !c.PersistencePending() {
+		t.Fatal("the settled value owes no save")
+	}
+}
+
 func TestB17DisposingMakesASaveThatWasOwedAtOnceAndNoneIsMadeAfter(t *testing.T) {
 	persister := &keptBack{}
 	c, _, _ := cacheWorld(t, persister, time.Hour)
