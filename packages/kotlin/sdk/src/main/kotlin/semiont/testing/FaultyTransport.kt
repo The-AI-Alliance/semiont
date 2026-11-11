@@ -13,6 +13,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import semiont.bus.EMITTED_BY
 import semiont.bus.OPERATIONS
+import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.channels.TRACE_FIELD
 import semiont.errors.SemiontError
 import semiont.errors.TransportError
@@ -29,6 +30,7 @@ import semiont.transport.FrameSink
 import semiont.transport.PendingReply
 import semiont.transport.ReplyRouter
 import semiont.transport.ResourceHold
+import semiont.transport.scope
 import semiont.transport.Transport
 import semiont.transport.Variable
 import semiont.transport.Watched
@@ -120,16 +122,19 @@ public fun retryKeyOf(channel: String, payload: JsonObject): String =
  * `refuseWhen` answers a request with a failure, asked before anything else.
  *
  * A reply that names what it answers for beside its response names what its
- * request did, as a gateway's does. A frame sent on a channel the stream
- * names (`channels`, every channel when none are given) comes back to it, as
- * a gateway gives a frame to every client whose stream names its channel.
- * Its replies arrive, and a delayed one waits, on `context`, under the job
- * `context` has when it has one.
+ * request did, as a gateway's does. Its stream names `channels` on no scope,
+ * as a real transport's does, and a full client's are `BRIDGED_CHANNELS`. It
+ * carries what a gateway gives that stream and nothing else: a frame on no
+ * scope whose channel it names, and a frame on a resource's scope while the
+ * scope is held, on a channel a scope carries (`RESOURCE_SCOPED_CHANNELS`).
+ * That holds of a frame sent through it, which comes back to it, of each
+ * reply, and of what a test delivers. Its replies arrive, and a delayed one
+ * waits, on `context`, under the job `context` has when it has one.
  */
 public class FaultyTransport @JvmOverloads constructor(
+    private val channels: Collection<String>,
     private val schedule: List<FaultAction> = emptyList(),
     private val respond: Respond = REFUSE_UNSCRIPTED,
-    private val channels: Collection<String>? = null,
     context: CoroutineContext = Dispatchers.Default,
 ) : Transport {
 
@@ -167,10 +172,17 @@ public class FaultyTransport @JvmOverloads constructor(
     /** Change the connection's state, as a wire would. */
     public fun setState(state: ConnectionState): Unit = connection.set(state)
 
-    /** Deliver a frame, or a frame's refusal, as if the stream had carried it. */
+    /** Deliver a frame, or a frame's refusal, as a gateway would: it arrives when the stream carries it. */
     public fun deliver(carried: Carried) {
+        if (!carries(carried)) return
         router.route(carried)
         hub.deliver(carried, null)
+    }
+
+    /** Whether the stream carries `carried`: on no scope, a channel it names; on a scope, one held and a channel a scope carries. */
+    private fun carries(carried: Carried): Boolean = when (val scope = carried.scope) {
+        null -> carried.channel in channels
+        else -> carried.channel in RESOURCE_SCOPED_CHANNELS && synchronized(this) { scope in held }
     }
 
     /** Every request sent, in order. */
@@ -205,7 +217,7 @@ public class FaultyTransport @JvmOverloads constructor(
             action to refusing
         }
         if (operation == null || action == null) {
-            echo(request)
+            deliver(request)
             return 1
         }
         if (action == RejectEmit) throw TransportError(TransportErrorCode.Error, "FaultyTransport: emit rejected by schedule on $channel")
@@ -224,7 +236,7 @@ public class FaultyTransport @JvmOverloads constructor(
             if (response != null) answered["response"] = response
             Frame(operation.result.name, JsonObject(answered), correlationId)
         }
-        echo(request)
+        deliver(request)
         // The reply comes after the emit has been accepted, as a wire's does. One on its way when the transport closes is dropped.
         when (action) {
             Deliver -> arriving.launch { deliver(reply) }
@@ -238,23 +250,18 @@ public class FaultyTransport @JvmOverloads constructor(
         return 1
     }
 
-    /** A frame this transport sent, given back to it when its stream names the frame's channel. */
-    private fun echo(sent: Frame) {
-        if (isSubscribed(sent.channel)) deliver(sent)
-    }
-
     @JvmExposeBoxed
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         arriving.futureOf { emit(channel, payload, scope, correlationId) }
 
     override fun frames(channel: String): Events<Carried> {
-        if (!isSubscribed(channel)) throw unsubscribed(channel)
+        if (channel !in channels && channel !in RESOURCE_SCOPED_CHANNELS) throw unsubscribed(channel)
         return hub.frames(channel)
     }
 
-    override fun isSubscribed(channel: String): Boolean = channels == null || channel in channels
+    override fun isSubscribed(channel: String): Boolean = channel in channels
 
-    /** Nothing here is delivered by scope, so a hold changes only the count of them (`holds`). */
+    /** A hold on a resource's scope: while one is held, the stream carries what is said on the scope. */
     @JvmExposeBoxed
     override fun subscribeToResource(resourceId: ResourceId): ResourceHold {
         synchronized(this) { held[resourceId] = (held[resourceId] ?: 0) + 1 }

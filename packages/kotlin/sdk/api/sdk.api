@@ -2102,12 +2102,11 @@ public abstract interface class semiont/testing/FaultAction {
 }
 
 public final class semiont/testing/FaultyTransport : semiont/transport/Transport {
-	public fun <init> ()V
-	public fun <init> (Ljava/util/List;)V
-	public fun <init> (Ljava/util/List;Lsemiont/testing/Respond;)V
-	public fun <init> (Ljava/util/List;Lsemiont/testing/Respond;Ljava/util/Collection;)V
-	public fun <init> (Ljava/util/List;Lsemiont/testing/Respond;Ljava/util/Collection;Lkotlin/coroutines/CoroutineContext;)V
-	public synthetic fun <init> (Ljava/util/List;Lsemiont/testing/Respond;Ljava/util/Collection;Lkotlin/coroutines/CoroutineContext;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/Collection;)V
+	public fun <init> (Ljava/util/Collection;Ljava/util/List;)V
+	public fun <init> (Ljava/util/Collection;Ljava/util/List;Lsemiont/testing/Respond;)V
+	public fun <init> (Ljava/util/Collection;Ljava/util/List;Lsemiont/testing/Respond;Lkotlin/coroutines/CoroutineContext;)V
+	public synthetic fun <init> (Ljava/util/Collection;Ljava/util/List;Lsemiont/testing/Respond;Lkotlin/coroutines/CoroutineContext;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun bridgeInto (Lsemiont/transport/FrameSink;)V
 	public fun close ()V
 	public final fun deliver (Lsemiont/transport/Carried;)V

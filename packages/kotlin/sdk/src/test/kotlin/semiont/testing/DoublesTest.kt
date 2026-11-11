@@ -23,6 +23,8 @@ import org.junit.jupiter.api.assertThrows
 import semiont.bus.OPERATIONS
 import semiont.bus.Operations
 import semiont.bus.request
+import semiont.channels.BRIDGED_CHANNELS
+import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.TransportError
@@ -43,8 +45,8 @@ private fun text(value: String): JsonPrimitive = JsonPrimitive(value)
 private val RESOURCE = ResourceId("res-1")
 
 /** A transport whose replies arrive on the test's clock. */
-private fun TestScope.faulty(schedule: List<FaultAction> = emptyList(), respond: Respond = REFUSE_UNSCRIPTED, channels: Collection<String>? = null): FaultyTransport =
-    FaultyTransport(schedule, respond, channels, StandardTestDispatcher(testScheduler))
+private fun TestScope.faulty(channels: Collection<String>, schedule: List<FaultAction> = emptyList(), respond: Respond = REFUSE_UNSCRIPTED): FaultyTransport =
+    FaultyTransport(channels, schedule, respond, StandardTestDispatcher(testScheduler))
 
 /** A request of the kb's description, as a client asks it. */
 private suspend fun asked(transport: FaultyTransport, timeoutMs: Long = 1_000): JsonObject =
@@ -54,7 +56,7 @@ private suspend fun asked(transport: FaultyTransport, timeoutMs: Long = 1_000): 
 class DoublesTest {
     @Test
     fun aRequestIsAnsweredWithWhatWasQueuedForItsOperationOneEachInOrder() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         transport.queueReply("browse:kb-requested", listOf(obj("name" to text("first")), obj("name" to text("second"))))
         assertEquals(obj("response" to obj("name" to text("first"))), asked(transport))
         assertEquals(obj("response" to obj("name" to text("second"))), asked(transport))
@@ -63,7 +65,7 @@ class DoublesTest {
 
     @Test
     fun aRequestNothingWasScriptedForIsRefusedByNameAndIsStillOnRecord() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         val refused = assertThrows<TransportError> { asked(transport) }
         assertTrue(refused.message.contains("\"browse:kb-requested\""), refused.message)
         assertEquals(listOf("browse:kb-requested"), transport.requestLog.map { it.channel })
@@ -72,7 +74,7 @@ class DoublesTest {
 
     @Test
     fun whatNoQueuedResponseAnswersTheTransportsOwnGatewayDoes() = runTest(timeout = 10.seconds) {
-        val transport = faulty(respond = { operation, _ -> obj("asked" to text(operation)) })
+        val transport = faulty(BRIDGED_CHANNELS, respond = { operation, _ -> obj("asked" to text(operation)) })
         transport.queueReply("browse:kb-requested", listOf(null))
         assertEquals(obj(), asked(transport), "a queued reply that carries none")
         assertEquals(obj("response" to obj("asked" to text("browse:kb-requested"))), asked(transport))
@@ -81,7 +83,7 @@ class DoublesTest {
 
     @Test
     fun eachRequestInTurnMeetsTheNextActionOfTheScheduleAndTheScheduleComesRoundAgain() = runTest(timeout = 10.seconds) {
-        val transport = faulty(schedule = listOf(Deliver, DropReply, Delay(50), RejectEmit), respond = { _, _ -> obj() })
+        val transport = faulty(BRIDGED_CHANNELS, schedule = listOf(Deliver, DropReply, Delay(50), RejectEmit), respond = { _, _ -> obj() })
         asked(transport)
         assertEquals(BusRequestErrorCode.Timeout, assertThrows<BusRequestError> { asked(transport, timeoutMs = 100) }.reason)
         val delayed = async { asked(transport) }
@@ -99,7 +101,7 @@ class DoublesTest {
 
     @Test
     fun aDuplicatedReplyIsDeliveredTwice() = runTest(timeout = 10.seconds) {
-        val transport = faulty(schedule = listOf(DuplicateReply), respond = { _, _ -> obj() })
+        val transport = faulty(BRIDGED_CHANNELS, schedule = listOf(DuplicateReply), respond = { _, _ -> obj() })
         val replies = mutableListOf<Carried>()
         launch { transport.frames("browse:kb-result").collect { replies += it } }
         runCurrent()
@@ -111,7 +113,7 @@ class DoublesTest {
 
     @Test
     fun aRequestTheGatewayRefusesIsAnsweredOnItsFailureChannelBeforeAnythingQueued() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         transport.queueReply("browse:kb-requested", listOf(obj()))
         transport.refuseWhen { _, _ -> obj("code" to text("not-found"), "message" to text("no such kb")) }
         val refused = assertThrows<BusRequestError> { asked(transport) }
@@ -122,7 +124,7 @@ class DoublesTest {
     @Test
     fun aReplyThatNamesWhatItAnswersForNamesWhatItsRequestNamed() = runTest(timeout = 10.seconds) {
         val operation = OPERATIONS.values.first { it.replyNames.isNotEmpty() }
-        val transport = faulty(respond = { _, _ -> obj() })
+        val transport = faulty(BRIDGED_CHANNELS, respond = { _, _ -> obj() })
         val sent = JsonObject(operation.replyNames.associateWith { text("ref-1") } + ("other" to text("x")))
         val answered = request(transport, operation, sent, 1_000)
         assertEquals(JsonObject(operation.replyNames.associateWith { text("ref-1") } + ("response" to obj())), answered)
@@ -131,7 +133,7 @@ class DoublesTest {
 
     @Test
     fun whatIsOnlySentIsDeliveredToWhoeverListensAndIntoAClientsBus() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         val heard = mutableListOf<Carried>()
         launch { transport.frames("beckon:sparkle").collect { heard += it } }
         runCurrent()
@@ -151,7 +153,7 @@ class DoublesTest {
 
     @Test
     fun aTestSaysWhatTheWireDoesItsStateItsFailuresAndWhatItCarries() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         val states = mutableListOf<ConnectionState>()
         launch { transport.state.collect { states += it } }
         val failures = mutableListOf<String>()
@@ -167,7 +169,7 @@ class DoublesTest {
 
     @Test
     fun theHoldsOnEachResourcesScopeAreCounted() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         val one = transport.subscribeToResource(RESOURCE)
         val other = transport.subscribeToResource(RESOURCE)
         assertEquals(2 to listOf(RESOURCE), transport.holds(RESOURCE) to transport.scopes)
@@ -179,7 +181,7 @@ class DoublesTest {
 
     @Test
     fun aTransportToldItsChannelsDeliversNoOther() = runTest(timeout = 10.seconds) {
-        val transport = faulty(channels = listOf("beckon:sparkle"))
+        val transport = faulty(listOf("beckon:sparkle"))
         assertTrue(transport.isSubscribed("beckon:sparkle"))
         assertFalse(transport.isSubscribed("beckon:focus"))
         assertEquals(BusRequestErrorCode.Unsubscribed, assertThrows<BusRequestError> { transport.frames("beckon:focus") }.reason)
@@ -187,8 +189,28 @@ class DoublesTest {
     }
 
     @Test
+    fun aFrameArrivesOnlyWhereTheStreamCarriesIt() = runTest(timeout = 10.seconds) {
+        val scoped = RESOURCE_SCOPED_CHANNELS.first()
+        val transport = faulty(listOf("beckon:sparkle"))
+        val heard = mutableListOf<String>()
+        transport.bridgeInto { heard += it.channel }
+        transport.deliver(Frame("beckon:focus", obj()))
+        transport.deliver(Frame(scoped, obj(), null, RESOURCE))
+        assertEquals(emptyList<String>(), heard, "a channel the stream does not name, and a scope nobody holds")
+        val hold = transport.subscribeToResource(RESOURCE)
+        transport.deliver(Frame(scoped, obj(), null, RESOURCE))
+        transport.deliver(Frame("beckon:sparkle", obj()))
+        transport.deliver(Frame("beckon:sparkle", obj(), null, RESOURCE))
+        assertEquals(listOf(scoped, "beckon:sparkle"), heard, "a held scope carries only what a scope carries")
+        hold.close()
+        transport.deliver(Frame(scoped, obj(), null, RESOURCE))
+        assertEquals(listOf(scoped, "beckon:sparkle"), heard, "a scope let go of carries nothing more")
+        transport.close()
+    }
+
+    @Test
     fun aClosedTransportHasEndedEverythingAndDoesNothingMore() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         val states = async { transport.state.toList() }
         runCurrent()
         transport.close()
@@ -228,7 +250,7 @@ class DoublesTest {
 
     @Test
     fun aTestClientIsARealClientOverTheDoublesItIsGivenOrMakes() = runTest(timeout = 10.seconds) {
-        val transport = faulty()
+        val transport = faulty(BRIDGED_CHANNELS)
         val content = InMemoryContent()
         val gateway = StubGateway()
         val made = TestClient(StandardTestDispatcher(testScheduler), testScheduler.timeSource, transport, content, gateway)

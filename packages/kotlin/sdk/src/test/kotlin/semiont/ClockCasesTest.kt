@@ -52,6 +52,7 @@ import semiont.errors.TransportError
 import semiont.http.HttpTransport
 import semiont.http.signInDevice
 import semiont.identifiers.JobId
+import semiont.jobs.JOB_CLAIM_CHANNELS
 import semiont.jobs.running
 import semiont.live.KbWorld
 import semiont.live.RESOURCE
@@ -489,7 +490,7 @@ private val MARK_JOBS: List<JobFilter> = wireJson.decodeFromString(ListSerialize
 
 private suspend fun heldJobStall(given: JsonObject, bench: Bench): Subject {
     val dispatcher = Respond { operation, payload -> if (operation == "job:claim") running("job-1") else REFUSE_UNSCRIPTED.respond(operation, payload) }
-    val transport = bench.held(FaultyTransport(emptyList(), dispatcher, null, bench.context))
+    val transport = bench.held(FaultyTransport(JOB_CLAIM_CHANNELS, emptyList(), dispatcher, bench.context))
     val gateway = Recording()
     val client = bench.held(SemiontClient(transport, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
     val claims = client.job.claim(MARK_JOBS)
@@ -571,7 +572,7 @@ private suspend fun jobFollower(given: JsonObject, bench: Bench): Subject {
             else -> REFUSE_UNSCRIPTED.respond(operation, payload)
         }
     }
-    val transport = bench.held(FaultyTransport(emptyList(), queue, null, bench.context))
+    val transport = bench.held(FaultyTransport(BRIDGED_CHANNELS, emptyList(), queue, bench.context))
     val gateway = Recording()
     val client = bench.held(SemiontClient(transport, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
     bench.work.launch { client.mark.delegate(RESOURCE, HighlightingJobParams()).collect {} }
@@ -581,7 +582,7 @@ private suspend fun jobFollower(given: JsonObject, bench: Bench): Subject {
 /** A client's poll of `job-1`, naming no interval and no limit, over a job queue that says the job is running whenever it is asked. */
 private fun jobPolled(bench: Bench): Pair<FaultyTransport, Deferred<JobStatusResponse>> {
     val queue = Respond { operation, payload -> if (operation == "job:status-requested") JOB_RUNNING else REFUSE_UNSCRIPTED.respond(operation, payload) }
-    val transport = bench.held(FaultyTransport(emptyList(), queue, null, bench.context))
+    val transport = bench.held(FaultyTransport(BRIDGED_CHANNELS, emptyList(), queue, bench.context))
     val gateway = Recording()
     val client = bench.held(SemiontClient(transport, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
     return transport to bench.work.async { client.job.pollUntilComplete(JobId("job-1")) }

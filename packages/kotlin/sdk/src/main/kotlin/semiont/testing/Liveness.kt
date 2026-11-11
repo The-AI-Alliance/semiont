@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import semiont.channels.BRIDGED_CHANNELS
 import java.util.Random
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.CoroutineContext
@@ -34,7 +35,8 @@ public class LivenessScenario @JvmOverloads constructor(
  * it: the timeout times one more than `retryBudget`, how often a logical
  * request may be sent again, and the schedule's delays, all of it four times
  * over. `respond` answers what nothing queued an answer for, as
- * `FaultyTransport`'s does. The transport is made on `context`, and each case
+ * `FaultyTransport`'s does. The transport's stream names a full client's
+ * channels (`BRIDGED_CHANNELS`). It is made on `context`, and each case
  * blocks its caller's thread while it waits out its bound there. A wait on a
  * clock the caller controls ends only when the caller moves it, so on a test
  * dispatcher, whose time moves only when its test advances it, a case never
@@ -106,7 +108,7 @@ public fun assertLivenessAxioms(spec: LivenessSpec) {
     for (schedule in spec.schedules) {
         val delays = schedule.filterIsInstance<Delay>().sumOf { it.ms }
         val boundMs = (spec.timeoutMs * (1 + spec.retryBudget) + delays) * SLACK
-        val transport = FaultyTransport(schedule, spec.respond, null, spec.context)
+        val transport = FaultyTransport(BRIDGED_CHANNELS, schedule, spec.respond, spec.context)
         val violation = try {
             spec.setup(transport).use { scenario ->
                 runBlocking(spec.context.minusKey(Job)) { delay(boundMs) }

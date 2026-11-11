@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
+import java.util.stream.Stream;
 import kotlin.time.TimeSource;
 import kotlinx.coroutines.Dispatchers;
 import kotlinx.serialization.json.Json;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import semiont.bus.Typed;
 import semiont.errors.SemiontError;
 import semiont.channels.Channels;
+import semiont.channels.ChannelsKt;
 import semiont.identifiers.AnnotationId;
 import semiont.identifiers.JobId;
 import semiont.identifiers.ResourceId;
@@ -70,7 +72,10 @@ final class NamespacesTest {
     private static final String CONTEXT = "{\"focus\":{\"kind\":\"resource\",\"resource\":{\"@context\":\"https://schema.org\",\"@id\":\"res-1\",\"name\":\"A resource\","
             + "\"representations\":[]}},\"graph\":{\"nodes\":[],\"edges\":[]},\"metadata\":{}}";
 
-    private final FaultyTransport transport = new FaultyTransport();
+    /** A full client's channels, and what is queued, which `job.queued()` reads. */
+    private static final List<String> CHANNELS = Stream.concat(ChannelsKt.getBRIDGED_CHANNELS().stream(), Stream.of(Channels.JOB_QUEUED.getName())).toList();
+
+    private final FaultyTransport transport = new FaultyTransport(CHANNELS);
     private final InMemoryContent content = new InMemoryContent();
     private final StubGateway gateway = new StubGateway();
     private final SemiontClient client = new TestClient(Dispatchers.getDefault(), TimeSource.Monotonic.INSTANCE, transport, content, gateway).getClient();

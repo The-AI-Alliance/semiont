@@ -52,8 +52,8 @@ private val NOBODY = Respond { _, _ -> null as JsonElement? }
 internal fun answering(answers: Answers, delayMs: Long?, clock: CoroutineContext): FaultyTransport = when (answers) {
     Answers.NEVER -> {
         check(delayMs == null) { "a transport that never answers holds no reply" }
-        FaultyTransport(listOf(DropReply), NOBODY, BRIDGED_CHANNELS, clock)
+        FaultyTransport(BRIDGED_CHANNELS, listOf(DropReply), NOBODY, clock)
     }
-    Answers.REFUSES -> FaultyTransport(listOfNotNull(delayMs?.let(::Delay)), REFUSE_UNSCRIPTED, BRIDGED_CHANNELS, clock)
-    Answers.JOBS -> FaultyTransport(listOfNotNull(delayMs?.let(::Delay)), JOBS, BRIDGED_CHANNELS, clock)
+    Answers.REFUSES -> FaultyTransport(BRIDGED_CHANNELS, listOfNotNull(delayMs?.let(::Delay)), REFUSE_UNSCRIPTED, clock)
+    Answers.JOBS -> FaultyTransport(BRIDGED_CHANNELS, listOfNotNull(delayMs?.let(::Delay)), JOBS, clock)
 }

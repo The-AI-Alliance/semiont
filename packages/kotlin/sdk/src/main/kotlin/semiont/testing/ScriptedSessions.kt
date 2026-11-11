@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import semiont.channels.BRIDGED_CHANNELS
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.errors.SignInError
@@ -51,8 +52,9 @@ private sealed interface Renewal {
 /**
  * A `SessionFactory` for tests of a registry (`semiont.registry.SemiontBrowser`)
  * and of what is built on one. Each session it builds is a real
- * `SemiontSession` over a `FaultyTransport` of its own, and the factory keeps
- * every transport it built, by knowledge base. A test scripts three things:
+ * `SemiontSession` over a `FaultyTransport` of its own, whose stream names a
+ * full client's channels (`BRIDGED_CHANNELS`), and the factory keeps every
+ * transport it built, by knowledge base. A test scripts three things:
  * what each knowledge base's gateway answers (`answer`, and `refuseWhen`),
  * who the gateway says a token is (`saysWho`), and what a renewal gives
  * (`queueRenewals`, `failRenewal`). Each refuses by name until it is
@@ -126,7 +128,7 @@ public class ScriptedSessions @JvmOverloads constructor(
     override suspend fun session(options: SessionFactoryOptions): OpenedSession {
         val kbId = options.kb.id
         refusesToBuild?.let { throw SessionError(SessionErrorCode.ConstructFailed, it, kbId) }
-        val transport = FaultyTransport(respond = { operation, payload -> answer.answer(kbId, operation, payload) }, context = context)
+        val transport = FaultyTransport(BRIDGED_CHANNELS, respond = { operation, payload -> answer.answer(kbId, operation, payload) }, context = context)
         transport.refuseWhen { operation, payload -> refusing?.refuse(kbId, operation, payload) }
         synchronized(built) { built += kbId to transport }
         val client = TestClient(context, clock, transport).client

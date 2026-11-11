@@ -61,10 +61,9 @@ internal fun annotation(id: String): JsonObject = obj(
  * annotation with it, unless a test has it do otherwise: the answers of a
  * `FaultyTransport` (`transport`) whose `wire` says what happens to each
  * request's reply in turn, every reply delivered when it says nothing. Its
- * stream names `channels`, every channel when none are given. Replies come a
- * turn after the request, on `clock`.
+ * stream names `channels`. Replies come a turn after the request, on `clock`.
  */
-internal class Desk(clock: CoroutineContext, wire: List<FaultAction> = emptyList(), channels: Collection<String>? = null) {
+internal class Desk(clock: CoroutineContext, channels: Collection<String>, wire: List<FaultAction> = emptyList()) {
     /** The jobs the dispatcher hands out, in order: none pending once they are spent. */
     val offered = ArrayDeque<JsonObject>()
 
@@ -80,7 +79,7 @@ internal class Desk(clock: CoroutineContext, wire: List<FaultAction> = emptyList
     /** The trace each claim was made in, in order: its id, or none. */
     val claimedIn = mutableListOf<String?>()
 
-    val transport = FaultyTransport(wire, ::answer, channels, clock).also { it.refuseWhen(::refusal) }
+    val transport = FaultyTransport(channels, wire, ::answer, clock).also { it.refuseWhen(::refusal) }
 
     /** A broadcast the gateway relays to this worker. */
     fun relay(channel: String, payload: JsonObject): Unit = transport.deliver(Frame(channel, payload))

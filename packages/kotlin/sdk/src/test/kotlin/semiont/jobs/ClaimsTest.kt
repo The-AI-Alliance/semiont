@@ -71,6 +71,9 @@ private val NOT_THERE = obj("message" to "Annotation not found")
 /** How long a test may take: one that waits for what never comes fails, rather than waits for good. */
 private val LIMIT = 10.seconds
 
+/** What a worker's stream names: what claiming reads, and what a commit awaits. */
+private val WORKER: List<String> = JOB_CLAIM_CHANNELS + JOB_COMMIT_CHANNELS
+
 /** How long a commit's requests wait here. */
 private const val QUICK = 200L
 
@@ -81,9 +84,9 @@ private fun made(id: String): Annotation = wireJson.decodeFromJsonElement(serial
  * background work, so a test that fails before it stops its claims leaves no
  * timer running for good.
  */
-private class World(test: TestScope, wire: List<FaultAction> = emptyList(), channels: Collection<String>? = null) {
+private class World(test: TestScope, channels: Collection<String>, wire: List<FaultAction> = emptyList()) {
     val clock = StandardTestDispatcher(test.testScheduler)
-    val desk = Desk(clock, wire, channels)
+    val desk = Desk(clock, channels, wire)
     private val gateway = Recording()
     val client = SemiontClient(desk.transport, gateway, gateway, ClientTiming(), null, clock + SupervisorJob(test.backgroundScope.coroutineContext.job), test.testScheduler.timeSource)
 
@@ -124,7 +127,7 @@ class ClaimsTest {
 
     @Test
     fun claimsNothingUntilReadThenClaimsAndHoldsTheJobAsTheRecordStatesIt() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         val cursor = obj("next" to 1200, "size" to 800, "found" to 4, "emitted" to 3, "errors" to 0)
         w.desk.offered += running("job-1", metadata = obj("retryCount" to 1, "maxRetries" to 3, "completedUnits" to JsonArray(listOf(JsonPrimitive("Person"))), "unitCursors" to obj("Place" to cursor)))
         val claims = w.client.job.claim(EVERYTHING)
@@ -147,7 +150,7 @@ class ClaimsTest {
 
     @Test
     fun claimsAgainWhenAJobIsSettledAndAnAnnouncementWhileOneIsHeldIsIgnored() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING)
         val job = held(claims)
@@ -163,7 +166,7 @@ class ClaimsTest {
 
     @Test
     fun aMatchingAnnouncementClaimsAndOneThatMatchesNoFilterDoesNot() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         val claims = w.client.job.claim(TAGGING)
         val reading = async { claims.next() }
         runCurrent()
@@ -182,7 +185,7 @@ class ClaimsTest {
 
     @Test
     fun anAnnouncementWhileAClaimIsInFlightEarnsExactlyOneMoreClaim() = runTest(timeout = LIMIT) {
-        val w = World(this, wire = listOf(DropReply, Deliver))
+        val w = World(this, WORKER, wire = listOf(DropReply, Deliver))
         val claims = w.client.job.claim(EVERYTHING, jobClaimTimeoutMs = 1_000)
         val reading = async { claims.next() }
         runCurrent()
@@ -204,7 +207,7 @@ class ClaimsTest {
 
     @Test
     fun aRefusedAnnouncementIsHeardAndClaimsAsAMatchingOneDoes() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         val claims = w.client.job.claim(TAGGING)
         val reading = async { claims.next() }
         runCurrent()
@@ -223,7 +226,7 @@ class ClaimsTest {
 
     @Test
     fun aRefusedAnnouncementWhileAClaimIsInFlightEarnsOneMoreClaim() = runTest(timeout = LIMIT) {
-        val w = World(this, wire = listOf(DropReply, Deliver))
+        val w = World(this, WORKER, wire = listOf(DropReply, Deliver))
         val claims = w.client.job.claim(EVERYTHING, jobClaimTimeoutMs = 1_000)
         val reading = async { claims.next() }
         runCurrent()
@@ -241,7 +244,7 @@ class ClaimsTest {
 
     @Test
     fun aRefusedAnnouncementWhileAJobIsHeldIsHeardAndIgnored() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING)
         val job = held(claims)
@@ -258,7 +261,7 @@ class ClaimsTest {
 
     @Test
     fun claimsWhenTheStreamOpensAndWhenItOpensAgain() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.transport.setState(ConnectionState.Connecting)
         val claims = w.client.job.claim(EVERYTHING)
         val reading = async { claims.next() }
@@ -279,7 +282,7 @@ class ClaimsTest {
 
     @Test
     fun aRefusalIsHandedOutWithItsCodeAndAReplyThatNamesNoJobIsRefusedHere() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.refusals += obj("message" to "no worker role", "code" to "unauthorized")
         w.desk.offered += obj("status" to "running")
         val claims = w.client.job.claim(EVERYTHING)
@@ -306,7 +309,7 @@ class ClaimsTest {
 
     @Test
     fun aClaimNotAnsweredInTimeIsReportedAsARefusal() = runTest(timeout = LIMIT) {
-        val w = World(this, wire = listOf(DropReply))
+        val w = World(this, WORKER, wire = listOf(DropReply))
         val claims = w.client.job.claim(EVERYTHING, jobClaimTimeoutMs = 500)
         val refused = claims.refused()
         val reading = async { claims.next() }
@@ -321,7 +324,7 @@ class ClaimsTest {
     @Test
     fun aStreamThatDoesNotNameWhatClaimingReadsCannotCarryAWorkersClaims() = runTest(timeout = LIMIT) {
         // The stream names both broadcasts and none of the claim's replies: only the claims can say it cannot carry them.
-        val w = World(this, channels = listOf(Channels.JOB_QUEUED.name, Channels.JOB_CANCEL_REQUESTED.name))
+        val w = World(this, listOf(Channels.JOB_QUEUED.name, Channels.JOB_CANCEL_REQUESTED.name))
         val claims = w.client.job.claim(EVERYTHING)
         val refused = assertThrows<BusRequestError> { claims.next() }
         assertEquals(BusRequestErrorCode.Unsubscribed, refused.reason)
@@ -334,7 +337,7 @@ class ClaimsTest {
 
     @Test
     fun aHeldJobSaysItsWholeLifecycleItself() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running("job-1", metadata = obj("retryCount" to 1))
         val cursor = obj("next" to 1200, "size" to 800, "found" to 4, "emitted" to 3, "errors" to 0)
         val claims = w.client.job.claim(EVERYTHING, markCommitTimeoutMs = QUICK)
@@ -363,7 +366,7 @@ class ClaimsTest {
 
     @Test
     fun aYieldJobFocusedOnAnAnnotationIsAnchoredToItAndSaysSo() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running(
             "job-1",
             "yield",
@@ -389,7 +392,7 @@ class ClaimsTest {
 
     @Test
     fun aFailureSaysWhetherItWillBeRetriedAndACancelSaysOnlyWhatItsCommandNames() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += listOf(running("job-1", metadata = obj("retryCount" to 0, "maxRetries" to 1)), running("job-2", metadata = obj("retryCount" to 1, "maxRetries" to 1)), running("job-3"))
         val claims = w.client.job.claim(EVERYTHING)
         held(claims).fail("the model timed out", completedUnits = listOf("Person"))
@@ -411,7 +414,7 @@ class ClaimsTest {
 
     @Test
     fun aCancellationThatNamesTheHeldJobIsSignalledAndAnyOtherIsNot() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING)
         val job = held(claims)
@@ -430,7 +433,7 @@ class ClaimsTest {
 
     @Test
     fun aWorkerThatStopsFailsTheJobItHoldsAndAJobLetGoUnsettledIsFailed() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += listOf(running("job-1"), running("job-2"))
         val claims = w.client.job.claim(EVERYTHING)
         held(claims).use { }
@@ -462,7 +465,7 @@ class ClaimsTest {
         }
         // The claim the settle makes.
         wire += Deliver
-        val w = World(this, wire = wire)
+        val w = World(this, WORKER, wire = wire)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING, markCommitTimeoutMs = QUICK)
         val job = held(claims)
@@ -503,7 +506,7 @@ class ClaimsTest {
 
     @Test
     fun aCommitTheRecordRefusesRaisesItsReasonAndNothingIsAskedOrObserved() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running("job-1")
         w.desk.refusingCommits = true
         val claims = w.client.job.claim(EVERYTHING, markCommitTimeoutMs = QUICK)
@@ -529,7 +532,7 @@ class ClaimsTest {
 
     @Test
     fun theQuestionIsAskedOfTheBatchsLastAnnotation() = runTest(timeout = LIMIT) {
-        val w = World(this, wire = listOf(Deliver, DropReply, Deliver, Deliver))
+        val w = World(this, WORKER, wire = listOf(Deliver, DropReply, Deliver, Deliver))
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING, markCommitTimeoutMs = QUICK)
         val job = held(claims)
@@ -588,7 +591,7 @@ class ClaimsTest {
 
     @Test
     fun vitalsSayWhatTheWorkerHoldsAndHasDoneAndASilentHeldJobIsStalled() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING, heldJobStallMs = 400, heldJobStallCheckMs = 100)
         val empty = claims.vitals()
@@ -624,7 +627,7 @@ class ClaimsTest {
 
     @Test
     fun aClaimIsMadeInNoTraceAndAHeldJobStatesTheTraceItsReplyArrivedIn() = runTest(timeout = LIMIT) {
-        val w = World(this)
+        val w = World(this, WORKER)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING)
         // The claims are read in a span, as a worker's code may read them.
