@@ -7,16 +7,16 @@ apt_options=(
   -o Acquire::https::Timeout=10
 )
 
-# GitHub's Ubuntu runners can stall on azure.archive.ubuntu.com before trying
-# their fallback mirror. Use the fallback directly for this package install.
+# GitHub's Ubuntu runners can fail to resolve archive.ubuntu.com. Use the
+# kernel.org Ubuntu mirror for this package install instead.
 if [[ -f /etc/apt/apt-mirrors.txt ]]; then
-  printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+  printf '%s\n' 'https://mirrors.edge.kernel.org/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
   echo 'APT mirror list:'
   cat /etc/apt/apt-mirrors.txt
 fi
 
-echo 'DNS lookup for archive.ubuntu.com:'
-getent ahostsv4 archive.ubuntu.com || true
+echo 'DNS lookup for mirrors.edge.kernel.org:'
+getent ahostsv4 mirrors.edge.kernel.org || true
 
 for attempt in 1 2; do
   echo "Installing Tesseract (attempt ${attempt}/2)"
