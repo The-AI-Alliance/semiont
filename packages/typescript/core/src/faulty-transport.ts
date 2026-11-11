@@ -30,7 +30,7 @@ import { EventBus } from './event-bus';
 import { BUS_OPERATIONS, REPLY_NAMES, type BusOperationKey } from './bus-operations';
 import { asDeclared, type FrameRefusal } from './bus';
 import { BusRequestError } from './bus-request';
-import { isResourceScopedChannel } from './bridged-channels';
+import { isResourceScopedChannel, RESOURCE_SCOPED_CHANNELS } from './bridged-channels';
 import { relayFrames } from './relay-frames';
 
 /** One wire behavior, applied to a single request-channel emit. */
@@ -72,9 +72,9 @@ export interface FaultyTransportConfig {
   /**
    * The global channels this transport is given, as a wire transport is
    * given its stream's: a frame of no scope reaches a reader only on one of
-   * them, a request's echo and a reply included; it bridges them into a
-   * client's bus, answers `isSubscribed` for them alone, and assumes none of
-   * its own. A full client's test gives it `BRIDGED_CHANNELS`; a worker's,
+   * them, a request's echo and a reply included; it bridges them, beside the
+   * resource-scoped channels, into a client's bus, answers `isSubscribed` for
+   * them alone, and assumes none of its own. A full client's test gives it `BRIDGED_CHANNELS`; a worker's,
    * the reply channels it awaits and what its claims read
    * (`JOB_CLAIM_CHANNELS`).
    */
@@ -355,7 +355,12 @@ export class FaultyTransport implements ITransport {
     };
   }
 
-  /** Publish on `bus` what `frames` delivers on the channels this transport was given, and on no other. */
+  /**
+   * Publish on `bus` what `frames` delivers on the channels this transport
+   * was given and on the resource-scoped ones, as a wire transport's bridge
+   * does: a resource's frame while its scope is held, with no scope, since
+   * the relay carries none.
+   */
   bridgeInto(bus: EventBus): void {
     relayFrames(
       this,
@@ -363,7 +368,7 @@ export class FaultyTransport implements ITransport {
         // A payload that is not its channel's is published as its refusal, as a wire transport's bridge does.
         emit: (channel, payload, envelope) => bus.emit(channel, asDeclared(channel, payload, envelope.correlationId), envelope),
       },
-      [...this.channels],
+      [...this.channels, ...RESOURCE_SCOPED_CHANNELS],
       // `EventBus.emit` is synchronous, so this never fires.
       (channel, error) => {
         throw new Error(`FaultyTransport: the bridge of ${channel as string} failed`, { cause: error });

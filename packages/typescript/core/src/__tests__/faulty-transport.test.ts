@@ -358,7 +358,7 @@ describe('what a reader is given', () => {
     transport.dispose();
   });
 
-  it('bridges what a reader is given on the channels it was given, and no other', () => {
+  it('bridges what a reader is given on the channels it was given, and on no other global channel', () => {
     const transport = new FaultyTransport({ channels: ['beckon:focus'] });
     const bridged = new EventBus();
     transport.bridgeInto(bridged);
@@ -371,6 +371,25 @@ describe('what a reader is given', () => {
 
     expect(focused).toEqual([FOCUS]);
     expect(sparkled).toEqual([]);
+    bridged.destroy();
+    transport.dispose();
+  });
+
+  it("bridges a resource's frame while its scope is held, with no scope, as a wire transport's bridge does", () => {
+    const OTHER = resourceId('res-2');
+    const transport = new FaultyTransport({ channels: ['beckon:focus'] });
+    const bridged = new EventBus();
+    transport.bridgeInto(bridged);
+    // The bus's frames of no scope: what the bridge publishes, for a reader of the client's bus.
+    const archives = collect(bridged.frames('mark:archived'));
+    const release = transport.subscribeToResource(RID);
+
+    void transport.emit('mark:archived', archived(RID), { scope: RID });
+    void transport.emit('mark:archived', archived(OTHER), { scope: OTHER });
+    release();
+    void transport.emit('mark:archived', archived(RID), { scope: RID });
+
+    expect(archives.map((frame) => frame.payload)).toEqual([archived(RID)]);
     bridged.destroy();
     transport.dispose();
   });

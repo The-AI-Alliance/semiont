@@ -578,10 +578,10 @@ async function invalidationWindow(_given: JsonObject | undefined, held: Held): P
   held.reading(client.browse.events(RESOURCE), 'the events query');
   return {
     counted: () => asked(transport, 'browse:events-requested'),
-    // Where the HTTP transport's bridge publishes a frame it reads on a resource's scope: on the client's bus with no
-    // scope, which no relay carries (relayFrames). The test transport bridges no scoped channel.
+    // Delivered on the resource's scope, which the events query holds. The test transport's bridge publishes it on the
+    // client's bus with no scope, which no relay carries (relayFrames), as the HTTP transport's bridge does.
     act: async () => {
-      client.bus.emit('mark:added', MARK_ADDED);
+      await transport.emit('mark:added', MARK_ADDED, { scope: RESOURCE });
     },
   };
 }
