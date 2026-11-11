@@ -146,18 +146,19 @@ type FaultyConfig struct {
 	// such a request is refused by name (RefuseUnscriptedOperation).
 	MakeResponse MakeResponse
 	// Channels is the global channels its stream names, as a transport's
-	// are: a frame it sends comes back to it only on one of them, and a read
-	// of any other global channel is refused, as unsubscribed. With none
-	// named, it names none. A client's stream names bus.BridgedChannels, and
-	// a worker's semiont.JobClaimChannels.
+	// are: a frame of no scope arrives only on one of them, and a read of
+	// any other global channel is refused, as unsubscribed. With none named,
+	// it names none. A client's stream names bus.BridgedChannels, and a
+	// worker's semiont.JobClaimChannels.
 	Channels []bus.Channel
 }
 
 // FaultyTransport is a semiont.Transport with no wire (see the file's
-// documentation). The i-th request meets its schedule's action; a frame it
-// is sent comes back to it, as a gateway gives a frame to every client whose
-// stream names its channel, only on a channel its stream names: a client's
-// stream carries the replies and the broadcasts, and not the requests. Its
+// documentation). The i-th request meets its schedule's action. What
+// arrives, a frame delivered, a reply, or a frame it is sent coming back to
+// it, arrives as a gateway sends a stream a frame: one of no scope on a
+// channel the stream names, and one on a resource's scope on a channel a
+// scope carries, while that scope is held. Anything else is dropped. Its
 // connection is open from the start. An emit reports no count of its
 // subscribers until a test says one (Counted).
 type FaultyTransport struct {
@@ -234,19 +235,41 @@ func (f *FaultyTransport) Counted(n int) {
 }
 
 // Deliver delivers frame as if the bus had carried it: to the request
-// awaiting it, and to whoever listens on its channel. A closed transport has
-// nobody to deliver to.
+// awaiting it, and to whoever listens on its channel. A frame its stream
+// does not carry is dropped, as a gateway never sends it. A closed
+// transport has nobody to deliver to.
 func (f *FaultyTransport) Deliver(frame semiont.Frame) {
+	if !f.carries(frame.Channel, frame.Scope) {
+		return
+	}
 	f.router.Route(frame)
 	f.hub.Deliver(frame)
 }
 
 // DeliverRefusal delivers refusal in place of a frame the bus carried and
 // this transport refused, as a transport does: to the request awaiting the
-// correlation id it carries, and to whoever listens on its channel.
+// correlation id it carries, and to whoever listens on its channel. A
+// refusal of a frame its stream does not carry is dropped, as the frame
+// would be.
 func (f *FaultyTransport) DeliverRefusal(refusal *semiont.FrameRefusal) {
+	if !f.carries(refusal.Channel, refusal.Scope) {
+		return
+	}
 	f.router.RouteRefusal(refusal)
 	f.hub.DeliverRefusal(refusal)
+}
+
+// carries reports whether its stream carries a frame on channel and scope:
+// one of no scope when its channel is one the stream names, and one on a
+// resource's scope when its channel is one a scope carries and the scope is
+// held.
+func (f *FaultyTransport) carries(channel bus.Channel, scope api.ResourceId) bool {
+	if scope.IsZero() {
+		return f.IsSubscribed(channel)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.held[scope] > 0 && slices.Contains(bus.ResourceScopedChannels, channel)
 }
 
 // ── What a test reads ───────────────────────────────────────────────────
@@ -317,7 +340,7 @@ func (f *FaultyTransport) Emit(_ context.Context, channel bus.Channel, payload m
 	operation, isOperation := bus.Operations[channel]
 	if !isOperation {
 		f.mu.Unlock()
-		f.echo(request)
+		f.Deliver(request)
 		return subscribers, counted, nil
 	}
 	action := FaultAction(Deliver{})
@@ -336,7 +359,7 @@ func (f *FaultyTransport) Emit(_ context.Context, channel bus.Channel, payload m
 	if err != nil {
 		return 0, false, err
 	}
-	f.echo(request)
+	f.Deliver(request)
 	switch action := action.(type) {
 	case Deliver:
 		f.arrive(reply, 1)
@@ -406,14 +429,6 @@ func (f *FaultyTransport) next(operation bus.Channel) (json.RawMessage, bool) {
 	return queued[0], true
 }
 
-// echo gives a frame this transport sent back to it, when its stream names
-// the frame's channel.
-func (f *FaultyTransport) echo(sent semiont.Frame) {
-	if f.IsSubscribed(sent.Channel) {
-		f.Deliver(sent)
-	}
-}
-
 // arrive delivers reply copies times; a reply on its way when the transport
 // closes is dropped.
 func (f *FaultyTransport) arrive(reply semiont.Frame, copies int) {
@@ -445,8 +460,8 @@ func (f *FaultyTransport) IsSubscribed(channel bus.Channel) bool {
 }
 
 // SubscribeToResource takes one hold on resource's scope, which Holds counts;
-// release lets it go, once. Nothing here is delivered by scope, so a hold
-// changes only the count of them.
+// release lets it go, once. A frame on the scope arrives from its first hold
+// to its last release, as a real transport's stream carries the scope.
 func (f *FaultyTransport) SubscribeToResource(resource api.ResourceId) (release func()) {
 	f.mu.Lock()
 	f.held[resource]++
