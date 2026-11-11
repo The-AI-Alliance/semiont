@@ -80,6 +80,16 @@ let store t key entry state =
   t.save key (match state with Ready value -> Some value | _ -> None);
   publish entry state
 
+let held entry =
+  match entry with
+  | { state = Ready _ | Failed _; _ } | { in_flight = Some _; _ } -> true
+  | _ -> false
+
+let settled entry =
+  Option.is_none entry.in_flight
+  && (not entry.invalidated)
+  && Option.fold ~none:true ~some:(fun again -> not !again) entry.trailing
+
 let rec fetch ?(force = false) ?(retry = true) t key entry =
   match entry.in_flight with
   | Some pending when not force -> pending
@@ -110,7 +120,7 @@ let rec fetch ?(force = false) ?(retry = true) t key entry =
                | Error reason, _ -> publish entry (Failed reason));
             if entry.invalidated then (
               entry.invalidated <- false;
-              if entry.observers <> [] then ignore (fetch t key entry)));
+              ignore (fetch t key entry)));
           Promise.resolve settle result);
       pending
 
@@ -149,7 +159,7 @@ let fresh t key =
 let refetch_held t key =
   if not (Promise.is_resolved t.stopped) then
     match Hashtbl.find_opt t.entries key with
-    | Some entry when entry.observers <> [] ->
+    | Some entry when held entry ->
         if Option.is_some entry.in_flight then entry.invalidated <- true
         else ignore (fetch t key entry)
     | _ -> ()
@@ -261,7 +271,7 @@ let refetch t ~on ~payload =
     List.iter
       (fun (key, entry) ->
         let query, resource, annotation = key in
-        if entry.observers <> [] then
+        if held entry then
           List.iter
             (fun ( _,
                    when_,
@@ -333,9 +343,8 @@ let get t key =
 
 let known t key =
   match Hashtbl.find_opt t.entries key with
-  | Some { state = Ready _ | Failed _; _ } -> true
-  | Some { in_flight = Some _; _ } -> true
-  | _ -> false
+  | Some entry -> held entry
+  | None -> false
 
 let keys t =
   Hashtbl.fold
@@ -355,13 +364,9 @@ let ready_for_replay t scope changes =
     |> List.of_seq
   in
   keys <> []
+  && Hashtbl.fold (fun _ entry all -> all && settled entry) t.entries true
   && List.for_all
-       (fun (key, entry) ->
-         entry.confirmed && entry.in_flight = None && (not entry.invalidated)
-         && Option.fold ~none:true
-              ~some:(fun again -> not !again)
-              entry.trailing
-         && List.mem_assoc key changes)
+       (fun (key, entry) -> entry.confirmed && List.mem_assoc key changes)
        keys
 
 let invalidate_all t = List.iter (invalidate t) (keys t)

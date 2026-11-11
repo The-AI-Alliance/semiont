@@ -563,27 +563,47 @@ let real_delivery () =
       Client.await_closed client)
     (fun () -> Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 2. checked_run)
 
-let replay_persistence () =
-  Eio_mock.Backend.run @@ fun () ->
-  Switch.run @@ fun sw ->
-  let clock, mono, _ = mock_clock () in
-  let storage = Testing.shared_storage () |> Testing.storage_context in
-  let store =
-    Storage_persister.make ~storage ~key:"cache" ~version:1 ~max_bytes:8192
-      ~clock
+let test_annotation =
+  Yojson.Safe.from_string
+    {|{"@context":"http://www.w3.org/ns/anno.jsonld","type":"Annotation","id":"ann-1","motivation":"highlighting","target":"res-1","created":"2026-01-01T00:00:00Z"}|}
+
+(* A positioned event on res-1 that carries [annotation], checked against its
+   channel's schema. *)
+let annotation_event channel ~sequence ~payload annotation =
+  let event =
+    `Assoc
+      [
+        ("id", `String ("event-" ^ string_of_int sequence));
+        ("type", `String (Bus_registry.name channel));
+        ("timestamp", `String "2026-01-01T00:00:00Z");
+        ("userId", `String "did:web:kb.example:users:tester");
+        ("resourceId", `String "res-1");
+        ("version", `Int 1);
+        ("metadata", `Assoc [ ("sequenceNumber", `Int sequence) ]);
+        ( "agent",
+          `Assoc
+            [
+              ("@type", `String "Person");
+              ("@id", `String "did:web:kb.example:users:tester");
+            ] );
+        ("payload", payload);
+        ("annotation", annotation);
+      ]
   in
+  check
+    (Result.is_ok
+       (Bus_registry.decode_received channel (Yojson.Safe.to_string event)))
+    "positioned test event is valid";
+  event
+
+let annotations_body listed =
+  Eio.Flow.string_source
+    (Yojson.Safe.to_string (`Assoc [ ("annotations", `List listed) ]))
+
+let kept_client ~sw ~clock ~store ~content ~global =
   let transport =
     Testing.transport ~sw ~clock ~schedule:[] ~respond:(fun ~channel:_ _ ->
         None)
-  in
-  let annotations = ref [] in
-  let content ~meth:_ ~path ~headers:_ ~body:_ =
-    check (path = "/resources/res-1/annotations") "fetches annotation list";
-    ( 200,
-      [],
-      Eio.Flow.string_source
-        (Yojson.Safe.to_string (`Assoc [ ("annotations", `List !annotations) ]))
-    )
   in
   let session =
     Session.start ~sw ~clock ~initial_token:(Some "test")
@@ -595,17 +615,42 @@ let replay_persistence () =
       ~key:(fun () -> "key")
       ~call:(Testing.call ~content transport)
       ~persister:store
-      ~global:
-        (Bus_registry.bridged_channels
-        @ [ Bus_registry.Channel Bus_registry.Channels.mark_added ])
+      ~global:(Bus_registry.bridged_channels @ global)
       ~on_event:ignore ~on_error:ignore ()
   in
-  let id = Identifiers.Resource_id.of_string "res-1" |> Result.get_ok in
-  let release =
-    Client.observe
-      (Client.Browse.annotations client id)
-      ~on_state:ignore ~on_close:ignore
+  (transport, session, client)
+
+let replay_persistence () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let clock, mono, _ = mock_clock () in
+  let storage = Testing.shared_storage () |> Testing.storage_context in
+  let store =
+    Storage_persister.make ~storage ~key:"cache" ~version:1 ~max_bytes:8192
+      ~clock
   in
+  let annotations = ref [] in
+  let asks = ref 0 in
+  let answered, answer = Promise.create () in
+  let content ~meth:_ ~path ~headers:_ ~body:_ =
+    match path with
+    | "/resources/res-1/annotations" ->
+        incr asks;
+        (* The first ask is answered at once; the event's refetch waits for
+           the test. *)
+        if !asks > 1 then Promise.await answered;
+        (200, [], annotations_body !annotations)
+    | "/resources/res-2/annotations" -> (200, [], annotations_body [])
+    | _ -> Alcotest.fail ("fetches an unexpected path " ^ path)
+  in
+  let transport, session, client =
+    kept_client ~sw ~clock ~store ~content
+      ~global:[ Bus_registry.Channel Bus_registry.Channels.mark_added ]
+  in
+  let id = Identifiers.Resource_id.of_string "res-1" |> Result.get_ok in
+  let other = Identifiers.Resource_id.of_string "res-2" |> Result.get_ok in
+  let query = Client.Browse.annotations client id in
+  let release = Client.observe query ~on_state:ignore ~on_close:ignore in
   Fun.protect
     ~finally:(fun () ->
       release ();
@@ -620,35 +665,33 @@ let replay_persistence () =
       check
         (Storage_persister.restore store key = Some (`List []))
         "initial cache saved";
-      let annotation =
-        Yojson.Safe.from_string
-          {|{"@context":"http://www.w3.org/ns/anno.jsonld","type":"Annotation","id":"ann-1","motivation":"highlighting","target":"res-1","created":"2026-01-01T00:00:00Z"}|}
-      in
-      let event =
-        Yojson.Safe.from_string
-          {|{"id":"event-1","type":"mark:added","timestamp":"2026-01-01T00:00:00Z","userId":"did:web:kb.example:users:tester","resourceId":"res-1","version":1,"metadata":{"sequenceNumber":1},"agent":{"@type":"Person","@id":"did:web:kb.example:users:tester"}}|}
-        |> J.to_assoc
-      in
+      let annotation = test_annotation in
       let payload =
-        `Assoc
-          (event
-          @ [
-              ("payload", `Assoc [ ("annotation", annotation) ]);
-              ("annotation", annotation);
-            ])
+        annotation_event Bus_registry.Channels.mark_added ~sequence:1
+          ~payload:(`Assoc [ ("annotation", annotation) ])
+          annotation
       in
-      check
-        (Result.is_ok
-           (Bus_registry.decode_received Bus_registry.Channels.mark_added
-              (Yojson.Safe.to_string payload)))
-        "positioned test event is valid";
       annotations := [ annotation ];
       Testing.deliver transport ~id:"res-1-1" ~scope:"res-1" "mark:added"
         payload;
       settle ();
       check
+        (Client.fresh (Client.Browse.annotations client other) = Ok (`List []))
+        "another kept query is read while the refetch is in flight";
+      advance mono 50;
+      settle ();
+      check
+        (Storage_persister.restore store ("annotations", Some "res-2", None)
+        = Some (`List []))
+        "a kept query saved while the refetch was in flight";
+      check
         (Storage_persister.positions store = [])
-        "position is not saved ahead of cache";
+        "a save during the event's refetch wrote its place";
+      let refetched = Fiber.fork_promise ~sw (fun () -> Client.fresh query) in
+      Promise.resolve answer ();
+      check
+        (Promise.await_exn refetched = Ok (`List [ annotation ]))
+        "the refetch's value is seen through fresh";
       advance mono 50;
       settle ();
       check
@@ -657,6 +700,140 @@ let replay_persistence () =
       check
         (Storage_persister.positions store = [ ("res-1", "res-1-1") ])
         "position and value committed together")
+
+(* A place is noted only once its event's handlers have taken it: a handler
+   that yields lets the debounced save run between them. *)
+let place_after_handlers () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let clock, mono, _ = mock_clock () in
+  let storage = Testing.shared_storage () |> Testing.storage_context in
+  let store =
+    Storage_persister.make ~storage ~key:"cache" ~version:1 ~max_bytes:8192
+      ~clock
+  in
+  let annotation = test_annotation in
+  let updated =
+    `Assoc
+      (J.to_assoc annotation @ [ ("modified", `String "2026-01-02T00:00:00Z") ])
+  in
+  let content ~meth:_ ~path ~headers:_ ~body:_ =
+    check (path = "/resources/res-1/annotations") "fetches annotation list";
+    (200, [], annotations_body [ annotation ])
+  in
+  let transport, session, client =
+    kept_client ~sw ~clock ~store ~content
+      ~global:[ Bus_registry.Channel Bus_registry.Channels.mark_body_updated ]
+  in
+  let suspended, suspend = Promise.create () in
+  let resumed, resume = Promise.create () in
+  let id = Identifiers.Resource_id.of_string "res-1" |> Result.get_ok in
+  let release =
+    Client.observe
+      (Client.Browse.annotations client id)
+      ~on_state:(function
+        | Live_query.Ready (`List [ value ]) when value = updated ->
+            Promise.resolve suspend ();
+            Promise.await resumed
+        | _ -> ())
+      ~on_close:ignore
+  in
+  Fun.protect
+    ~finally:(fun () ->
+      release ();
+      Client.close client;
+      Client.await_closed client;
+      Session.close session)
+    (fun () ->
+      settle ();
+      let payload =
+        annotation_event Bus_registry.Channels.mark_body_updated ~sequence:2
+          ~payload:
+            (`Assoc
+               [ ("annotationId", `String "ann-1"); ("operations", `List []) ])
+          updated
+      in
+      Testing.deliver transport ~id:"res-1-2" ~scope:"res-1" "mark:body-updated"
+        payload;
+      Promise.await suspended;
+      advance mono 50;
+      settle ();
+      check
+        (Storage_persister.restore store ("annotations", Some "res-1", None)
+        = Some (`List [ updated ]))
+        "the event's write was saved while its handler waited";
+      check
+        (Storage_persister.positions store = [])
+        "a save while the event's handlers ran wrote its place";
+      Promise.resolve resume ();
+      settle ();
+      check
+        (Subscription.positions (Client.subscription client)
+        = [ ("res-1", "res-1-2") ])
+        "the place was not noted once the handlers had run")
+
+(* CACHE-SEMANTICS B20: a key that holds a value is refreshed whether or not
+   anyone observes it. *)
+let unobserved_refresh () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let clock, _, _ = mock_clock () in
+  let loads = ref 0 in
+  let query =
+    Live_query.make ~sw ~clock
+      ~load:(fun _ ->
+        incr loads;
+        Ok (`Int !loads))
+      ~hold:(fun _ () -> ())
+      ()
+  in
+  let key = ("annotations", Some "res-1", None) in
+  Fun.protect
+    ~finally:(fun () -> Live_query.close query)
+    (fun () ->
+      check (Live_query.fresh query key = Ok (`Int 1)) "the key is read once";
+      Live_query.refetch query ~on:"mark:added"
+        ~payload:(Some (`Assoc [ ("resourceId", `String "res-1") ]));
+      settle ();
+      check
+        (Live_query.get query key = Some (`Int 2))
+        "an event left stale a value no one observes")
+
+(* CACHE-SEMANTICS B17: a place waits for every kept key, not only the keys of
+   its own scope. *)
+let replay_waits_for_every_key () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let clock, _, _ = mock_clock () in
+  let answered, answer = Promise.create () in
+  let listed : Yojson.Safe.t = `List [] in
+  let query =
+    Live_query.make ~sw ~clock
+      ~load:(fun (_, resource, _) ->
+        if resource = Some "res-2" then Promise.await answered;
+        Ok listed)
+      ~hold:(fun _ () -> ())
+      ()
+  in
+  let own = ("annotations", Some "res-1", None) in
+  let other = ("annotations", Some "res-2", None) in
+  let changes = [ (own, Some listed) ] in
+  Fun.protect
+    ~finally:(fun () -> Live_query.close query)
+    (fun () ->
+      check (Live_query.fresh query own = Ok listed) "the scope's key is read";
+      let read =
+        Fiber.fork_promise ~sw (fun () -> Live_query.fresh query other)
+      in
+      settle ();
+      check
+        (not (Live_query.ready_for_replay query "res-1" changes))
+        "a place was ready while another scope's key was fetching";
+      Promise.resolve answer ();
+      check (Promise.await_exn read = Ok listed) "the other key is read";
+      check
+        (Live_query.ready_for_replay query "res-1" changes)
+        "a place stayed held back once every key had settled")
 
 let observe_during_invalidation () =
   Eio_main.run @@ fun _ ->
@@ -704,6 +881,12 @@ let () =
           Alcotest.test_case "atomic cache documents" `Quick persistence;
           Alcotest.test_case "cache and replay position are co-written" `Quick
             replay_persistence;
+          Alcotest.test_case "a place is noted once its handlers ran" `Quick
+            place_after_handlers;
+          Alcotest.test_case "an event refreshes an unobserved value" `Quick
+            unobserved_refresh;
+          Alcotest.test_case "a place waits for every kept key" `Quick
+            replay_waits_for_every_key;
         ] );
       ( "authorization",
         [

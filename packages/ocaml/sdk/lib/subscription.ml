@@ -279,19 +279,25 @@ let advance_position t scope id =
       then Hashtbl.replace t.positions key id
 
 let first_delivery t = function
-  | Ok (Wire_stream.Frame { id = Some id; route; channel; payload; _ }) ->
+  | Ok (Wire_stream.Frame { id = Some id; _ }) ->
       if Hashtbl.mem t.seen id then false
       else (
         Hashtbl.add t.seen id ();
         Queue.add id t.recent;
         if Queue.length t.recent > Client_timing.seen_event_ids_count then
           Hashtbl.remove t.seen (Queue.take t.recent);
-        (match (Bus_registry.delivery channel, route.scope, payload) with
-        | Some Bus_registry.Positioned, Some scope, Ok _ ->
-            advance_position t scope id
-        | _ -> ());
         true)
   | _ -> true
+
+(* After the handlers: a save that runs while one of them yields cannot write
+   a place ahead of the refetch its event starts. *)
+let note_position t = function
+  | Ok (Wire_stream.Frame { id = Some id; route; channel; payload = Ok _; _ })
+    -> (
+      match (Bus_registry.delivery channel, route.scope) with
+      | Some Bus_registry.Positioned, Some scope -> advance_position t scope id
+      | _ -> ())
+  | _ -> ()
 
 let dispatch t event =
   if first_delivery t event then
@@ -302,7 +308,8 @@ let dispatch t event =
             (fun receive -> receive event)
             (Hashtbl.find_opt t.pending id)
       | None -> ());
-      t.on_event event
+      t.on_event event;
+      note_position t event
     in
     match event with
     | Ok (Wire_stream.Frame { route; payload = Ok _; _ }) ->
