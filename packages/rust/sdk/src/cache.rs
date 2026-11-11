@@ -20,7 +20,8 @@
 //!   failure and decides.
 //!
 //! `invalidate` asks again and keeps showing the value meanwhile; `set`
-//! writes a value that is known; `remove` ends a key whose entity is gone.
+//! writes a value that is known; `patch` writes part of one; `remove` ends a
+//! key whose entity is gone.
 //! `dispose` is terminal: every observer's stream ends, and nothing is
 //! fetched, retried or failed after it.
 //!
@@ -179,6 +180,9 @@ enum Validation {
     Again,
 }
 
+/// A change to part of a value (B13b).
+type Patch<V> = Box<dyn Fn(&mut V) + Send + Sync>;
+
 /// A fetch in flight for a key.
 struct Flight<V> {
     number: u64,
@@ -186,13 +190,17 @@ struct Flight<V> {
     outcome: Outcome<V>,
     /// The live view's ask that waits on it, when one does.
     validation: Option<Validation>,
+    /// The patches made while it is in flight, made in order to its answer
+    /// when that is written (B13b).
+    patches: Vec<Patch<V>>,
 }
 
 struct Key<V> {
     state: watch::Sender<CacheState<V>>,
     /// The key's current fetch, until it settles: the one fetch whose answer
-    /// is written (B9). An `invalidate` lets go of it without waiting, so a
-    /// fetch whose answer will never come cannot hold the key.
+    /// is written (B9). An `invalidate`, a `set` or a `remove` lets go of it
+    /// without waiting, so a fetch whose answer will never come cannot hold
+    /// the key.
     in_flight: Option<Flight<V>>,
 }
 
@@ -388,52 +396,61 @@ where
         let key = key.clone();
         tokio::spawn(async move {
             let fetched = (cache.fetch)(key.clone()).await;
-            cache.settled(&key, number, &fetched);
-            let _ = answered.send(Some(fetched));
+            let _ = answered.send(Some(cache.settled(&key, number, fetched)));
         });
         Flight {
             number,
             outcome,
             validation: None,
+            patches: Vec::new(),
         }
     }
 
-    /// The fetch numbered `number` for `key` settled with `fetched`. Only the
-    /// key's current fetch writes (B9): one that an invalidate, a removal or
-    /// disposal let go of answers whoever awaited it, and changes nothing
-    /// here. The current one, in this one step, stops being in flight, writes
-    /// a value it brought, and ends the live view's ask that waits on it: a
-    /// first ask that failed is asked once more (B14), and a second that
-    /// fails fails a key that holds no value (B15). So a key whose current
-    /// fetch has settled is not fetching, and one whose ask goes on is (B17).
+    /// The fetch numbered `number` for `key` settled with `fetched`: what
+    /// whoever awaited it is given. Only the key's current fetch writes (B9):
+    /// one that an invalidate, a write, a removal or disposal let go of
+    /// answers with what it was answered, and changes nothing here. The
+    /// current one, in this one step, stops being in flight, writes a value it
+    /// brought with the patches made while it was in flight made to it
+    /// (B13b), which is what it answers, and ends the live view's ask that
+    /// waits on it: a first ask that failed is asked once more (B14), and a
+    /// second that fails fails a key that holds no value (B15). So a key whose
+    /// current fetch has settled is not fetching, and one whose ask goes on is
+    /// (B17).
     fn settled(
         self: &Arc<Self>,
         key: &K,
         number: u64,
-        fetched: &Result<V, Arc<dyn std::error::Error + Send + Sync>>,
-    ) {
+        fetched: Result<V, Arc<dyn std::error::Error + Send + Sync>>,
+    ) -> Result<V, Arc<dyn std::error::Error + Send + Sync>> {
         let mut state = self.state();
         // Disposed while it was in flight.
         let Some(held) = state.keys.get_mut(key) else {
-            return;
+            return fetched;
         };
         let Some(current) = held.in_flight.take_if(|flight| flight.number == number) else {
-            return;
+            return fetched;
         };
         match (fetched, current.validation) {
-            (Ok(value), _) => {
+            (Ok(mut value), _) => {
+                for change in &current.patches {
+                    change(&mut value);
+                }
                 held.state.send_replace(CacheState::Ready(value.clone()));
                 self.owe_a_save(&mut state);
+                Ok(value)
             }
-            (Err(_), Some(Validation::First)) => {
+            (Err(failure), Some(Validation::First)) => {
                 self.fetching(&mut state, key).validation = Some(Validation::Again);
+                Err(failure)
             }
             (Err(failure), Some(Validation::Again)) => {
                 if !held.state.borrow().is_ready() {
                     held.state.send_replace(CacheState::Failed(failure.clone()));
                 }
+                Err(failure)
             }
-            (Err(_), None) => {}
+            (Err(failure), None) => Err(failure),
         }
     }
 }
@@ -740,20 +757,52 @@ where
         self.inner.owe_a_save(&mut state);
     }
 
-    /// The key's value is known: write it, asking for nothing.
+    /// The key's value is known: write it, asking for nothing. The fetch in
+    /// flight is let go of: it was asked before the write, so its answer is
+    /// not written (B13b, B9).
     pub fn set(&self, key: &K, value: V) {
         let mut state = self.inner.state();
         if state.disposed {
             return;
         }
         state.kept.remove(key);
-        state
+        let held = state
             .keys
             .entry(key.clone())
-            .or_insert_with(|| Key::new(CacheState::Pending))
-            .state
-            .send_replace(CacheState::Ready(value));
+            .or_insert_with(|| Key::new(CacheState::Pending));
+        held.in_flight = None;
+        held.state.send_replace(CacheState::Ready(value));
         self.inner.owe_a_save(&mut state);
+    }
+
+    /// Write part of the key's value (B13b): `change` makes the value the
+    /// patched one. It is made at once to the value the key holds, and kept
+    /// with the fetch in flight, to be made to its answer, after the patches
+    /// made before it, when that answer is written; it goes with that fetch.
+    /// A key that holds neither is left as it is (B20). A value an earlier
+    /// cache kept is still asked for again the first time it is observed.
+    /// `change` runs while the cache is locked, so it must not use the cache.
+    pub fn patch(&self, key: &K, change: impl Fn(&mut V) + Send + Sync + 'static) {
+        let mut state = self.inner.state();
+        if state.disposed {
+            return;
+        }
+        let Some(held) = state.keys.get_mut(key) else {
+            return;
+        };
+        let patched = held.state.send_if_modified(|current| match current {
+            CacheState::Ready(value) => {
+                change(value);
+                true
+            }
+            CacheState::Pending | CacheState::Failed(_) => false,
+        });
+        if let Some(flight) = &mut held.in_flight {
+            flight.patches.push(Box::new(change));
+        }
+        if patched {
+            self.inner.owe_a_save(&mut state);
+        }
     }
 
     /// Whether what the cache holds may be ahead of what it has saved: a
