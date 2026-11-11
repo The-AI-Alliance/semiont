@@ -8,6 +8,7 @@
 
 use semiont::cache::CacheState;
 use semiont::cached::Observed;
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::namespaces::{Delegation, ResourceFilters};
 use semiont::refresh::CacheQuery;
@@ -215,7 +216,7 @@ impl Live {
                 base_url: text(args, "baseUrl")?.to_owned(),
                 token: tokens,
                 refresher: None,
-                channels: None,
+                channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
                 http: reqwest::Client::new(),
                 timing: wire,
                 random: None,

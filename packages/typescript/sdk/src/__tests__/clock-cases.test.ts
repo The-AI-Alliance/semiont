@@ -16,6 +16,7 @@ import {
   accessToken,
   annotationId,
   baseUrl,
+  BRIDGED_CHANNELS,
   Bus,
   BusRequestError,
   jobId,
@@ -31,14 +32,15 @@ import {
 } from '@semiont/core';
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import { createCache, type CachePersister } from '../cache';
-import type { HeldJob } from '../claims';
+import { JOB_CLAIM_CHANNELS, type HeldJob } from '../claims';
+import { SemiontClient } from '../client';
 import { subscribeDiscovery, type DiscoveryReadResult, type DiscoveryTransport } from '../discovery';
 import { httpKb } from '../session/knowledge-base';
 import { signInWithDeviceGrant } from '../session/oauth';
 import { SemiontSession, type UserInfo } from '../session/semiont-session';
 import { InMemorySessionStorage } from '../session/session-storage';
 import { keptIn, setStoredSession } from '../session/storage';
-import { createTestClient, refuseUnscriptedOperation, type FaultyTransport } from '../testing';
+import { createTestClient, FaultyTransport, inMemoryContent, refuseUnscriptedOperation } from '../testing';
 import { mockAnnotation } from './fixtures/annotation';
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -263,6 +265,7 @@ class Gateway {
     const transport = new HttpTransport({
       baseUrl: baseUrl(GATEWAY),
       token$: watched(new BehaviorSubject<AccessToken | null>(accessToken('a-token'))),
+      channels: BRIDGED_CHANNELS,
       fetch: this.fetch,
     });
     this.held.later(() => transport.dispose());
@@ -505,7 +508,9 @@ function answering(held: Held, answers: Partial<Record<BusOperationKey, (payload
 }
 
 async function heldJobStall(_given: JsonObject | undefined, held: Held): Promise<Subject> {
-  const { client } = createTestClient({ transport: { makeResponse: answering(held, { 'job:claim': () => CLAIMED }) } });
+  // A worker's transport names what its claims read, and no more.
+  const transport = new FaultyTransport({ channels: JOB_CLAIM_CHANNELS, makeResponse: answering(held, { 'job:claim': () => CLAIMED }) });
+  const client = new SemiontClient(transport, inMemoryContent());
   held.later(() => client.dispose());
   const claims = client.job.claim({ accepts: MARK_JOBS });
   let job: HeldJob | undefined;
@@ -573,10 +578,10 @@ async function invalidationWindow(_given: JsonObject | undefined, held: Held): P
   held.reading(client.browse.events(RESOURCE), 'the events query');
   return {
     counted: () => asked(transport, 'browse:events-requested'),
-    // Where the HTTP transport's bridge publishes a frame it reads on a resource's scope: on the client's bus with no
-    // scope, which no relay carries (relayFrames). The test transport bridges no scoped channel.
+    // Delivered on the resource's scope, which the events query holds. The test transport's bridge publishes it on the
+    // client's bus with no scope, which no relay carries (relayFrames), as the HTTP transport's bridge does.
     act: async () => {
-      client.bus.emit('mark:added', MARK_ADDED);
+      await transport.emit('mark:added', MARK_ADDED, { scope: RESOURCE });
     },
   };
 }
@@ -644,6 +649,38 @@ async function jobFollower(_given: JsonObject | undefined, held: Held): Promise<
   };
 }
 
+/** A client's `job.pollUntilComplete` of one job, naming no interval and no limit, over a transport that answers every status ask with the job running. */
+function polling(held: Held): { transport: FaultyTransport; poll: Promise<unknown> } {
+  const { client, transport } = createTestClient({
+    transport: { makeResponse: answering(held, { 'job:status-requested': () => JOB_RUNNING }) },
+  });
+  held.later(() => client.dispose());
+  return { transport, poll: client.job.pollUntilComplete(jobId('job-1')) };
+}
+
+async function jobPoll(_given: JsonObject | undefined, held: Held): Promise<Subject> {
+  const { transport, poll } = polling(held);
+  // How it ends is what jobPollTimeout counts.
+  poll.then(
+    () => held.wrong.push('the poll ended'),
+    () => {},
+  );
+  return { counted: () => asked(transport, 'job:status-requested') };
+}
+
+async function jobPollTimeout(_given: JsonObject | undefined, held: Held): Promise<Subject> {
+  const { poll } = polling(held);
+  let timedOut = 0;
+  poll.then(
+    () => held.wrong.push('the poll ended'),
+    (error: unknown) => {
+      if (error instanceof BusRequestError && error.code === 'bus.timeout') timedOut += 1;
+      else held.wrong.push(`the poll failed otherwise: ${said(error)}`);
+    },
+  );
+  return { counted: () => timedOut };
+}
+
 /** How this SDK builds each subject the table names. */
 const SUBJECTS: Record<string, Build> = {
   refusedStream,
@@ -663,6 +700,8 @@ const SUBJECTS: Record<string, Build> = {
   unansweredEmit,
   refusedBusRequest,
   timedOutBusRequest,
+  jobPoll,
+  jobPollTimeout,
 };
 
 // ── A case, played ──────────────────────────────────────────────────────

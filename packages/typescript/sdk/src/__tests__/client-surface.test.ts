@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { Observable } from 'rxjs';
 import {
   annotationId,
+  BRIDGED_CHANNELS,
   jobId,
   resourceId,
   type AnnotationId,
@@ -32,9 +33,9 @@ import {
   type components,
 } from '@semiont/core';
 import { CacheObservable, DelegationObservable, StreamObservable, UploadObservable } from '../awaitable';
-import { ClaimsObservable, type ClaimOptions } from '../claims';
-import type { SemiontClient } from '../client';
-import { createTestClient } from '../testing';
+import { ClaimsObservable, JOB_CLAIM_CHANNELS, type ClaimOptions } from '../claims';
+import { SemiontClient } from '../client';
+import { FaultyTransport } from '../testing';
 import type {
   AuthNamespace,
   BeckonNamespace,
@@ -308,10 +309,9 @@ function recordingGateway(calls: Recorded[]): IGatewayOperations {
 function world() {
   const content: Recorded[] = [];
   const gateway: Recorded[] = [];
-  const { client, transport } = createTestClient({
-    content: recordingContent(content),
-    gateway: recordingGateway(gateway),
-  });
+  // A client that is every namespace, a worker's claims among them: a full client's channels, and what claims read.
+  const transport = new FaultyTransport({ channels: [...BRIDGED_CHANNELS, ...JOB_CLAIM_CHANNELS] });
+  const client = new SemiontClient(transport, recordingContent(content), recordingGateway(gateway));
   const wire = vi.spyOn(transport, 'emit');
   const own = vi.spyOn(client.bus, 'emit');
   return { client, transport, wire, own, content, gateway };

@@ -14,7 +14,7 @@
 use crate::actor::{self, Command};
 use rand_core::Rng;
 use semiont::bus_log::bus_log;
-use semiont::channels::{BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS};
+use semiont::channels::RESOURCE_SCOPED_CHANNELS;
 use semiont::errors::{BusRequestError, TransportError, TransportErrorCode};
 use semiont::event_bus::EventBus;
 use semiont::retry::{self, RetryFacts, RetryPolicy, retry_after, retry_with_backoff};
@@ -67,8 +67,8 @@ pub(crate) const MALFORMED: &str = "it is malformed";
 /// schema, or what every SDK says of the first fault that keeps it from
 /// being one.
 pub(crate) fn declared<T: DeserializeOwned + Schema>(body: &[u8]) -> Result<T, String> {
-    let value: Value = serde_json::from_slice(body).map_err(|_| MALFORMED.to_owned())?;
-    if let Some(said) = semiont::fault_said::<T>(&value) {
+    let mut value: Value = serde_json::from_slice(body).map_err(|_| MALFORMED.to_owned())?;
+    if let Some(said) = semiont::fault_said::<T>(&mut value) {
         return Err(said);
     }
     serde_json::from_value(value).map_err(|_| MALFORMED.to_owned())
@@ -137,11 +137,12 @@ pub struct HttpTransportConfig {
     /// once per request whose credential is refused: a 401, or a 429
     /// `refusal-rate`. With none, a refused credential is final at once.
     pub refresher: Option<Arc<dyn TokenRefresher>>,
-    /// The global channels the stream names. `None` is every channel a
-    /// client hears (`BRIDGED_CHANNELS`); a process that awaits only some
-    /// operations names their reply channels, and is not sent every other
-    /// client's replies.
-    pub channels: Option<Vec<String>>,
+    /// The global channels the stream names: a full client names every
+    /// channel a client hears (`semiont::channels::BRIDGED_CHANNELS`); a
+    /// process that awaits only some operations names their reply channels,
+    /// and is not sent every other client's replies. Nothing is assumed: a
+    /// transport hears what it is given.
+    pub channels: Vec<String>,
     pub http: reqwest::Client,
     pub timing: Timing,
     /// What the jitter of the stream's reconnects and of each emit's retries
@@ -212,12 +213,7 @@ impl Shared {
             token: config.token,
             refresher: config.refresher,
             client_id: uuid::Uuid::new_v4().to_string(),
-            global: config.channels.unwrap_or_else(|| {
-                BRIDGED_CHANNELS
-                    .iter()
-                    .map(|channel| (*channel).to_owned())
-                    .collect()
-            }),
+            global: config.channels,
             timing: config.timing,
             random: config.random,
             hub: FrameHub::new(),

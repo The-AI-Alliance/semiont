@@ -24,6 +24,7 @@ import semiont.cache.CacheState;
 import semiont.cache.Cached;
 import semiont.bus.Typed;
 import semiont.channels.Channels;
+import semiont.channels.ChannelsKt;
 import semiont.errors.BusRequestError;
 import semiont.errors.SpanRefusal;
 import semiont.errors.SpanRefusedError;
@@ -59,7 +60,7 @@ final class ClientTest {
     private static final class Opened implements AutoCloseable {
         final Gateway gateway = new Gateway();
         // The stream opens once there is a token to open it with.
-        final HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"));
+        final HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"), ChannelsKt.getBRIDGED_CHANNELS());
         final HttpContentTransport content = new HttpContentTransport(transport);
         final SemiontClient client = new SemiontClient(transport, content, transport);
 

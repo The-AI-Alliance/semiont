@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { EventBus, baseUrl, resourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, EventBus, baseUrl, resourceId } from '@semiont/core';
 import { mockFetch, mockSSEResponse, sseChunkId } from './helpers/mock-conn';
 import { RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
 import { HttpTransport } from '../http-transport';
@@ -39,6 +39,7 @@ describe('multi-scope over the real HttpTransport + ActorStateUnit', () => {
     const token$ = new BehaviorSubject<string | null>('tok');
     const transport = new HttpTransport({
       baseUrl: baseUrl('http://localhost:4000'),
+      channels: BRIDGED_CHANNELS,
       token$: token$ as never,
     });
     const bus = new EventBus();

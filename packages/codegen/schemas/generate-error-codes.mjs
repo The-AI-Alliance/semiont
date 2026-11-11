@@ -54,7 +54,7 @@ export const busRequestCodeByWireCode = {
 ${[...busByWire].map(([wire, code]) => `  ${JSON.stringify(wire)}: ${JSON.stringify(code)},`).join('\n')}
 } as const;
 
-/** What a failure becomes when its code is one this vocabulary does not name, or absent. */
+/** What a failure becomes when it states no code, or one CommandError does not list, which is read as none. */
 export const unrecognizedFailureCode = ${JSON.stringify(unrecognized.code)} as const;
 
 ${union('TransportErrorCode', table.transport, transportCodes)}

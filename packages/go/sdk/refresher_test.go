@@ -49,14 +49,16 @@ func frameOf(t *testing.T, channel bus.Channel, payload any, envelope semiont.En
 
 // eventOf is an event that is trigger, about resource and its annotation of;
 // when is which way a split channel's event comes. An unreadable one is about
-// nothing.
+// nothing. One on a channel a resource's scope carries comes on resource's
+// scope, as a gateway sends it.
 func eventOf(t *testing.T, trigger semiont.CacheRefreshTrigger, when semiont.CacheRefreshWhen, resource, of string) semiont.Frame {
 	t.Helper()
+	channel := bus.Channel(trigger)
 	var payload map[string]any
 	var envelope semiont.Envelope
 	switch trigger {
 	case semiont.CacheRefreshUnreadable:
-		return frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, envelope)
+		channel, payload = bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}
 	case semiont.CacheRefreshBusResumeGap:
 		payload = map[string]any{"scope": resource, "lastSeenId": "p-" + resource + "-1", "reason": "retention-exceeded"}
 	case semiont.CacheRefreshMarkDeleteOk:
@@ -78,7 +80,10 @@ func eventOf(t *testing.T, trigger semiont.CacheRefreshTrigger, when semiont.Cac
 	default:
 		t.Fatalf("%s is no event this test can make", trigger)
 	}
-	return frameOf(t, bus.Channel(trigger), payload, envelope)
+	if slices.Contains(bus.ResourceScopedChannels, channel) {
+		envelope.Scope = resourceOf(t, resource)
+	}
+	return frameOf(t, channel, payload, envelope)
 }
 
 // ofAResource is the queries everything holds two of: one of each resource,
@@ -263,6 +268,12 @@ func TestB19TheRefetchesEventsAskOfOneKeyInsideAWindowAreOneRefetch(t *testing.T
 
 func TestB20AnEventAsksAgainOnlyForWhatTheCacheHolds(t *testing.T) {
 	w := newLiveWorld(t, liveSetup{})
+	// The stream carries both resources' scopes whatever the cache holds, so
+	// every event below reaches the client, and what is asked is the cache's
+	// doing alone.
+	for _, resource := range []string{"res-1", "res-2"} {
+		t.Cleanup(w.transport.SubscribeToResource(resourceOf(t, resource)))
+	}
 	// Nothing is held: no event of any kind asks for anything.
 	for trigger := range semiont.CacheRefreshTable {
 		if trigger != semiont.CacheRefreshReopened {
@@ -317,17 +328,17 @@ func TestAnEventThatCannotBeReadAsksAgainForEverythingHeld(t *testing.T) {
 		asks  map[string]int
 	}{
 		{"a frame refused", func(t *testing.T, w *liveWorld) {
-			w.transport.DeliverRefusal(&semiont.FrameRefusal{Channel: bus.MarkAdded.Channel(), Member: "payload.resourceId", Reason: bus.FrameRefusalReasonMalformed})
+			w.transport.DeliverRefusal(&semiont.FrameRefusal{Channel: bus.MarkAdded.Channel(), Member: "payload.resourceId", Reason: bus.FrameRefusalReasonMalformed, Envelope: semiont.Envelope{Scope: resourceOf(t, "res-1")}})
 		}, expectedAsks(unreadable.Refetches, unreadable.Reach)},
 		{"a payload that is not its channel's", func(t *testing.T, w *liveWorld) {
-			w.transport.Deliver(frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, semiont.Envelope{}))
+			w.transport.Deliver(frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, semiont.Envelope{Scope: resourceOf(t, "res-1")}))
 		}, expectedAsks(unreadable.Refetches, unreadable.Reach)},
 		{"a member that is not what its row names", func(t *testing.T, w *liveWorld) {
-			w.transport.Deliver(frameOf(t, bus.MarkRemoved.Channel(), recordedEvent(string(semiont.CacheRefreshMarkRemoved), "res-1", map[string]any{"annotationId": "not an id!"}), semiont.Envelope{}))
+			w.transport.Deliver(frameOf(t, bus.MarkRemoved.Channel(), recordedEvent(string(semiont.CacheRefreshMarkRemoved), "res-1", map[string]any{"annotationId": "not an id!"}), semiont.Envelope{Scope: resourceOf(t, "res-1")}))
 		}, expectedAsks(unreadable.Refetches, unreadable.Reach)},
 		// A member its row names that is absent names none: the event is read, and names no annotation.
 		{"a member its row names that is absent", func(t *testing.T, w *liveWorld) {
-			w.transport.Deliver(frameOf(t, bus.MarkRemoved.Channel(), recordedEvent(string(semiont.CacheRefreshMarkRemoved), "res-1", map[string]any{}), semiont.Envelope{}))
+			w.transport.Deliver(frameOf(t, bus.MarkRemoved.Channel(), recordedEvent(string(semiont.CacheRefreshMarkRemoved), "res-1", map[string]any{}), semiont.Envelope{Scope: resourceOf(t, "res-1")}))
 		}, expectedAsks(removed.Refetches, removed.Reach)},
 		{"a frame on a channel that is no trigger", func(t *testing.T, w *liveWorld) {
 			w.transport.Deliver(frameOf(t, bus.BeckonFocus.Channel(), map[string]any{"resourceId": "res-1", "annotationId": "ann-1"}, semiont.Envelope{}))
@@ -419,7 +430,7 @@ func TestB13bAnEventThatCarriesAnAnnotationWritesItWhereItWasOrAtTheEndAndAsksNo
 	// One the list does not hold is added at its end, and is then an annotation the client holds.
 	added := recordedEvent(string(semiont.CacheRefreshMarkBodyUpdated), "res-1", map[string]any{"annotationId": "ann-new"})
 	added["annotation"] = json.RawMessage(annotating("ann-new", "res-1", "2026-10-06T02:00:00.000Z"))
-	w.transport.Deliver(frameOf(t, bus.MarkBodyUpdated.Channel(), added, semiont.Envelope{}))
+	w.transport.Deliver(frameOf(t, bus.MarkBodyUpdated.Channel(), added, semiont.Envelope{Scope: res1}))
 	if shown := shownAs(valueIn[[]api.Annotation](t, listed.now(t))); !slices.Equal(shown, []string{"ann-1 never", "ann-new 2026-10-06T02:00:00.000Z"}) {
 		t.Fatalf("the list is %v", shown)
 	}
@@ -447,13 +458,17 @@ func TestB13bAnEventThatCarriesAnAnnotationWritesItWhereItWasOrAtTheEndAndAsksNo
 	time.Sleep(settling)
 	before = w.mark()
 
-	// An event about a resource whose list is not held writes no list.
+	// An event about a resource whose list is not held writes no list. The
+	// stream carries that resource's scope all the same, so the event reaches
+	// the client.
+	res2 := resourceOf(t, "res-2")
+	t.Cleanup(w.transport.SubscribeToResource(res2))
 	elsewhere := recordedEvent(string(semiont.CacheRefreshMarkBodyUpdated), "res-2", map[string]any{"annotationId": "ann-2"})
 	elsewhere["annotation"] = json.RawMessage(annotating("ann-2", "res-2", ""))
-	w.transport.Deliver(frameOf(t, bus.MarkBodyUpdated.Channel(), elsewhere, semiont.Envelope{}))
+	w.transport.Deliver(frameOf(t, bus.MarkBodyUpdated.Channel(), elsewhere, semiont.Envelope{Scope: res2}))
 	w.asksCome(t, before, map[string]int{})
 	// Its first watcher is shown what the knowledge base answers, never the annotation the event carried.
-	if ready, ok := watch(t, w.client.Browse.Annotations(resourceOf(t, "res-2"))).now(t).(semiont.Ready[[]api.Annotation]); ok {
+	if ready, ok := watch(t, w.client.Browse.Annotations(res2)).now(t).(semiont.Ready[[]api.Annotation]); ok {
 		if shown := shownAs(ready.Value); slices.Contains(shown, "ann-2 never") {
 			t.Fatalf("the list of a resource whose list was not held is %v", shown)
 		}

@@ -62,8 +62,9 @@ func transportErrorWithoutResponse(message string, code TransportErrorCode) *Tra
 type BusRequestError struct {
 	Code    BusRequestErrorCode
 	Message string
-	// Failure is the payload of the failure a peer answered with, when it
-	// answered one; nil for a failure only this side knows.
+	// Failure is the payload of the failure a peer answered with, as it is
+	// read (without a code the wire does not list), when it answered one; nil
+	// for a failure only this side knows.
 	Failure json.RawMessage
 }
 

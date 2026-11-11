@@ -5,7 +5,9 @@ requires (`semiont._required_table`, written by the rules of
 packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
 names the first fault it finds the same way: a member the value lacks, or
 one that is not what its schema allows, by the names the schema gives the
-way to it. What a
+way to it. A member that holds a text none of the texts it is `recognized`
+as is no fault: it is read as absent, and what is decoded is the value as
+read, without it. What a
 decoder refuses that the table does not state is a fault of the value
 itself. Whatever decodes a value shows, in its account of a failure, what it
 was given (the token an answer grants, what a person wrote), and a failure
@@ -48,6 +50,8 @@ class _Shape(BaseModel, frozen=True, extra="forbid"):
 
     ref: str | None = None
     kinds: tuple[_Kind, ...] | None = None
+    recognized: tuple[str, ...] | None = None
+    """Of an object's member, the texts it is read as: one that holds another text is read as absent."""
     enum: tuple[JsonValue, ...] | None = None
     pattern: tuple[_Step, ...] | None = None
     min_length: int | None = Field(default=None, alias="minLength")
@@ -187,62 +191,83 @@ def _is_as_stated(shape: _Shape, value: JsonValue) -> bool:
     return True
 
 
-def _fault_at(shape: _Shape, value: JsonValue, way: str) -> Fault | None:
-    """The first fault `value` has as a value of `shape`, from `way`."""
+def _read_at(shape: _Shape, value: JsonValue, way: str) -> JsonValue | Fault:
+    """`value` as it is read as a value of `shape`, from `way`; or its first fault."""
     own = _resolved(shape)
     if not _allows(own.kinds, value) or not _is_as_stated(own, value):
         return Fault(member=way, reason="malformed")
+    read = value
     if isinstance(value, dict):
-        fault = _fault_of_members(own, value, way)
-        if fault is not None:
-            return fault
-    if isinstance(value, list) and own.items is not None:
-        for item in value:
-            fault = _fault_at(own.items, item, way)
-            if fault is not None:
-                return fault
+        members = _read_members(own, value, way)
+        if isinstance(members, Fault):
+            return members
+        read = members
+    if isinstance(read, list) and own.items is not None:
+        items: list[JsonValue] = []
+        for item in read:
+            item_read = _read_at(own.items, item, way)
+            if isinstance(item_read, Fault):
+                return item_read
+            items.append(item_read)
+        read = items
     if own.one_of is not None:
-        fault = _fault_of_one_of(own, value, way)
-        if fault is not None:
-            return fault
+        variant_read = _read_one_of(own, read, way)
+        if isinstance(variant_read, Fault):
+            return variant_read
+        read = variant_read
     for part in own.all_of or ():
-        fault = _fault_at(part, value, way)
-        if fault is not None:
-            return fault
-    return None
+        part_read = _read_at(part, read, way)
+        if isinstance(part_read, Fault):
+            return part_read
+        read = part_read
+    return read
 
 
-def _fault_of_members(shape: _Shape, value: dict[str, JsonValue], way: str) -> Fault | None:
-    """The first fault of an object: in the members `shape` requires, what they are, the members it may not carry, and its values."""
+def _read_members(shape: _Shape, value: dict[str, JsonValue], way: str) -> dict[str, JsonValue] | Fault:
+    """An object as it is read, or its first fault.
+
+    Its faults are in the members `shape` requires, in what they are, in the
+    members it may not carry, and in its values.
+
+    A member `recognized` as texts, that holds a text none of them, is read as
+    absent: it is no fault, and what is read does not carry it.
+    """
     members = shape.members or {}
     for name in shape.required or ():
         if name not in value or (value[name] is None and name in members and not _allows(_resolved(members[name]).kinds, None)):
             return Fault(member=_within(way, name), reason="lacks")
+    read = dict(value)
     for name, member in members.items():
         held = value.get(name)
         if held is None:
             continue
-        fault = _fault_at(member, held, _within(way, name))
-        if fault is not None:
-            return fault
+        recognized = _resolved(member).recognized
+        if recognized is not None and isinstance(held, str) and held not in recognized:
+            del read[name]
+            continue
+        member_read = _read_at(member, held, _within(way, name))
+        if isinstance(member_read, Fault):
+            return member_read
+        read[name] = member_read
     if shape.closed is not None:
         unnamed = min((name for name in value if name not in shape.closed), default=None)
         if unnamed is not None:
             return Fault(member=_within(way, unnamed), reason="malformed")
     if shape.values is not None:
-        for key in sorted(value):
-            fault = _fault_at(shape.values, value[key], way)
-            if fault is not None:
-                return fault
-    return None
+        for key in sorted(read):
+            value_read = _read_at(shape.values, read[key], way)
+            if isinstance(value_read, Fault):
+                return value_read
+            read[key] = value_read
+    return read
 
 
-def _fault_of_one_of(shape: _Shape, value: JsonValue, way: str) -> Fault | None:
-    """The fault `value` has as one of the variants of `shape`.
+def _read_one_of(shape: _Shape, value: JsonValue, way: str) -> JsonValue | Fault:
+    """`value` as it is read as one of the variants of `shape`, or its fault.
 
     The variant its discriminator names, or else each variant whose kinds
-    allow it: none when one of them has none, the first one's when each has
-    one, and a value no variant allows is malformed.
+    allow it: read as the first of them that has no fault, the first one's
+    fault when each has one, and a value no variant allows is malformed.
     """
     variants = shape.one_of or ()
     candidates = [variant for variant in variants if _allows(_resolved(variant).kinds, value)]
@@ -252,39 +277,47 @@ def _fault_of_one_of(shape: _Shape, value: JsonValue, way: str) -> Fault | None:
             candidates = [variants[shape.discriminator.mapping[named]]]
     if not candidates:
         return Fault(member=way, reason="malformed")
-    first: Fault | None = None
+    faults: list[Fault] = []
     for candidate in candidates:
-        fault = _fault_at(candidate, value, way)
-        if fault is None:
-            return None
-        if first is None:
-            first = fault
-    return first
+        read = _read_at(candidate, value, way)
+        if not isinstance(read, Fault):
+            return read
+        faults.append(read)
+    return faults[0]
+
+
+def as_read(declared: object, value: JsonValue) -> JsonValue | Fault:
+    """`value` as it is read as a `declared`, by the rules every SDK reads the table by; or its first fault.
+
+    What is read is `value` without each member it reads as absent: what a
+    reader decodes. `declared` is a shape of the protocol or a union of
+    them, by the name `semiont.types` gives it, `Response` of one, or
+    `Empty`.
+    """
+    return _read_at(_shape_of(declared), value, "")
 
 
 def fault_of(declared: object, value: JsonValue) -> Fault | None:
-    """The first fault `value` has as a `declared`, by the rules every SDK reads the table by; None when it has none.
-
-    `declared` is a shape of the protocol or a union of them, by the name
-    `semiont.types` gives it, `Response` of one, or `Empty`.
-    """
-    return _fault_at(_shape_of(declared), value, "")
+    """The first fault `value` has as a `declared` (`as_read`); None when it has none."""
+    read = as_read(declared, value)
+    return read if isinstance(read, Fault) else None
 
 
-def read_as[T](declared: object, text: str | bytes, decode: Callable[[str | bytes], T]) -> T | Fault:
-    """The JSON `text` read by `decode` as a `declared`, or the first fault that keeps it from being one.
+def read_as[T](declared: object, text: str | bytes, decode: Callable[[JsonValue], T]) -> T | Fault:
+    """The JSON `text` read as a `declared` and decoded by `decode`, or the first fault that keeps it from being one.
 
-    A text that is no JSON, and one `decode` refuses with no fault the table
-    states, is malformed.
+    `decode` is given the value as it is read (`as_read`). A text that is no
+    JSON, and one `decode` refuses with no fault the table states, is
+    malformed.
     """
     try:
         value = _JSON.validate_json(text)
     except ValidationError:
         return UNDECODED
-    fault = fault_of(declared, value)
-    if fault is not None:
-        return fault
+    read = as_read(declared, value)
+    if isinstance(read, Fault):
+        return read
     try:
-        return decode(text)
+        return decode(read)
     except ValidationError:
         return UNDECODED

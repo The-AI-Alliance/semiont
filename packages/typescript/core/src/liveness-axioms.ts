@@ -27,6 +27,7 @@
 
 import * as fc from 'fast-check';
 import type { Observable, Subscription } from 'rxjs';
+import { BRIDGED_CHANNELS } from './bridged-channels';
 import { FaultyTransport, type FaultAction } from './faulty-transport';
 
 // ── L1/L2: liveness over a composition on FaultyTransport ────────────────
@@ -136,6 +137,7 @@ export async function assertLivenessAxioms(spec: LivenessAxiomSpec): Promise<voi
         const delayTotal = schedule.reduce((n, a) => n + (a.kind === 'delay' ? a.ms : 0), 0);
         const bound = (spec.timeoutMs * (1 + retryBudget) + delayTotal) * slack;
         const transport = new FaultyTransport({
+          channels: BRIDGED_CHANNELS,
           schedule,
           ...(spec.makeResponse ? { makeResponse: spec.makeResponse } : {}),
         });

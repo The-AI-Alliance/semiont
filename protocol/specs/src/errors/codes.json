@@ -10,7 +10,7 @@
       },
       {
         "code": "bus.rejected",
-        "docs": "The peer answered with a failure whose code this vocabulary does not name, or that states none."
+        "docs": "The peer answered with a failure that states no code, or one CommandError does not list, which is read as none."
       },
       {
         "code": "bus.closed",

@@ -7,6 +7,7 @@
 //! nobody stored fails naming the resource.
 
 use super::{FaultyTransport, InMemoryContent};
+use crate::channels::BRIDGED_CHANNELS;
 use crate::client::{ClientOptions, SemiontClient};
 use crate::session::{SemiontSession, SemiontSessionConfig, kept_in};
 use crate::storage::InMemorySessionStorage;
@@ -18,8 +19,9 @@ use tokio::sync::watch;
 /// What a test client is built over.
 #[derive(Default)]
 pub struct TestClientOptions {
-    /// The transport, as the test scripted it. Absent, one nothing is
-    /// scripted to answer.
+    /// The transport, as the test scripted it. Absent, one whose stream
+    /// names what a full client's does (`BRIDGED_CHANNELS`) and that nothing
+    /// is scripted to answer.
     pub transport: Option<FaultyTransport>,
     /// Absent, one that holds nothing.
     pub content: Option<InMemoryContent>,
@@ -41,7 +43,7 @@ pub struct TestClient {
 pub fn create_test_client(options: TestClientOptions) -> TestClient {
     let transport = options
         .transport
-        .unwrap_or_else(|| FaultyTransport::new(vec![]));
+        .unwrap_or_else(|| FaultyTransport::new(BRIDGED_CHANNELS, vec![]));
     let content = options.content.unwrap_or_default();
     let client = Arc::new(SemiontClient::new(
         Arc::new(transport.clone()),

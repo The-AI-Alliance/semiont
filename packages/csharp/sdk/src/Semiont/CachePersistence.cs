@@ -67,7 +67,7 @@ public sealed class CachePersistence
     {
         var recording = session ?? throw new InvalidOperationException("Only a session's persistence records whom its sign-in names.");
         var person = RegistryStorage.PersonKey(user.Did);
-        if (await recording.RecordsAsync(token, person, cancellation).ConfigureAwait(false)) Attach(person);
+        if (await recording.RecordsAsync(token, person, cancellation).ConfigureAwait(Spawning.Captures)) Attach(person);
     }
 
     /// <summary>Begins keeping for <paramref name="person"/>, unless a person is already kept for.</summary>
@@ -148,7 +148,7 @@ internal sealed class WritesWhileNamed(ISignInKept kept, string kbId, Action<Ses
     public async ValueTask<bool> WritesAsync(string personKey)
     {
         if (Volatile.Read(ref ended) != 0) return false;
-        try { return await kept.HeldAsync().ConfigureAwait(false) is { } held && held.PersonKey == personKey; }
+        try { return await kept.HeldAsync().ConfigureAwait(Spawning.Captures) is { } held && held.PersonKey == personKey; }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             End("could not be read before its client saved", error);
@@ -161,7 +161,7 @@ internal sealed class WritesWhileNamed(ISignInKept kept, string kbId, Action<Ses
     internal async Task<bool> RecordsAsync(string token, string personKey, CancellationToken cancellation)
     {
         if (Volatile.Read(ref ended) != 0) return false;
-        try { return await kept.RecordPersonKeyAsync(token, personKey, cancellation).ConfigureAwait(false); }
+        try { return await kept.RecordPersonKeyAsync(token, personKey, cancellation).ConfigureAwait(Spawning.Captures); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             End("could not record the person the gateway named", error);
@@ -256,7 +256,7 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
     internal static readonly TimeSpan Debounce = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("saveDebounceMs").GetInt32());
     private readonly object gate = new();
     private readonly Dictionary<string, string> pendingPlaces = new(StringComparer.Ordinal);
-    private readonly TaskCompletionSource flushed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource flushed = new(Spawning.CompletionOptions);
     private IReadOnlyDictionary<string, IKeptQuery> kept = new Dictionary<string, IKeptQuery>(StringComparer.Ordinal);
     private Action<IReadOnlyDictionary<string, string>>? placesKept;
     private string? person;
@@ -357,7 +357,7 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
             }
             named = keptFor;
         }
-        var writes = await persistence.Writer.WritesAsync(named).ConfigureAwait(false);
+        var writes = await persistence.Writer.WritesAsync(named).ConfigureAwait(Spawning.Captures);
         lock (gate)
         {
             // A disposal meanwhile flushes the save this one owes.
@@ -459,7 +459,7 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
     {
         try
         {
-            if (await persistence.Writer.WritesAsync(named).ConfigureAwait(false))
+            if (await persistence.Writer.WritesAsync(named).ConfigureAwait(Spawning.Captures))
                 lock (gate)
                 {
                     if (!abandoned)

@@ -123,23 +123,23 @@
     "lib/browse.mli": "c57e5ff1c98e598cb6c438e781d135c0ff0c76498e1b93455f2c5e870f3b2858",
     "lib/bus.ml": "6515e162ee1e96208327aed95690c73fbf6b50626c39dfb6aa930e2b308f69ab",
     "lib/bus_log.ml": "1f9824f508b55593336fe854f12be7f202a8bab58393607bb7f77b43abc552ce",
-    "lib/bus_registry.ml": "2390b6d387efad1ce7e219c6f88c3a7380bcb00fac8da67c34e6157655e4270c",
-    "lib/bus_registry.mli": "e75fd6ce95deeda1d3364659c1ac01c0c507fe226cf18ff97f903a321663d1ff",
-    "lib/cache_state.ml": "a7dd3b38f2eaccd71566cd680fe78ccb9601e6ee384200b91b07f2afdfa27dfb",
-    "lib/cache_state.mli": "1a0dc6090874daf5a0df80f2f6a50c72f717a0b6bd599c8136180fae5e4ef173",
+    "lib/bus_registry.ml": "06ba21493e91fe1985a48cbc7416d6dc5318faa55872552e48701d01dfb5a79f",
+    "lib/bus_registry.mli": "a43ea86d26004cdbb0f68d47a419f92da7fdaea69aff840b30d6b0d0e161a3eb",
+    "lib/cache_state.ml": "b270721df6ee9432f61bfa450fb280036a1c1a1f880de8eabed84aec0fab8c5a",
+    "lib/cache_state.mli": "940957912e84b57a1404ea6adceeb35efbc6ecb7cdc3bd28f5c6e98b24ecb13f",
     "lib/claims.ml": "52ff135d1c111beeceec0ddf0895231aefaf3dbc2a9bd29cf5f3b6b7bc0e350f",
     "lib/claims.mli": "f7bebec3f61f8b39c4cb884a49f1e5703ece2c60d2f6d87b8822411aea9bd3ea",
     "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
     "lib/client.mli": "6e08b6b7851820acced98ca320e6ec093455f2d0340828149b2f43e255d30e39",
-    "lib/client_core.ml": "db35b915e387824e29a4edd401ece7cb80ccc6087fe4fbc7d178ac7cec90210c",
-    "lib/client_core.mli": "576da826ea5014c127cb04cc2209f6f72ef12a50bcb7c62dfd2e875ae3715bf8",
+    "lib/client_core.ml": "499578f209bce59f105498b0ebd8f8c10f4049e2a93f6f8c5988f8e0f644d597",
+    "lib/client_core.mli": "31413f79f3c72f9525b8fb588a9f89d90574101553e39710699d67459169a750",
     "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
-    "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
-    "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
+    "lib/client_timing.ml": "652e8e4ff7f890a990bcbdb59fc3a8675403c7273a321c76029e86ec105e1729",
+    "lib/client_timing.mli": "ff4e18df8cea887b1432e77169672c421178b76723cedd65e57fe62e2df70cf5",
     "lib/clock.ml": "71063b036aa3069ad2ed649ba8a73505b4eb4a00631c48af43a01f732c6623ab",
     "lib/clock.mli": "5333b1d2447f81415c54bfc99d87ae98362a4ce249695d7783c35df41cdab364",
-    "lib/delegation.ml": "630367eab38d307798e7be35ab0c338b83ccd743d36d6a0ad129472a48353185",
-    "lib/delegation.mli": "76f4e7e055c6a9dbb288443bf4d7548aabaa307f2fa354e8e165dd453b4f09d5",
+    "lib/delegation.ml": "09c55853d2dd7798e6637eb7b29aff23c13bc3db70786a52d4965eb1f058059d",
+    "lib/delegation.mli": "577b0158488a8f1dd3cd5aaef32b816c4c5324a38af03289b762e63d33ae5afe",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
     "lib/dune": "1ea7a2c3212158c41333ad8a7b049ba9e05c30c5a2d5a9245323038756262b91",
@@ -154,19 +154,19 @@
     "lib/host_name.mli": "ae48395a873d6cb0d60dc1fce328a283adb07c6e0bb9d7107260a1ae8d57bc69",
     "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
     "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
-    "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
-    "lib/http_wire.ml": "394653ce1a2c6a61d8039f9afae4a0b90bd0c75cc900a13f3d85d5ea0149e558",
+    "lib/http_facts.ml": "8110fad987c67600def3bb6599ef8b978df928d5f4b4071e75a8ad9663caedec",
+    "lib/http_wire.ml": "dcdead205197c6b9915e719ef80db17634ac4936689e3c90dd708e1bf382ad5b",
     "lib/http_wire.mli": "fac172af11ce0c98fc4589264c3bb9b7466682cf011d4e1fad16930e707c3f17",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/identity.ml": "926a5ae2b89b08a294af2bbee6975347194bdaea78109f82a777b9fcff388e58",
-    "lib/job.ml": "2381750e7292f8a03640f1e09de22eb525086877fb8289b46e3d188798181453",
+    "lib/job.ml": "583809224cd23d98628e42793857f6877951d14ca1984bafd820aa56ec71b788",
     "lib/job_filter.ml": "d0b6bff412af0031c187c9f667c7d75cbff5d486f48c24d34d6441e4d13e4c01",
     "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
     "lib/kept_renewal.ml": "3c69043d8304fa35dcbe80e5322ea71bb0f39d7ee57e4d772cc789b1de36ddee",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
-    "lib/live_query.ml": "8e7d46fc011ea3cfe6861791110f8857452347ae9a536ea7d969a15f91236bd2",
-    "lib/live_query.mli": "3c62d8ab44d082eb359a24a8b0159f1ebf117e99da80e772feb12899adce2312",
+    "lib/live_query.ml": "7038b501e02b72ed14594aed3d0a44d1a91813ad5494367bbbc625a58f4bf4d0",
+    "lib/live_query.mli": "f18de5f9c81f1c3a92b247ef50fd8df03bc558c1fea3878fbeba4e01d01f6c18",
     "lib/log_facts.ml": "7fbe278d5eb452d36445aa0cd571ce86ef65e0c69d9fab65b6bc3b4a6a5a45cf",
     "lib/mark.ml": "d539b4cea644c035198f7b22d9384e1e19c7815e806e240a2309e9e1e17a7072",
     "lib/mark.mli": "daa70a35284997cf8b5796bda5f3262c19e8690a40090dc415729c4e3dddbbb3",
@@ -199,9 +199,9 @@
     "lib/retry.mli": "f1ce129d8c0f5585f03f3ee57b8eecb1da50774a9bccb93bd8d40511f6fcab72",
     "lib/running.ml": "d1e491aa088ca534f4668aa784ce843b98aea9c83b0dfe42c8f679dbb8c0cb03",
     "lib/running.mli": "74bef29c19b9b132888e875f77ea4fec64855a7bb7c6e119e0fb8346a47176f9",
-    "lib/schema_codec.ml": "138a6240b6eb8810cfb608c1cb2b29717ef66fbbeb887ca57ca925cb84acb4f8",
-    "lib/schema_shape.ml": "f035fcc70aa623f06257cb2c5051483c90c3869a70b618dcf66f27170673e0d4",
-    "lib/schema_shapes.ml": "a3f4461cca69871eba7a61cd3ab7a40edc83f321187c3899673d9236214fcd1b",
+    "lib/schema_codec.ml": "636e8eb313af9998b59c8c6a3adec349297ab949c456839a491a37cb18264b1f",
+    "lib/schema_shape.ml": "fe4e72c044905dad381dff38a06ee4809e2411698b6c9096926b17f077eb3cc3",
+    "lib/schema_shapes.ml": "304f9f717e117966845fdc17b88bd7bb03f994d87d299e10735cbfd9d115d5b2",
     "lib/search_pipeline.ml": "c686787cea18854164219082e02d586aa34f7a0801c876cb011648bd72222ba0",
     "lib/search_pipeline.mli": "8569d48ac54fb0e5b0165613f479fce0d4dcd897d89dae4699c8d25f6d5db0d3",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
@@ -232,14 +232,14 @@
     "lib/store_policy.ml": "c99553c99225977994e70e6bc0e1d614e59f839f70e7365511f8f9b3a99315ea",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "f8d0e5ff0ee257987650744d671e80e50f01babbca7970422e0a4d1f2dbe65da",
+    "lib/subscription.ml": "777777ae8b122fb1e29cf913256894423498c5a84aedc4e53032050efd96e188",
     "lib/subscription.mli": "83750f9a319153381a9300b17a12f5152c7947fba03f7df947c072aba0fcba79",
     "lib/system.ml": "2b48cd685aa8882505bcdb8b75ba376730082ff377aeb67caeaabde6b4070459",
     "lib/telemetry.ml": "d3e6ba70a0b5a00eb4733a8fc973c1c3b98ea5d07661da3297f2d71ee77da306",
     "lib/telemetry.mli": "6968385e5ecbd2db1b9003eb403766c066975b0ff116e9d81da367ec87b4137f",
     "lib/telemetry_facts.ml": "8b2c6d1ee7d75fc70b98cd0668d902fab6bf6463a302cbc8411cb6cc565cd484",
-    "lib/testing.ml": "0ece2c8f3cde756e2cb5138613c896b150f9c5fe2cee97a531d08dec3f02a41a",
-    "lib/testing.mli": "8524337dd34c2b44a38305ef4359bd5a88444b0a76b5209d9a55cfde12cb20ec",
+    "lib/testing.ml": "e921ab58048c8517742db8e06042dc44c2d45728cfeedadb077c9d9c44b7b5cf",
+    "lib/testing.mli": "aa67b8770b82c4eee97369206556167707df30777f1d22415d03a5e1fb0533bd",
     "lib/testing_facts.ml": "16282c5960b3a3953769beaca6d31f0cb7aef707b12d6eb68d610a87f77e60af",
     "lib/text_encoding.ml": "905bc2c16c4fc1416236a3e2751e5d61627d6dddf431941e36e8f233f5589dad",
     "lib/text_encoding.mli": "60ca2f5b3a32d1c92e3ee786afb1ae8a38b893b3764052fb1b62897eb115da6e",
@@ -1590,6 +1590,11 @@
       "kind": "value",
       "path": "Semiont.Bus_registry.operations",
       "declaration": "val operations : packed_operation list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.bridged_channels",
+      "declaration": "val bridged_channels : packed_channel list"
     },
     {
       "kind": "module",
@@ -12601,11 +12606,6 @@
     },
     {
       "kind": "value",
-      "path": "Semiont.Live_query.channels",
-      "declaration": "val channels : Semiont__.Bus_registry.packed_channel list"
-    },
-    {
-      "kind": "value",
       "path": "Semiont.Live_query.operations",
       "declaration": "val operations : (string * Semiont__.Bus_registry.packed_operation) list"
     },
@@ -12653,6 +12653,11 @@
       "kind": "value",
       "path": "Semiont.Live_query.remove",
       "declaration": "val remove : ('key, 'value) t -> 'key -> string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.patch",
+      "declaration": "val patch : ('key, 'value) t -> 'key -> ('value -> 'value) -> unit"
     },
     {
       "kind": "value",
@@ -12950,11 +12955,6 @@
     },
     {
       "kind": "value",
-      "path": "Semiont.Delegation.channels",
-      "declaration": "val channels : Semiont__.Bus_registry.packed_channel list"
-    },
-    {
-      "kind": "value",
       "path": "Semiont.Delegation.make",
       "declaration": "val make :\n  ?silence_ms:int ->\n  ?poll_ms:int ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  subscription:Semiont__.Subscription.t ->\n  http:Semiont__.Http_wire.t ->\n  client_id:string -> correlation_id:(unit -> string) -> unit -> t"
     },
@@ -13075,7 +13075,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.connect",
-      "declaration": "val connect :\n  ?subscribe_defaults:bool ->\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  ?persister:Semiont__.Storage_persister.storage_persister ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  on_error:(Semiont__.Http_wire.failure -> unit) -> unit -> t"
+      "declaration": "val connect :\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  ?persister:Semiont__.Storage_persister.storage_persister ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  on_error:(Semiont__.Http_wire.failure -> unit) -> unit -> t"
     },
     {
       "kind": "value",
@@ -13899,6 +13899,11 @@
       "kind": "value",
       "path": "Semiont.Client.Job.B.operations",
       "declaration": "val operations : packed_operation list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Client.Job.B.bridged_channels",
+      "declaration": "val bridged_channels : packed_channel list"
     },
     {
       "kind": "module",
@@ -15073,7 +15078,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.Job.poll_until_complete",
-      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
+      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  ?within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
     },
     {
       "kind": "value",
@@ -16097,6 +16102,11 @@
       "kind": "value",
       "path": "Semiont.Job.B.operations",
       "declaration": "val operations : packed_operation list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Job.B.bridged_channels",
+      "declaration": "val bridged_channels : packed_channel list"
     },
     {
       "kind": "module",
@@ -17271,7 +17281,7 @@
     {
       "kind": "value",
       "path": "Semiont.Job.poll_until_complete",
-      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
+      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  ?within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
     },
     {
       "kind": "value",
@@ -18439,6 +18449,11 @@
       "kind": "value",
       "path": "Semiont.State_units.Cache.set",
       "declaration": "val set : t -> string -> Yojson.Safe.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Cache.patch",
+      "declaration": "val patch : t -> string -> (Yojson.Safe.t -> Yojson.Safe.t) -> unit"
     },
     {
       "kind": "value",

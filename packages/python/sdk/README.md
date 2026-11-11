@@ -87,6 +87,7 @@ application a person uses signs them in by a page redirect instead
 ```python
 from pathlib import Path
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.http import DeviceCode, session_from_kept, sign_in_device
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
 from semiont.types import KbTarget
@@ -104,7 +105,7 @@ async def as_me(kb: KbTarget, home: str) -> None:
     kept = SignInStore(Path(directory) / FILE_NAME).entry(kb.id)
     if await kept.held() is None:
         await sign_in_device(kb, kept, show)
-    async with session_from_kept(kb, kept=kept) as session:
+    async with session_from_kept(kb, kept=kept, channels=BRIDGED_CHANNELS) as session:
         print(session.user.value, (await session.client.system.status()).version)
 ```
 
@@ -245,6 +246,7 @@ is held to. `HttpTransport` is the transport this package ships: it reaches a
 knowledge base's gateway, and sends the token it is given.
 
 ```python
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
@@ -279,7 +281,7 @@ async def annotate(client: SemiontClient[Transport], resource: ResourceId, annot
 
 async def over_http(origin: str, token: str, resource: ResourceId, annotation: AnnotationId) -> None:
     async with (
-        HttpTransport(origin, token=Variable[str | None](token)) as transport,
+        HttpTransport(origin, token=Variable[str | None](token), channels=BRIDGED_CHANNELS) as transport,
         SemiontClient(transport, transport.content, transport) as client,
     ):
         await annotate(client, resource, annotation)
@@ -833,8 +835,12 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
   request, so a test queues the response alone. A schedule of `Deliver`,
   `DropReply`, `Delay`, `DuplicateReply` and `RejectEmit` says what the wire
   does to each request in turn, so a lost reply and the retry after it can be
-  scripted. `request_log` and `emitted` are what was sent; `deliver` carries a
-  frame in as the bus would; `set_state` drops the stream and brings it back.
+  scripted. It is always given the `channels` its stream names, as an
+  `HttpTransport` is, and carries only what such a stream carries: a frame on
+  one of them, and a frame on a channel a resource's scope carries, on the
+  scope of a resource it holds. `request_log` and `emitted` are what was sent;
+  `deliver` carries a frame in as the bus would; `set_state` drops the stream
+  and brings it back.
 - **`InMemoryContent`** keeps what is uploaded and what a test seeds, and
   **`StubGateway`** answers the gateway's own operations as a test scripted
   them. Each records the calls made of it.
@@ -843,7 +849,8 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
   stored fails naming the resource. None answers with a value of its own
   making, so a test that forgot to say something fails where it forgot.
 - **`create_test_client`** takes the doubles a test built, or makes ones
-  nothing is scripted on, and the client's own timing and persistence.
+  nothing is scripted on, its transport given a full client's channels,
+  `BRIDGED_CHANNELS`; and the client's own timing and persistence.
 - **`create_test_session`** gives a real `SemiontSession` over a test client,
   ready as soon as it is held, holding a token only if its sign-in was kept.
 - **`semiont.testing.axioms`** holds a state unit, a program's own too, to the
@@ -869,7 +876,7 @@ a token, and everything it started has ended on the way out.
 
 ```python
 from semiont.bus import Bus, Delivered
-from semiont.channels import MARK_ADDED
+from semiont.channels import BRIDGED_CHANNELS, MARK_ADDED
 from semiont.errors import BusRequestError
 from semiont.http import HttpTransport
 from semiont.identifiers import ResourceId
@@ -880,7 +887,7 @@ from semiont.watched import Variable
 
 
 async def read(origin: str, token: str, resource: ResourceId) -> None:
-    async with HttpTransport(origin, token=Variable[str | None](token)) as transport:
+    async with HttpTransport(origin, token=Variable[str | None](token), channels=BRIDGED_CHANNELS) as transport:
         bus = Bus(transport)
         try:
             reply = await bus.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource))

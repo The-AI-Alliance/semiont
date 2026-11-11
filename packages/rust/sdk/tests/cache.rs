@@ -118,6 +118,14 @@ fn ready(value: &str) -> CacheState<String> {
     CacheState::Ready(value.to_owned())
 }
 
+/// A patch that appends `+<part>` to a value.
+fn appended(part: &'static str) -> impl Fn(&mut String) + Clone + Send + Sync + 'static {
+    move |value: &mut String| {
+        value.push('+');
+        value.push_str(part);
+    }
+}
+
 /// A one-shot read's value, or what its failure says.
 fn read(
     fetched: Result<String, Arc<dyn std::error::Error + Send + Sync>>,
@@ -273,31 +281,117 @@ async fn b8_invalidating_a_key_nothing_asked_for_fetches_it() {
     assert_eq!(cache.get(&key("a")), Some(key("a-v1")));
 }
 
+/// Only the key's newest fetch writes: the fetch an invalidate let go of,
+/// answered after the newer one, answers whoever awaited it, and is given
+/// to no observer and owes no save (B9).
 #[tokio::test(start_paused = true)]
-async fn b9_an_invalidate_does_not_wait_on_the_fetch_in_flight_and_the_last_answer_stands() {
+async fn b9_an_invalidate_lets_go_of_the_fetch_in_flight_whose_later_answer_is_not_written() {
     let service = Service::default();
-    let orphaned = service.hold();
-    let cache = service.cache();
+    let replaced = service.hold();
+    let kept = Arc::new(Kept::default());
+    let cache = persisted(&service, &kept);
     let mut observer = cache.observe(&key("a"));
+    let awaited = tokio::spawn(cache.fetch(&key("a")));
     settle().await;
-    assert_eq!(service.asked(), 1);
+    assert_eq!(service.asked(), 1, "the read joined the fetch in flight");
 
     // The fetch in flight may never be answered: the invalidate asks anyway.
-    let second = service.hold();
+    let newest = service.hold();
     cache.invalidate(&key("a"));
     settle().await;
     assert_eq!(service.asked(), 2);
 
-    second
-        .send(Ok(key("second")))
-        .expect("the second fetch is waiting");
-    assert_eq!(holds(&mut observer).await, ready("second"));
-    // The first, answered after all, is written too: either is at least as
-    // new as what was there before.
-    orphaned
-        .send(Ok(key("first, late")))
-        .expect("the first fetch is waiting");
-    assert_eq!(holds(&mut observer).await, ready("first, late"));
+    newest
+        .send(Ok(key("newest")))
+        .expect("the newest fetch is waiting");
+    assert_eq!(holds(&mut observer).await, ready("newest"));
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    let saved: HashMap<String, String> = [(key("a"), key("newest"))].into();
+    assert_eq!(kept.saves(), std::slice::from_ref(&saved));
+
+    replaced
+        .send(Ok(key("replaced")))
+        .expect("the replaced fetch is waiting");
+    assert_eq!(
+        read(awaited.await.expect("the read ran")),
+        Ok(key("replaced"))
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(1), next(&mut observer))
+            .await
+            .is_err(),
+        "the observer is given nothing"
+    );
+    assert_eq!(cache.get(&key("a")), Some(key("newest")));
+    assert!(!cache.persistence_pending(), "no save is owed");
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert_eq!(kept.saves(), std::slice::from_ref(&saved));
+}
+
+/// The fetch an invalidate let go of, answered before the newer one,
+/// answers whoever awaited it and leaves the key as it was; the newer one's
+/// answer is the one written (B9).
+#[tokio::test(start_paused = true)]
+async fn b9_the_answer_of_a_fetch_an_invalidate_let_go_of_leaves_the_key_as_it_was() {
+    let service = Service::default();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    assert_eq!(holds(&mut observer).await, ready("a-v1"));
+
+    let replaced = service.hold();
+    let awaited = tokio::spawn(cache.fetch(&key("a")));
+    settle().await;
+    let newest = service.hold();
+    cache.invalidate(&key("a"));
+    settle().await;
+    assert_eq!(service.asked(), 3);
+
+    replaced
+        .send(Ok(key("replaced")))
+        .expect("the replaced fetch is waiting");
+    assert_eq!(
+        read(awaited.await.expect("the read ran")),
+        Ok(key("replaced"))
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(1), next(&mut observer))
+            .await
+            .is_err(),
+        "the observer is given nothing"
+    );
+    assert_eq!(cache.get(&key("a")), Some(key("a-v1")));
+
+    newest
+        .send(Ok(key("newest")))
+        .expect("the newest fetch is waiting");
+    assert_eq!(holds(&mut observer).await, ready("newest"));
+}
+
+/// A key is fetching while its current fetch is unsettled, and only then: a
+/// fetch an invalidate let go of holds nothing back, though it is never
+/// answered (B9, B17).
+#[tokio::test(start_paused = true)]
+async fn b9_b17_a_key_is_fetching_only_while_its_current_fetch_is_unsettled() {
+    let service = Service::default();
+    let _never_answered = service.hold();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    settle().await;
+    assert!(cache.persistence_pending());
+
+    let newest = service.hold();
+    cache.invalidate(&key("a"));
+    settle().await;
+    assert!(cache.persistence_pending(), "the newest fetch is in flight");
+
+    newest
+        .send(Ok(key("newest")))
+        .expect("the newest fetch is waiting");
+    assert_eq!(holds(&mut observer).await, ready("newest"));
+    assert!(
+        !cache.persistence_pending(),
+        "the fetch let go of, unanswered, is not in flight"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -338,6 +432,50 @@ async fn b13a_a_removed_key_fails_at_once_with_what_it_was_given_and_nothing_is_
     assert!(cache.known(&key("a")));
 }
 
+/// A removal lets go of the fetch in flight: its answer is not written, and
+/// the key stays failed with what the removal gave it (B13a, B9).
+#[tokio::test(start_paused = true)]
+async fn b13a_the_answer_of_a_fetch_a_removal_let_go_of_is_not_written() {
+    let service = Service::default();
+    let kept = Arc::new(Kept::default());
+    let cache = persisted(&service, &kept);
+    let mut observer = cache.observe(&key("a"));
+    assert_eq!(holds(&mut observer).await, ready("a-v1"));
+
+    let replaced = service.hold();
+    cache.invalidate(&key("a"));
+    settle().await;
+    assert_eq!(service.asked(), 2);
+    cache.remove(
+        &key("a"),
+        SemiontError::from(BusRequestError::new(BusRequestErrorCode::NotFound, "gone")).into(),
+    );
+    let CacheState::Failed(gone) = holds(&mut observer).await else {
+        panic!("the removed key is failed");
+    };
+    assert_eq!(
+        gone.downcast_ref::<SemiontError>().map(SemiontError::code),
+        Some("bus.not-found")
+    );
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    let saves = kept.saves();
+
+    replaced
+        .send(Ok(key("replaced")))
+        .expect("the replaced fetch is waiting");
+    settle().await;
+    assert!(
+        tokio::time::timeout(Duration::from_millis(1), next(&mut observer))
+            .await
+            .is_err(),
+        "the observer is given nothing"
+    );
+    assert_eq!(cache.get(&key("a")), None);
+    assert!(!cache.persistence_pending(), "no save is owed");
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert_eq!(kept.saves(), saves);
+}
+
 #[tokio::test(start_paused = true)]
 async fn b13a_an_observer_arriving_at_a_removed_key_asks_the_service() {
     let service = Service::default();
@@ -363,6 +501,200 @@ async fn b13b_a_written_value_is_shown_and_nothing_is_asked() {
     assert_eq!(next(&mut observer).await, Some(ready("written")));
     settle().await;
     assert_eq!(service.asked(), 0);
+}
+
+/// A write lets go of the fetch in flight: the key is the written value and
+/// fetching no more, and the fetch's later answer goes to whoever awaited it
+/// and to no observer, and owes no save (B13b, B9).
+#[tokio::test(start_paused = true)]
+async fn b13b_a_write_lets_go_of_the_fetch_in_flight_whose_answer_goes_to_its_awaiter_alone() {
+    let service = Service::default();
+    let let_go = service.hold();
+    let kept = Arc::new(Kept::default());
+    let cache = persisted(&service, &kept);
+    let mut observer = cache.observe(&key("a"));
+    let awaited = tokio::spawn(cache.fetch(&key("a")));
+    settle().await;
+    assert_eq!(service.asked(), 1, "the read joined the fetch in flight");
+
+    cache.set(&key("a"), key("written"));
+    assert_eq!(holds(&mut observer).await, ready("written"));
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert!(
+        !cache.persistence_pending(),
+        "the fetch let go of is in flight no more"
+    );
+    let saved: HashMap<String, String> = [(key("a"), key("written"))].into();
+    assert_eq!(kept.saves(), std::slice::from_ref(&saved));
+
+    let_go
+        .send(Ok(key("answered")))
+        .expect("the fetch let go of is waiting");
+    assert_eq!(
+        read(awaited.await.expect("the read ran")),
+        Ok(key("answered"))
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(1), next(&mut observer))
+            .await
+            .is_err(),
+        "the observer is given nothing"
+    );
+    assert_eq!(cache.get(&key("a")), Some(key("written")));
+    assert!(!cache.persistence_pending(), "no save is owed");
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert_eq!(kept.saves(), std::slice::from_ref(&saved));
+    assert_eq!(service.asked(), 1);
+}
+
+/// A write lets go of the live view's ask with its fetch: that fetch failing
+/// asks nothing again and fails nothing (B13b, B14).
+#[tokio::test(start_paused = true)]
+async fn b13b_b14_a_write_lets_go_of_the_ask_whose_fetch_then_fails() {
+    let service = Service::default();
+    let let_go = service.hold();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    settle().await;
+
+    cache.set(&key("a"), key("written"));
+    let_go
+        .send(Err(refused("down")))
+        .expect("the fetch let go of is waiting");
+    assert_eq!(holds(&mut observer).await, ready("written"));
+    assert_eq!(service.asked(), 1);
+}
+
+/// A key being fetched for the first time is patched in what that fetch
+/// answers, which whoever awaited it is given too (B13b).
+#[tokio::test(start_paused = true)]
+async fn b13b_a_key_fetched_for_the_first_time_is_patched_in_what_the_fetch_answers() {
+    let service = Service::default();
+    let answer = service.hold();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    let awaited = tokio::spawn(cache.fetch(&key("a")));
+    settle().await;
+
+    cache.patch(&key("a"), appended("p"));
+    assert_eq!(holds(&mut observer).await, CacheState::Pending);
+    answer.send(Ok(key("L"))).expect("the fetch is waiting");
+    assert_eq!(read(awaited.await.expect("the read ran")), Ok(key("L+p")));
+    assert_eq!(holds(&mut observer).await, ready("L+p"));
+    assert_eq!(service.asked(), 1);
+}
+
+/// Patches are made at once to the value, which owes a save, and to the
+/// answer of the fetch in flight in the order they were made; nothing more
+/// is asked (B13b).
+#[tokio::test(start_paused = true)]
+async fn b13b_patches_are_made_at_once_and_to_the_answer_in_the_order_they_were_made() {
+    let service = Service::default();
+    let kept = Arc::new(Kept::default());
+    let cache = persisted(&service, &kept);
+    let mut observer = cache.observe(&key("a"));
+    assert_eq!(holds(&mut observer).await, ready("a-v1"));
+    let answer = service.hold();
+    cache.invalidate(&key("a"));
+    settle().await;
+
+    cache.patch(&key("a"), appended("p1"));
+    cache.patch(&key("a"), appended("p2"));
+    assert_eq!(cache.get(&key("a")), Some(key("a-v1+p1+p2")));
+    assert_eq!(holds(&mut observer).await, ready("a-v1+p1+p2"));
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    let saved: HashMap<String, String> = [(key("a"), key("a-v1+p1+p2"))].into();
+    assert_eq!(kept.saves().last(), Some(&saved));
+
+    answer.send(Ok(key("L"))).expect("the refetch is waiting");
+    assert_eq!(holds(&mut observer).await, ready("L+p1+p2"));
+    assert_eq!(service.asked(), 2);
+}
+
+/// The patches kept with a fetch an invalidate replaced go with it: the
+/// newer answer is written as it is, and the older changes nothing (B13b, B9).
+#[tokio::test(start_paused = true)]
+async fn b13b_a_replaced_fetchs_patches_go_with_it() {
+    let service = Service::default();
+    let replaced = service.hold();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    settle().await;
+    cache.patch(&key("a"), appended("p"));
+    let newest = service.hold();
+    cache.invalidate(&key("a"));
+    settle().await;
+    assert_eq!(service.asked(), 2);
+
+    newest
+        .send(Ok(key("L1")))
+        .expect("the newest fetch is waiting");
+    assert_eq!(holds(&mut observer).await, ready("L1"));
+    replaced
+        .send(Ok(key("L0")))
+        .expect("the replaced fetch is waiting");
+    settle().await;
+    assert!(
+        tokio::time::timeout(Duration::from_millis(1), next(&mut observer))
+            .await
+            .is_err(),
+        "the observer is given nothing"
+    );
+    assert_eq!(cache.get(&key("a")), Some(key("L1")));
+}
+
+/// The patches kept with a fetch that fails go with it: its retry's answer
+/// is written as it is (B13b, B14).
+#[tokio::test(start_paused = true)]
+async fn b13b_a_failed_fetchs_patches_go_with_it() {
+    let service = Service::default();
+    let failing = service.hold();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    settle().await;
+    cache.patch(&key("a"), appended("p"));
+
+    let retried = service.hold();
+    failing
+        .send(Err(refused("down")))
+        .expect("the fetch is waiting");
+    settle().await;
+    assert_eq!(service.asked(), 2);
+    retried.send(Ok(key("L1"))).expect("the retry is waiting");
+    assert_eq!(holds(&mut observer).await, ready("L1"));
+}
+
+/// A patch to a key with neither a value nor a fetch in flight does nothing:
+/// it is given to no observer and owes no save (B13b, B20).
+#[tokio::test(start_paused = true)]
+async fn b13b_b20_a_patch_to_a_key_with_neither_a_value_nor_a_fetch_does_nothing() {
+    let service = Service::default();
+    service.then(Err(refused("down")));
+    service.then(Err(refused("down")));
+    let kept = Arc::new(Kept::default());
+    let cache = persisted(&service, &kept);
+    let changed = Arc::new(AtomicBool::new(false));
+    let change = {
+        let changed = changed.clone();
+        move |_: &mut String| changed.store(true, Ordering::SeqCst)
+    };
+
+    cache.patch(&key("unheld"), change.clone());
+    assert!(!cache.known(&key("unheld")));
+
+    let mut failed = cache.observe(&key("failed"));
+    assert!(matches!(holds(&mut failed).await, CacheState::Failed(_)));
+    cache.patch(&key("failed"), change);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(1), next(&mut failed))
+            .await
+            .is_err(),
+        "the observer is given nothing"
+    );
+    assert!(!changed.load(Ordering::SeqCst));
+    assert!(!cache.persistence_pending(), "no save is owed");
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert!(kept.saves().is_empty());
 }
 
 // ── keys, invalidate_all ────────────────────────────────────────────────
@@ -458,6 +790,44 @@ async fn b14_a_failed_fetch_is_tried_once_more_and_its_observers_recover() {
     let mut observer = cache.observe(&key("a"));
     assert_eq!(holds(&mut observer).await, ready("a-v2"));
     assert_eq!(service.asked(), 2);
+}
+
+/// The second ask of a failed first is made in the step that settles the
+/// first, so the key is fetching from its first ask to its second's answer:
+/// a task woken just after the first ask's fetch runs straight after that
+/// fetch settles, and finds the key fetching, as a client's places must
+/// (B14, B17).
+#[tokio::test(start_paused = true)]
+async fn b14_b17_a_failed_first_ask_is_asked_again_in_the_step_that_settles_it() {
+    let service = Service::default();
+    let first = service.hold();
+    let again = service.hold();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    let (look, looking) = oneshot::channel::<()>();
+    let reading = cache.clone();
+    let read = tokio::spawn(async move {
+        looking.await.expect("told to look");
+        reading.persistence_pending()
+    });
+    settle().await;
+    assert_eq!(service.asked(), 1);
+
+    first
+        .send(Err(refused("a blip")))
+        .expect("the first ask is waiting");
+    look.send(()).expect("the reader is waiting");
+    assert!(
+        read.await.expect("the reader ran"),
+        "the key is fetching between its first ask's failure and its second ask"
+    );
+    assert_eq!(service.asked(), 2);
+
+    again
+        .send(Ok(key("recovered")))
+        .expect("the second ask is waiting");
+    assert_eq!(holds(&mut observer).await, ready("recovered"));
+    assert!(!cache.persistence_pending());
 }
 
 #[tokio::test(start_paused = true)]
@@ -634,6 +1004,7 @@ async fn b16_a_disposed_cache_asks_nothing_and_a_one_shot_read_of_it_fails_as_cl
     cache.invalidate(&key("a"));
     cache.invalidate_all();
     cache.set(&key("a"), key("written"));
+    cache.patch(&key("a"), appended("p"));
     cache.remove(&key("a"), refused("gone").into());
     let refusal = cache.fetch(&key("a")).await.expect_err("it is closed");
     assert_eq!(
@@ -724,6 +1095,29 @@ async fn b17_b18_a_kept_value_is_shown_at_once_and_asked_for_again_once() {
     holds(&mut cache.observe(&key("a"))).await;
     assert_eq!(service.asked(), 1);
     assert_eq!(service.asked_for("b"), 0);
+}
+
+/// A patch leaves a kept value marked: only part of it is known to be
+/// current, so it is still asked for again the first time it is observed
+/// (B18, B13b).
+#[tokio::test(start_paused = true)]
+async fn b18_a_patched_kept_value_is_still_asked_for_again_when_first_observed() {
+    let service = Service::default();
+    let kept = Kept::with(&[("a", "from before")]);
+    let cache = persisted(&service, &kept);
+    cache.patch(&key("a"), appended("p"));
+    assert_eq!(cache.get(&key("a")), Some(key("from before+p")));
+    assert_eq!(service.asked(), 0);
+
+    let answer = service.hold();
+    let mut observer = cache.observe(&key("a"));
+    assert_eq!(next(&mut observer).await, Some(ready("from before+p")));
+    settle().await;
+    assert_eq!(service.asked(), 1);
+    answer
+        .send(Ok(key("as it is now")))
+        .expect("the revalidation is waiting");
+    assert_eq!(holds(&mut observer).await, ready("as it is now"));
 }
 
 #[tokio::test(start_paused = true)]
@@ -913,6 +1307,7 @@ impl AxiomSubject for Caches {
             Box::new(move || cache.invalidate(&a())),
             Box::new(move || cache.invalidate_all()),
             Box::new(move || cache.set(&a(), "written".to_owned())),
+            Box::new(move || cache.patch(&a(), appended("patched"))),
             Box::new(move || cache.remove(&a(), refused("gone").into())),
             Box::new(move || drop(tokio::spawn(cache.fetch(&a())))),
         ]

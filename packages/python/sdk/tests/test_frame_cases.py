@@ -4,7 +4,9 @@ Each case's line is carried by a gateway's stream, and after it a frame of
 `beckon:focus` that is read cleanly, so the stream is seen to go on past it.
 What the transport delivers, what a typed read of the case's channel is given,
 what the failure report is told, and what becomes of a reply awaited by the
-correlation id a request's case names are each held to the case.
+correlation id a request's case names are each held to the case. A frame
+delivered on a failure's channel is read by type too, and what is read is
+held to the case's `read`.
 """
 
 import asyncio
@@ -17,14 +19,15 @@ from pydantic import BaseModel, Field
 from spec import SPEC, JsonObject
 
 from semiont.bus import Bus, Delivered, Heard, Typed
-from semiont.channels import BECKON_FOCUS
+from semiont.channels import BECKON_FOCUS, GATHER_FAILED
 from semiont.errors import SemiontError
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import ResourceId
+from semiont.model import written
 from semiont.operations import BROWSE_RESOURCE_REQUESTED
 from semiont.retry import RetryPolicy
 from semiont.transport import Frame, FrameRefusal
-from semiont.types import BeckonFocusEvent, BrowseResourceResult
+from semiont.types import BeckonFocusEvent, BrowseResourceResult, CommandError, GatherFailed
 from semiont.watched import Variable, reached
 
 type Told = Literal["readers", "failure-report"]
@@ -37,6 +40,8 @@ class DeliveredFrame(BaseModel, frozen=True, extra="forbid"):
 
     why: str
     frame: JsonObject
+    read: JsonObject | None = None
+    """The payload its channel's typed reader reads, when that is not the payload as the frame states it."""
 
 
 class RefusedFrame(BaseModel, frozen=True, extra="forbid"):
@@ -80,7 +85,7 @@ QUICK: Final = Timing(
 REPLY: Final = BROWSE_RESOURCE_REQUESTED.result
 """The channel of the reply a request's case awaits, which it is read on by type."""
 FAILED: Final = BROWSE_RESOURCE_REQUESTED.failure
-CHANNELS: Final = (BECKON_FOCUS.name, REPLY.name, FAILED.name)
+CHANNELS: Final = (BECKON_FOCUS.name, REPLY.name, FAILED.name, GATHER_FAILED.name)
 AWAITED: Final = "c-1"
 """The correlation id a request's case names the reply it awaits by."""
 AFTER: Final[JsonObject] = {"channel": BECKON_FOCUS.name, "payload": {"resourceId": "after"}}
@@ -144,28 +149,51 @@ async def past_after(read: Typed[BeckonFocusEvent]) -> None:
 
 def test_the_table_has_a_frame_of_each_kind() -> None:
     assert DELIVERED
+    assert any(case.read is not None for case in DELIVERED)
     assert {case.reason for case in REFUSED} == {"lacks", "malformed"}
     assert {case.told for case in REFUSED} == {"readers", "failure-report"}
     assert {case.request for case in REFUSED if isinstance(case, RefusedFrame) and case.request is not None} == {"fails", "waits"}
 
 
+def failure_by_type(bus: Bus, channel: str) -> Typed[CommandError] | Typed[GatherFailed]:
+    """A typed read of a failure's channel a delivered case is on."""
+    if channel == FAILED.name:
+        return bus.frames(FAILED)
+    assert channel == GATHER_FAILED.name, f"{channel} is no failure's channel this runner reads by type"
+    return bus.frames(GATHER_FAILED)
+
+
 @pytest.mark.parametrize("case", DELIVERED, ids=lambda case: case.why)
 def test_a_frame_busframe_allows_is_delivered_as_it_states_it(case: DeliveredFrame) -> None:
-    async def scenario() -> tuple[JsonObject, list[SemiontError]]:
-        channel = case.frame["channel"]
-        assert isinstance(channel, str)
+    channel = case.frame["channel"]
+    assert isinstance(channel, str)
+    on_a_failure = channel in (FAILED.name, GATHER_FAILED.name)
+    # What is read by type is held to the case on a failure's channel, and a case on another states none.
+    assert on_a_failure or case.read is None, f"this runner reads no frame on {channel} by type"
+
+    async def scenario() -> tuple[JsonObject, JsonObject | None, list[SemiontError]]:
         async with (
             GatewayServer() as gateway,
             HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK) as transport,
         ):
             await soon(reached(transport.state, lambda state: state == "open"))
             frames, failures = transport.frames(channel), transport.failures()
+            typed = failure_by_type(Bus(transport), channel) if on_a_failure else None
             gateway.send("e-case", case.frame)
-            read = await soon(anext(frames))
-        assert isinstance(read, Frame), read
-        return stated(read), [failure async for failure in failures]
+            delivered = await soon(anext(frames))
+            heard = None if typed is None else await soon(anext(typed))
+        assert isinstance(delivered, Frame), delivered
+        if heard is None:
+            return stated(delivered), None, [failure async for failure in failures]
+        assert isinstance(heard, Delivered), heard
+        return stated(delivered), written(heard.payload), [failure async for failure in failures]
 
-    assert run(scenario()) == (case.frame, [])
+    read: JsonObject | None = None
+    if on_a_failure:
+        payload = case.frame["payload"]
+        assert isinstance(payload, dict)
+        read = payload if case.read is None else case.read
+    assert run(scenario()) == (case.frame, read, [])
 
 
 @pytest.mark.parametrize("case", REFUSED, ids=lambda case: case.why)

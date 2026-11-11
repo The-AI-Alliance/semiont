@@ -12,7 +12,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { REQUEST_RETRY_PAUSE_MS, accessToken, baseUrl, resourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, REQUEST_RETRY_PAUSE_MS, accessToken, baseUrl, resourceId } from '@semiont/core';
 import { HttpTransport, currentUserOf } from '../http-transport';
 import { APIError } from '../api-error';
 
@@ -54,6 +54,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     fetchMock.mockImplementation(async () => failWith(502));
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,
+      channels: BRIDGED_CHANNELS,
       timeout: 10_000,
       tokenRefresher: async () => 'fresh-token',
     });
@@ -79,6 +80,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     fetchMock.mockResolvedValueOnce(okJson(USER));
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,
+      channels: BRIDGED_CHANNELS,
       timeout: 10_000,
       tokenRefresher: async () => 'fresh-token',
     });
@@ -94,6 +96,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     fetchMock.mockResolvedValueOnce(okJson({ token: 'media-tok' }));
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,
+      channels: BRIDGED_CHANNELS,
       timeout: 10_000,
       tokenRefresher: async () => 'fresh-token',
     });
@@ -118,6 +121,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     fetchMock.mockImplementation(async () => failWith(401));
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,
+      channels: BRIDGED_CHANNELS,
       timeout: 10_000,
       tokenRefresher: async () => null,
     });
@@ -137,7 +141,7 @@ describe('HttpTransport retry — what the caller receives', () => {
 
   test('without a refresher, a POST that got a 503 is not made again — the rule repeats no POST that carries no key', async () => {
     fetchMock.mockImplementation(async () => failWith(503));
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
 
     await expect(
       transport.getMediaToken('res-1' as Parameters<HttpTransport['getMediaToken']>[0]),
@@ -151,7 +155,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     vi.useFakeTimers();
     try {
       fetchMock.mockImplementation(async () => failWith(503));
-      const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+      const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
 
       const thrown = transport.getCurrentUser().then(() => null, (e: unknown) => e);
       await vi.advanceTimersByTimeAsync(REQUEST_RETRY_PAUSE_MS - 1);
@@ -192,7 +196,7 @@ describe('HttpTransport — a refused credential', () => {
   test('a GET refused 429 refusal-rate is sent again at once with the renewed token, and nothing is reported', async () => {
     fetchMock.mockResolvedValueOnce(refusedByLimit('refusal-rate', 30));
     fetchMock.mockResolvedValueOnce(okJson(USER));
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: async () => 'fresh-token' });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000, tokenRefresher: async () => 'fresh-token' });
     const reported: unknown[] = [];
     transport.errors$.subscribe((error) => reported.push(error));
 
@@ -207,7 +211,7 @@ describe('HttpTransport — a refused credential', () => {
   test('refused again, it fails unauthorized with the 429 it was answered, reported once, and is not sent a third time', async () => {
     fetchMock.mockImplementation(async () => refusedByLimit('refusal-rate', 30));
     const refresher = vi.fn(async () => 'fresh-token');
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: refresher });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000, tokenRefresher: refresher });
     const reported: unknown[] = [];
     transport.errors$.subscribe((error) => reported.push(error));
 
@@ -223,7 +227,7 @@ describe('HttpTransport — a refused credential', () => {
 
   test('without a refresher, a GET refused 429 refusal-rate is final at once, where ky alone would wait and send it again', async () => {
     fetchMock.mockImplementation(async () => refusedByLimit('refusal-rate', 30));
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
 
     const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
 
@@ -236,7 +240,7 @@ describe('HttpTransport — a refused credential', () => {
   test('a GET refused 429 by any other limit is still rate-limited, and not renewed', async () => {
     fetchMock.mockImplementation(async () => refusedByLimit('streams', 0));
     const refresher = vi.fn(async () => 'fresh-token');
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: refresher });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000, tokenRefresher: refresher });
 
     const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
 
@@ -263,7 +267,7 @@ describe('HttpTransport — what a refusal says', () => {
 
   test("a refusal carries the gateway's own words and its body, on the error and on errors$", async () => {
     fetchMock.mockImplementation(async () => refusedAs(403, 'Forbidden', 'this needs the moderator role'));
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
     const reported: unknown[] = [];
     transport.errors$.subscribe((error) => reported.push(error));
 
@@ -283,7 +287,7 @@ describe('HttpTransport — what a refusal says', () => {
 
   test('a refusal that states nothing is named by its status', async () => {
     fetchMock.mockImplementation(async () => new Response('<html>bad gateway</html>', { status: 403, statusText: 'Forbidden' }));
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
 
     const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
 

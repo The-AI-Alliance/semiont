@@ -47,7 +47,7 @@ public sealed class EventBus : IDisposable
     private async IAsyncEnumerable<Carried> ReadFrames(string channel, [EnumeratorCancellation] CancellationToken cancellation)
     {
         using var subscription = Listen([channel]);
-        await foreach (var carried in subscription.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+        await foreach (var carried in Spawning.ReadAll(subscription.Reader, cancellation).ConfigureAwait(Spawning.Captures))
             yield return carried;
     }
 

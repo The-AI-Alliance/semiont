@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.http import DeviceCode, session_from_kept, sign_in_device
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
 from semiont.types import KbTarget
@@ -17,5 +18,5 @@ async def as_me(kb: KbTarget, home: str) -> None:
     kept = SignInStore(Path(directory) / FILE_NAME).entry(kb.id)
     if await kept.held() is None:
         await sign_in_device(kb, kept, show)
-    async with session_from_kept(kb, kept=kept) as session:
+    async with session_from_kept(kb, kept=kept, channels=BRIDGED_CHANNELS) as session:
         print(session.user.value, (await session.client.system.status()).version)

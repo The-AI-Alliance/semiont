@@ -18,7 +18,6 @@ private func asJSON<Value: Encodable>(_ value: Value) throws -> JSONValue {
     ("media-types/registry.json", "mediaTypes", try asJSON(mediaTypes)),
     ("media-types/registry.json", "extensionAliases", try asJSON(extensionAliases)),
     ("client/refresh.json", "queries", try asJSON(cacheQueries)),
-    ("bus/registry.json", "audience", try asJSON(busAudience)),
   ] {
     #expect(try required(Spec.read(path).object, key) == value, "\(path) \(key)")
   }

@@ -10,9 +10,6 @@ type failure = {
   failure_class : Enums.Failure_class.t option;
 }
 
-val channels : Bus_registry.packed_channel list
-(** Include these channels in the subscription's global channels. *)
-
 val make :
   ?silence_ms:int ->
   ?poll_ms:int ->

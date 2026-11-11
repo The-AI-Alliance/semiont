@@ -41,7 +41,11 @@ type Gate = Box<dyn Fn() -> bool + Send + Sync>;
 /// Whether `id` is a recorded event's id, a `PersistedEventId`: the only kind
 /// that is a place, and the one decider of it, by the spec's pattern.
 pub fn is_persisted_event_id(id: &str) -> bool {
-    fault_of(schema("PersistedEventId"), &Value::String(id.to_owned())).is_none()
+    fault_of(
+        schema("PersistedEventId"),
+        &mut Value::String(id.to_owned()),
+    )
+    .is_none()
 }
 
 /// The places reached and not yet written.
@@ -210,6 +214,7 @@ impl SessionStorage for Carrying {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::channels::BRIDGED_CHANNELS;
     use crate::storage::InMemorySessionStorage;
     use crate::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
     use std::time::Duration;
@@ -271,6 +276,7 @@ mod tests {
         // are asked for.
         let client = create_test_client(TestClientOptions {
             transport: Some(FaultyTransport::answering(
+                BRIDGED_CHANNELS,
                 vec![FaultAction::Delay(Duration::from_secs(10))],
                 |_, _| Ok(Some(serde_json::json!({ "entityTypes": [] }))),
             )),

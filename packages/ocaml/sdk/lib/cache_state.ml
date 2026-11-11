@@ -44,6 +44,7 @@ let invalidate t = Live_query.invalidate t.cache
 let invalidate_all t = Live_query.invalidate_all t.cache
 let remove t = Live_query.remove t.cache
 let set t = Live_query.set t.cache
+let patch t = Live_query.patch t.cache
 
 let persistence_pending t =
   t.persistence && (Hashtbl.length t.pending > 0 || Live_query.in_flight t.cache)

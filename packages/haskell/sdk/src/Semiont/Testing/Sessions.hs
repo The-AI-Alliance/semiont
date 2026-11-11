@@ -69,7 +69,7 @@ factory (ScriptedSessions clock bus timing wall answer content refusal buildRefu
           key=knowledgeBaseId kb
       rejected <- readTVarIO buildRefusal
       forM_ rejected (\reason->throwIO (SessionError Code.SessionConstructFailed reason key))
-      over <- Faulty.newFaultyTransport clock [] (answer key) (Set.fromList Channels.channelNames)
+      over <- Faulty.newFaultyTransport clock [] (answer key) (Set.fromList Channels.globalChannels)
       Faulty.refuseWhen over (\operation payload->readTVarIO refusal >>= \refuse->refuse key operation payload)
       (contents,gateway) <- content key `onException` Transport.dispose (Faulty.carrier over)
       client <- Client.newClient (Faulty.carrier over) contents gateway bus timing Nothing

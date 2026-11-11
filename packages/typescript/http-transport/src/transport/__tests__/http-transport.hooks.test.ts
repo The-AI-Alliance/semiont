@@ -13,7 +13,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { baseUrl, resourceId, type SemiontError } from '@semiont/core';
+import { BRIDGED_CHANNELS, baseUrl, resourceId, type SemiontError } from '@semiont/core';
 
 // Mock `ky` with a real `HTTPError` class — defined *inside* the factory to
 // avoid vitest's mock-hoisting TDZ — so the hook's `error instanceof HTTPError`
@@ -74,7 +74,7 @@ describe('HttpTransport ky hooks', () => {
     } as unknown as ReturnType<typeof ky.create>);
 
     vi.mocked(ky.create).mockClear();
-    transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
     hooks = vi.mocked(ky.create).mock.calls.at(-1)![0]!.hooks!;
   });
 
@@ -226,6 +226,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
 
     new HttpTransport({
       baseUrl: testBaseUrl,
+      channels: BRIDGED_CHANNELS,
       timeout: 10_000,
       tokenRefresher: async () => 'fresh-token',
     });
@@ -320,7 +321,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
   });
 
   test('a transport that renews nothing is made again by the same rule', () => {
-    new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
     expect(vi.mocked(ky.create).mock.calls.at(-1)![0]!.retry).toBe(retryConfig);
   });
 });
@@ -333,7 +334,7 @@ describe('HttpTransport afterResponse — a refused credential is renewed once, 
     } as unknown as ReturnType<typeof ky.create>);
     vi.mocked(ky.create).mockClear();
     vi.mocked(ky.retry).mockClear();
-    new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: refresher });
+    new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000, tokenRefresher: refresher });
     const hooks = vi.mocked(ky.create).mock.calls.at(-1)![0]!.hooks!;
     // [0] is the logging passthrough; [1] renews.
     const renew = hooks.afterResponse![1]!;
@@ -438,6 +439,7 @@ describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
 
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,
+      channels: BRIDGED_CHANNELS,
       timeout: 10_000,
       token$: new BehaviorSubject<AccessToken | null>(accessToken('real-but-refused-tok')),
     });
@@ -469,7 +471,7 @@ describe('HttpTransport errors$ bridge (refused emits)', () => {
     }));
 
     // No token: the stream never opens, so the only request is the emit.
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
     const seen: SemiontError[] = [];
     transport.errors$.subscribe((e) => seen.push(e));
 
@@ -488,7 +490,7 @@ describe('HttpTransport after dispose', () => {
 
   test('a request fails as closed at once: the transport does not build itself a new, unopened bus to wait on', async () => {
     mockFetch.mockReset();
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
     // Its bus is made before it is disposed: something asked for the connection's state.
     transport.state$.subscribe().unsubscribe();
     transport.dispose();
@@ -499,7 +501,7 @@ describe('HttpTransport after dispose', () => {
 
   test('the same holds for a transport disposed before it ever touched its bus', async () => {
     mockFetch.mockReset();
-    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10_000 });
     transport.dispose();
 
     expect(await request(transport)).toMatchObject({ code: 'bus.closed' });

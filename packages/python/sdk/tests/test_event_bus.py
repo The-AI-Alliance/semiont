@@ -142,9 +142,9 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
     assert caplog.records == []
 
 
-def test_a_transport_delivers_into_the_bus_it_was_bridged_into_every_frame_whatever_its_channel() -> None:
+def test_a_transport_delivers_into_each_bus_it_was_bridged_into_every_frame_it_carries_whatever_its_scope() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport(channels=("mark:added",))
+        transport = FaultyTransport(channels=("mark:added", "job:complete"))
         bus, second = EventBus(), EventBus()
         transport.bridge_into(bus)
         transport.bridge_into(second)
@@ -153,7 +153,6 @@ def test_a_transport_delivers_into_the_bus_it_was_bridged_into_every_frame_whate
         also = second.frames_on("job:complete")
 
         transport.deliver(Frame(channel="mark:added", payload={"n": 1}))
-        # A channel the transport's own readers were never promised still reaches the client's bus.
         transport.deliver(Frame(channel="job:complete", payload={"n": 2}, correlation_id="cid-2"))
         transport.deliver(Frame(channel="mark:added", payload={"n": 3}, scope=ONE))
         await transport.close()

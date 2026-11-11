@@ -4,14 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { readyValue } from '@semiont/sdk';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
-import { getResourceId } from '@semiont/core';
+import { SEARCH_DEBOUNCE_MS, getResourceId } from '@semiont/core';
 import { createSearchPipeline } from '@semiont/sdk';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import './SearchModal.css';
 
-const SEARCH_DEBOUNCE_MS = 300;
 const SEARCH_LIMIT = 5;
 
 export interface SearchModalProps {

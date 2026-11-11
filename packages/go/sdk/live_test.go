@@ -169,10 +169,11 @@ type liveWorld struct {
 
 func newLiveWorld(t *testing.T, setup liveSetup) *liveWorld {
 	t.Helper()
-	config := semionttest.FaultyConfig{MakeResponse: knowing()}
+	config := semionttest.FaultyConfig{Channels: bus.BridgedChannels, MakeResponse: knowing()}
 	if setup.silent {
 		// Every reply is lost on its way: the test answers each request itself.
 		config = semionttest.FaultyConfig{
+			Channels:     bus.BridgedChannels,
 			Schedule:     []semionttest.FaultAction{semionttest.DropReply{}},
 			MakeResponse: func(bus.Channel, json.RawMessage) (json.RawMessage, error) { return nil, nil },
 		}

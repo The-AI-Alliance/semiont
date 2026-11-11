@@ -72,7 +72,7 @@ public sealed class FaultyTransport(IEnumerable<FaultAction>? schedule = null, R
         var path = request.RequestUri?.AbsolutePath;
         if (path == "/bus/subscribe")
         {
-            var subscription = await BodyAsync<BusSubscribeRequest>(request, cancellationToken).ConfigureAwait(false);
+            var subscription = await BodyAsync<BusSubscribeRequest>(request, cancellationToken).ConfigureAwait(Spawning.Captures);
             lock (gate)
             {
                 ObjectDisposedException.ThrowIf(disposed, this);
@@ -84,10 +84,10 @@ public sealed class FaultyTransport(IEnumerable<FaultAction>? schedule = null, R
             }
         }
         if (path != "/bus/emit")
-            return Other is { } other ? await other(request, cancellationToken).ConfigureAwait(false)
+            return Other is { } other ? await other(request, cancellationToken).ConfigureAwait(Spawning.Captures)
                 : new HttpResponseMessage(HttpStatusCode.NotFound) { Content = JsonContent.Create(new { error = $"No response scripted for {path}." }) };
 
-        var sent = await BodyAsync<BusEmitRequest>(request, cancellationToken).ConfigureAwait(false);
+        var sent = await BodyAsync<BusEmitRequest>(request, cancellationToken).ConfigureAwait(Spawning.Captures);
         FaultAction action;
         lock (gate)
         {
@@ -103,7 +103,7 @@ public sealed class FaultyTransport(IEnumerable<FaultAction>? schedule = null, R
             if (action is not FaultAction.DropReply)
             {
                 if (action is FaultAction.Delay(var duration))
-                    await Task.Delay(duration, clock, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(duration, clock, cancellationToken).ConfigureAwait(Spawning.Captures);
                 lock (gate)
                 {
                     var id = NextEventId();
@@ -118,7 +118,7 @@ public sealed class FaultyTransport(IEnumerable<FaultAction>? schedule = null, R
     private static async Task<T> BodyAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken) where T : class
     {
         var content = request.Content ?? throw new InvalidOperationException("Missing request body");
-        return await content.ReadFromJsonAsync<T>(cancellationToken).ConfigureAwait(false)
+        return await content.ReadFromJsonAsync<T>(cancellationToken).ConfigureAwait(Spawning.Captures)
             ?? throw new InvalidOperationException("Missing request payload");
     }
 
@@ -149,7 +149,7 @@ public sealed class FaultyTransport(IEnumerable<FaultAction>? schedule = null, R
             catch (SemiontError error)
             {
                 channel = channels.Failure;
-                payload = JsonSerializer.SerializeToElement(new { code = error.Code, message = error.Message });
+                payload = JsonSerializer.SerializeToElement(new CommandError { Message = error.Message });
             }
         }
         return new BusFrame { Channel = channel, Scope = sent.Scope, CorrelationId = sent.CorrelationId, Payload = payload };
@@ -203,8 +203,8 @@ public sealed class FaultyTransport(IEnumerable<FaultAction>? schedule = null, R
             if (buffer.IsEmpty) return 0;
             if (current.IsEmpty)
             {
-                if (!await chunks.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false)) return 0;
-                current = await chunks.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (!await chunks.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(Spawning.Captures)) return 0;
+                current = await chunks.Reader.ReadAsync(cancellationToken).ConfigureAwait(Spawning.Captures);
             }
             var count = Math.Min(buffer.Length, current.Length);
             current[..count].CopyTo(buffer);

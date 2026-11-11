@@ -3,14 +3,13 @@ import { readyValue, type CacheState } from '@semiont/sdk';
 import { debounceTime, distinctUntilChanged, map, startWith, switchMap, shareReplay } from 'rxjs/operators';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/core';
+import { SEARCH_DEBOUNCE_MS, type StateUnit } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import { trackList, type ListState } from '../../../state/list-state';
 
 const RECENT_LIMIT = 10;
 const SEARCH_LIMIT = 20;
-const DEBOUNCE_MS = 250;
 
 export interface DiscoverSearchPipeline {
   query$: Observable<string>;
@@ -87,7 +86,7 @@ export function createDiscoverStateUnit(
 
   const debouncedQuery$ = queryInput$.pipe(
     startWith(''),
-    debounceTime(DEBOUNCE_MS),
+    debounceTime(SEARCH_DEBOUNCE_MS),
     distinctUntilChanged(),
   );
 

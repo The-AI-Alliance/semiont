@@ -43,7 +43,7 @@ func refusedAs(t *testing.T, why string, err error, said string) {
 // is response.
 func asked(t *testing.T, response string) (api.BrowseResourceResult, error) {
 	t.Helper()
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.ReplyChannelsFor(bus.BrowseResourceRequested.Request().Channel())})
 	transport.QueueReply(bus.BrowseResourceRequested.Request().Channel(), json.RawMessage(response))
 	defer transport.Close()
 	resource, err := api.ParseResourceId("res-1")
@@ -104,7 +104,7 @@ func TestAReplyThatCarriesWhatItsSchemaRequiresIsRead(t *testing.T) {
 // A reply whose response its registry entry wraps is held to what the
 // response's schema requires, from the response.
 func TestAWrappedResponseIsHeldToItsSchemaFromTheResponse(t *testing.T) {
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.ReplyChannelsFor(bus.JobCancelRequested.Request().Channel())})
 	defer transport.Close()
 	transport.QueueReply(bus.JobCancelRequested.Request().Channel(), json.RawMessage(`{}`))
 	job, err := api.ParseJobId("job-1")
@@ -122,7 +122,7 @@ func TestAWrappedResponseIsHeldToItsSchemaFromTheResponse(t *testing.T) {
 // fails with: asked by type, and asked by its request channel.
 func failed(t *testing.T, failure string) (byType, byChannel error) {
 	t.Helper()
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.ReplyChannelsFor(bus.BrowseResourceRequested.Request().Channel())})
 	defer transport.Close()
 	transport.RefuseWhen(func(bus.Channel, json.RawMessage) json.RawMessage { return json.RawMessage(failure) })
 	resource, err := api.ParseResourceId("res-1")
@@ -193,7 +193,7 @@ func TestAnAnswerWithAFaultIsRefusedNamingIt(t *testing.T) {
 // is said in. A refusal that carries no correlation id reaches no request.
 func TestARequestIsToldAtOnceOfAReplyItsTransportRefused(t *testing.T) {
 	// The reply the gateway answers with is lost on its way, and the refusals are delivered by hand.
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Schedule: []semionttest.FaultAction{semionttest.DropReply{}}})
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.ReplyChannelsFor(bus.BrowseResourceRequested.Request().Channel()), Schedule: []semionttest.FaultAction{semionttest.DropReply{}}})
 	defer transport.Close()
 	transport.QueueReply(bus.BrowseResourceRequested.Request().Channel(), json.RawMessage(`{"resource":`+aResource+`,"lastSequence":1}`))
 	resource, err := api.ParseResourceId("res-1")

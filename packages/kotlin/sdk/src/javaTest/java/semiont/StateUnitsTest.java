@@ -22,6 +22,7 @@ import kotlinx.serialization.json.JsonElementKt;
 import org.junit.jupiter.api.Test;
 import semiont.cache.Cache;
 import semiont.cache.CacheState;
+import semiont.channels.ChannelsKt;
 import semiont.errors.BusRequestError;
 import semiont.errors.BusRequestErrorCode;
 import semiont.http.HttpContentTransport;
@@ -64,7 +65,7 @@ final class StateUnitsTest {
     /** A client over a gateway, and what it is over, closed together. */
     private static final class Opened implements AutoCloseable {
         final Gateway gateway = new Gateway();
-        final HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"));
+        final HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"), ChannelsKt.getBRIDGED_CHANNELS());
         final HttpContentTransport content = new HttpContentTransport(transport);
         final SemiontClient client = new SemiontClient(transport, content, transport);
 

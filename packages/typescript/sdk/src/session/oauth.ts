@@ -61,7 +61,8 @@ export interface IssuerEndpoints {
  * knows everything — no configuration on this side.
  */
 export async function discoverIssuer(target: HttpEndpoint, fetch?: typeof globalThis.fetch): Promise<IssuerEndpoints> {
-  const transport = new HttpTransport({ baseUrl: baseUrl(kbGatewayUrl(target)), ...(fetch ? { fetch } : {}) });
+  // It asks one HTTP question and awaits no operation's reply, so its stream names no channel.
+  const transport = new HttpTransport({ baseUrl: baseUrl(kbGatewayUrl(target)), channels: [], ...(fetch ? { fetch } : {}) });
   let issuer: string;
   try {
     const metadata = await transport.getProtectedResourceMetadata();

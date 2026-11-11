@@ -29,7 +29,7 @@ import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
 import { SemiontError } from './errors';
-import { faultOfShape, said, within, type Fault, type Shape } from './required';
+import { readOfShape, said, within, type Fault, type Shape } from './required';
 import type { components } from './types';
 import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isResourceScopedChannel, type ResourceScopedChannel, type UnscopedChannel } from './bridged-channels';
@@ -196,6 +196,8 @@ const notTheFrames = (refusal: FrameRefusal): string => `a frame on ${refusal.ch
  * channel's, named from the payload. A stamp the gateway put on it that the
  * channel's payload type does not declare (`CHANNEL_STAMPS`) is the bus's,
  * not the payload's, and is left out before the payload is held to its shape.
+ * So is a member the table reads as absent: a failure's code that is none of
+ * CommandError's recognized codes, which is read as a failure that states none.
  */
 function readAs<K extends keyof EventMap>(channel: K, payload: unknown): { readonly payload: EventMap[K] } | { readonly fault: Fault } {
   const stamps: readonly string[] = CHANNEL_STAMPS[channel];
@@ -203,8 +205,8 @@ function readAs<K extends keyof EventMap>(channel: K, payload: unknown): { reado
     typeof payload === 'object' && payload !== null && !Array.isArray(payload)
       ? Object.fromEntries(Object.entries(payload).filter(([name]) => !name.startsWith('_') || stamps.includes(name)))
       : payload;
-  const fault = faultOfShape(payloadShape(channel), declared);
-  return fault === undefined ? { payload: declared as EventMap[K] } : { fault };
+  const reading = readOfShape(payloadShape(channel), declared);
+  return 'fault' in reading ? reading : { payload: reading.read as EventMap[K] };
 }
 
 /**
@@ -332,10 +334,10 @@ export class Bus {
    * (void); the request matches on the envelope and reads `payload.response`.
    * A result or a failure that lacks a member its schema requires
    * (`CHANNEL_PAYLOADS`) rejects, as a `SemiontError` coded `error` naming
-   * the member; a failure's code is held to no list, and one the wire does
-   * not declare is `bus.rejected`, in the failure's words. So does a
-   * reply its transport refused that carries the request's `correlationId`,
-   * at once, naming the frame's fault.
+   * the member; a failure's code that is none CommandError recognizes is
+   * read as absent, and a failure read with no code is `bus.rejected`, in the
+   * failure's words. So does a reply its transport refused that carries the
+   * request's `correlationId`, at once, naming the frame's fault.
    *
    * `timeoutMs` is the request's one deadline, counted from the call. It
    * covers the wait for the stream to open, the emit with its retries and the

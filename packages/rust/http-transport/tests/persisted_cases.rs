@@ -25,6 +25,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
 use semiont::cache::CacheState;
 use semiont::cached::Observed;
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{ClientOptions, SemiontClient};
 use semiont::errors::{BusRequestError, SessionError, TransportError};
 use semiont::event_bus::EventBus;
@@ -721,7 +722,7 @@ impl SessionFactory for ClosingSessions {
             .and_then(|stored| stored.person_key)
             .map(|person_key| cache_key(&kb_id, &person_key, CacheQuery::Resource));
         let transport = ClosingWrites {
-            answers_nothing: FaultyTransport::new(vec![]),
+            answers_nothing: FaultyTransport::new(BRIDGED_CHANNELS, vec![]),
             storage: options.storage.clone(),
             key: kept_for,
         };

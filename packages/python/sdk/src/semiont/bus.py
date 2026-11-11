@@ -41,7 +41,7 @@ from typing import Final, Literal, Self, final, overload
 
 from pydantic import JsonValue, ValidationError
 
-from semiont._required import UNDECODED, Fault, fault_of
+from semiont._required import UNDECODED, Fault, as_read
 from semiont.channel import AnyChannel, AnyOperation, Channel, Operation, ScopedChannel
 from semiont.errors import BusRequestError, TransportError
 from semiont.events import Events
@@ -49,6 +49,7 @@ from semiont.identifiers import ResourceId, UserId
 from semiont.model import WireModel
 from semiont.timing import BUS_REQUEST_TIMEOUT_MS
 from semiont.transport import ConnectionState, Frame, FrameRefusal, ResourceHold, TraceContext, Transport
+from semiont.types import CommandError
 from semiont.watched import NeverReached, reached
 
 __all__ = ["Bus", "Delivered", "Heard", "Typed", "decoded", "reply_channels_for", "request"]
@@ -154,15 +155,22 @@ def _answered(channel: AnyChannel, failure: Mapping[str, JsonValue]) -> BusReque
     A failure is held to its channel's shape before it is read, as a result
     is: one with a fault is refused, naming the fault. A failure the shape
     passes is a `BusRequestError` in its own words, under the code its own
-    code becomes; the shape holds the code to no list.
+    code becomes, and carries the failure as read: a code the shape does
+    not recognize is read as absent. Every failure is a `CommandError`, and
+    is read as one for its words and its code.
     """
-    fault = fault_of(channel.payload, _unstamped(channel, failure))
-    if fault is None:
-        match failure:
-            case {"message": str(said)}:
-                return BusRequestError.answered(said, failure)
-            case _:
-                fault = UNDECODED
+    read = as_read(channel.payload, _unstamped(channel, failure))
+    if isinstance(read, Fault):
+        fault = read
+    elif isinstance(read, dict):
+        try:
+            said = CommandError.model_validate(read)
+        except ValidationError:
+            fault = UNDECODED
+        else:
+            return BusRequestError.answered(said, read)
+    else:
+        fault = UNDECODED
     return TransportError("error", f"a payload on {channel.name} is not that channel's: {fault}")
 
 
@@ -215,11 +223,11 @@ type Heard[P: WireModel] = Delivered[P] | FrameRefusal
 """What a typed read gives for each frame. A `match` over one names both."""
 
 
-def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P]:
-    """`frame`, its payload as `channel` types it. Raises `ValidationError` for a payload that is not that channel's."""
+def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame, read: JsonValue) -> Delivered[P]:
+    """`frame`, its payload `read` as `channel` types it. Raises `ValidationError` for a payload that is not that channel's."""
     stamped = frame.payload.get(_EMITTED_BY)
     return Delivered(
-        payload=decoded(channel, frame.payload),
+        payload=channel.decode(read),
         correlation_id=frame.correlation_id,
         scope=frame.scope,
         user_id=UserId.parse(stamped) if isinstance(stamped, str) else None,
@@ -228,12 +236,12 @@ def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], 
 
 
 def _read[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P] | Fault:
-    """`frame`, its payload as `channel` types it; or the first fault of a payload that is not that channel's."""
-    fault = fault_of(channel.payload, _unstamped(channel, frame.payload))
-    if fault is not None:
-        return fault
+    """`frame`, its payload as it is read and as `channel` types it; or the first fault of a payload that is not that channel's."""
+    read = as_read(channel.payload, _unstamped(channel, frame.payload))
+    if isinstance(read, Fault):
+        return read
     try:
-        return _delivered(channel, frame)
+        return _delivered(channel, frame, read)
     except ValidationError:
         return UNDECODED
 

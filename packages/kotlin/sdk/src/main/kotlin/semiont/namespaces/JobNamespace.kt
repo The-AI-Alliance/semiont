@@ -3,6 +3,7 @@
 package semiont.namespaces
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import semiont.Timings
 import semiont.bus.Operations
 import semiont.bus.Typed
@@ -66,24 +67,38 @@ public class JobNamespace internal constructor(private val links: Links) {
     public fun statusFuture(jobId: JobId): CompletableFuture<JobStatusResponse> = links.future { status(jobId) }
 
     /**
-     * Ask a job's status every `everyMs` until it has ended: the status it
-     * ended with. One that has not ended `withinMs` fails as a timeout.
-     * `onStatus` is told each status as it is answered.
+     * Ask a job's status every `everyMs` (`jobPollMs`) until it has ended: the
+     * status it ended with. One that has not ended `withinMs`
+     * (`jobPollTimeoutMs`) from the first ask, the asks and the waits between
+     * them included, fails as a timeout at that moment: the last wait is cut
+     * short there, and an ask still unanswered then is given up. `onStatus` is
+     * told each status as it is answered.
      */
-    public suspend fun pollUntilComplete(jobId: JobId, everyMs: Long, withinMs: Long, onStatus: ((JobStatusResponse) -> Unit)? = null): JobStatusResponse {
+    public suspend fun pollUntilComplete(
+        jobId: JobId,
+        everyMs: Long = Timings.JOB_POLL_MS,
+        withinMs: Long = Timings.JOB_POLL_TIMEOUT_MS,
+        onStatus: ((JobStatusResponse) -> Unit)? = null,
+    ): JobStatusResponse {
         val began = links.clock.markNow()
+        fun left(): Long = withinMs - began.elapsedNow().inWholeMilliseconds
         while (true) {
-            val answered = status(jobId)
+            val answered = withTimeoutOrNull(left()) { status(jobId) } ?: throw BusRequestError(BusRequestErrorCode.Timeout, "Job polling timeout after ${withinMs}ms")
             onStatus?.invoke(answered)
             if (answered.status in ENDED) return answered
-            if (began.elapsedNow().inWholeMilliseconds > withinMs) throw BusRequestError(BusRequestErrorCode.Timeout, "Job polling timeout after ${withinMs}ms")
-            delay(everyMs)
+            delay(minOf(everyMs, left()))
         }
     }
 
     /** `pollUntilComplete`, for Java. */
+    @JvmOverloads
     @JvmExposeBoxed
-    public fun pollUntilCompleteFuture(jobId: JobId, everyMs: Long, withinMs: Long, onStatus: Consumer<JobStatusResponse>?): CompletableFuture<JobStatusResponse> =
+    public fun pollUntilCompleteFuture(
+        jobId: JobId,
+        everyMs: Long = Timings.JOB_POLL_MS,
+        withinMs: Long = Timings.JOB_POLL_TIMEOUT_MS,
+        onStatus: Consumer<JobStatusResponse>? = null,
+    ): CompletableFuture<JobStatusResponse> =
         links.future { pollUntilComplete(jobId, everyMs, withinMs, onStatus?.let { told -> { told.accept(it) } }) }
 
     /**

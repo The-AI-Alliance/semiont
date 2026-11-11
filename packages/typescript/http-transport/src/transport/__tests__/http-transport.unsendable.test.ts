@@ -16,7 +16,7 @@
 import util from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { accessToken, baseUrl, resourceId, type AccessToken, type SemiontError } from '@semiont/core';
+import { BRIDGED_CHANNELS, accessToken, baseUrl, resourceId, type AccessToken, type SemiontError } from '@semiont/core';
 import { HttpContentTransport } from '../http-content-transport';
 import { HttpTransport, currentUserOf } from '../http-transport';
 
@@ -45,7 +45,7 @@ const asked = (): string[] =>
 
 const open: HttpTransport[] = [];
 function transportWith(token: AccessToken, address = GATEWAY, more: { tokenRefresher?: () => Promise<string | null> } = {}): HttpTransport {
-  const transport = new HttpTransport({ baseUrl: address, token$: new BehaviorSubject<AccessToken | null>(token), ...more });
+  const transport = new HttpTransport({ baseUrl: address, channels: BRIDGED_CHANNELS, token$: new BehaviorSubject<AccessToken | null>(token), ...more });
   open.push(transport);
   return transport;
 }

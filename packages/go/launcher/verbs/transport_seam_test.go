@@ -72,7 +72,7 @@ func verbFixture(t *testing.T) {
 
 func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	verbFixture(t)
-	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels})
 	fake.Counted(2)
 	var built []semiont.HTTPTransportConfig
 	restore := launcher.UseTransport(func(config semiont.HTTPTransportConfig) semiont.Transport {
@@ -133,7 +133,7 @@ func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 		{0, false, "no delivery confirmation"},
 	} {
 		verbFixture(t)
-		fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+		fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels})
 		if c.counted {
 			fake.Counted(c.subscribers)
 		}

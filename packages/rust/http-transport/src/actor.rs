@@ -702,11 +702,11 @@ enum Line {
 /// BusFrame names, and nothing more. What serde refuses that the table of
 /// what BusFrame requires does not is malformed itself.
 fn carried(data: &str) -> Line {
-    let Ok(value) = serde_json::from_str::<Value>(data) else {
+    let Ok(mut value) = serde_json::from_str::<Value>(data) else {
         return Line::Unread(MALFORMED.to_owned());
     };
     match readers_of(&value) {
-        Some((channel, scope)) => match FrameRefusal::of(&value, channel, scope) {
+        Some((channel, scope)) => match FrameRefusal::of(&mut value, channel, scope) {
             Some(refusal) => Line::Told(refusal),
             // BusFrame's type states no length, and its scope was read as a
             // resource's id: serde refuses nothing of a frame the table allows.
@@ -715,7 +715,7 @@ fn carried(data: &str) -> Line {
                 Err(error) => panic!("serde refused a frame BusFrame allows: {error}"),
             },
         },
-        None => match semiont::fault_said::<BusFrame>(&value) {
+        None => match semiont::fault_said::<BusFrame>(&mut value) {
             Some(said) => Line::Unread(said),
             None => match serde_json::from_value(value) {
                 Ok(frame) => Line::Frame(frame),
@@ -876,7 +876,10 @@ mod tests {
     use crate::transport::{HttpTransportConfig, Timing};
     use futures::{FutureExt, Stream};
     use semiont::bus::StreamError;
-    use semiont::channels::{BeckonFocus, BrowseResourceRequested, Channel, Request};
+    use semiont::channels::{
+        BRIDGED_CHANNELS, BeckonFocus, BrowseResourceFailed, BrowseResourceRequested, Channel,
+        GatherFailed, Request,
+    };
     use semiont::event_bus::EventBus;
     use semiont::transport::{Events, FrameRefusalReason, Lagged};
     use serde_json::json;
@@ -936,6 +939,49 @@ mod tests {
         given
     }
 
+    /// Every key a case of the table may state.
+    const CASE_KEYS: [&str; 10] = [
+        "why",
+        "frame",
+        "data",
+        "refused",
+        "member",
+        "reason",
+        "told",
+        "correlationId",
+        "request",
+        "read",
+    ];
+
+    /// What a typed read of the channel `C` on `own`, made now, has been
+    /// given: each payload as JSON, or why it was refused.
+    type Reads = Box<dyn FnMut() -> Vec<Result<Value, StreamError>>>;
+
+    fn reads_of<C: Channel>(own: &EventBus) -> Reads {
+        let mut stream = own.stream::<C>();
+        Box::new(move || {
+            given(&mut stream)
+                .into_iter()
+                .map(|read| {
+                    read.map(|delivered| {
+                        serde_json::to_value(delivered.payload).expect("a payload is JSON")
+                    })
+                })
+                .collect()
+        })
+    }
+
+    /// A typed read, made now, of a channel a delivered case is read by type
+    /// on: the failure channels whose payload is a CommandError, and one
+    /// that is a CommandError and more.
+    fn typed_read(own: &EventBus, on: &str) -> Option<Reads> {
+        match on {
+            BrowseResourceFailed::NAME => Some(reads_of::<BrowseResourceFailed>(own)),
+            GatherFailed::NAME => Some(reads_of::<GatherFailed>(own)),
+            _ => None,
+        }
+    }
+
     /// A transport's shared parts, as `HttpTransport::new` makes them.
     fn shared() -> Arc<Shared> {
         // Already installed by another test of this process: one is enough.
@@ -944,7 +990,7 @@ mod tests {
             base_url: "http://gateway.test".to_owned(),
             token: watch::channel(None).1,
             refresher: None,
-            channels: None,
+            channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
             http: reqwest::Client::new(),
             timing: Timing::default(),
             random: None,
@@ -992,6 +1038,16 @@ mod tests {
         type Failure = <BrowseResourceRequested as Request>::Failure;
         for case in cases {
             let why = case["why"].as_str().expect("a case says why");
+            let unknown: Vec<&String> = case
+                .as_object()
+                .expect("a case is an object")
+                .keys()
+                .filter(|key| !CASE_KEYS.contains(&key.as_str()))
+                .collect();
+            assert!(
+                unknown.is_empty(),
+                "{why}: keys this runner does not know: {unknown:?}"
+            );
             let frame = &case["frame"];
             let shared = shared();
             let own = Arc::new(EventBus::new());
@@ -1012,8 +1068,22 @@ mod tests {
                     .as_str()
                     .expect("a frame delivered names its channel");
                 let mut delivered = shared.hub.frames(on);
+                let mut by_type = typed_read(&own, on);
                 let mut actor = reading(shared.clone());
                 actor.frame(0, None, &line);
+                // The stream delivers the frame as it states it; its
+                // channel's typed reader reads its payload as the case says.
+                match (by_type.as_mut(), case.get("read")) {
+                    (Some(reads), stated) => assert_eq!(
+                        reads(),
+                        [Ok(stated.unwrap_or(&frame["payload"]).clone())],
+                        "{why}: a typed read of {on}"
+                    ),
+                    (None, None) => {}
+                    (None, Some(_)) => {
+                        panic!("{why}: a read of {on}, which this runner reads by no type")
+                    }
+                }
                 let Some(Ok(Ok(read))) = delivered.next().await else {
                     panic!("{why}: not delivered");
                 };

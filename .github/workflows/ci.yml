@@ -3846,6 +3846,18 @@ jobs:
       - name: Component schemas vs the table of what each requires
         run: npm run generate:required:check
 
+      # Authority: Unicode's Cased and Case_Ignorable properties, as this job's
+      # Node has them → the code points of each, which decide whether a
+      # capital sigma ends a word (protocol/specs/src/annotations/reconcile-cases.json):
+      # the copy C#'s source generator reads
+      # (packages/csharp/sdk/generators/Semiont.Generator/unicode-case.json),
+      # the copy Kotlin's generator reads (packages/kotlin/sdk/src/codegen/unicode-case.json)
+      # and Go's range tables (packages/go/sdk/annotations/unicodecase_gen.go).
+      # Neither .NET, the JDK nor Go's unicode package gives the two properties,
+      # and no build runs Node, so the copies are committed, and are what can go stale.
+      - name: Unicode's case properties vs C#'s, Kotlin's and Go's copies
+        run: npm run generate:unicode-case:check
+
       # A knowledge base's documents (protocol/specs/src/stack, and the project file's
       # schema in protocol/specs/src/kb-identity) → the launcher's types for them and the
       # schema text it validates them against (packages/go/launcher/stack).

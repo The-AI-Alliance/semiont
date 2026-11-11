@@ -542,11 +542,11 @@ final class SerialSteps: Sendable {
   ) -> Task<Value, any Error> {
     last.withLock { last in
       let previous = last
-      let next = Task {
+      let next = spawn {
         await previous?.value
         return try await step()
       }
-      last = Task { _ = await next.result }
+      last = spawn { _ = await next.result }
       return next
     }
   }
@@ -667,7 +667,7 @@ struct SaveTimer: Sendable {
     let id = UUID()
     waiting = (
       id,
-      Task {
+      spawn {
         guard (try? await sleepMilliseconds(Timings.saveDebounceMs, on: clock)) != nil else {
           return
         }

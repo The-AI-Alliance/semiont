@@ -176,7 +176,7 @@ controls :: BrowseNamespace -> [(Fact.Query,Refresh.Acts)]
 controls namespace =
   [ (Fact.Resource,refetch (resourceCache namespace) ofResource)
   , (Fact.Annotations,(refetch (annotationsCache namespace) ofResource)
-      { Refresh.write=Just (Refresh.updateTargets (annotationsCache namespace) ofResource patchList) })
+      { Refresh.write=Just (Refresh.patchTargets (annotationsCache namespace) ofResource patchList) })
   , (Fact.Annotation,(refetch (annotationCache namespace) ofAnnotation)
       { Refresh.write=Just (Refresh.writeTargets (annotationCache namespace) ofAnnotation (\info prior -> case Refresh.subjectWritten info of Just value -> Just value; Nothing -> prior))
       , Refresh.end=Just (Refresh.endTargets (annotationCache namespace) ofAnnotation) })

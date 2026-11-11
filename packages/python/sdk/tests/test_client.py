@@ -18,7 +18,7 @@ from pydantic import JsonValue
 from spec import JsonObject
 
 from semiont.bus import Bus, Delivered
-from semiont.channels import JOB_QUEUED
+from semiont.channels import BRIDGED_CHANNELS, JOB_QUEUED
 from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, SemiontError, TransportError
 from semiont.event_bus import EventBus
@@ -58,7 +58,7 @@ class Down(Transport):
     """A transport whose wire is down: whatever is emitted through it is refused, and said to have been."""
 
     def __init__(self) -> None:
-        self._beneath = FaultyTransport()
+        self._beneath = FaultyTransport(channels=BRIDGED_CHANNELS)
         self.refused: list[str] = []
         """The channel of each emit it refused."""
 
@@ -116,7 +116,7 @@ def world(transport: FaultyTransport | None = None) -> tuple[Client, FaultyTrans
 
 def test_a_client_is_its_namespaces_over_one_transport_and_a_bus_of_its_own() -> None:
     async def scenario() -> None:
-        client, transport = world()
+        client, transport = world(FaultyTransport(channels=(*BRIDGED_CHANNELS, JOB_QUEUED.name)))
         assert client.transport is transport
         assert isinstance(client.bus, EventBus)
         assert isinstance(client.wire, Bus)

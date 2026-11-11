@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -151,9 +152,11 @@ func TestListenWarnsOfAChannelNothingBridgesInProcess(t *testing.T) {
 // An operation's request reaches every stream that names it, which is how the
 // service that answers it hears it, so listen does not warn of one.
 func TestListenDoesNotWarnOfAnOperationsRequestInProcess(t *testing.T) {
-	fake, restore := withFake(t)
-	defer restore()
+	verbFixture(t)
 	request := bus.FrameAddEntityType.Request().Channel()
+	// The stream names the request, as the one listen asks for does.
+	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: slices.Concat(bus.BridgedChannels, []bus.Channel{request})})
+	defer launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fake })()
 	run := listened(t, fake, []string{"--channel", string(request)}, noNames, func() {})
 	if strings.Contains(run.output, "is not a bridged channel") {
 		t.Errorf("listen warned of %s, which the gateway delivers:\n%s", request, run.output)

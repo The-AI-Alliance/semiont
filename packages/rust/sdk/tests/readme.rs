@@ -5,7 +5,8 @@
 use bytes::Bytes;
 use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
 use semiont::bus::{operation, reply_names};
-use semiont::claims::{ClaimOptions, Held, HeldJob, Mark};
+use semiont::channels::BRIDGED_CHANNELS;
+use semiont::claims::{ClaimOptions, Held, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, Mark};
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::session::{
@@ -262,7 +263,11 @@ fn completion(job_id: &str) -> Map<String, Value> {
 #[tokio::test(start_paused = true)]
 async fn the_script_asks_reads_and_awaits_a_job_to_its_completion() {
     let test = create_test_client(TestClientOptions {
-        transport: Some(FaultyTransport::answering(vec![], a_knowledge_base)),
+        transport: Some(FaultyTransport::answering(
+            BRIDGED_CHANNELS,
+            vec![],
+            a_knowledge_base,
+        )),
         ..TestClientOptions::default()
     });
     let (client, script) = (test.client.clone(), test.client.clone());
@@ -336,6 +341,7 @@ async fn the_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_
     // so the test says when each step may end.
     let test = create_test_client(TestClientOptions {
         transport: Some(FaultyTransport::answering(
+            BRIDGED_CHANNELS,
             vec![FaultAction::DropReply],
             |_, _| Ok(None),
         )),
@@ -507,21 +513,27 @@ async fn the_worker_builds_an_annotation_of_each_quote_the_text_has_and_its_job_
         "progress": {},
     }))));
     let (queue, emptied) = (pending.clone(), pending);
-    let transport = FaultyTransport::answering(vec![], move |operation, payload| match operation {
-        "job:claim" => Ok(queue.lock().expect("the queue").take()),
-        "mark:commit" => {
-            let ids: Vec<Value> = payload["annotations"]
-                .as_array()
-                .expect("annotations")
-                .iter()
-                .map(|committed| committed["id"].clone())
-                .collect();
-            Ok(Some(
-                json!({ "persisted": ids.len(), "annotationIds": ids }),
-            ))
-        }
-        other => Err(format!("{other} is not answered here")),
-    });
+    // The worker's stream names what it claims and commits by.
+    let named: Vec<&str> = JOB_CLAIM_CHANNELS
+        .into_iter()
+        .chain(JOB_COMMIT_CHANNELS)
+        .collect();
+    let transport =
+        FaultyTransport::answering(&named, vec![], move |operation, payload| match operation {
+            "job:claim" => Ok(queue.lock().expect("the queue").take()),
+            "mark:commit" => {
+                let ids: Vec<Value> = payload["annotations"]
+                    .as_array()
+                    .expect("annotations")
+                    .iter()
+                    .map(|committed| committed["id"].clone())
+                    .collect();
+                Ok(Some(
+                    json!({ "persisted": ids.len(), "annotationIds": ids }),
+                ))
+            }
+            other => Err(format!("{other} is not answered here")),
+        });
     transport.refuse_when(move |operation, _| {
         (operation == "job:claim" && emptied.lock().expect("the queue").is_none())
             .then(|| json!({ "message": "No pending job matches", "code": "none-pending" }))

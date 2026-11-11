@@ -258,8 +258,18 @@ describe('useResourceEventSubscriptions', () => {
 
   it("holds the resource's scope while mounted, and is given that resource's events only", () => {
     const { SemiontWrapper, client } = createTestSemiontWrapper();
+    // Another reader holds another resource's scope, so the wire carries its
+    // events too, and the hook is the one that leaves them out.
+    client.transport.subscribeToResource(OTHER);
+    const holding = client.transport.subscribeToResource.bind(client.transport);
     const leave = vi.fn();
-    const held = vi.spyOn(client.transport, 'subscribeToResource').mockReturnValue(leave);
+    const held = vi.spyOn(client.transport, 'subscribeToResource').mockImplementation((resource) => {
+      const release = holding(resource);
+      return () => {
+        leave();
+        release();
+      };
+    });
     const seen: string[] = [];
 
     const { unmount } = renderHook(

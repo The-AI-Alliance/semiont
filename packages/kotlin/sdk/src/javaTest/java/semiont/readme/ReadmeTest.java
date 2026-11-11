@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonElementKt;
 import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.Test;
 import semiont.SemiontClient;
+import semiont.channels.ChannelsKt;
 import semiont.http.HttpTransport;
 import semiont.identifiers.AnnotationId;
 import semiont.identifiers.ResourceId;
@@ -75,7 +76,7 @@ final class ReadmeTest {
 
     @Test
     void watchingLiveReadsTheQueryThroughAPublisher() throws Exception {
-        FaultyTransport transport = new FaultyTransport();
+        FaultyTransport transport = new FaultyTransport(ChannelsKt.getBRIDGED_CHANNELS());
         InMemoryContent content = new InMemoryContent();
         content.seedAnnotations(new ResourceId("res-1"), GetAnnotationsResponse.builder(List.of(), 0).build());
         TestClient made = new TestClient(Dispatchers.getDefault(), TimeSource.Monotonic.INSTANCE, transport, content);

@@ -1,3 +1,4 @@
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
@@ -32,7 +33,7 @@ async def annotate(client: SemiontClient[Transport], resource: ResourceId, annot
 
 async def over_http(origin: str, token: str, resource: ResourceId, annotation: AnnotationId) -> None:
     async with (
-        HttpTransport(origin, token=Variable[str | None](token)) as transport,
+        HttpTransport(origin, token=Variable[str | None](token), channels=BRIDGED_CHANNELS) as transport,
         SemiontClient(transport, transport.content, transport) as client,
     ):
         await annotate(client, resource, annotation)

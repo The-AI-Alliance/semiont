@@ -176,7 +176,6 @@ package struct TableGenerator {
       ("media-types/registry.json", "mediaTypes", "mediaTypes"),
       ("text/encoding-cases.json", "cases", "encodings"),
       ("client/refresh.json", "queries", "cacheQueries"),
-      ("bus/registry.json", "audience", "busAudience"),
       ("bus/log-cases.json", "names", "credentialNames"),
     ] {
       let value = try required(table(path), key)
@@ -213,17 +212,54 @@ package struct TableGenerator {
     }
     out += "  return .\(escaped(enumCase(try required(transport, "unclassified").text)))\n}\n"
     let bus = try required(errors, "busRequest").object
-    out += "internal let busRequestCodeByWireCode: [String: BusRequestErrorCode] = [\n"
+    out += try busRequestCodes(bus)
+    out +=
+      "internal let unrecognizedBusFailure: BusRequestErrorCode = .\(escaped(enumCase(try required(bus, "unrecognizedFailure").text)))\n"
+    return out
+  }
+  /// The bus request code each code a failure states becomes, as an exhaustive switch over
+  /// CommandError's closed code. Generation is refused where CommandError's codes, the codes the
+  /// required table recognizes and the wire codes codes.json maps are not the same codes.
+  func busRequestCodes(_ bus: Schema) throws -> String {
+    let code = try required(required(models.schema("CommandError"), "properties").object, "code")
+      .object
+    let listed = try required(code, "enum").array.map { try $0.text }
+    guard let failure = try requiredShapes()["CommandError"] else {
+      throw GenerationRefused(
+        description: "the table of what each schema requires states no CommandError")
+    }
+    let recognized = try required(
+      required(required(failure.object, "members").object, "code").object, "recognized"
+    ).array.map { try $0.text }
+    guard Set(recognized) == Set(listed) else {
+      throw GenerationRefused(
+        description:
+          "the table recognizes the codes \(recognized), and CommandError lists \(listed)")
+    }
+    var mapped: [String: String] = [:]
     for raw in try required(bus, "codes").array {
       let row = try raw.object
-      if let wire = row["wire"] {
-        out +=
-          "  \(literal(try wire.text)): .\(escaped(enumCase(try required(row, "code").text))),\n"
+      guard let wire = row["wire"] else { continue }
+      let text = try wire.text
+      guard listed.contains(text) else {
+        throw GenerationRefused(
+          description: "codes.json maps the wire code \(text), which CommandError does not list")
       }
+      guard mapped[text] == nil else {
+        throw GenerationRefused(description: "codes.json maps the wire code \(text) twice")
+      }
+      mapped[text] = try required(row, "code").text
     }
-    out +=
-      "]\ninternal let unrecognizedBusFailure: BusRequestErrorCode = .\(escaped(enumCase(try required(bus, "unrecognizedFailure").text)))\n"
-    return out
+    var out =
+      "internal func busRequestCode(for wire: \(try models.type("CommandError", "code", code))) -> BusRequestErrorCode {\n  switch wire {\n"
+    for text in listed {
+      guard let mapping = mapped[text] else {
+        throw GenerationRefused(
+          description: "CommandError's code \(text) becomes no bus request code in codes.json")
+      }
+      out += "  case .\(escaped(enumCase(text))): return .\(escaped(enumCase(mapping)))\n"
+    }
+    return out + "  }\n}\n"
   }
   func stamps(_ raw: Schema, seen: Set<String> = []) throws -> Set<String> {
     if let ref = raw["$ref"] {
@@ -258,9 +294,9 @@ package struct TableGenerator {
   func shapeLiteral(_ raw: JSONValue) throws -> String {
     let shape = try raw.object
     let parts = [
-      "ref", "kinds", "enum", "pattern", "minLength", "maxLength", "minimum", "maximum",
-      "minItems", "maxItems", "required", "members", "closed", "items", "values", "oneOf",
-      "discriminator", "allOf",
+      "ref", "kinds", "recognized", "enum", "pattern", "minLength", "maxLength", "minimum",
+      "maximum", "minItems", "maxItems", "required", "members", "closed", "items", "values",
+      "oneOf", "discriminator", "allOf",
     ]
     for key in shape.keys where !parts.contains(key) {
       throw GenerationRefused(description: "a shape states \(key), which the walk does not read")
@@ -285,7 +321,7 @@ package struct TableGenerator {
         throw GenerationRefused(description: "\(key) is \(value), which is no number")
       }
       return "\(number)"
-    case "required", "closed":
+    case "recognized", "required", "closed":
       return "[\(try value.array.map { literal(try $0.text) }.joined(separator: ", "))]"
     case "members":
       let members = try value.object.sorted(by: { $0.key < $1.key }).map {
@@ -357,7 +393,8 @@ package struct TableGenerator {
   }
   func channels(_ registry: Schema) throws -> String {
     let audience = try required(registry, "audience").object
-    let scoped = Set(try required(audience, "scoped").array.map { try $0.text })
+    let resourceScoped = try required(audience, "scoped").array.map { try $0.text }
+    let scoped = Set(resourceScoped)
     let everyone = Set(try required(audience, "everyone").array.map { try $0.text })
     var rows: [String: (type: String, schema: Schema?)] = [:]
     let schemaShapes = try requiredShapes()
@@ -498,7 +535,9 @@ package struct TableGenerator {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")
     }
     out +=
-      "]\ninternal let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
+      "]\n/// The global channels a full client's transport is given: every channel delivered to everyone, and every operation's reply channels.\npublic let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
+    out +=
+      "/// The channels delivered to a transport for each resource whose scope it holds, as the registry orders them.\npackage let resourceScopedChannels = [\(resourceScoped.map(literal).joined(separator: ", "))]\n"
     out +=
       "internal let storedEventChannels = [\(storedEventChannels.map(literal).joined(separator: ", "))]\n"
     out += shapeTable(

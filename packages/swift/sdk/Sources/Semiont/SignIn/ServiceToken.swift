@@ -89,9 +89,9 @@ public actor ServiceToken {
   func token(renewed: Bool) async throws -> String {
     if let asking { return try await sharedValue(asking, lifetime: lifetime) }
     if !renewed, let held, held.age() < held.until { return held.token }
-    let task = Task { [self] in
-      defer { asking = nil }
-      return try await grant()
+    let task = spawn(on: self) { service in
+      defer { service.asking = nil }
+      return try await service.grant()
     }
     asking = task
     return try await sharedValue(task, lifetime: lifetime)
@@ -167,16 +167,16 @@ public actor AgentToken {
     guard !signing, !lifetime.ended else { throw SignInError(.exchange, "An agent signs in once") }
     signing = true
     let id = UUID()
-    let task = Task { [self] in
-      defer { lifetime.forget(id) }
-      let current = try await service.token(renewed: false)
+    let task = spawn(on: self) { agent in
+      defer { agent.lifetime.forget(id) }
+      let current = try await agent.service.token(renewed: false)
       let named = try await whoAmI(
-        baseUrl: gateway, token: current, httpClient: http, clock: service.clock)
+        baseUrl: agent.gateway, token: current, httpClient: agent.http, clock: agent.service.clock)
       try Task.checkCancellation()
-      guard !lifetime.ended else { throw CancellationError() }
-      signedInAs = named.did
-      token.set(current)
-      schedule()
+      guard !agent.lifetime.ended else { throw CancellationError() }
+      agent.signedInAs = named.did
+      agent.token.set(current)
+      agent.schedule()
     }
     lifetime.keep(task, id: id)
     try await withTaskCancellationHandler {
@@ -193,16 +193,16 @@ public actor AgentToken {
   private func renew() async throws -> String {
     if let renewal { return try await sharedValue(renewal, lifetime: lifetime) }
     let id = UUID()
-    let task = Task { [self] in
+    let task = spawn(on: self) { agent in
       defer {
-        renewal = nil
-        lifetime.forget(id)
+        agent.renewal = nil
+        agent.lifetime.forget(id)
       }
-      let next = try await service.token(renewed: true)
+      let next = try await agent.service.token(renewed: true)
       try Task.checkCancellation()
-      guard !lifetime.ended else { throw CancellationError() }
-      token.set(next)
-      schedule()
+      guard !agent.lifetime.ended else { throw CancellationError() }
+      agent.token.set(next)
+      agent.schedule()
       return next
     }
     renewal = task
@@ -221,7 +221,7 @@ public actor AgentToken {
     let id = UUID()
     let life = lifetime
     let clock = service.clock
-    let task = Task { [weak self] in
+    let task = spawn { [weak self] in
       defer { life.forget(id) }
       do {
         try await sleepMilliseconds(Int(due * 1000), on: clock)

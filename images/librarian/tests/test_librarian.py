@@ -49,6 +49,7 @@ from spec import JsonObject, objects, thing
 from semiont_librarian.librarian import Librarian
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
 from semiont_librarian.reads import Described, Record
+from semiont_librarian.service import CHANNELS
 
 QUAY: Final = ResourceId("res-quay")
 FERRY: Final = ResourceId("res-ferry")
@@ -188,7 +189,7 @@ class World:
         self.degraded: Final = FakeDegraded()
         self.weave: Final = WeaveProgress(time.monotonic)
         self.smelt: Final = SmeltProgress(time.monotonic)
-        self.transport: Final = FaultyTransport()
+        self.transport: Final = FaultyTransport(channels=CHANNELS)
         self.graph.listing = lambda query: ResourceListing(resources=[], total=0)
         self.graph.entity_type_stats = []
         self.vectors.stated["search_resources"] = []

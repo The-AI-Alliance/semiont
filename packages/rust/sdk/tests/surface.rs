@@ -9,6 +9,8 @@
 //! client's own bus.
 
 use bytes::Bytes;
+use semiont::channels::BRIDGED_CHANNELS;
+use semiont::claims::JOB_CLAIM_CHANNELS;
 use semiont::client::SemiontClient;
 use semiont::namespaces::{CreateFromTokenOptions, ResourceFilters};
 use semiont::testing::as_id;
@@ -90,8 +92,18 @@ struct World {
     gateway: StubGateway,
 }
 
+/// What the stream names: what a full client's does, and what claiming reads,
+/// so that every method can be called.
+fn named() -> Vec<&'static str> {
+    BRIDGED_CHANNELS
+        .iter()
+        .copied()
+        .chain(JOB_CLAIM_CHANNELS)
+        .collect()
+}
+
 fn world() -> World {
-    let transport = FaultyTransport::new(vec![]);
+    let transport = FaultyTransport::new(&named(), vec![]);
     let content = InMemoryContent::new();
     let gateway = StubGateway::new();
     let client = create_test_client(TestClientOptions {
@@ -543,12 +555,9 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         }
         ("job", "pollUntilComplete") => {
             let job_id = args.text("jobId");
-            go!(client.job.poll_until_complete(
-                &as_id(&job_id),
-                Duration::from_millis(10),
-                Duration::from_millis(50),
-                |_| {}
-            ))
+            go!(client
+                .job
+                .poll_until_complete(&as_id(&job_id), None, None, |_| {}))
         }
         ("job", "cancel") => {
             let job_id = args.text("jobId");

@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 // Generate the Python SDK's error vocabularies from protocol/specs/src/errors/codes.json:
-// the code types, the wire → bus-code mapping, and the HTTP status classifier.
+// the code types, the bus code each wire code becomes, and the HTTP status classifier.
+//
+// The bus code of a wire code is a `match` over the closed `CommandErrorCode`
+// (`semiont.types`), ending in `assert_never`: the type checkers hold it to name
+// every code, and the table reader refuses codes.json where it and
+// CommandError.code disagree in either direction, so no code is left to fall
+// back on.
 //
 //   packages/python/sdk/src/semiont/error_codes.py
 //
@@ -65,15 +71,14 @@ ends in \`assert_never\` is checked to name every code, and a tuple of the same
 codes to iterate.
 """
 
-from collections.abc import Mapping
-from types import MappingProxyType
-from typing import Final, Literal
+from typing import Final, Literal, assert_never
+
+from semiont.types import CommandErrorCode
 
 __all__ = [
 ${[
   ...vocabularies.flatMap(([name]) => [name, `${pyConstant(name)}S`]),
-  'BUS_REQUEST_CODE_BY_WIRE_CODE',
-  'UNRECOGNIZED_FAILURE_CODE',
+  'bus_request_code_for_wire_code',
   'transport_error_code_for_status',
 ]
   .sort()
@@ -82,15 +87,20 @@ ${[
 ]
 
 ${union(vocabularies[0])}
-# The bus code a failure's own wire code (\`CommandError.code\`) becomes.
-BUS_REQUEST_CODE_BY_WIRE_CODE: Final[Mapping[str, BusRequestErrorCode]] = MappingProxyType(
-    {
-${[...busByWire].map(([wire, code]) => `        ${pyString(wire)}: ${pyString(code)},`).join('\n')}
-    }
-)
 
-# What a failure becomes when its code is one this vocabulary does not name, or absent.
-UNRECOGNIZED_FAILURE_CODE: Final[BusRequestErrorCode] = ${pyString(unrecognized.code)}
+def bus_request_code_for_wire_code(code: CommandErrorCode | None) -> BusRequestErrorCode:
+    """The bus code a failure's own code (\`CommandError.code\`) becomes.
+
+    A failure that states none is the unrecognized failure, and so is one
+    whose code the wire does not list, which is read as stating none.
+    """
+    match code:
+${[...busByWire].map(([wire, code]) => `        case ${pyString(wire)}:\n            return ${pyString(code)}`).join('\n')}
+        case None:
+            return ${pyString(unrecognized.code)}
+        case _:
+            assert_never(code)
+
 
 ${union(vocabularies[1])}
 

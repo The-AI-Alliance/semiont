@@ -208,8 +208,13 @@ impl fmt::Display for FrameRefusal {
 impl FrameRefusal {
     /// The refusal of `frame`, which names its readers on `channel` in
     /// `scope`, for its first fault as BusFrame; `None` when the table of
-    /// what BusFrame requires finds none.
-    pub fn of(frame: &Value, channel: String, scope: Option<ResourceId>) -> Option<FrameRefusal> {
+    /// what BusFrame requires finds none, and `frame` is then what a reader
+    /// reads of it (`fault_said`).
+    pub fn of(
+        frame: &mut Value,
+        channel: String,
+        scope: Option<ResourceId>,
+    ) -> Option<FrameRefusal> {
         let fault = fault_of(schema(BusFrame::NAME), frame)?;
         Some(FrameRefusal {
             channel,
@@ -233,7 +238,7 @@ fn correlation_in(frame: &Value) -> Option<String> {
     else {
         panic!("BusFrame names no correlationId");
     };
-    match fault_of(allowed, id) {
+    match fault_of(allowed, &mut id.clone()) {
         None => id.as_str().map(str::to_owned),
         Some(_) => None,
     }

@@ -36,10 +36,10 @@ public sealed class OpenedSession : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        lock (gate) return new ValueTask(closing ??= Task.Run(CloseAsync));
+        lock (gate) return new ValueTask(closing ??= Spawning.Run(CloseAsync));
     }
 
-    private async Task CloseAsync() => await close().ConfigureAwait(false);
+    private async Task CloseAsync() => await close().ConfigureAwait(Spawning.Captures);
 }
 
 /// <summary>
@@ -61,9 +61,9 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
         HttpTransport? transport = null;
         try
         {
-            await kept.ReadyAsync(cancellation).ConfigureAwait(false);
+            await kept.ReadyAsync(cancellation).ConfigureAwait(Spawning.Captures);
             var http = new HttpTransport(Gateway.Origin(endpoint), kept.State.Token,
-                BusRegistry.FullClientChannels, refresher: kept.RefreshAsync,
+                BusRegistry.BridgedChannels, refresher: kept.RefreshAsync,
                 httpClient: httpClient, timeProvider: timeProvider, random: random);
             transport = http;
             var client = new SemiontClient(http, persistence);
@@ -75,7 +75,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
                 try
                 {
                     client.Dispose();
-                    await client.Flushed.ConfigureAwait(false);
+                    await client.Flushed.ConfigureAwait(Spawning.Captures);
                 }
                 finally { session.Dispose(); }
             }, session);
@@ -91,7 +91,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
     public async Task RevokeAsync(StoredSession stored, CancellationToken cancellation = default)
     {
         using var issuer = new Issuer(httpClient, timeProvider, random);
-        await issuer.SignOutAsync(new MemorySignIn(stored), cancellation).ConfigureAwait(false);
+        await issuer.SignOutAsync(new MemorySignIn(stored), cancellation).ConfigureAwait(Spawning.Captures);
     }
 }
 

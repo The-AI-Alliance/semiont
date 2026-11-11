@@ -57,20 +57,39 @@ func closedRead() error {
 	return &BusRequestError{Code: BusRequestErrorCodeClosed, Message: "The client is closed"}
 }
 
-// flight is a fetch in flight for a key: its number, and what it came to
-// once done is closed.
+// flight is one fetch of a key: what it came to once done is closed. What
+// goes with it when it is let go of, asked and patches, is read and written
+// with the cache's mu held.
 type flight[V any] struct {
-	number int
-	done   chan struct{}
-	value  V
-	err    error
+	done  chan struct{}
+	value V
+	err   error
+	// asked is which of the live view's asks it is (B14).
+	asked liveAsk
+	// patches are those made while it was in flight, to apply to its answer
+	// in the order made (B13b).
+	patches []func(V) V
 }
 
-// cacheKey is one key's: its state, and the fetch in flight for it.
+// liveAsk is which of the live view's asks a flight is (B14); the zero value
+// is a flight no ask of the live view waits on.
+type liveAsk int
+
+const (
+	// firstLiveAsk is owed one more ask if it fails.
+	firstLiveAsk liveAsk = iota + 1
+	// retryLiveAsk is that one more.
+	retryLiveAsk
+)
+
+// cacheKey is one key's: its state, and its current fetch.
 type cacheKey[V any] struct {
 	state CacheState
 	// changed is closed when the state changes, and replaced.
-	changed  chan struct{}
+	changed chan struct{}
+	// inFlight is the key's current fetch. One an Invalidate, a Set or a
+	// Remove let go of is in flight no more, and what it answers is not
+	// stored (B9).
 	inFlight *flight[V]
 }
 
@@ -111,10 +130,9 @@ type Cache[K comparable, V any] struct {
 	// time. Taken before mu, never while mu is held.
 	saves sync.Mutex
 
-	mu      sync.Mutex
-	keys    map[K]*cacheKey[V]
-	kept    map[K]bool
-	fetches int
+	mu   sync.Mutex
+	keys map[K]*cacheKey[V]
+	kept map[K]bool
 	// saving makes the save owed once the values stop changing; nil while
 	// none is waiting.
 	saving *time.Timer
@@ -243,23 +261,25 @@ func (c *Cache[K, V]) fetching(key K) *flight[V] {
 	if k.inFlight != nil {
 		return k.inFlight
 	}
-	c.fetches++
-	f := &flight[V]{number: c.fetches, done: make(chan struct{})}
+	f := &flight[V]{done: make(chan struct{})}
 	k.inFlight = f
 	c.run(func(ctx context.Context) {
 		value, err := c.fetch(ctx, key)
 		c.mu.Lock()
-		// Only its own: an invalidate may have put a newer fetch in its place.
+		// Only the key's current flight acts on it, and its waiters are given
+		// what it stores. One an Invalidate, a Set, a Remove or the closing
+		// let go of answers its own waiters with its answer, and changes
+		// nothing.
 		if k, ok := c.keys[key]; ok && k.inFlight == f {
 			k.inFlight = nil
-		}
-		// A value from any fetch is written, the newest last: each is at
-		// least as new as what was there. A failure writes nothing. One
-		// answered after the cache was closed has no key to write to.
-		if err == nil {
-			if k, ok := c.keys[key]; ok {
+			if err == nil {
+				for _, change := range f.patches {
+					value = change(value)
+				}
 				k.set(Ready[V]{Value: value})
 				c.oweASave()
+			} else if retried(err) {
+				c.failed(key, k, f, err)
 			}
 		}
 		c.mu.Unlock()
@@ -289,30 +309,24 @@ func awaited[V any](ctx context.Context, f *flight[V]) (V, error) {
 // key with no value whose retry also fails becomes Failed. Called with mu
 // held.
 func (c *Cache[K, V]) revalidate(key K) {
-	first := c.fetching(key)
-	c.run(func(ctx context.Context) {
-		if _, err := awaited(ctx, first); !retried(err) {
-			return
+	c.fetching(key).asked = firstLiveAsk
+}
+
+// failed acts on the key in the step that settles its current flight f, which
+// failed: the live view's first ask is asked once more at once, so the key is
+// fetching from that failure until its retry settles; a second that failed
+// fails a key with no value. The patches kept with f go with it: the retry is
+// asked after their events arrived, so its answer holds them (B13b). Called
+// with mu held.
+func (c *Cache[K, V]) failed(key K, k *cacheKey[V], f *flight[V], err error) {
+	switch f.asked {
+	case firstLiveAsk:
+		c.fetching(key).asked = retryLiveAsk
+	case retryLiveAsk:
+		if _, ready := k.state.(Ready[V]); !ready {
+			k.set(Failed{Err: err})
 		}
-		c.mu.Lock()
-		if c.closed {
-			c.mu.Unlock()
-			return
-		}
-		second := c.fetching(key)
-		c.mu.Unlock()
-		_, err := awaited(ctx, second)
-		if !retried(err) {
-			return
-		}
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if k, ok := c.keys[key]; ok && !c.closed {
-			if _, ready := k.state.(Ready[V]); !ready {
-				k.set(Failed{Err: err})
-			}
-		}
-	})
+	}
 }
 
 // retried reports whether a failure of the live view's fetch is tried
@@ -366,9 +380,10 @@ func (c *Cache[K, V]) Observe(ctx context.Context, key K) iter.Seq[CacheState] {
 	}
 }
 
-// Fetch asks for the key's value now: what the service answers, which
-// every observer of the key is given too; or the failure, which only this
-// caller is. Concurrent asks for one key share one fetch.
+// Fetch asks for the key's value now: what the service answers, with the
+// patches made meanwhile, which every observer of the key is given too unless
+// an Invalidate, a Set or a Remove let go of the fetch first; or the failure,
+// which only this caller is. Concurrent asks for one key share one fetch.
 func (c *Cache[K, V]) Fetch(ctx context.Context, key K) (V, error) {
 	c.mu.Lock()
 	if c.closed {
@@ -444,7 +459,7 @@ func (c *Cache[K, V]) anyInFlight() bool {
 
 // Invalidate says the key's value is out of date: it is asked for again,
 // shown meanwhile. A fetch already in flight is not waited on: its answer may
-// never come.
+// never come, and when it does it goes to that fetch's own waiters alone.
 func (c *Cache[K, V]) Invalidate(key K) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -467,7 +482,8 @@ func (c *Cache[K, V]) InvalidateAll() {
 }
 
 // Remove says the key's entity is gone: its value is dropped and the key is
-// failed with gone, at once, for every observer. Nothing is asked for.
+// failed with gone, at once, for every observer. Nothing is asked for, and a
+// fetch in flight is let go of: what it answers goes to its own waiters alone.
 func (c *Cache[K, V]) Remove(key K, gone error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -480,7 +496,10 @@ func (c *Cache[K, V]) Remove(key K, gone error) {
 	c.oweASave()
 }
 
-// Set makes value the key's, asking for nothing.
+// Set makes value the key's, asking for nothing. A fetch in flight is let go
+// of, as Remove lets it go (B13b): it was asked before the write, so its
+// answer can be the value the write replaced. What it answers goes to its own
+// waiters alone.
 func (c *Cache[K, V]) Set(key K, value V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -488,8 +507,37 @@ func (c *Cache[K, V]) Set(key K, value V) {
 		return
 	}
 	delete(c.kept, key)
-	c.held(key).set(Ready[V]{Value: value})
+	k := c.held(key)
+	k.inFlight = nil
+	k.set(Ready[V]{Value: value})
 	c.oweASave()
+}
+
+// Patch writes part of the key's value: change takes the value to the patched
+// one (B13b). It is applied to the value now, if the key has one. A fetch in
+// flight can hold what the patch does not, so the patch lets go of nothing:
+// it is kept with that fetch, and applied to its answer after those made
+// before it. A key with neither a value nor a fetch in flight is left as it
+// is (B20). A value an earlier cache kept stays one (B18): the rest of it is
+// not known to be current. change is called with the cache's lock held, now
+// and when the fetch answers, so it must not call the cache.
+func (c *Cache[K, V]) Patch(key K, change func(V) V) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return
+	}
+	k, ok := c.keys[key]
+	if !ok {
+		return
+	}
+	if k.inFlight != nil {
+		k.inFlight.patches = append(k.inFlight.patches, change)
+	}
+	if ready, isReady := k.state.(Ready[V]); isReady {
+		k.set(Ready[V]{Value: change(ready.Value)})
+		c.oweASave()
+	}
 }
 
 // Close ends the cache: once a save being made has been answered, a save

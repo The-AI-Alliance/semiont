@@ -39,6 +39,9 @@ retryKeyOf channel payload=channel<>" "<>decodeUtf8 (Lazy.toStrict (Canonical.ca
 refuseUnscriptedOperation :: Respond
 refuseUnscriptedOperation channel _=throwIO (TransportError Code.TransportError ("No response scripted for bus operation "<>channel) Nothing Nothing)
 
+-- | Carries the global channels it is given, @Semiont.Channels.globalChannels@
+-- for a full client, and the resource-scoped channels in the scopes it holds,
+-- as the HTTP transport does: it delivers a frame on no other.
 newFaultyTransport :: RetryOptions -> [FaultAction] -> Respond -> Set Text -> IO FaultyTransport
 newFaultyTransport clock schedule respond channels=do
   forM_ schedule $ \action -> case action of
@@ -52,7 +55,17 @@ newFaultyTransport clock schedule respond channels=do
   replies <- newTVarIO Map.empty
   refusal <- newTVarIO (\_ _ -> pure Nothing)
   inputCell <- newEmptyTMVarIO
-  let choose index=case schedule of []->Deliver; first:rest->(first:rest) !! (index `mod` length schedule)
+  let scoped=Set.fromList Channels.scopedChannels
+      carries input name scope
+        | Set.member name channels=pure True
+        | Set.member name scoped=case scope of
+            Nothing->pure False
+            Just resource->atomically ((\(_,held,_,_)->resource `elem` held) <$> Transport.subscriptions input)
+        | otherwise=pure False
+      arriving input frame=do
+        carried <- carries input (busFrameChannel frame) (busFrameScope frame)
+        when carried (Transport.receive input frame)
+      choose index=case schedule of []->Deliver; first:rest->(first:rest) !! (index `mod` length schedule)
       send frame=do
         let name=busFrameChannel frame
             payload=busFramePayloadAdditionalProperties (busFramePayload frame)
@@ -60,7 +73,7 @@ newFaultyTransport clock schedule respond channels=do
               ,let (request,_,_)=Channels.operationChannels operation,Channels.channelName request==name]
         input <- atomically (readTMVar inputCell)
         case operations of
-          []->when (Set.member name channels) (Transport.receive input frame)
+          []->arriving input frame
           [Channels.SomeOperation operation]->do
             action <- atomically $ do
               logged <- readTVar entries
@@ -84,9 +97,9 @@ newFaultyTransport clock schedule respond channels=do
                   Left diagnostic->throwIO (TransportError Code.TransportError ("Scripted response is not its channel's: "<>name<>" "<>Text.pack diagnostic) Nothing Nothing)
                   Right _->pure ()
                 pure (Channels.channelName success,envelope)
-            when (Set.member name channels) (Transport.receive input frame)
+            arriving input frame
             let arrive copies = Tasks.fork tasks $ forM_ [1..copies::Int] $ \_ ->
-                  Transport.receive input (BusFrame channel (busFrameCorrelationId frame) (BusFramePayload answer) Nothing)
+                  arriving input (BusFrame channel (busFrameCorrelationId frame) (BusFramePayload answer) Nothing)
             case action of
               DropReply -> pure ()
               Deliver -> arrive 1
@@ -94,20 +107,22 @@ newFaultyTransport clock schedule respond channels=do
               Delay ms -> Tasks.fork tasks $ do
                 now <- retryNow clock
                 retryWaitUntil clock (now+ms*1000000)
-                Transport.receive input (BusFrame channel (busFrameCorrelationId frame) (BusFramePayload answer) Nothing)
+                arriving input (BusFrame channel (busFrameCorrelationId frame) (BusFramePayload answer) Nothing)
               RejectEmit -> ioError (userError "rejected emit reached reply delivery")
           _->ioError (userError "duplicate generated bus operation")
         pure (Just 1)
-  (over,input) <- Transport.newTransport (Transport.TransportOptions "faulty://simulator" channels send (Tasks.dispose tasks))
+  (over,input) <- Transport.newTransport (Transport.TransportOptions "faulty://simulator" (Set.union channels scoped) send (Tasks.dispose tasks))
   atomically (putTMVar inputCell input)
   Transport.setState input Transport.Connecting
   Transport.setState input Transport.Open
   pure (FaultyTransport over
     (\name values->atomically (modifyTVar' replies (Map.insertWith (flip (++)) name values)))
     (atomically . writeTVar refusal) (readTVarIO entries)
-    (\carried -> case carried of
-      Transport.Arrived frame -> Transport.receive input (Transport.wireFrame frame)
-      Transport.FrameRejected refusalValue -> Transport.receiveRefusal input refusalValue))
+    (\carried -> do
+      heard <- carries input (Transport.carriedChannel carried) (Transport.carriedScope carried)
+      when heard $ case carried of
+        Transport.Arrived frame -> Transport.receive input (Transport.wireFrame frame)
+        Transport.FrameRejected refusalValue -> Transport.receiveRefusal input refusalValue))
 
 successPayload :: Text -> Object -> Maybe Value -> IO Object
 successPayload name asked response=do

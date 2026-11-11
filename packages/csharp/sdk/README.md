@@ -382,6 +382,9 @@ another view of the same storage that hears writes from other contexts.
 ## The bus and transport
 
 `client.Wire` accepts generated `BusChannels` and `BusOperations` values.
+An `HttpTransport` is always given its channels and assumes none of its own: a full
+client's is given `BusRegistry.BridgedChannels`, every channel delivered to everyone and
+every operation's replies, as `SemiontClient` and the sessions give theirs.
 `BusRegistry.ReplyChannelsFor(requests)` names the result and failure channels of the
 given operations, each once: the channels of a transport that awaits only those.
 `BusRegistry.Unsubscribed(channel)` is the refusal of a request whose replies cannot
@@ -396,7 +399,9 @@ the `Member` the frame's first fault is at, its way from the frame (`payload.res
 or `payload` for the payload itself), and the `Reason`, `FrameRefusalReason.Lacks` or
 `FrameRefusalReason.Malformed`; it holds the payload as it came, the scope, and the frame's
 correlation id whenever that can be read. The read goes on to the frames after it. A scoped
-read keeps its resource subscribed until the enumerator ends.
+read keeps its resource subscribed until the enumerator ends. A failure whose `code` is none
+of the codes `CommandError` names is read with no code, its other members kept, by a typed
+read and by the request it answers alike.
 
 A delegation's events tell a refused `job:report-progress`, `job:fail` or `job:complete` as
 `JobEvent<T>.Refused`, naming its channel, member and reason: it names no job, is no word of

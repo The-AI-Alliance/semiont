@@ -11,7 +11,7 @@ public sealed class SemiontClient : IDisposable
 
     public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null, Timing? timing = null, CachePersistence? persistence = null)
-        : this(new HttpTransport(baseUrl, token, BusRegistry.FullClientChannels,
+        : this(new HttpTransport(baseUrl, token, BusRegistry.BridgedChannels,
             timing: timing, httpClient: httpClient, timeProvider: timeProvider, random: random), persistence)
     {
     }
@@ -64,7 +64,7 @@ public sealed class SemiontClient : IDisposable
 
     private async Task CloseWithTransportAsync()
     {
-        await foreach (var state in Transport.States().ConfigureAwait(false))
+        await foreach (var state in Transport.States().ConfigureAwait(Spawning.Captures))
             if (state == ConnectionState.Closed) break;
         try { live.Dispose(); }
         finally { Bus.Dispose(); }

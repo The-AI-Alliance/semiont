@@ -149,7 +149,7 @@ async fn serve(
         base_url: agent.gateway().to_owned(),
         token: agent.token(),
         refresher: Some(agent.clone()),
-        channels: Some(channels),
+        channels,
         http,
         timing: Timing::default(),
 

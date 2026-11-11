@@ -15,6 +15,7 @@
 package required
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -32,18 +33,21 @@ import (
 // shape is what a value must be: packages/codegen/schemas/required-shapes.mjs states
 // what each part means.
 type shape struct {
-	Ref       string            `json:"ref"`
-	Kinds     []string          `json:"kinds"`
-	Enum      []any             `json:"enum"`
-	Pattern   []step            `json:"pattern"`
-	MinLength *int              `json:"minLength"`
-	MaxLength *int              `json:"maxLength"`
-	Minimum   *float64          `json:"minimum"`
-	Maximum   *float64          `json:"maximum"`
-	MinItems  *int              `json:"minItems"`
-	MaxItems  *int              `json:"maxItems"`
-	Required  []string          `json:"required"`
-	Members   map[string]*shape `json:"members"`
+	Ref   string   `json:"ref"`
+	Kinds []string `json:"kinds"`
+	// Recognized is, of an object's member, the texts a reader reads it as:
+	// one that holds a text none of them is left out of what it reads.
+	Recognized []string          `json:"recognized"`
+	Enum       []any             `json:"enum"`
+	Pattern    []step            `json:"pattern"`
+	MinLength  *int              `json:"minLength"`
+	MaxLength  *int              `json:"maxLength"`
+	Minimum    *float64          `json:"minimum"`
+	Maximum    *float64          `json:"maximum"`
+	MinItems   *int              `json:"minItems"`
+	MaxItems   *int              `json:"maxItems"`
+	Required   []string          `json:"required"`
+	Members    map[string]*shape `json:"members"`
 	// Closed is nil for an object that may carry any member, and empty for
 	// one that may carry none.
 	Closed        []string       `json:"closed"`
@@ -81,12 +85,17 @@ var schemas = sync.OnceValue(func() map[string]*shape {
 	return readSchemas(generatedTable)
 })
 
-// readSchemas refuses a malformed generated table instead of silently using no schemas.
+// readSchemas refuses a malformed generated table instead of silently using no
+// schemas, and a part of a shape this reader does not know instead of reading
+// the shape without it.
 func readSchemas(source []byte) map[string]*shape {
 	var table struct {
+		Comment string            `json:"$comment"`
 		Schemas map[string]*shape `json:"schemas"`
 	}
-	if err := json.Unmarshal(source, &table); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(source))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&table); err != nil {
 		panic("schemas_gen.json is not what packages/codegen/schemas/generate-required-go.mjs writes: " + err.Error())
 	}
 	return table.Schemas
@@ -205,15 +214,31 @@ func kindsOf(generated reflect.Type) []string {
 	}
 }
 
-// FaultOf is the first fault payload has as a value of generated, by the
-// rules every SDK reads the table by. False when it has none, and when it is
-// not JSON, which whatever decodes it says.
-func FaultOf(payload []byte, generated reflect.Type) (Fault, bool) {
+// Read is payload as a reader of generated reads it, by the rules every SDK
+// reads the table by: the JSON it decodes, which is payload without each
+// member it leaves out; or, true, payload's first fault. Payload that is not
+// JSON is given as it is, with no fault, for whatever decodes it to say so.
+func Read(payload []byte, generated reflect.Type) ([]byte, Fault, bool) {
 	var value any
 	if json.Unmarshal(payload, &value) != nil {
-		return Fault{}, false
+		return payload, Fault{}, false
 	}
-	return faultOf(shapeOf(generated), value, "")
+	return readOf(shapeOf(generated), payload, value)
+}
+
+// readOf is payload, which decodes to value, as a reader of s reads it.
+func readOf(s *shape, payload []byte, value any) ([]byte, Fault, bool) {
+	fault, left, faulty := faultOf(s, value, "")
+	if faulty {
+		return nil, fault, true
+	}
+	for _, member := range left {
+		var refused error
+		if payload, refused = without(payload, member); refused != nil {
+			return nil, Undecoded, true
+		}
+	}
+	return payload, Fault{}, false
 }
 
 // Carries is whether payload is JSON with no fault as a value of generated.
@@ -222,7 +247,7 @@ func Carries(payload []byte, generated reflect.Type) bool {
 	if json.Unmarshal(payload, &value) != nil {
 		return false
 	}
-	_, faulty := faultOf(shapeOf(generated), value, "")
+	_, _, faulty := faultOf(shapeOf(generated), value, "")
 	return !faulty
 }
 
@@ -233,41 +258,101 @@ func Holds(schema string, value any) bool {
 	if _, named := schemas()[schema]; !named {
 		panic("the spec has no component schema " + schema)
 	}
-	_, faulty := faultOf(&shape{Ref: schema}, value, "")
+	_, _, faulty := faultOf(&shape{Ref: schema}, value, "")
 	return !faulty
 }
 
 // ReadAs is payload read as T, and whether it is one: JSON with no fault as
-// a T, which Go's decoding reads.
+// a T, which Go's decoding reads as Read gives it.
 func ReadAs[T any](payload []byte) (T, bool) {
 	var value T
-	if !Carries(payload, reflect.TypeFor[T]()) || json.Unmarshal(payload, &value) != nil {
+	read, _, faulty := Read(payload, reflect.TypeFor[T]())
+	if faulty || json.Unmarshal(read, &value) != nil {
 		return value, false
 	}
 	return value, true
 }
 
-// FaultOfFramePayload is FaultOf of a frame's payload as its type reads it:
-// what a gateway stamps on a payload (a member whose name begins `_`) that a
-// value of generated does not name is the bus's, not the payload's, and is
-// left out before the payload is held to its shape.
-func FaultOfFramePayload(payload []byte, generated reflect.Type) (Fault, bool) {
+// ReadFramePayload is Read of a frame's payload as its type reads it: what a
+// gateway stamps on a payload (a member whose name begins `_`) that a value of
+// generated does not name is the bus's, not the payload's, and is left out
+// before the payload is held to its shape. What is read keeps it.
+func ReadFramePayload(payload []byte, generated reflect.Type) ([]byte, Fault, bool) {
 	var value any
 	if json.Unmarshal(payload, &value) != nil {
-		return Fault{}, false
+		return payload, Fault{}, false
 	}
 	read := shapeOf(generated)
-	return faultOf(read, unstamped(read, value), "")
+	return readOf(read, payload, unstamped(read, value))
 }
 
-// ReadFramePayloadAs is ReadAs of a frame's payload, held to T as
-// FaultOfFramePayload holds it.
+// ReadFramePayloadAs is ReadAs of a frame's payload, read as
+// ReadFramePayload reads it.
 func ReadFramePayloadAs[T any](payload []byte) (T, bool) {
 	var value T
-	if _, faulty := FaultOfFramePayload(payload, reflect.TypeFor[T]()); faulty || json.Unmarshal(payload, &value) != nil {
+	read, _, faulty := ReadFramePayload(payload, reflect.TypeFor[T]())
+	if faulty || json.Unmarshal(read, &value) != nil {
 		return value, false
 	}
 	return value, true
+}
+
+// unread is a member a reader leaves out of what it reads: its way from the
+// value read, by the name of each member and the index of each item it is
+// within, and its own name last.
+type unread []any
+
+// under is each of left, as within the member or the item at.
+func under(at any, left []unread) []unread {
+	moved := make([]unread, len(left))
+	for i, member := range left {
+		moved[i] = append(unread{at}, member...)
+	}
+	return moved
+}
+
+// without is the JSON value raw without member, which it holds: only the
+// objects and arrays member is within are written again, and every other
+// value is kept as raw states it.
+func without(raw []byte, member unread) ([]byte, error) {
+	switch at := member[0].(type) {
+	case string:
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &object); err != nil {
+			return nil, err
+		}
+		if len(member) == 1 {
+			delete(object, at)
+		} else {
+			held, err := without(object[at], member[1:])
+			if err != nil {
+				return nil, err
+			}
+			object[at] = held
+		}
+		return json.Marshal(object)
+	case int:
+		var items []json.RawMessage
+		if err := json.Unmarshal(raw, &items); err != nil {
+			return nil, err
+		}
+		held, err := without(items[at], member[1:])
+		if err != nil {
+			return nil, err
+		}
+		items[at] = held
+		return json.Marshal(items)
+	default:
+		panic(fmt.Sprintf("%v is neither a member's name nor an item's index", at))
+	}
+}
+
+// unrecognized is whether held is a text a reader of s reads as absent: one
+// none of the texts s recognizes, where it recognizes any.
+func unrecognized(s *shape, held any) bool {
+	recognized := resolved(s).Recognized
+	text, isText := held.(string)
+	return recognized != nil && isText && !slices.Contains(recognized, text)
 }
 
 // unstamped is value without the members whose names begin `_` that s names
@@ -339,59 +424,77 @@ func allows(kinds []string, value any) bool {
 	return isNumber && slices.Contains(kinds, "integer") && number == math.Trunc(number)
 }
 
-// faultOf is the first fault value has as a value of s, from way.
-func faultOf(s *shape, value any, way string) (Fault, bool) {
+// faultOf is the first fault value has as a value of s, from way; or, with
+// none, each member a reader leaves out of it.
+func faultOf(s *shape, value any, way string) (Fault, []unread, bool) {
 	s = resolved(s)
 	if !allows(s.Kinds, value) || !isOneOf(s.Enum, value) || !inBounds(s, value) {
-		return Fault{Member: way, Reason: bus.FrameRefusalReasonMalformed}, true
+		return Fault{Member: way, Reason: bus.FrameRefusalReasonMalformed}, nil, true
 	}
+	var left []unread
 	if object, isObject := value.(map[string]any); isObject {
 		for _, name := range s.Required {
 			held, has := object[name]
 			if !has || (held == nil && !allowsNull(memberShape(s, name))) {
-				return Fault{Member: within(way, name), Reason: bus.FrameRefusalReasonLacks}, true
+				return Fault{Member: within(way, name), Reason: bus.FrameRefusalReasonLacks}, nil, true
 			}
 		}
 		for _, name := range sortedKeys(s.Members) {
-			if held := object[name]; held != nil {
-				if fault, faulty := faultOf(s.Members[name], held, within(way, name)); faulty {
-					return fault, true
-				}
+			held := object[name]
+			if held == nil {
+				continue
 			}
+			if unrecognized(s.Members[name], held) {
+				left = append(left, unread{name})
+				continue
+			}
+			fault, inner, faulty := faultOf(s.Members[name], held, within(way, name))
+			if faulty {
+				return fault, nil, true
+			}
+			left = append(left, under(name, inner)...)
 		}
 		if s.Closed != nil {
 			for _, name := range sortedKeys(object) {
 				if !slices.Contains(s.Closed, name) {
-					return Fault{Member: within(way, name), Reason: bus.FrameRefusalReasonMalformed}, true
+					return Fault{Member: within(way, name), Reason: bus.FrameRefusalReasonMalformed}, nil, true
 				}
 			}
 		}
 		if s.Values != nil {
 			for _, key := range sortedKeys(object) {
-				if fault, faulty := faultOf(s.Values, object[key], way); faulty {
-					return fault, true
+				fault, inner, faulty := faultOf(s.Values, object[key], way)
+				if faulty {
+					return fault, nil, true
 				}
+				left = append(left, under(key, inner)...)
 			}
 		}
 	}
 	if items, isArray := value.([]any); isArray && s.Items != nil {
-		for _, item := range items {
-			if fault, faulty := faultOf(s.Items, item, way); faulty {
-				return fault, true
+		for at, item := range items {
+			fault, inner, faulty := faultOf(s.Items, item, way)
+			if faulty {
+				return fault, nil, true
 			}
+			left = append(left, under(at, inner)...)
 		}
 	}
 	if len(s.OneOf) > 0 {
-		if fault, faulty := faultOfOneOf(s, value, way); faulty {
-			return fault, true
+		fault, inner, faulty := faultOfOneOf(s, value, way)
+		if faulty {
+			return fault, nil, true
 		}
+		left = append(left, inner...)
 	}
 	for _, part := range s.AllOf {
-		if fault, faulty := faultOf(part, value, way); faulty {
-			return fault, true
+		fault, inner, faulty := faultOf(part, value, way)
+		if faulty {
+			return fault, nil, true
 		}
+		left = append(left, inner...)
 	}
-	return Fault{}, false
+	return Fault{}, left, false
 }
 
 // isOneOf is whether value is one of values, where there are any: a number
@@ -453,9 +556,10 @@ func memberShape(s *shape, name string) *shape {
 
 // faultOfOneOf is the fault value has as one of the variants of s: the
 // variant its discriminator names, or else each variant whose kinds allow
-// it. None when one of them has none; the first one's when each has one;
-// and a value no variant allows is malformed.
-func faultOfOneOf(s *shape, value any, way string) (Fault, bool) {
+// it. None when one of them has none, with what a reader leaves out of the
+// value as that one; the first one's when each has one; and a value no
+// variant allows is malformed.
+func faultOfOneOf(s *shape, value any, way string) (Fault, []unread, bool) {
 	var candidates []*shape
 	for _, one := range s.OneOf {
 		if allows(resolved(one).Kinds, value) {
@@ -470,19 +574,19 @@ func faultOfOneOf(s *shape, value any, way string) (Fault, bool) {
 		}
 	}
 	if len(candidates) == 0 {
-		return Fault{Member: way, Reason: bus.FrameRefusalReasonMalformed}, true
+		return Fault{Member: way, Reason: bus.FrameRefusalReasonMalformed}, nil, true
 	}
 	var first Fault
 	for i, candidate := range candidates {
-		fault, faulty := faultOf(candidate, value, way)
+		fault, left, faulty := faultOf(candidate, value, way)
 		if !faulty {
-			return Fault{}, false
+			return Fault{}, left, false
 		}
 		if i == 0 {
 			first = fault
 		}
 	}
-	return first, true
+	return first, nil, true
 }
 
 // kindOf is the kind of a decoded JSON value, as a schema names it.

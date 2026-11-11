@@ -40,32 +40,36 @@ public sealed class JobNamespace
 
     public async Task<JobStatusResponse> StatusAsync(JobId jobId, CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.JobStatusRequested, new JobStatusRequest { JobId = jobId },
-            cancellation: cancellation).ConfigureAwait(false)).Response;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response;
 
     /// <summary>Reports whether the queue accepted cancellation of the job.</summary>
     public async Task<bool> CancelAsync(JobId jobId, CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.JobCancelRequested, new JobCancelRequest { JobId = jobId },
-            cancellation: cancellation).ConfigureAwait(false)).Response.Cancelled;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response.Cancelled;
 
-    /// <summary>Returns the first terminal status, reporting each status received along the way.</summary>
-    public async Task<JobStatusResponse> PollUntilCompleteAsync(JobId jobId, int intervalMs = 1000, int timeoutMs = 60000,
+    /// <summary>Returns the first terminal status, reporting each status received along the way. It asks every
+    /// <paramref name="intervalMs"/>, jobPollMs when named none, and fails as timed out at <paramref name="timeoutMs"/>
+    /// from its first ask, jobPollTimeoutMs when named none.</summary>
+    public async Task<JobStatusResponse> PollUntilCompleteAsync(JobId jobId, int? intervalMs = null, int? timeoutMs = null,
         Action<JobStatusResponse>? onStatus = null, CancellationToken cancellation = default)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(intervalMs);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutMs);
-        var interval = TimeSpan.FromMilliseconds(intervalMs);
-        using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs), clock);
+        var everyMs = intervalMs ?? ProtocolFacts.Timing("jobPollMs").GetInt32();
+        var limitMs = timeoutMs ?? ProtocolFacts.Timing("jobPollTimeoutMs").GetInt32();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(everyMs, nameof(intervalMs));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limitMs, nameof(timeoutMs));
+        var interval = TimeSpan.FromMilliseconds(everyMs);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(limitMs), clock);
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, closed, cancellation);
         try
         {
             while (true)
             {
                 waiting.Token.ThrowIfCancellationRequested();
-                var status = await StatusAsync(jobId, waiting.Token).ConfigureAwait(false);
+                var status = await StatusAsync(jobId, waiting.Token).ConfigureAwait(Spawning.Captures);
                 waiting.Token.ThrowIfCancellationRequested();
                 onStatus?.Invoke(status);
                 if (status.Status is not (JobStatusResponseStatus.Pending or JobStatusResponseStatus.Running)) return status;
-                await Task.Delay(interval, clock, waiting.Token).ConfigureAwait(false);
+                await Task.Delay(interval, clock, waiting.Token).ConfigureAwait(Spawning.Captures);
             }
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested && closed.IsCancellationRequested)

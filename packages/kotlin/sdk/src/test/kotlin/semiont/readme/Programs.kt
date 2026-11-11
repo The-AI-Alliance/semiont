@@ -5,6 +5,7 @@ import semiont.JobCompleted
 import semiont.JobProgressed
 import semiont.SemiontClient
 import semiont.cache.CacheState
+import semiont.channels.BRIDGED_CHANNELS
 import semiont.http.HttpContentTransport
 import semiont.http.HttpTransport
 import semiont.identifiers.AnnotationId
@@ -20,7 +21,7 @@ import semiont.types.GenerationJobParams
 /** Open a client of the knowledge base at `baseUrl`, signed in with `token`. */
 internal fun connect(baseUrl: String, token: String): SemiontClient {
     // readme: connect
-    val transport = HttpTransport(baseUrl, MutableStateFlow(token))
+    val transport = HttpTransport(baseUrl, MutableStateFlow(token), BRIDGED_CHANNELS)
     val client = SemiontClient(transport, HttpContentTransport(transport), transport)
     // readme: end
     return client

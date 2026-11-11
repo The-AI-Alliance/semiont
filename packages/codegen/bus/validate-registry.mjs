@@ -108,7 +108,7 @@ export function validateRegistry(reg) {
   //
   // How a channel crosses the wire is DECLARED, never defaulted, and on two
   // axes: one class for both would have to mean "crosses as fan-out" and
-  // "every default client auto-subscribes" at once.
+  // "every full client subscribes" at once.
   //
   // `kind` is the wire-crossing shape (operation | command | event) and is
   // spelled `kind` rather than `shape` because `channels[]` entries already

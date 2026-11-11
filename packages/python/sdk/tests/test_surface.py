@@ -25,6 +25,8 @@ from pydantic import JsonValue, TypeAdapter
 from spec import SPEC, JsonObject, objects, read, text
 
 from semiont.bus import Typed
+from semiont.channels import BRIDGED_CHANNELS
+from semiont.claims import JOB_CLAIM_CHANNELS
 from semiont.client import SemiontClient
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import WireModel, written
@@ -403,10 +405,13 @@ def gateway_call(call: str) -> tuple[str, JsonObject]:
 
 @final
 class World:
-    """A client over doubles nothing is scripted to answer, which record what it asked of each."""
+    """A client over doubles nothing is scripted to answer, which record what it asked of each.
+
+    Its stream names a full client's channels and what a worker's claims read: the surface claims jobs too.
+    """
 
     def __init__(self) -> None:
-        self.transport = FaultyTransport()
+        self.transport = FaultyTransport(channels=(*BRIDGED_CHANNELS, *JOB_CLAIM_CHANNELS))
         self.content = InMemoryContent()
         self.gateway = StubGateway()
         self.client: Client = SemiontClient(self.transport, self.content, self.gateway)

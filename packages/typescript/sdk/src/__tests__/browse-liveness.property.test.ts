@@ -41,7 +41,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { filter, map } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, EventBus, resourceId as makeResourceId } from '@semiont/core';
 import { FaultyTransport, refuseUnscriptedOperation } from '@semiont/core/testing';
 import { assertLivenessAxioms } from '@semiont/core/testing/axioms';
 import { BrowseNamespace } from '../namespaces/browse';
@@ -248,7 +248,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
     // Every request drops its reply → attempt times out (RETRY warn) → the
     // B14 re-issue also drops → exhaustion (IDLE warn) + B15 error to the
     // value-less key's observers.
-    const transport = new FaultyTransport({ schedule: [{ kind: 'drop-reply' }], makeResponse });
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS, schedule: [{ kind: 'drop-reply' }], makeResponse });
     const bus = new EventBus();
     const browse = new BrowseNamespace(
       transport, bus, contentTransportSpies(), { busTimeoutMs: TIMEOUT_MS },

@@ -67,7 +67,7 @@ func TestMCPASessionThatCannotBeRenewedIsRefusedAndTheNextCallAtOnce(t *testing.
 	// Signed in again, the knowledge base is resumed on its next call. The
 	// session that ended closed its transport, as every session does, so the
 	// next is given one of its own.
-	fresh := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	fresh := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels})
 	t.Cleanup(launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fresh }))
 	renewing := newIssuerStub(t, http.StatusOK, renewed())
 	storeSession(t, renewing, 300*time.Second)

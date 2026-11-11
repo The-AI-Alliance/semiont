@@ -13,7 +13,7 @@
  */
 
 import type { BaseUrl, AccessToken, CacheQuery } from '@semiont/core';
-import { Bus, EventBus, accessToken, baseUrl } from '@semiont/core';
+import { BRIDGED_CHANNELS, Bus, EventBus, accessToken, baseUrl } from '@semiont/core';
 import { sealPlaces, type CachePersistence } from './cache-persister';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace, type BROWSE_QUERIES } from './namespaces/browse';
@@ -267,7 +267,7 @@ export class SemiontClient {
       ? null
       : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
-    const transport = new HttpTransport({ baseUrl: url, token$, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
+    const transport = new HttpTransport({ baseUrl: url, token$, channels: BRIDGED_CHANNELS, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
     const content = new HttpContentTransport(transport);
     // HttpTransport implements both ITransport and IGatewayOperations;
     // pass it twice so `client.auth` / `client.system` are wired.

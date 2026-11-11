@@ -844,7 +844,14 @@ func ATitleIsItsResourcesNameInCapitals(t *testing.T) {
 }
 ```
 
-- **`FaultyTransport`** is a transport with no wire. `QueueReply` says what
+- **`FaultyTransport`** is a transport with no wire. Its `Channels` are the
+  global channels its stream names, as a real transport's are, and with none
+  named it names none: a client's stream names `bus.BridgedChannels`, a
+  worker's `semiont.JobClaimChannels`, and the one `NewTestClient` makes
+  when it is given none names `bus.BridgedChannels`. A frame on a resource's
+  scope arrives only while that scope is held (`SubscribeToResource`), and
+  what its stream does not carry is dropped, whether it is delivered, a
+  reply, or a frame sent coming back. `QueueReply` says what
   the gateway answers the next requests of an operation with, and
   `RefuseWhen` has it answer with a failure. A reply that names what it
   answers for, as a gathered context names its resource, takes that from the
@@ -1111,7 +1118,7 @@ log keeps) is written as `[withheld]`.
 | `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others). `required_lists_gen.go`: each type that holds a list its schema requires writes it as `[]` where Go holds it as nil, so a caller may leave an empty list nil | [`protocol/specs/src/openapi.json`](../../../protocol/specs/src/openapi.json), bundled; [`protocol/specs/src/identifiers/kinds.json`](../../../protocol/specs/src/identifiers/kinds.json); each component schema's `required` |
 | `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`protocol/specs/src/bus/registry.json`](../../../protocol/specs/src/bus/registry.json) |
 | `state` | The state units a client's bus moves | hand-written |
-| `annotations` | Reading an annotation, building one of a span or of a resource, and `Reconcile` | hand-written |
+| `annotations` | Reading an annotation, building one of a span or of a resource, and `Reconcile`; and the generated table of Unicode's Cased and Case_Ignorable properties (`unicodecase_gen.go`), which decide whether a capital sigma ends a word | hand-written; Node's Unicode data, by [`generate-unicode-case.mjs`](../../codegen/schemas/generate-unicode-case.mjs) |
 | `registry` | Several knowledge bases: `SemiontBrowser`, its storage and its keys, `HttpSessionFactory`, and a person's sign-in landing on the knowledge base that answered | hand-written |
 | `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`protocol/specs/src/discovery/DiscoveryDocument.json`](../../../protocol/specs/src/discovery/DiscoveryDocument.json), through `api` |
 | `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; `NewTestSession`; `ScriptedSessions` and `SharedStorage`, for a registry; `AssertStateUnitAxioms`; and the liveness axioms | hand-written |

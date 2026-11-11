@@ -23,7 +23,7 @@ use quick_clock::QuickClock;
 use ring::signature::{RSA_PKCS1_2048_8192_SHA256, RsaPublicKeyComponents};
 use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
 use semiont::cache::CacheState;
-use semiont::channels::PrincipalProfile;
+use semiont::channels::{BRIDGED_CHANNELS, PrincipalProfile};
 use semiont::claims::{ClaimOptions, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, JobFailure};
 use semiont::client::ClientOptions;
 use semiont::discovery::{
@@ -3381,7 +3381,7 @@ impl World {
                 base_url: self.origin.clone(),
                 token: tokio::sync::watch::channel(Some(token.to_owned())).1,
                 refresher: None,
-                channels: Some(Vec::new()),
+                channels: Vec::new(),
                 http: self.http.clone(),
                 timing: Timing::default(),
                 random: None,
@@ -3826,7 +3826,7 @@ async fn a_daemon(
             base_url: agent.gateway().to_owned(),
             token: agent.token(),
             refresher: Some(agent.clone()),
-            channels: None,
+            channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
             http,
             timing: Timing::default(),
             random: None,
@@ -3899,7 +3899,7 @@ async fn a_worker(
             base_url: agent.gateway().to_owned(),
             token: agent.token(),
             refresher: Some(agent.clone()),
-            channels: Some(channels),
+            channels,
             http,
             timing: Timing::default(),
             random: None,

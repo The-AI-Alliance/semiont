@@ -206,9 +206,9 @@ struct LiveQueries: Sendable {
     throws(Unreadable) -> (CacheRefreshRow, Subject)
   {
     guard case .frame(let frame) = carried else { throw Unreadable() }
-    let stated = declared(frame.payload, stamps: stamps)
-    guard faultOf(payload: stated, on: frame.channel) == nil else { throw Unreadable() }
-    let payload = JSONValue.object(stated)
+    guard let read = try? payloadAsRead(declared(frame.payload, stamps: stamps), on: frame.channel)
+    else { throw Unreadable() }
+    let payload = JSONValue.object(read)
     let row: CacheRefreshRow
     if let enriched = cacheRefresh.first(where: { $0.on == trigger && $0.when == .enriched }) {
       let written = try member(enriched.carries, of: payload, as: Annotation.self)
@@ -252,7 +252,7 @@ struct LiveQueries: Sendable {
       for detail in annotationEntries(subject) { await detail.writeIfKnown(value) }
     case .annotations:
       guard let resource = subject.resource else { return }
-      await annotations.existing(resource)?.editIfKnown { current in
+      await annotations.patch(resource) { current in
         var current = current
         if let index = current.annotations.firstIndex(where: { $0.id == value.id }) {
           current.annotations[index] = value

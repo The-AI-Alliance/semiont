@@ -74,6 +74,7 @@ fn main() {
                 roots: &SERVICE_SCHEMAS,
                 elsewhere: Some("semiont::types"),
                 identifiers: &[],
+                discriminator_accessors: &[],
             },
         ),
     )

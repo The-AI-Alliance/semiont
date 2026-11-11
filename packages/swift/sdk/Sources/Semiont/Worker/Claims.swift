@@ -119,7 +119,7 @@ public actor Claims: AsyncSequence {
     self.timing = timing
     self.clock = clock
     (self.stream, self.jobs) = AsyncStream.makeStream()
-    lifetime.onEnd { [weak self] in Task { await self?.abandon() } }
+    lifetime.onEnd { [weak self] in spawn { await self?.abandon() } }
   }
 
   deinit {
@@ -158,7 +158,7 @@ public actor Claims: AsyncSequence {
     let timing = timing
     let clock = clock
     readers.append(
-      Task { [weak self] in
+      spawn { [weak self] in
         do {
           let frames = try await transport.frames([
             Channels.jobQueued.name, Channels.jobCancelRequested.name,
@@ -172,7 +172,7 @@ public actor Claims: AsyncSequence {
         if !Task.isCancelled { await self?.abandon() }
       })
     readers.append(
-      Task { [weak self] in
+      spawn { [weak self] in
         while !Task.isCancelled {
           do { try await sleepMilliseconds(timing.stallCheckMs, on: clock) } catch { return }
           await self?.checkStall()
@@ -184,7 +184,7 @@ public actor Claims: AsyncSequence {
     guard !stopped else { return }
     let transport = transport
     readers.append(
-      Task { [weak self] in
+      spawn { [weak self] in
         for await state in transport.state {
           if Task.isCancelled { return }
           await self?.connection(state)
@@ -230,7 +230,7 @@ public actor Claims: AsyncSequence {
     let command = command
     let timing = timing
     let clock = clock
-    claimTask = Task { [weak self] in
+    claimTask = spawn { [weak self] in
       do {
         let frame = try await resultOf(
           Operations.jobClaim.request.name, wirePayload(command), over: transport,
@@ -328,7 +328,7 @@ public actor Claims: AsyncSequence {
     stopped = true
     let job = held
     let pending = claimTask
-    let finish = Task {
+    let finish = spawn {
       if let job {
         try? await job.fail(
           "The worker stopped while it held the job", failureClass: nil, completedUnits: nil,

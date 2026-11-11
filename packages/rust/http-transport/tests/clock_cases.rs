@@ -38,7 +38,9 @@ use futures::stream::Stream;
 use rand_core::{Rng, TryRng};
 use semiont::bus::{Bus, operation};
 use semiont::cache::{Cache, CachePersister};
-use semiont::claims::ClaimOptions;
+use semiont::channels::BRIDGED_CHANNELS;
+use semiont::claims::{ClaimOptions, JOB_CLAIM_CHANNELS};
+use semiont::client::SemiontClient;
 use semiont::discovery::{DiscoveryRead, DiscoveryState, DiscoveryTransport, subscribe_discovery};
 use semiont::errors::{BusRequestErrorCode, SemiontError};
 use semiont::session::{
@@ -51,7 +53,7 @@ use semiont::transport::{
 };
 use semiont::types::{
     DiscoveredKB, HighlightingJobParams, HttpEndpoint, HttpEndpointProtocol, JobFilter,
-    JobProgress, KbTarget, UserResponse,
+    JobProgress, JobStatusResponse, KbTarget, UserResponse,
 };
 use semiont_http_transport::oauth::sign_in_with_device_grant;
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
@@ -491,7 +493,7 @@ async fn over_a_gateway(
         base_url: network.origin.clone(),
         token: watch::channel(Some("a-token".to_owned())).1,
         refresher: None,
-        channels: None,
+        channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
         http: http(),
         timing: Timing::default(),
         random: Some(lowest()),
@@ -953,7 +955,7 @@ fn dispatcher(operation: &str, _: &Map<String, Value>) -> Result<Option<Value>, 
 
 fn held_job_stall(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let transport = FaultyTransport::answering(vec![], dispatcher);
+        let transport = FaultyTransport::answering(&JOB_CLAIM_CHANNELS, vec![], dispatcher);
         let client = create_test_client(TestClientOptions {
             transport: Some(transport),
             ..TestClientOptions::default()
@@ -1045,7 +1047,7 @@ fn history(operation: &str, asked: &Map<String, Value>) -> Result<Option<Value>,
 
 fn invalidation_window(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let transport = FaultyTransport::answering(vec![], history);
+        let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], history);
         let client = create_test_client(TestClientOptions {
             transport: Some(transport.clone()),
             ..TestClientOptions::default()
@@ -1146,7 +1148,7 @@ fn job_queue(operation: &str, _: &Map<String, Value>) -> Result<Option<Value>, S
 
 fn job_follower(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     async move {
-        let transport = FaultyTransport::answering(vec![], job_queue);
+        let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], job_queue);
         let client = create_test_client(TestClientOptions {
             transport: Some(transport.clone()),
             ..TestClientOptions::default()
@@ -1187,8 +1189,78 @@ fn job_follower(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
     .boxed_local()
 }
 
+/// How a poll ended, once it has.
+type Polled = Arc<Mutex<Option<Result<JobStatusResponse, SemiontError>>>>;
+
+/// A client's `job.poll_until_complete` of `job-1`, naming no interval and no
+/// limit of its own, set going as the case begins, over a job queue that
+/// says the job is running whenever it is asked: the transport it asks over,
+/// the client, and how the poll ended, once it has.
+fn polling() -> (FaultyTransport, Arc<SemiontClient>, Polled) {
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], job_queue);
+    let client = create_test_client(TestClientOptions {
+        transport: Some(transport.clone()),
+        ..TestClientOptions::default()
+    })
+    .client;
+    let ended: Polled = Arc::new(Mutex::new(None));
+    let (asking, telling) = (client.clone(), ended.clone());
+    tokio::spawn(async move {
+        let polled = asking
+            .job
+            .poll_until_complete(&as_id("job-1"), None, None, |_| {})
+            .await;
+        *telling.lock().expect("the outcome") = Some(polled);
+    });
+    (transport, client, ended)
+}
+
+fn job_poll(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
+    async move {
+        let (transport, client, ended) = polling();
+        Subject {
+            counted: Box::new(move || {
+                // How it fails is what jobPollTimeout counts.
+                if let Some(Ok(answer)) = &*ended.lock().expect("the outcome") {
+                    panic!("the poll ended: {answer:?}");
+                }
+                transport
+                    .emitted()
+                    .iter()
+                    .filter(|frame| frame.channel == "job:status-requested")
+                    .count()
+            }),
+            act: None,
+            network: None,
+            _held: vec![Box::new(client)],
+        }
+    }
+    .boxed_local()
+}
+
+fn job_poll_timeout(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
+    async move {
+        let (_, client, ended) = polling();
+        Subject {
+            counted: Box::new(move || match &*ended.lock().expect("the outcome") {
+                None => 0,
+                Some(Err(SemiontError::Bus(failed)))
+                    if failed.code == BusRequestErrorCode::Timeout =>
+                {
+                    1
+                }
+                Some(other) => panic!("the poll ended otherwise: {other:?}"),
+            }),
+            act: None,
+            network: None,
+            _held: vec![Box::new(client)],
+        }
+    }
+    .boxed_local()
+}
+
 /// How this SDK builds each subject the table names.
-const SUBJECTS: [(&str, Build); 17] = [
+const SUBJECTS: [(&str, Build); 19] = [
     ("refusedStream", refused_stream),
     ("unansweredStream", unanswered_stream),
     ("degradedStream", degraded_stream),
@@ -1206,6 +1278,8 @@ const SUBJECTS: [(&str, Build); 17] = [
     ("unansweredEmit", unanswered_emit),
     ("refusedBusRequest", refused_bus_request),
     ("timedOutBusRequest", timed_out_bus_request),
+    ("jobPoll", job_poll),
+    ("jobPollTimeout", job_poll_timeout),
 ];
 
 // ── A case, played ──────────────────────────────────────────────────────

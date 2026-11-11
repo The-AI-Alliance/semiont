@@ -52,7 +52,7 @@ internal static partial class NativeStoreLock
                     if (error != 4 && error != (OperatingSystem.IsMacOS() ? 35 : 11)) throw new IOException("Could not lock the sign-in store", new Win32Exception(error));
                 }
                 // Nonblocking OS calls keep cancellation responsive while another process holds the lock.
-                await Task.Delay(Retry.EqualJitter(TimeSpan.FromMilliseconds(20), random), clock, cancellation).ConfigureAwait(false);
+                await Task.Delay(Retry.EqualJitter(TimeSpan.FromMilliseconds(20), random), clock, cancellation).ConfigureAwait(Spawning.Captures);
             }
         }
         catch { stream.Dispose(); throw; }

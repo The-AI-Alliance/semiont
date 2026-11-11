@@ -43,7 +43,7 @@ assertLivenessAxioms args spec = do
       let clock=livenessClock spec
           delay=sum [ms|Delay ms<-schedule]
           bound=(livenessSpecTimeoutMs spec * (1+livenessSpecRetryBudget spec)+delay)*slack
-      bracket (Faulty.newFaultyTransport clock schedule (livenessSpecMakeResponse spec) (Set.fromList Channels.channelNames))
+      bracket (Faulty.newFaultyTransport clock schedule (livenessSpecMakeResponse spec) (Set.fromList Channels.globalChannels))
         (Transport.dispose . Faulty.carrier) $ \transport -> livenessSpecSetup spec transport $ \scenario ->
           bracket (traverse async (livenessScenarioOutputs scenario ++ livenessScenarioSettlements scenario)) (mapM_ cancel) $ \waiting -> do
             now <- retryNow clock

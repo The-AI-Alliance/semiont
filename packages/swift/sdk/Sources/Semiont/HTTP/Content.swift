@@ -104,7 +104,7 @@ public final class ContentStream: AsyncSequence, Sendable {
     let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream(
       bufferingPolicy: .unbounded)
     let id = UUID()
-    let task = Task {
+    let task = spawn {
       defer {
         lifetime.forget(id)
         demand.finish()
@@ -207,12 +207,12 @@ extension HttpTransport: ContentTransport {
       bufferingPolicy: .unbounded)
     let life = lifetime
     let id = UUID()
-    let task = Task {
+    let task = spawn(on: self) { transport in
       defer {
         continuation.finish()
         life.forget(id)
       }
-      return try await self.sendUpload(request, progress: continuation)
+      return try await transport.sendUpload(request, progress: continuation)
     }
     life.keep(task, id: id)
     return Upload(

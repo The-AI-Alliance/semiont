@@ -8,6 +8,7 @@ from pydantic import JsonValue
 from spec import JsonObject
 
 from semiont.cache import Runs
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import OPERATIONS
 from semiont.refresh import CacheQuery, CacheRefreshChannel, CacheRefreshWhen
@@ -133,7 +134,7 @@ class SilentContent(ContentTransport):
 
 def silent() -> FaultyTransport:
     """A transport whose gateway hears each request and says nothing a client hears: the test answers each itself."""
-    return FaultyTransport([DropReply()], make_response=lambda operation, payload: None)
+    return FaultyTransport([DropReply()], channels=BRIDGED_CHANNELS, make_response=lambda operation, payload: None)
 
 
 def refusing(*operations: str) -> Refuse:

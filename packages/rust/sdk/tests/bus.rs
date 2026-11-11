@@ -3,6 +3,7 @@
 //! § Requests).
 
 use semiont::bus::{Bus, Operation, operation};
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::errors::{SemiontError, TransportErrorCode};
 use semiont::testing::{FaultAction, FaultyTransport};
 use semiont::transport::{ConnectionState, Frame, STREAM_BACKLOG, Transport};
@@ -24,7 +25,7 @@ fn asking(resource: &str) -> Map<String, Value> {
 }
 
 fn bus(schedule: Vec<FaultAction>) -> (Bus, FaultyTransport) {
-    let transport = FaultyTransport::new(schedule);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, schedule);
     (Bus::new(Arc::new(transport.clone())), transport)
 }
 
@@ -63,13 +64,27 @@ async fn a_request_nobody_answers_times_out_and_is_tracked_no_more() {
 
 #[tokio::test(start_paused = true)]
 async fn a_failure_reply_fails_under_the_code_its_own_code_becomes() {
-    for (stated, expected) in [
-        (Some("not-found"), "bus.not-found"),
-        (Some("peer-unavailable"), "bus.peer-unavailable"),
-        (Some("unauthorized"), "bus.unauthorized"),
-        (Some("none-pending"), "bus.none-pending"),
-        (Some("not-invented-yet"), "bus.rejected"),
-        (None, "bus.rejected"),
+    // The code the failure is read with: a code none of CommandError's is
+    // read as absent.
+    for (stated, expected, kept) in [
+        (Some("not-found"), "bus.not-found", Some("not-found")),
+        (
+            Some("peer-unavailable"),
+            "bus.peer-unavailable",
+            Some("peer-unavailable"),
+        ),
+        (
+            Some("unauthorized"),
+            "bus.unauthorized",
+            Some("unauthorized"),
+        ),
+        (
+            Some("none-pending"),
+            "bus.none-pending",
+            Some("none-pending"),
+        ),
+        (Some("not-invented-yet"), "bus.rejected", None),
+        (None, "bus.rejected", None),
     ] {
         let (bus, transport) = bus(vec![FaultAction::DropReply]);
         transport.queue_reply(read().request, [None]);
@@ -100,6 +115,10 @@ async fn a_failure_reply_fails_under_the_code_its_own_code_becomes() {
             panic!("a failure reply is the request's own failure");
         };
         assert_eq!(error.message, "refused");
+        payload.remove("code");
+        if let Some(kept) = kept {
+            payload.insert("code".to_owned(), json!(kept));
+        }
         assert_eq!(error.failure, Some(payload));
     }
 }

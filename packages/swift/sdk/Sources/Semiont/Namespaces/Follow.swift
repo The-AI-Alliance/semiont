@@ -53,7 +53,7 @@ func follow<Completion: FollowedCompletion, Timer: Clock>(
         Channels.jobReportProgress.name, Channels.jobComplete.name, Channels.jobFail.name,
       ])
       let (wakes, send) = AsyncStream<FollowWake>.makeStream(bufferingPolicy: .unbounded)
-      let arriving = Task {
+      let arriving = spawn {
         do {
           for try await carried in source {
             if let event = Lifecycle(carried) { send.yield(.frame(event)) }
@@ -61,7 +61,7 @@ func follow<Completion: FollowedCompletion, Timer: Clock>(
         } catch {}
         send.yield(.closed)
       }
-      let creating = Task {
+      let creating = spawn {
         do {
           send.yield(
             .created(.success(try await wire.request(Operations.jobCreate, create).response)))
@@ -96,7 +96,7 @@ func follow<Completion: FollowedCompletion, Timer: Clock>(
         if let due = [askAt, stallAt].compactMap({ $0 }).min() {
           let id = UUID()
           timerID = id
-          timer = Task {
+          timer = spawn {
             do {
               try await clock.sleep(until: due, tolerance: nil)
               send.yield(.due(id))
@@ -183,7 +183,7 @@ func follow<Completion: FollowedCompletion, Timer: Clock>(
             let id = UUID()
             asking = (
               id,
-              Task {
+              spawn {
                 do {
                   send.yield(
                     .status(

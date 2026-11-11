@@ -6,6 +6,7 @@ import java.util.concurrent.Flow;
 import kotlinx.coroutines.flow.StateFlowKt;
 import semiont.SemiontClient;
 import semiont.cache.CacheState;
+import semiont.channels.ChannelsKt;
 import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
 import semiont.identifiers.AnnotationId;
@@ -27,7 +28,7 @@ public final class Programs {
     /** Open a client of the knowledge base at `baseUrl`, signed in with `token`. */
     public static SemiontClient connect(String baseUrl, String token) {
         // readme: connect-java
-        HttpTransport transport = new HttpTransport(baseUrl, StateFlowKt.MutableStateFlow(token));
+        HttpTransport transport = new HttpTransport(baseUrl, StateFlowKt.MutableStateFlow(token), ChannelsKt.getBRIDGED_CHANNELS());
         SemiontClient client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
         // readme: end
         return client;

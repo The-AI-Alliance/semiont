@@ -19,7 +19,7 @@ public sealed class MatchStateUnit : IStateUnit
 
     private async Task ReadAsync(CancellationToken cancellation)
     {
-        await foreach (var carried in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+        await foreach (var carried in Spawning.ReadAll(events.Reader, cancellation).ConfigureAwait(Spawning.Captures))
         {
             lock (work.Gate)
             {
@@ -36,7 +36,7 @@ public sealed class MatchStateUnit : IStateUnit
         try
         {
             var found = await client.Match.Search(request.ResourceId, request.ReferenceId, request.Context,
-                request.Limit ?? 10, request.UseSemanticScoring ?? true).CompleteAsync(cancellation).ConfigureAwait(false);
+                request.Limit ?? 10, request.UseSemanticScoring ?? true).CompleteAsync(cancellation).ConfigureAwait(Spawning.Captures);
             lock (work.Gate)
                 if (work.Active) client.Bus.Emit(BusChannels.MatchSearchResults, found, correlationId: correlationId);
         }

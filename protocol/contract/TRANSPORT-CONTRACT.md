@@ -442,9 +442,10 @@ result and failure channels are the registry's.
 - **A failure with a fault** is held to its channel's schema as a result
   is: the request fails as `error`, naming its first fault, and a failure
   without words is never given any. A peer sends a code the wire lists,
-  but a reader holds the code to no list: a failure whose code the wire
-  does not list settles the request as `bus.rejected`, in its own words.
-  *Held by `sdk/wire/failure-codes`, `packages/typescript/core/src/__tests__/bus-request.test.ts`, `packages/go/sdk/replies_test.go`, `packages/rust/sdk/tests/bus.rs`, `packages/python/sdk/tests/test_transport.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/swift/sdk/Tests/SemiontTests/HTTPTests.swift`, `packages/csharp/sdk/tests/Semiont.Tests/TransportTests.cs`, `packages/haskell/sdk/test/BusCases.hs`.*
+  and a reader reads a code the wire does not list as absent: the failure
+  settles the request as `bus.rejected`, in its own words, and is read
+  with no code wherever it is read, by its channel's typed reader too.
+  *Held by `protocol/specs/src/bus/frame-cases.json`, `sdk/wire/failure-codes`, `packages/typescript/core/src/__tests__/bus-request.test.ts`, `packages/go/sdk/replies_test.go`, `packages/rust/sdk/tests/bus.rs`, `packages/python/sdk/tests/test_transport.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/swift/sdk/Tests/SemiontTests/HTTPTests.swift`, `packages/csharp/sdk/tests/Semiont.Tests/TransportTests.cs`, `packages/haskell/sdk/test/BusCases.hs`.*
 - **A request nobody is there to answer** fails as `peer-unavailable` when
   the gateway can tell, and as a timeout when it cannot.
   *Held by `sdk/wire/request-unanswerable`, `gateway/emit.test.ts`.*

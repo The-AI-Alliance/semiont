@@ -20,6 +20,7 @@ make check-generated-python
 ```
 
 Focused groups are `bus`, `typescript`, `python`, `go`, `stack-go`, `mcp-tools-go`, `control`,
-`required`, `discovery-go`, `encoding-cases`, `model-catalogue`, `haskell`, and `ocaml`. Rust generation remains part of
+`required`, `unicode-case`, `discovery-go`, `encoding-cases`, `model-catalogue`, `haskell`, and `ocaml`. Rust generation
+remains part of
 Cargo builds (`make packages PACKAGE_NAMES=rust`). Checks compare committed outputs without
 repairing them; the TypeScript generation chain runs in an isolated tree for comparison.

@@ -43,6 +43,7 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, Literal, final
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.testing.transport import (
     Delay,
     Deliver,
@@ -117,6 +118,8 @@ class LivenessSpec:
 
     setup: Callable[[FaultyTransport], AbstractAsyncContextManager[LivenessScenario]]
     """Build a fresh composition over the transport it is given, and give what it exposes.
+
+    The transport's stream names a full client's channels, `BRIDGED_CHANNELS`.
 
     Called once per case, inside the case's loop. What it opened it ends on
     the way out, and the transport is closed after.
@@ -217,7 +220,7 @@ def assert_liveness_axioms(spec: LivenessSpec) -> None:
     async def case(schedule: Sequence[FaultAction]) -> str | None:
         delays = sum(action.ms for action in schedule if isinstance(action, Delay))
         bound_ms = (spec.timeout_ms * (1 + spec.retry_budget) + delays) * _SLACK
-        transport = FaultyTransport(schedule, make_response=spec.make_response)
+        transport = FaultyTransport(schedule, channels=BRIDGED_CHANNELS, make_response=spec.make_response)
         try:
             async with spec.setup(transport) as scenario:
                 notified, settled = await _watched(scenario, bound_ms)

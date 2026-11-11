@@ -93,7 +93,7 @@ private final class RunningCore<Value: Sendable>: Sendable {
   func begin() {
     state.withLock { state in
       guard state.task == nil, state.result == nil else { return }
-      state.task = Task { [self] in
+      state.task = spawn { [self] in
         do {
           try Task.checkCancellation()
           let value = try await work { [weak self] value in self?.report(value) }

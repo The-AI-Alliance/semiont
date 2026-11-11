@@ -51,7 +51,7 @@ private final class Answers: Sendable {
 }
 
 @Test func aRefusedAnnouncementIsHeardAndClaimsAsAMatchingOneDoes() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: jobClaimChannels)
   let answers = Answers()
   probe.handle { name, _ in
     #expect(name == Operations.jobClaim.request.name)
@@ -75,7 +75,7 @@ private final class Answers: Sendable {
 }
 
 @Test func aRefusedAnnouncementWhileAClaimIsInFlightEarnsOneMoreClaim() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: jobClaimChannels)
   let answers = Answers()
   let answer = Watched(false)
   probe.handle { _, _ in
@@ -102,7 +102,7 @@ private final class Answers: Sendable {
 }
 
 @Test func aRefusedAnnouncementWhileAJobIsHeldIsHeardAndIgnored() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: jobClaimChannels)
   let answers = Answers()
   probe.handle { _, _ in
     if answers.next() == 1 { return try jobClaimedFixture("job-1") }

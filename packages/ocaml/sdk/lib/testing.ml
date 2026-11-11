@@ -32,6 +32,10 @@ type request_log_entry = {
   payload : Yojson.Safe.t;
 }
 
+(* What a stream's subscribe request names: its global channels, and each
+   scope's channels. *)
+type heard = { global : string list; scoped : (string * string list) list }
+
 type transport = {
   sw : Switch.t;
   clock : Clock.t;
@@ -39,7 +43,7 @@ type transport = {
   mutable faults : fault_action list;
   mutable log : request_log_entry list;
   mutable next_stream : int;
-  streams : (int, string option Eio.Stream.t) Hashtbl.t;
+  streams : (int, heard * string option Eio.Stream.t) Hashtbl.t;
   queued : (string * Yojson.Safe.t) option Queue.t;
 }
 
@@ -76,10 +80,20 @@ let deliver t ?id ?correlation_id ?scope channel payload =
     ^ Option.fold ~none:"" ~some:(fun id -> "id: " ^ id ^ "\n") id
     ^ "data: " ^ data ^ "\n\n"
   in
-  Hashtbl.iter (fun _ stream -> Eio.Stream.add stream (Some event)) t.streams
+  let hears { global; scoped } =
+    List.mem channel global
+    ||
+    match Option.bind scope (fun scope -> List.assoc_opt scope scoped) with
+    | Some channels -> List.mem channel channels
+    | None -> false
+  in
+  Hashtbl.iter
+    (fun _ (heard, stream) ->
+      if hears heard then Eio.Stream.add stream (Some event))
+    t.streams
 
 let disconnect t =
-  Hashtbl.iter (fun _ stream -> Eio.Stream.add stream None) t.streams
+  Hashtbl.iter (fun _ (_, stream) -> Eio.Stream.add stream None) t.streams
 
 module Source = struct
   type t = string option Eio.Stream.t * string ref
@@ -105,10 +119,24 @@ let call
     ~progress:_ =
   match path with
   | "/bus/subscribe" ->
+      let open Yojson.Safe.Util in
+      let request = Yojson.Safe.from_string body in
+      let texts value = List.map to_string (to_list value) in
+      let heard =
+        {
+          global = texts (member "global" request);
+          scoped =
+            List.map
+              (fun entry ->
+                ( to_string (member "scope" entry),
+                  texts (member "channels" entry) ))
+              (to_list (member "scoped" request));
+        }
+      in
       let stream = Eio.Stream.create max_int in
       let key = t.next_stream in
       t.next_stream <- key + 1;
-      Hashtbl.add t.streams key stream;
+      Hashtbl.add t.streams key (heard, stream);
       Switch.on_release sw (fun () -> Hashtbl.remove t.streams key);
       ( 200,
         [],

@@ -450,7 +450,7 @@ var calls = map[string]call{
 		_, _ = c.Job.Status(ctx, a.jid("jobId"))
 	},
 	"job.pollUntilComplete": func(ctx context.Context, c *semiont.Client, a args) {
-		_, _ = c.Job.PollUntilComplete(ctx, a.jid("jobId"), 10*time.Millisecond, 50*time.Millisecond, nil)
+		_, _ = c.Job.PollUntilComplete(ctx, a.jid("jobId"), 0, 0, nil)
 	},
 	"job.cancel": func(ctx context.Context, c *semiont.Client, a args) {
 		_, _ = c.Job.Cancel(ctx, a.jid("jobId"))
@@ -528,10 +528,11 @@ type surfaceWorld struct {
 }
 
 // newSurfaceWorld is a world whose gateway answers as answers says; nil
-// answers nothing.
+// answers nothing. Its stream names what a client's does and what a worker's
+// claims need, as the surface is both.
 func newSurfaceWorld(answers semionttest.MakeResponse) *surfaceWorld {
 	made := semionttest.NewTestClient(semionttest.TestClientConfig{
-		Transport: semionttest.NewFaultyTransport(semionttest.FaultyConfig{MakeResponse: answers}),
+		Transport: semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: slices.Concat(bus.BridgedChannels, semiont.JobClaimChannels), MakeResponse: answers}),
 		Timing:    semiont.DefaultTiming(),
 	})
 	w := &surfaceWorld{transport: made.Transport, content: made.Content, gateway: made.Gateway, client: made.Client}

@@ -56,7 +56,7 @@ public sealed class YieldStateUnit : IStateUnit
     {
         try
         {
-            await foreach (var update in run.WithCancellation(cancellation).ConfigureAwait(false))
+            await foreach (var update in run.WithCancellation(cancellation).ConfigureAwait(Spawning.Captures))
             {
                 lock (work.Gate)
                 {

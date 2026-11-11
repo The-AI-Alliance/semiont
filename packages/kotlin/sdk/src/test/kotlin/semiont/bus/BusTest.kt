@@ -288,6 +288,8 @@ class BusTest {
         val error = assertThrows(BusRequestError::class.java) { runBlocking { Bus(wire).request(ADD, added("Person"), timeoutMs = 5_000) } }
         assertEquals(BusRequestErrorCode.Rejected, error.reason)
         assertEquals("a code from a later peer", error.message)
+        // It fails with the failure as read: the code the wire does not list is no part of it.
+        assertEquals(json("""{"message":"a code from a later peer"}"""), error.failure)
     }
 
     // A failure is held to its channel's schema as a result is: one with no

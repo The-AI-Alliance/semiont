@@ -85,7 +85,9 @@ private func status(_ session: SemiontSession) -> String {
       let clock = TestClock()
       let reconnectMs = 200
       let session = SemiontSession(
-        kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
+        kb: target(),
+        client: try await SemiontClient(
+          transport: ProbeTransport(channels: bridgedChannels), clock: clock),
         kept: kept, forget: { await kept.forget() }, renew: { try await script.renew($0) },
         validate: { try await script.validate($0) }, reconnectMs: reconnectMs,
         random: RandomSource(SystemRandomNumberGenerator()),
@@ -179,12 +181,18 @@ private func status(_ session: SemiontSession) -> String {
     HeldSignIn(access: token, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer")
   )
   let calls = Mutex(0)
+  let renewing = Watched(false)
+  let answered = Watched(false)
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept,
     forget: { await kept.forget() },
     renew: { _ in
       calls.withLock { $0 += 1 }
-      try await Task.sleep(for: .milliseconds(80))
+      renewing.set(true)
+      for await given in answered where given { break }
+      try Task.checkCancellation()
       return "new-token"
     },
     validate: { _ in
@@ -195,12 +203,16 @@ private func status(_ session: SemiontSession) -> String {
   await session.start()
   try await session.ready()
   let first = Task { try await session.refresh(token) }
-  try await Task.sleep(for: .milliseconds(10))
+  try await withinTestDeadline { for await entered in renewing where entered { return } }
   first.cancel()
-  let second = try await session.refresh(token)
-  #expect(second == "new-token")
+  await #expect(throws: CancellationError.self) {
+    try await withinTestDeadline { try await first.value }
+  }
+  // The renewal is held until answered, so its only waiter has gone before it can end.
+  let second = Task { try await session.refresh(token) }
+  answered.set(true)
+  #expect(try await withinTestDeadline { try await second.value } == "new-token")
   #expect(calls.withLock { $0 } == 1)
-  await #expect(throws: CancellationError.self) { try await first.value }
   #expect(try await session.refresh(token) == "new-token")
   #expect(calls.withLock { $0 } == 1)
 }
@@ -220,7 +232,9 @@ private func status(_ session: SemiontSession) -> String {
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let entered = Watched(false)
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept,
     forget: { await kept.forget() },
     renew: { _ in
       entered.set(true)
@@ -264,7 +278,9 @@ private struct UnwritableSignIn: SignInKept {
     entry: HeldSignIn(
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept,
     forget: { try await kept.forget() },
     renew: { _ in throw SignInError(.exchange, "refused", status: 400) },
     validate: { _ in throw SpecFailure.shape("Must not validate") },
@@ -279,7 +295,9 @@ private struct UnwritableSignIn: SignInKept {
     HeldSignIn(
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept,
     forget: { await kept.forget() }, renew: { _ in "renewed" },
     validate: { _ in
       try UserResponse(
@@ -301,7 +319,9 @@ private struct UnwritableSignIn: SignInKept {
   let asked = Watched(false)
   let release = Watched(false)
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept,
     forget: { await kept.forget() }, renew: { _ in "new-token" },
     validate: { token in
       if token == old {
@@ -349,7 +369,9 @@ private func errorsOf(_ session: SemiontSession) -> (Watched<[String]>, Task<Voi
   let asks = Mutex(0)
   let renewals = Mutex(0)
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept,
     forget: { await kept.forget() },
     renew: { _ in
       let count = renewals.withLock { count in
@@ -458,7 +480,9 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
   let renewals = Mutex(0)
   let told = Mutex<[SessionEndReason]>([])
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
+    kb: target(),
+    client: try await SemiontClient(
+      transport: ProbeTransport(channels: bridgedChannels), clock: clock),
     kept: kept, forget: { await kept.forget() },
     renew: { holding in
       renewals.withLock { $0 += 1 }
@@ -536,7 +560,9 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
   let handed = Mutex<[String?]>([])
   let grants = Mutex(0)
   let session = SemiontSession(
-    kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
+    kb: target(),
+    client: try await SemiontClient(
+      transport: ProbeTransport(channels: bridgedChannels), clock: clock),
     kept: kept, forget: { await kept.forget() },
     renew: { holding in
       handed.withLock { $0.append(holding) }

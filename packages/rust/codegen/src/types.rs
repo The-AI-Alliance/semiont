@@ -18,7 +18,10 @@
 //! by what they are — text, a list, an object — or, between objects, by one
 //! being the empty object or by being closed with no required property in
 //! common. A member's one value of such a property is its own to state:
-//! `new` sets it and takes the rest. What the schema says that a type cannot — a pattern, a length, a
+//! `new` sets it and takes the rest. A union told apart so that a generation
+//! names (`discriminator_accessors`) says which value of the string
+//! enumeration the property names its member states, and a member's value
+//! that is none of the enumeration's fails the build. What the schema says that a type cannot — a pattern, a length, a
 //! bound — is the validators' to hold at the boundary, before a value is
 //! decoded. A kind of id is the exception: its pattern is written as the
 //! check its only constructor makes, and decoding goes through that
@@ -39,6 +42,11 @@ pub struct Generation<'a> {
     /// Each is a type of its own and not an alias, and a value of it is made
     /// only by a constructor that holds it to the schema's pattern.
     pub identifiers: &'a [&'a str],
+    /// The unions told apart by a property whose crate reads that property:
+    /// each is given a `pub(crate)` method, named as the property is, saying
+    /// which value of the string enumeration the property names
+    /// (`motivation`, a `Motivation`) its member states.
+    pub discriminator_accessors: &'a [&'a str],
 }
 
 const EMPTY_OBJECT: &str = "EmptyObject";
@@ -596,6 +604,14 @@ impl Types<'_> {
                 )
             );
         }
+        if self.generation.discriminator_accessors.contains(&name) {
+            let Some((property, tags)) = &told_apart else {
+                panic!(
+                    "{name}: an accessor of the property its members are told apart by is asked for, and none tells them apart"
+                );
+            };
+            code.push_str(&self.discriminator_accessor(name, property, tags, &variants));
+        }
         // A member that is a schema of its own is the union it belongs to,
         // wherever the union is wanted. A member that is text or a list is
         // not: nothing says which union a `String` was meant for.
@@ -608,6 +624,46 @@ impl Types<'_> {
             }
         }
         code
+    }
+
+    /// The method saying which value of the string enumeration `property`
+    /// names a value of the union `name` states: its member's own, the one
+    /// its Deserialize impl tells it apart by. A member whose value is none
+    /// of the enumeration's is refused.
+    fn discriminator_accessor(
+        &mut self,
+        name: &str,
+        property: &str,
+        tags: &[String],
+        variants: &[(String, String)],
+    ) -> String {
+        let vocabulary = pascal(property);
+        let definitions = self.definitions;
+        let values = definitions
+            .get(&vocabulary)
+            .filter(|schema| schema["type"] == "string")
+            .and_then(|schema| schema["enum"].as_array())
+            .unwrap_or_else(|| {
+                panic!("{name}: told apart by `{property}`, which names no string enumeration {vocabulary}")
+            });
+        let returned = self.named(&vocabulary);
+        let mut arms = String::new();
+        for (tag, (variant, _)) in tags.iter().zip(variants) {
+            if !values.iter().any(|value| value == tag.as_str()) {
+                panic!(
+                    "{name}: a member states the `{property}` `{tag}`, which is no {vocabulary}"
+                );
+            }
+            let _ = writeln!(
+                arms,
+                "            {name}::{variant}(_) => {returned}::{},",
+                variant_of(tag)
+            );
+        }
+        format!(
+            "impl {name} {{\n    /// The `{property}` this value states: the one its member is told apart by.\n    pub(crate) const fn {}(&self) -> {returned} {{\n        match self {{\n{arms}        }}\n    }}\n}}\n\n",
+            snake(property)
+        )
     }
 }
 
@@ -879,6 +935,7 @@ mod tests {
                 roots: &[root],
                 elsewhere: None,
                 identifiers: &[],
+                discriminator_accessors: &[],
             },
         )
     }
@@ -890,6 +947,7 @@ mod tests {
                 roots: &["ThingId"],
                 elsewhere: None,
                 identifiers: &["ThingId"],
+                discriminator_accessors: &[],
             },
         )
     }
@@ -915,6 +973,7 @@ mod tests {
                 roots: &["Holder"],
                 elsewhere: Some("owner::types"),
                 identifiers: &[],
+                discriminator_accessors: &[],
             },
         );
         assert!(
@@ -982,6 +1041,7 @@ mod tests {
                 roots: &["ThingId"],
                 elsewhere: None,
                 identifiers: &["ThingId"],
+                discriminator_accessors: &[],
             },
         );
     }
@@ -1001,6 +1061,7 @@ mod tests {
                 roots: &["Holder"],
                 elsewhere: None,
                 identifiers: &["ThingId"],
+                discriminator_accessors: &[],
             },
         );
         assert!(code.contains("    pub thing: ThingId,"), "{code}");
@@ -1340,6 +1401,57 @@ mod tests {
             )),
             "{code}"
         );
+    }
+
+    /// A union of a highlighting and a tagging member, told apart by
+    /// `motivation`, beside the enumeration `Motivation` of `motivations`.
+    fn motivated(motivations: &[&str], discriminator_accessors: &[&str]) -> String {
+        let member = |tag: &str| json!({ "type": "object", "required": ["motivation"], "properties": { "motivation": { "type": "string", "enum": [tag] } } });
+        generate(
+            &json!({
+                "Motivation": { "type": "string", "enum": motivations },
+                "Highlight": member("highlighting"),
+                "Tag": member("tagging"),
+                "Params": {
+                    "oneOf": [{ "$ref": "#/definitions/Highlight" }, { "$ref": "#/definitions/Tag" }],
+                    "discriminator": { "propertyName": "motivation" }
+                }
+            }),
+            &Generation {
+                roots: &["Params"],
+                elsewhere: None,
+                identifiers: &[],
+                discriminator_accessors,
+            },
+        )
+    }
+
+    #[test]
+    fn a_union_whose_crate_reads_its_property_says_which_value_of_the_enumeration_it_names_its_member_states()
+     {
+        let code = motivated(&["highlighting", "linking", "tagging"], &["Params"]);
+        assert!(
+            code.contains(concat!(
+                "impl Params {\n",
+                "    /// The `motivation` this value states: the one its member is told apart by.\n",
+                "    pub(crate) const fn motivation(&self) -> Motivation {\n",
+                "        match self {\n",
+                "            Params::Highlight(_) => Motivation::Highlighting,\n",
+                "            Params::Tag(_) => Motivation::Tagging,\n",
+                "        }\n",
+            )),
+            "{code}"
+        );
+        let unread = motivated(&["highlighting", "linking", "tagging"], &[]);
+        assert!(!unread.contains("impl Params {"), "{unread}");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Params: a member states the `motivation` `tagging`, which is no Motivation"
+    )]
+    fn a_member_whose_value_is_none_of_the_enumeration_its_property_names_is_refused() {
+        motivated(&["highlighting", "linking"], &["Params"]);
     }
 
     #[test]

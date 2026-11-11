@@ -328,6 +328,20 @@ describe('BrowseNamespace', () => {
       expect(list).toHaveLength(2);
     });
 
+    it('patches a list being fetched: what the fetch answers has the annotation, and nothing more is asked (B13b)', async () => {
+      let answer!: (list: Awaited<ReturnType<IContentTransport['getAnnotations']>>) => void;
+      vi.mocked(content.getAnnotations).mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+      const shown = firstDefined(browse.annotations(RID));
+      await vi.waitFor(() => expect(content.getAnnotations).toHaveBeenCalledTimes(1));
+
+      browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
+      answer({ annotations: [mockAnnotation('ann-1'), mockAnnotation('ann-2')], total: 2 });
+      const list = await shown;
+      expect(list!.map((a) => a.id)).toEqual(['ann-1', 'ann-2']);
+      expect(list![0].body).toMatchObject([{ source: 'res-2' }]);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
+    });
+
     it('is a no-op when list is not cached', () => {
       browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
       expect(content.getAnnotations).not.toHaveBeenCalled();

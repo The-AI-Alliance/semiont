@@ -24,7 +24,7 @@ use futures::FutureExt;
 use futures::future::Shared;
 use rand_core::Rng;
 use semiont::bus::reply_channels_for;
-use semiont::channels::{BrowseKbRequested, Channel};
+use semiont::channels::{BRIDGED_CHANNELS, BrowseKbRequested, Channel};
 use semiont::client::{CachePersistence, ClientOptions, SemiontClient};
 use semiont::errors::{
     BusRequestErrorCode, IdentityUnverifiable, IdentityUnverifiableReason, SemiontError,
@@ -97,7 +97,7 @@ fn built_over_http(
         base_url: options.base_url,
         token: sent,
         refresher: Some(Arc::new(Renews(renews))),
-        channels: None,
+        channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
         http: options.http,
         timing: Timing::default(),
         random: options.random.clone(),
@@ -182,7 +182,7 @@ fn asking_the_gateway(base_url: String, http: reqwest::Client) -> Validate {
             base_url: base_url.clone(),
             token: watch::channel(Some(token)).1,
             refresher: None,
-            channels: Some(Vec::new()),
+            channels: Vec::new(),
             http: http.clone(),
             timing: Timing::default(),
             random: None,
@@ -565,12 +565,10 @@ pub async fn describe_connection(
         base_url,
         token: watch::channel(Some(access.to_owned())).1,
         refresher: None,
-        channels: Some(
-            reply_channels_for(&[BrowseKbRequested::NAME])
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
-        ),
+        channels: reply_channels_for(&[BrowseKbRequested::NAME])
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
         http: http.clone(),
         timing: Timing::default(),
         random,

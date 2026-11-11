@@ -25,7 +25,7 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { BehaviorSubject, Subject, filter, firstValueFrom, lastValueFrom, map, toArray, type Observable } from 'rxjs';
-import { SemiontError, resourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, SemiontError, resourceId } from '@semiont/core';
 import type { AccessToken, NewKnowledgeBase, SemiontSessionErrorCode, TransportErrorCode } from '@semiont/core';
 import { isReady } from '../../cache';
 import { SemiontClient } from '../../client';
@@ -119,7 +119,7 @@ function scripted(row: Case): {
   const sayings = new Map<SemiontSession, Saying>();
   const handed: (string | null)[] = [];
   const factory: SessionFactory = ({ kb, storage }) => {
-    const transport = new FailingTransport();
+    const transport = new FailingTransport({ channels: BRIDGED_CHANNELS });
     const session = new SemiontSession({
       kb,
       kept: keptIn(storage, kb.id),

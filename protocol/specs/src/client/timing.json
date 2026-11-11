@@ -130,6 +130,16 @@
       "docs": "How often a client asks for the status of a job that has been silent for `jobSilenceMs`, until the job says something or its status is an end."
     },
     {
+      "name": "jobPollMs",
+      "value": 1000,
+      "docs": "How often a job's `pollUntilComplete` asks for its status (`job:status-requested`) until the status is an end, when its caller names no interval of its own."
+    },
+    {
+      "name": "jobPollTimeoutMs",
+      "value": 60000,
+      "docs": "How long a job's `pollUntilComplete` goes on asking for its status before it fails as timed out, when its caller names no limit of its own: from its first ask, its asks and the waits between them included."
+    },
+    {
       "name": "generationStallFloorMs",
       "value": 120000,
       "docs": "The shortest a client waits, with a generation it follows saying nothing, before it asks for the job to be cancelled and gives up on it. A floor, so a job that never says anything at all is caught whatever its size."

@@ -363,6 +363,7 @@ public final class semiont/cache/Cache : semiont/StateUnit {
 	public final fun keys ()Ljava/util/List;
 	public final fun known (Ljava/lang/Object;)Z
 	public final fun observe (Ljava/lang/Object;)Lsemiont/transport/Events;
+	public final fun patch (Ljava/lang/Object;Lkotlin/jvm/functions/Function1;)V
 	public final fun remove (Ljava/lang/Object;Ljava/lang/Exception;)V
 	public final fun set (Ljava/lang/Object;Ljava/lang/Object;)V
 }
@@ -762,7 +763,6 @@ public final class semiont/http/HttpSessionFactory : semiont/registry/SessionFac
 }
 
 public final class semiont/http/HttpTransport : semiont/transport/GatewayOperations, semiont/transport/Transport {
-	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;)V
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;)V
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;)V
@@ -955,14 +955,14 @@ public final class semiont/http/SessionsKt {
 	public static final fun completeSignInFuture (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public static final fun completeSignInFuture (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
 	public static synthetic fun completeSignInFuture$default (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun sessionFromKept (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun sessionFromKept$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;)Ljava/util/concurrent/CompletableFuture;
-	public static synthetic fun sessionFromKeptFuture$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKept (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun sessionFromKept$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun sessionFromKeptFuture$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/TimeSource;Lkotlin/random/Random;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/Timing {
@@ -1257,8 +1257,15 @@ public final class semiont/namespaces/JobNamespace {
 	public final fun fail ()Lsemiont/bus/Typed;
 	public final fun pollUntilComplete-U24uh8E (Ljava/lang/String;JJLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun pollUntilComplete-U24uh8E$default (Lsemiont/namespaces/JobNamespace;Ljava/lang/String;JJLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;J)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;JJ)Ljava/util/concurrent/CompletableFuture;
 	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;JJLjava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture--cCJ8JM (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture-PSXEM9Q (Ljava/lang/String;J)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture-UbuRbP8 (Ljava/lang/String;JJ)Ljava/util/concurrent/CompletableFuture;
 	public final fun pollUntilCompleteFuture-VMfirKA (Ljava/lang/String;JJLjava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun pollUntilCompleteFuture-VMfirKA$default (Lsemiont/namespaces/JobNamespace;Ljava/lang/String;JJLjava/util/function/Consumer;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public final fun progress ()Lsemiont/bus/Typed;
 	public final fun queued ()Lsemiont/bus/Typed;
 	public final fun status-PSXEM9Q (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -2096,12 +2103,11 @@ public abstract interface class semiont/testing/FaultAction {
 }
 
 public final class semiont/testing/FaultyTransport : semiont/transport/Transport {
-	public fun <init> ()V
-	public fun <init> (Ljava/util/List;)V
-	public fun <init> (Ljava/util/List;Lsemiont/testing/Respond;)V
-	public fun <init> (Ljava/util/List;Lsemiont/testing/Respond;Ljava/util/Collection;)V
-	public fun <init> (Ljava/util/List;Lsemiont/testing/Respond;Ljava/util/Collection;Lkotlin/coroutines/CoroutineContext;)V
-	public synthetic fun <init> (Ljava/util/List;Lsemiont/testing/Respond;Ljava/util/Collection;Lkotlin/coroutines/CoroutineContext;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/Collection;)V
+	public fun <init> (Ljava/util/Collection;Ljava/util/List;)V
+	public fun <init> (Ljava/util/Collection;Ljava/util/List;Lsemiont/testing/Respond;)V
+	public fun <init> (Ljava/util/Collection;Ljava/util/List;Lsemiont/testing/Respond;Lkotlin/coroutines/CoroutineContext;)V
+	public synthetic fun <init> (Ljava/util/Collection;Ljava/util/List;Lsemiont/testing/Respond;Lkotlin/coroutines/CoroutineContext;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun bridgeInto (Lsemiont/transport/FrameSink;)V
 	public fun close ()V
 	public final fun deliver (Lsemiont/transport/Carried;)V

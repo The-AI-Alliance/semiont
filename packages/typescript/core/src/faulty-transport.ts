@@ -18,7 +18,7 @@
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { filter, map } from 'rxjs/operators';
 import type { SemiontError } from './errors';
 import type { BaseUrl } from './branded-types';
 import { baseUrl as makeBaseUrl } from './branded-types';
@@ -27,9 +27,11 @@ import { TRACE_FIELD, type EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame } from './event-bus';
 import type { ConnectionState, ITransport } from './transport';
 import { EventBus } from './event-bus';
-import { BRIDGED_CHANNELS } from './bridged-channels';
 import { BUS_OPERATIONS, REPLY_NAMES, type BusOperationKey } from './bus-operations';
 import { asDeclared, type FrameRefusal } from './bus';
+import { BusRequestError } from './bus-request';
+import { isResourceScopedChannel, RESOURCE_SCOPED_CHANNELS } from './bridged-channels';
+import { relayFrames } from './relay-frames';
 
 /** One wire behavior, applied to a single request-channel emit. */
 export type FaultAction =
@@ -67,6 +69,16 @@ export interface RequestLogEntry {
 }
 
 export interface FaultyTransportConfig {
+  /**
+   * The global channels this transport is given, as a wire transport is
+   * given its stream's: a frame of no scope reaches a reader only on one of
+   * them, a request's echo and a reply included; it bridges them, beside the
+   * resource-scoped channels, into a client's bus, answers `isSubscribed` for
+   * them alone, and assumes none of its own. A full client's test gives it `BRIDGED_CHANNELS`; a worker's,
+   * the reply channels it awaits and what its claims read
+   * (`JOB_CLAIM_CHANNELS`).
+   */
+  channels: readonly (keyof EventMap)[];
   /**
    * The i-th request-channel emit applies `schedule[i % schedule.length]`.
    * Empty/omitted → every request delivers.
@@ -125,7 +137,11 @@ export class FaultyTransport implements ITransport {
   /** Every request-channel emit, in order — the L2 accounting surface. */
   readonly requestLog: RequestLogEntry[] = [];
 
+  /** Every frame emitted, a request's echo and its reply included: what a reader is given is gated in `frames`. */
   private readonly bus = new EventBus();
+  private readonly channels: ReadonlySet<keyof EventMap>;
+  /** The resources whose scopes are held, each with how many hold it. */
+  private readonly scopeRefCounts = new Map<ResourceId, number>();
   private readonly schedule: readonly FaultAction[];
   private readonly makeResponse: (op: BusOperationKey, payload: Record<string, unknown>) => unknown;
   private readonly replyQueues = new Map<BusOperationKey, unknown[]>();
@@ -133,7 +149,8 @@ export class FaultyTransport implements ITransport {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private disposed = false;
 
-  constructor(cfg: FaultyTransportConfig = {}) {
+  constructor(cfg: FaultyTransportConfig) {
+    this.channels = new Set(cfg.channels);
     this.schedule = cfg.schedule ?? [];
     this.makeResponse = cfg.makeResponse ?? refuseUnscriptedOperation;
   }
@@ -195,10 +212,11 @@ export class FaultyTransport implements ITransport {
       throw new Error(`FaultyTransport: emit rejected by schedule (reject-emit) on ${name}`);
     }
 
-    // The request itself is observable (handlers-eye view), then the
-    // simulator plays gateway: synthesize the registry reply per the action.
-    // The envelope rides along: a handler watching this double must read the
-    // same frame it would across a broker.
+    // The request itself is observable (handlers-eye view) to a reader of a
+    // transport given its channel, then the simulator plays gateway:
+    // synthesize the registry reply per the action. The envelope rides along:
+    // a handler watching this double must read the same frame it would across
+    // a broker.
     this.bus.emit(channel, payload, envelope);
 
     // The gateway's answer is computed ONCE per request that reaches it —
@@ -261,37 +279,69 @@ export class FaultyTransport implements ITransport {
   }
 
   /**
-   * Every frame on the channel, whatever its scope, as a wire transport
-   * delivers it: a reader of one resource's keeps that scope's
+   * The frames on the channel that a wire transport's stream would carry: one
+   * of no scope on a channel this transport was given, and one of a
+   * resource's scope on a resource-scoped channel while that scope is held.
+   * Every other frame is dropped. A stream carries every scope it holds on
+   * the one channel, so a reader of one resource's keeps that scope's
    * (`Bus.frames(channel, resourceId)`).
+   *
+   * A resource-scoped channel is read with no scope held, as a wire
+   * transport reads it, and carries nothing until one is. Any other channel
+   * not given is refused at the call, as `bus.unsubscribed`: a frame on it
+   * could never arrive.
    */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> {
-    return this.bus.channelStream(channel);
+    if (!this.channels.has(channel) && !isResourceScopedChannel(channel)) {
+      throw new BusRequestError(
+        `Transport is not subscribed to ${channel as string} — a frame on it can never arrive on this connection. Give the transport the channel.`,
+        'bus.unsubscribed',
+        { channel },
+      );
+    }
+    return this.bus.channelStream(channel).pipe(
+      filter((frame) =>
+        frame.scope === undefined
+          ? this.channels.has(channel)
+          : isResourceScopedChannel(channel) && this.scopeRefCounts.has(frame.scope),
+      ),
+    );
   }
 
   /**
-   * Every channel: delivery here is bus-direct, so the receive path carries
-   * anything asked of it. The true answer for an in-process transport, which
-   * is why `isSubscribed` is a required member rather than an omitted one.
+   * Whether the channels this transport was given name `channel`, as a wire
+   * transport answers for its stream's global set: a request whose replies
+   * they do not name fails at once, as `bus.unsubscribed`.
    */
-  isSubscribed(_channel: keyof EventMap): boolean {
-    return true;
+  isSubscribed(channel: keyof EventMap): boolean {
+    return this.channels.has(channel);
   }
 
-  subscribeToResource(_rid: ResourceId): () => void {
-    // Mirrors the real HttpTransport: distinct scopes COMPOSE onto one
-    // connection. Delivery here is bus-direct and never scope-gated, so
-    // acquisition needs no bookkeeping and release (idempotent by
-    // construction) is a no-op.
-    return () => {};
+  /**
+   * Hold `resourceId`'s scope until the returned release, as a wire
+   * transport holds it: each acquisition counts, distinct resources compose,
+   * the scope is let go at its last release, and a release is idempotent.
+   */
+  subscribeToResource(resourceId: ResourceId): () => void {
+    this.scopeRefCounts.set(resourceId, (this.scopeRefCounts.get(resourceId) ?? 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const holds = this.scopeRefCounts.get(resourceId);
+      // None once the transport is disposed, which let every scope go.
+      if (holds === undefined) return;
+      if (holds > 1) this.scopeRefCounts.set(resourceId, holds - 1);
+      else this.scopeRefCounts.delete(resourceId);
+    };
   }
 
   /**
    * Correlated-reply tracking, exposed for assertions: `Bus.request` registers
    * each cid here before its emit and releases on settle, so a test can pin
-   * the tracked set at any point of a request's lifecycle. Delivery in this
-   * double is bus-direct (nothing to replay), so tracking has no behavioral
-   * effect.
+   * the tracked set at any point of a request's lifecycle. This double never
+   * drops its stream, so it has nothing to replay, and tracking has no
+   * behavioral effect.
    */
   readonly pendingReplies = new Set<string>();
 
@@ -305,17 +355,25 @@ export class FaultyTransport implements ITransport {
     };
   }
 
+  /**
+   * Publish on `bus` what `frames` delivers on the channels this transport
+   * was given and on the resource-scoped ones, as a wire transport's bridge
+   * does: a resource's frame while its scope is held, with no scope, since
+   * the relay carries none.
+   */
   bridgeInto(bus: EventBus): void {
-    for (const channel of BRIDGED_CHANNELS) {
-      this.bus.frames(channel as keyof EventMap).subscribe((frame) => {
-        // A bridge FORWARDS a frame; it does not re-originate one. Dropping
-        // the envelope here would strip the correlation key on the way to the
-        // application bus and strand the awaiting request.
-        const { payload, ...envelope } = frame;
+    relayFrames(
+      this,
+      {
         // A payload that is not its channel's is published as its refusal, as a wire transport's bridge does.
-        bus.emit(channel as keyof EventMap, asDeclared(channel as keyof EventMap, payload, envelope.correlationId), envelope);
-      });
-    }
+        emit: (channel, payload, envelope) => bus.emit(channel, asDeclared(channel, payload, envelope.correlationId), envelope),
+      },
+      [...this.channels, ...RESOURCE_SCOPED_CHANNELS],
+      // `EventBus.emit` is synchronous, so this never fires.
+      (channel, error) => {
+        throw new Error(`FaultyTransport: the bridge of ${channel as string} failed`, { cause: error });
+      },
+    );
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
@@ -323,6 +381,7 @@ export class FaultyTransport implements ITransport {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.scopeRefCounts.clear();
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
     this.state$.next('closed');

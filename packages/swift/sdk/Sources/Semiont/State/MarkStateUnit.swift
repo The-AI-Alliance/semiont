@@ -213,7 +213,7 @@ private final class DelegationSilence: Sendable {
       timer.task?.cancel()
       timer.generation += 1
       let generation = timer.generation
-      timer.task = Task { [weak self, clock, delay] in
+      timer.task = spawn { [weak self, clock, delay] in
         do {
           try await clock.sleep(for: delay)
           self?.due(generation)

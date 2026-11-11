@@ -16,7 +16,7 @@ from tokens import token
 
 from semiont.bus import Delivered, request
 from semiont.cache import Pending, Ready
-from semiont.channels import BECKON_FOCUS
+from semiont.channels import BECKON_FOCUS, BRIDGED_CHANNELS
 from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, SemiontError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId
@@ -90,7 +90,7 @@ async def asked(transport: Transport, payload: JsonObject | None = None, timeout
 
 def test_the_doubles_are_what_a_client_is_built_over() -> None:
     # Each is the protocol it stands in for: a checker refuses these lines for one that is not.
-    transport: Transport = FaultyTransport()
+    transport: Transport = FaultyTransport(channels=BRIDGED_CHANNELS)
     content: ContentTransport = InMemoryContent()
     gateway: GatewayOperations = StubGateway()
     assert transport.base_url == "faulty://simulator"
@@ -100,7 +100,7 @@ def test_the_doubles_are_what_a_client_is_built_over() -> None:
 
 def test_a_request_is_answered_with_what_was_queued_for_its_operation_one_each_in_order() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
         transport.queue_reply(ASK, [{"n": 1}, None])
         transport.queue_reply(ASK, [{"n": 3}])
         transport.queue_reply("mark:delete", [{"annotationId": "ann-1"}])
@@ -117,7 +117,7 @@ def test_a_request_is_answered_with_what_was_queued_for_its_operation_one_each_i
 
 def test_a_request_nothing_was_scripted_for_is_refused_by_name_and_is_still_on_record() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
         with pytest.raises(TransportError) as refused:
             await asked(transport)
         assert refused.value.code == "error"
@@ -142,7 +142,7 @@ def test_what_no_queued_response_answers_the_transports_own_gateway_does() -> No
             said.append((operation, payload))
             return None if operation == "mark:delete" else {"for": operation}
 
-        transport = FaultyTransport(make_response=gateway)
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=gateway)
         transport.queue_reply(ASK, [{"queued": True}])
         assert await asked(transport) == {"queued": True}
         assert await asked(transport) == {"for": ASK}
@@ -158,7 +158,7 @@ def test_a_reply_that_names_what_it_answers_for_names_what_its_request_named() -
     """Three replies carry an id beside their response: the one their request stated, as a gateway's do."""
 
     async def scenario() -> None:
-        transport = FaultyTransport(make_response=lambda operation, _: {"for": operation})
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=lambda operation, _: {"for": operation})
         transport.queue_reply("gather:resource-requested", [{"queued": True}])
         gathered = await soon(request(transport, GATHER_RESOURCE_REQUESTED, {"resourceId": "res-1", "options": {}}))
         assert gathered == {"resourceId": "res-1", "response": {"queued": True}}
@@ -186,7 +186,7 @@ def test_a_reply_that_names_what_it_answers_for_names_what_its_request_named() -
 
 def test_each_request_in_turn_meets_the_next_action_of_the_schedule_and_the_schedule_comes_round_again() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport([Deliver(), DropReply(), Delay(200), DuplicateReply(), RejectEmit()])
+        transport = FaultyTransport([Deliver(), DropReply(), Delay(200), DuplicateReply(), RejectEmit()], channels=BRIDGED_CHANNELS)
         transport.queue_reply(ASK, [{"n": n} for n in range(1, 6)])
 
         # Its reply is delivered.
@@ -234,7 +234,7 @@ def test_each_request_in_turn_meets_the_next_action_of_the_schedule_and_the_sche
 
 def test_a_request_the_gateway_refuses_is_answered_on_its_failure_channel_before_anything_queued() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
         transport.queue_reply(ASK, [{"n": 1}])
         transport.refuse_when(
             lambda operation, payload: (
@@ -248,7 +248,7 @@ def test_a_request_the_gateway_refuses_is_answered_on_its_failure_channel_before
         # What was queued is still there for the request the gateway does not refuse.
         assert await asked(transport) == {"n": 1}
         # The schedule applies to a refusal as to any reply.
-        dropping = FaultyTransport([DropReply()])
+        dropping = FaultyTransport([DropReply()], channels=BRIDGED_CHANNELS)
         dropping.refuse_when(lambda operation, payload: {"code": "not-found", "message": "gone"})
         with pytest.raises(BusRequestError) as lost:
             await asked(dropping, timeout_ms=30)
@@ -261,11 +261,11 @@ def test_a_request_the_gateway_refuses_is_answered_on_its_failure_channel_before
 
 def test_what_is_only_sent_is_delivered_to_whoever_listens_and_into_a_clients_bus() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=(*BRIDGED_CHANNELS, ASK))
         client = SemiontClient(transport, InMemoryContent(), StubGateway())
         heard = transport.frames("beckon:focus")
         on_the_bus = client.bus.frames(BECKON_FOCUS)
-        # One subscriber reached: this transport delivers whatever is emitted through it.
+        # One subscriber reached: this transport delivers what is emitted through it on a channel its stream names.
         assert await transport.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "ann-1"}, scope=RESOURCE) == 1
         assert await soon(anext(heard)) == Frame(
             channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "ann-1"}, scope=RESOURCE
@@ -278,7 +278,9 @@ def test_what_is_only_sent_is_delivered_to_whoever_listens_and_into_a_clients_bu
         assert [frame.channel for frame in transport.emitted] == ["beckon:focus"]
 
         # And the schedule does not count it: the first request meets the schedule's first action, whatever was sent before it.
-        scheduled = FaultyTransport([Deliver(), RejectEmit()], make_response=lambda operation, payload: None)
+        scheduled = FaultyTransport(
+            [Deliver(), RejectEmit()], channels=(*BRIDGED_CHANNELS, ASK), make_response=lambda operation, payload: None
+        )
         carried = Carried()
         scheduled.bridge_into(carried)
         await scheduled.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "ann-1"})
@@ -302,7 +304,7 @@ def test_what_is_only_sent_is_delivered_to_whoever_listens_and_into_a_clients_bu
 
 def test_the_log_holds_each_request_as_it_was_sent_and_a_request_made_again_under_one_key() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport(make_response=lambda operation, payload: None)
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=lambda operation, payload: None)
         payload: JsonObject = {"resourceId": "res-1", "_trace": "t-1", "_userId": "did:web:example.org:users:alice"}
         await soon(request(transport, BROWSE_RESOURCE_REQUESTED, payload))
         # Changed by its caller afterwards, what was sent is still what was sent.
@@ -326,7 +328,7 @@ def test_the_log_holds_each_request_as_it_was_sent_and_a_request_made_again_unde
 
 def test_a_test_says_what_the_wire_does_its_state_its_failures_and_what_it_carries() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
         assert transport.state.value == "open"
         states = aiter(transport.state)
         assert await soon(anext(states)) == "open"
@@ -339,7 +341,7 @@ def test_a_test_says_what_the_wire_does_its_state_its_failures_and_what_it_carri
         assert await soon(anext(failures)) is failure
 
         # A frame delivered as if the bus had carried it reaches the request that awaits it.
-        dropping = FaultyTransport([DropReply()], make_response=lambda operation, payload: None)
+        dropping = FaultyTransport([DropReply()], channels=BRIDGED_CHANNELS, make_response=lambda operation, payload: None)
         asking = asyncio.ensure_future(request(dropping, BROWSE_RESOURCE_REQUESTED, ASKED))
         await turns()
         (correlation_id,) = dropping.pending_replies
@@ -354,7 +356,7 @@ def test_a_test_says_what_the_wire_does_its_state_its_failures_and_what_it_carri
 
 
 def test_the_holds_on_each_resources_scope_are_counted() -> None:
-    transport = FaultyTransport()
+    transport = FaultyTransport(channels=BRIDGED_CHANNELS)
     assert (transport.holds(RESOURCE), transport.scopes) == (0, [])
     # In name order, whatever order they were taken in.
     other, one, two = (
@@ -371,15 +373,12 @@ def test_the_holds_on_each_resources_scope_are_counted() -> None:
     assert (transport.holds(RESOURCE), transport.holds(OTHER), transport.scopes) == (0, 0, [])
 
 
-def test_a_transport_told_its_channels_delivers_no_other_and_one_told_none_delivers_every_one() -> None:
+def test_a_transport_carries_the_channels_it_is_told_and_a_resources_channels_on_the_scopes_it_holds_and_nothing_else() -> None:
     async def scenario() -> None:
-        every = FaultyTransport()
-        assert every.is_subscribed("browse:resource-result")
-        assert every.is_subscribed("a channel nobody registered")
-
         some = FaultyTransport(channels=["mark:delete-ok", "mark:delete-failed"])
         assert some.is_subscribed("mark:delete-ok")
         assert not some.is_subscribed("browse:resource-result")
+        assert not some.is_subscribed("mark:added")
         with pytest.raises(BusRequestError) as unheard:
             some.frames("browse:resource-result")
         assert unheard.value.code == "bus.unsubscribed"
@@ -388,15 +387,33 @@ def test_a_transport_told_its_channels_delivers_no_other_and_one_told_none_deliv
             await asked(some)
         assert unsubscribed.value.code == "bus.unsubscribed"
         assert some.emitted == []
-        await every.close()
+
+        # What it carries reaches its readers, and the bus it was bridged into; what it does not carry reaches neither.
+        carried = Carried()
+        some.bridge_into(carried)
+        deleted, added = some.frames("mark:delete-ok"), some.frames("mark:added")
+        some.deliver(Frame(channel="mark:delete-ok", payload={"n": 1}))
+        some.deliver(Frame(channel="browse:resource-result", payload={"n": 2}))
+        # A resource's channel is carried on the scope of a resource it holds, and on no other scope, nor on none.
+        with some.subscribe_to_resource(RESOURCE):
+            some.deliver(Frame(channel="mark:added", payload={"n": 3}, scope=RESOURCE))
+            some.deliver(Frame(channel="mark:added", payload={"n": 4}, scope=OTHER))
+            some.deliver(Frame(channel="mark:added", payload={"n": 5}))
+        some.deliver(Frame(channel="mark:added", payload={"n": 6}, scope=RESOURCE))
+        # What it sends comes back to it as what it is delivered does.
+        await some.emit("mark:delete-ok", {"n": 7})
+        await some.emit("beckon:focus", {"n": 8})
         await some.close()
+        assert [frame.payload async for frame in deleted] == [{"n": 1}, {"n": 7}]
+        assert [frame.payload async for frame in added] == [{"n": 3}]
+        assert carried.channels == ["mark:delete-ok", "mark:added", "mark:delete-ok"]
 
     run(scenario())
 
 
 def test_a_closed_transport_has_ended_everything_and_does_nothing_more() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport([Delay(100), DropReply()])
+        transport = FaultyTransport([Delay(100), DropReply()], channels=BRIDGED_CHANNELS)
         transport.queue_reply(ASK, [{"n": 1}, {"n": 2}])
         heard = transport.frames("browse:resource-result")
         failures = transport.failures()
@@ -605,7 +622,7 @@ def test_a_test_client_is_a_real_client_over_the_doubles_it_is_given_or_makes() 
 
         # Given its doubles and its timing, it is built over those.
         transport, content, gateway = (
-            FaultyTransport([DropReply()], make_response=lambda operation, payload: None),
+            FaultyTransport([DropReply()], channels=BRIDGED_CHANNELS, make_response=lambda operation, payload: None),
             InMemoryContent(),
             StubGateway(),
         )

@@ -34,6 +34,7 @@ from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 
 from semiont.cache import CacheState, Failed, Pending, Ready
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import BusRequestError
 from semiont.identifiers import ResourceId
@@ -56,7 +57,7 @@ _DOCUMENT = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
 def world(persistence: CachePersistence | None = None, *, answered: bool = True) -> tuple[Client, FaultyTransport]:
     """A client over doubles that answer every read a live query makes, or, when it is not `answered`, that answer none: the test does."""
-    transport = FaultyTransport(make_response=knowing) if answered else silent()
+    transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=knowing) if answered else silent()
     content = knowing_content() if answered else SilentContent()
     client: Client = SemiontClient(transport, content, StubGateway(), persistence=persistence)
     return client, transport
@@ -471,7 +472,7 @@ def test_a_close_keeps_the_place_only_when_nothing_was_in_flight_or_owed_as_it_b
 
     async def owing_a_refetch() -> None:
         storage = MemoryStorage()
-        transport = FaultyTransport(make_response=knowing)
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=knowing)
         client, places = keeping(storage, transport)
         async with client, client.browse.resource(RESOURCE) as live:
             while not isinstance(await soon(anext(live)), Ready):
@@ -497,7 +498,7 @@ def test_a_close_keeps_the_place_only_when_nothing_was_in_flight_or_owed_as_it_b
     async def fetching() -> None:
         storage = MemoryStorage()
         # The resource's answer is lost: its fetch is in flight when the close begins.
-        transport = FaultyTransport([DropReply()], make_response=knowing)
+        transport = FaultyTransport([DropReply()], channels=BRIDGED_CHANNELS, make_response=knowing)
         client, places = keeping(storage, transport)
         async with client, client.browse.resource(RESOURCE), client.browse.annotations(RESOURCE) as listed:
             while not isinstance(await soon(anext(listed)), Ready):
@@ -511,7 +512,7 @@ def test_a_close_keeps_the_place_only_when_nothing_was_in_flight_or_owed_as_it_b
 
     async def at_rest() -> None:
         storage = MemoryStorage()
-        transport = FaultyTransport(make_response=knowing)
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=knowing)
         client, places = keeping(storage, transport)
         async with client, client.browse.resource(RESOURCE) as live:
             while not isinstance(await soon(anext(live)), Ready):

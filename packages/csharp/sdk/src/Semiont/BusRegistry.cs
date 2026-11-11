@@ -7,7 +7,9 @@ public static class BusRegistry
 {
     public static readonly IReadOnlyList<string> PersistedEventTypes = Array.AsReadOnly(ProtocolFacts.EventChannels().ToArray());
 
-    internal static readonly IReadOnlyList<string> FullClientChannels =
+    /// <summary>The channels a full client's transport is given: every channel whose audience is everyone, and every
+    /// operation's replies.</summary>
+    public static readonly IReadOnlyList<string> BridgedChannels =
         [.. ProtocolFacts.Channels("everyone"), .. ReplyChannelsFor(ProtocolFacts.Operations().Select(operation => operation.Request))];
 
     public static IReadOnlyList<string> ReplyChannelsFor(params IEnumerable<string> requests)

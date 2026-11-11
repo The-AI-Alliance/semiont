@@ -29,8 +29,11 @@ public sealed partial class TransportTests
         using var table = ReadSpec(StateTable);
         var fixtures = table.RootElement.GetProperty("fixtures");
         var row = table.RootElement.GetProperty("cases").EnumerateArray().Single(row => Text(row, "unit") == unit && Text(row, "case") == name);
-        using var player = new StateCasePlayer(row, fixtures);
-        await player.RunAsync();
+        await CaseContext.PlayAsync(async context =>
+        {
+            using (var player = new StateCasePlayer(row, fixtures, context)) await player.RunAsync();
+            await context.DrainAsync();
+        });
     }
 
     [Fact]
@@ -66,12 +69,14 @@ public sealed partial class TransportTests
         private readonly ConcurrentQueue<(string Query, Channel<IReadOnlyList<string>?> Answers)> searches = new();
         private readonly Dictionary<string, IStateUnit> units = new(StringComparer.Ordinal);
         private readonly EventBus.Subscription listening;
-        private readonly CancellationTokenSource deadline = new(TimeSpan.FromSeconds(25));
+        private readonly CancellationTokenSource lifetime = new();
+        private readonly CaseContext context;
         private readonly string answers;
         private readonly TimeSpan delay;
 
-        internal StateCasePlayer(JsonElement row, JsonElement fixtures)
+        internal StateCasePlayer(JsonElement row, JsonElement fixtures, CaseContext context)
         {
+            this.context = context;
             this.row = row;
             this.fixtures = fixtures;
             var transport = row.GetProperty("transport");
@@ -103,6 +108,7 @@ public sealed partial class TransportTests
                 catch (Exception error) { throw new InvalidOperationException($"Step {index} {step}", error); }
                 index++;
             }
+            await SettleAsync();
         }
 
         private IStateUnit Make(string name, JsonElement options) => name switch
@@ -123,7 +129,15 @@ public sealed partial class TransportTests
         {
             var channel = Channel.CreateUnbounded<IReadOnlyList<string>?>();
             searches.Enqueue((query, channel));
-            return channel.Reader.ReadAllAsync(cancellation);
+            return AnswersAsync(channel.Reader, cancellation);
+        }
+
+        /// <summary>A search's answers, read by awaits that resume on the case, where ChannelReader.ReadAllAsync's do not.</summary>
+        private static async IAsyncEnumerable<IReadOnlyList<string>?> AnswersAsync(ChannelReader<IReadOnlyList<string>?> reader,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation)
+        {
+            while (await reader.WaitToReadAsync(cancellation))
+                while (reader.TryRead(out var answer)) yield return answer;
         }
 
         private void QueueReply(string operation, JsonElement response) =>
@@ -131,7 +145,7 @@ public sealed partial class TransportTests
 
         private async Task AnswerAsync(JsonElement request)
         {
-            if (delay != TimeSpan.Zero) await Task.Delay(delay, clock, deadline.Token);
+            if (delay != TimeSpan.Zero) await Task.Delay(delay, clock, lifetime.Token);
             var name = Text(request, "channel");
             var operation = ProtocolFacts.Operation(name);
             if (replies.TryGetValue(name, out var queued) && queued.TryDequeue(out var response))
@@ -169,8 +183,9 @@ public sealed partial class TransportTests
                     break;
                 case "answer":
                     var nth = step.GetProperty("nth").GetInt32();
-                    var request = (await SentAsync(TextValue(action.Value), nth + 1))[nth];
-                    Reply(gateway, request, Text(step, "reply"), Resolve(step.GetProperty("payload")));
+                    var asked = await SentAsync(TextValue(action.Value));
+                    Assert.True(asked.Length > nth, $"Request {nth} on {TextValue(action.Value)} was not sent");
+                    Reply(gateway, asked[nth], Text(step, "reply"), Resolve(step.GetProperty("payload")));
                     break;
                 case "queueReply": QueueReply(TextValue(action.Value), Resolve(step.GetProperty("response"))); break;
                 case "invoke":
@@ -195,12 +210,9 @@ public sealed partial class TransportTests
                             CheckValue(Resolve(member.Value), ValueOf(Watch(units[subject.Name], member.Name)), $"{subject.Name}.{member.Name}");
                     break;
                 case "sent":
-                    var hasCount = step.TryGetProperty("count", out var count);
-                    var expectedPayloads = hasCount ? default : Resolve(step.GetProperty("payloads"));
-                    var expectedCount = hasCount ? count.GetInt32() : expectedPayloads.GetArrayLength();
-                    var sent = await SentAsync(TextValue(action.Value), expectedCount);
-                    if (hasCount) Assert.Equal(expectedCount, sent.Length);
-                    else CheckValue(expectedPayloads, sent.Select(request => request.GetProperty("payload")).ToArray(), "sent payloads");
+                    var sent = await SentAsync(TextValue(action.Value));
+                    if (step.TryGetProperty("count", out var count)) Assert.Equal(count.GetInt32(), sent.Length);
+                    else CheckValue(Resolve(step.GetProperty("payloads")), sent.Select(request => request.GetProperty("payload")).ToArray(), "sent payloads");
                     break;
                 case "nothingSent": Assert.Empty(requests); break;
                 case "heard":
@@ -233,60 +245,48 @@ public sealed partial class TransportTests
             }
         }
 
-        /// <summary>One tick of a settle's quiet: no shorter than Windows' default timer resolution (about 15.6 ms), so
-        /// it lasts about as long on every runner.</summary>
-        private const int QuietTickMs = 16;
-
-        /// <summary>The quiet ticks a settle waits out: at least 64 ms, for a slow runner's first use of a path.</summary>
-        private const int QuietTicks = 4;
-
+        /// <summary>
+        /// Lets what is ready run, and what that makes ready, until nothing more is: the case's queue is empty and every
+        /// request that reached the gateway has had its answer. The case's work runs nowhere else, so none is left; that
+        /// none ran elsewhere is checked here.
+        /// </summary>
         private async Task SettleAsync()
         {
             // Only settled steps release gateway answers. An immediate expect can inspect the
             // state set by an invocation before its wire response is available.
-            // This settle is time-based, because .NET offers no outside view of the SDK's async flows: it waits until no
-            // request has reached the gateway for QuietTicks ticks, and takes what is ready to have run by then. A
-            // deterministic settle, one that sees those flows come to rest, can replace it.
-            for (var idle = 0; idle < QuietTicks;)
+            do
             {
-                if (unanswered.TryDequeue(out var request))
-                {
-                    _ = AnswerAsync(request);
-                    idle = 0;
-                    continue;
-                }
-                await Task.Delay(QuietTickMs, deadline.Token);
-                idle = unanswered.IsEmpty ? idle + 1 : 0;
+                while (unanswered.TryDequeue(out var request)) _ = AnswerAsync(request);
+                await context.DrainAsync();
             }
+            while (!unanswered.IsEmpty);
+            context.ThrowIfEscaped();
         }
 
-        private async Task<JsonElement[]> SentAsync(string operation, int expected)
+        private async Task<JsonElement[]> SentAsync(string operation)
         {
-            using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            while (true)
-            {
-                var sent = requests.Where(request => Text(request, "channel") == operation).ToArray();
-                if (sent.Length >= expected || patience.IsCancellationRequested) return sent;
-                await SettleAsync();
-            }
+            await SettleAsync();
+            return requests.Where(request => Text(request, "channel") == operation).ToArray();
         }
 
         private JsonElement Request(string name, int nth) =>
             requests.Where(request => Text(request, "channel") == name).ElementAt(nth);
 
+        /// <summary>Reads <paramref name="watch"/> to its end, which must come once what the case has made ready has run.</summary>
         private async Task EndedAsync(object watch)
         {
             var type = watch.GetType().GetGenericArguments().Single();
-            var method = typeof(StateCasePlayer).GetMethod(nameof(DrainAsync), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            var method = typeof(StateCasePlayer).GetMethod(nameof(ReadToEndAsync), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
                 ?? throw new InvalidOperationException("Missing reader probe.");
-            using var wait = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-            var draining = Assert.IsAssignableFrom<Task>(method.MakeGenericMethod(type).Invoke(null, [watch, wait.Token]));
-            await draining;
+            var reading = Assert.IsAssignableFrom<Task>(method.MakeGenericMethod(type).Invoke(null, [watch]));
+            await context.DrainAsync();
+            Assert.True(reading.IsCompleted, "The watch had not ended");
+            await reading;
         }
 
-        private static async Task DrainAsync<T>(StateValue<T> watch, CancellationToken cancellation)
+        private static async Task ReadToEndAsync<T>(StateValue<T> watch)
         {
-            await foreach (var _ in watch.WithCancellation(cancellation)) { }
+            await foreach (var _ in watch) { }
         }
 
         private static object Watch(IStateUnit unit, string member) =>
@@ -383,8 +383,8 @@ public sealed partial class TransportTests
             listening.Dispose();
             client.Dispose();
             http.Dispose();
-            deadline.Cancel();
-            deadline.Dispose();
+            lifetime.Cancel();
+            lifetime.Dispose();
         }
     }
 }

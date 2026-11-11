@@ -400,32 +400,32 @@ func (v *live) engineStates(ctx context.Context) iter.Seq[CacheState] {
 	}
 }
 
-// write writes the value an event carries into query, asking for nothing.
-// Only an annotation is ever carried.
+// writeAnnotations patches the annotation an event carries into its
+// resource's list, asking for nothing.
 func (v *live) writeAnnotations(subject cacheSubject) {
 	if subject.resource.IsZero() || subject.written == nil {
 		return
 	}
-	// Into the resource's list, when the client holds it: where the annotation was, or at its end.
-	held, ok := v.annotations.Get(subject.resource)
-	if !ok {
-		return
-	}
-	listed := make([]api.Annotation, 0, len(held.Annotations)+1)
-	replaced := false
-	for _, annotation := range held.Annotations {
-		if annotation.Id == subject.written.Id {
-			listed = append(listed, *subject.written)
-			replaced = true
-			continue
+	written := *subject.written
+	// A patch: the list's fetch in flight can hold what the event does not (B13b).
+	v.annotations.Patch(subject.resource, func(held annotationsValue) annotationsValue {
+		// Where the annotation was, or at the list's end.
+		listed := make([]api.Annotation, 0, len(held.Annotations)+1)
+		replaced := false
+		for _, annotation := range held.Annotations {
+			if annotation.Id == written.Id {
+				listed = append(listed, written)
+				replaced = true
+				continue
+			}
+			listed = append(listed, annotation)
 		}
-		listed = append(listed, annotation)
-	}
-	if !replaced {
-		listed = append(listed, *subject.written)
-	}
-	held.Annotations = listed
-	v.annotations.Set(subject.resource, held)
+		if !replaced {
+			listed = append(listed, written)
+		}
+		held.Annotations = listed
+		return held
+	})
 }
 
 func (v *live) writeAnnotation(subject cacheSubject) {

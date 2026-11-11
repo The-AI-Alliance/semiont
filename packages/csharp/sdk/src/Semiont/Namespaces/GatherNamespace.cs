@@ -47,6 +47,6 @@ public sealed class GatherNamespace
             },
         };
         return (await wire.RequestAsync(BusOperations.GatherResourceRequested, request, cancellation: cancellation)
-            .ConfigureAwait(false)).Response;
+            .ConfigureAwait(Spawning.Captures)).Response;
     }
 }

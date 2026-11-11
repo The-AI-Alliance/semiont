@@ -117,7 +117,7 @@ def carried(data: str) -> BusFrame | FrameRefusal | Unaddressed:
 
     A frame carries what BusFrame names and nothing more.
     """
-    read = read_as(BusFrame, data, BusFrame.model_validate_json)
+    read = read_as(BusFrame, data, BusFrame.model_validate)
     if not isinstance(read, Fault):
         return read
     try:

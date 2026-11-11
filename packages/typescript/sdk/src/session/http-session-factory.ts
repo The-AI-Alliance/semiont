@@ -18,7 +18,7 @@
 
 import { BehaviorSubject } from 'rxjs';
 import { HttpTransport, HttpContentTransport, currentUserOf } from '@semiont/http-transport';
-import { baseUrl, type AccessToken } from '@semiont/core';
+import { BRIDGED_CHANNELS, baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
 import { personKeeping } from '../cache-persister';
 import { SemiontSession, sayOn, type UserInfo } from './semiont-session';
@@ -80,6 +80,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     const transport = new HttpTransport({
       baseUrl: gateway,
       token$,
+      channels: BRIDGED_CHANNELS,
       tokenRefresher: (refused) => session.refresh(refused),
       ...(keeps.fromStart === null ? {} : { loadLastEventIds: keeps.fromStart.places.loadLastEventIds }),
       saveLastEventId: keeps.saveLastEventId,

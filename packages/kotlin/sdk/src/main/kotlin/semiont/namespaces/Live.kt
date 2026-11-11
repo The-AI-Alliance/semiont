@@ -154,9 +154,9 @@ internal class Live(private val links: Links, private val content: ContentTransp
         val written = subject.written ?: return
         when (query) {
             // Into the resource's list, when the client holds it: where the annotation was, or at its end.
-            CacheQuery.Annotations -> annotations.get(resource)?.let { held ->
+            CacheQuery.Annotations -> annotations.patch(resource) { held ->
                 val listed = held.annotations.map { if (it.id == written.id) written else it }
-                annotations.set(resource, held.copy(annotations = if (held.annotations.any { it.id == written.id }) listed else listed + written))
+                held.copy(annotations = if (held.annotations.any { it.id == written.id }) listed else listed + written)
             }
             CacheQuery.Annotation -> {
                 annotationOf[written.id] = resource

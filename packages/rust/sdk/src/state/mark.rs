@@ -57,14 +57,6 @@ pub struct PendingAnnotation {
     pub motivation: Motivation,
 }
 
-/// The motivation a `mark` job's parameters state, read from them as the
-/// wire writes them: every member of `MarkJobParams` states one, and which
-/// members there are is the spec's to say.
-fn motivation_of(params: &MarkJobParams) -> Option<Motivation> {
-    let stated = serde_json::to_value(params).ok()?;
-    serde_json::from_value(stated.get("motivation")?.clone()).ok()
-}
-
 struct Shared {
     client: Arc<SemiontClient>,
     resource_id: ResourceId,
@@ -159,11 +151,8 @@ impl MarkStateUnit {
     /// Delegate the annotating of this unit's resource as a `mark` job of
     /// these parameters, the ones `client.mark.delegate` takes.
     pub fn request_delegate(&self, params: impl Into<MarkJobParams>) {
-        let params = params.into();
-        // Parameters that state no motivation are no request.
-        let Some(motivation) = motivation_of(&params) else {
-            return;
-        };
+        let params: MarkJobParams = params.into();
+        let motivation = params.motivation();
         let shared = &self.shared;
         shared.delegating.set(Some(motivation));
         shared.progress.set(None);

@@ -7,7 +7,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func cacheFailureRetriesOnceAndNewObserverRecoversTheOriginalObserver() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   transport.handle { _, _ in throw BusRequestError(.busClosed, "scripted failure") }
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
@@ -54,7 +54,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func vocabularyEventRefreshesOnlyItsKnownQueryAndKeepsTheOldValueVisible() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   transport.handle { _, _ in try entityTypesReply(["Old"]) }
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
@@ -98,8 +98,8 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
   }
 }
 
-@Test func invalidationDoesNotWaitForAnOrphanedFetch() async throws {
-  let transport = ProbeTransport()
+@Test func invalidationDoesNotWaitForAnOrphanedFetchAndItsLateAnswerIsNotStored() async throws {
+  let transport = ProbeTransport(channels: bridgedChannels)
   let started = Watched(false)
   let release = Watched(false)
   transport.handle { _, _ in
@@ -119,13 +119,13 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 
   try await withinTestDeadline {
     let query = client.browse.entityTypes()
+    let orphaned = spawn { try await query.fresh() }
+    for await issued in started where issued { break }
     var first = query.makeAsyncIterator()
-    var second = query.makeAsyncIterator()
-    guard case .pending? = await first.next(), case .pending? = await second.next() else {
-      Issue.record("Both observers should share the pending fetch")
+    guard case .pending? = await first.next() else {
+      Issue.record("The observer should share the pending fetch")
       return
     }
-    for await issued in started where issued { break }
     #expect(transport.calls.count == 1)
     await query.invalidate()
     guard case .ready(let current)? = await first.next() else {
@@ -134,17 +134,20 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     }
     #expect(current == ["Current"])
     release.set(true)
-    guard case .ready(let late)? = await first.next() else {
-      Issue.record("The earlier fetch should still publish its result")
+    let late = try await orphaned.value
+    #expect(late == ["Late"], "The fetch let go of answers its own read")
+    var later = query.makeAsyncIterator()
+    guard case .ready(let held)? = await later.next() else {
+      Issue.record("The query should still be ready")
       return
     }
-    #expect(late == ["Late"])
+    #expect(held == ["Current"], "Only the newest fetch writes (B9)")
     #expect(transport.calls.count == 2)
   }
 }
 
 @Test func scopedEventsRefreshOnlyTheirResourceAndScopesEndWithObservation() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   surfaceReplies(transport, cloneAnswer: nil)
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
@@ -192,7 +195,8 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
       resourceId: second,
       timestamp: "2026-11-03T00:00:00Z", type: channel,
       userId: UserId("did:web:kb.test:users:person"), version: 1)
-    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(edit))))
+    transport.deliver(
+      .frame(ReceivedFrame(channel: channel, payload: try wirePayload(edit), scope: second)))
     guard case .ready? = await secondReader.next() else {
       Issue.record("An annotation edit should refresh the history of its resource")
       return
@@ -209,7 +213,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func annotationEditsWriteThroughOrRefetchTheNamedCaches() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   let resource = try ResourceId("document")
   let id = try AnnotationId("annotated")
   let original = Annotation(
@@ -245,7 +249,8 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
       annotation: enriched, id: "e-write", metadata: EventMetadata(sequenceNumber: 1),
       payload: payload, resourceId: resource, timestamp: "2026-11-04T00:01:00Z",
       type: channel, userId: UserId("did:web:kb.test:users:person"), version: 1)
-    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
+    transport.deliver(
+      .frame(ReceivedFrame(channel: channel, payload: try wirePayload(event), scope: resource)))
     guard case .ready(let writtenList)? = await listReader.next(),
       case .ready(let writtenDetail)? = await detailReader.next()
     else {
@@ -260,7 +265,8 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     transport.handle { _, _ in try annotationReply(fetched) }
     event.annotation = nil
     event.id = "e-refetch"
-    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
+    transport.deliver(
+      .frame(ReceivedFrame(channel: channel, payload: try wirePayload(event), scope: resource)))
     guard case .ready(let fetchedList)? = await listReader.next(),
       case .ready(let fetchedDetail)? = await detailReader.next()
     else {
@@ -275,7 +281,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 
 @Test(arguments: [false, true])
 func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   let started = Watched(false)
   let release = Watched(false)
   let resource = try ResourceId("document")
@@ -316,7 +322,8 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
         payload: wirePayload(AnnotationRemovedPayload(annotationId: id)), resourceId: resource,
         timestamp: "2026-11-04T00:01:00Z", type: channel,
         userId: UserId("did:web:kb.test:users:person"), version: 1)
-      transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
+      transport.deliver(
+        .frame(ReceivedFrame(channel: channel, payload: try wirePayload(event), scope: resource)))
     }
     guard case .failed(let removed)? = await reader.next() else {
       Issue.record("Removal should fail the detail directly")
@@ -360,7 +367,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
       return
     }
     for await issued in started where issued { break }
-    await query.editIfKnown { ["edited"] + $0.dropFirst() }
+    await query.patch { ["edited"] + $0.dropFirst() }
     release.set(true)
     guard case .ready(let result)? = await reader.next() else {
       Issue.record("The read and edit should publish a merged list")
@@ -371,7 +378,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
 }
 
 @Test func enginesKeepTheirOrderAndOnlyJoinLimitsForTheSameProviderAndModel() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   let first = Engine(model: "shared-name", provider: .openai)
   let second = Engine(model: "shared-name", provider: .ollama)
   let answering = try #require(Operations.limits.first).request.name

@@ -515,8 +515,9 @@ ids.
 
 *Held by `packages/typescript/core/src/__tests__/bus-invariants.test.ts`.*
 
-A client that awaits only some operations may name only their reply
-channels in `global`. A request whose reply channels its stream does not
+A transport is always given its global channels, and assumes none of its
+own: a full client gives it `BRIDGED_CHANNELS`. A client that awaits only
+some operations may name only their reply channels in `global`. A request whose reply channels its stream does not
 name fails at once (the contract's `unsubscribed`).
 
 *Held by `sdk/wire/request-unsubscribed`.*

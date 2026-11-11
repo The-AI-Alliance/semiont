@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
@@ -27,6 +28,7 @@ import semiont.Spec
 import semiont.bus.Bus
 import semiont.bus.Fault
 import semiont.bus.UNDECODED
+import semiont.channels.Channel
 import semiont.channels.Channels
 import semiont.errors.SemiontError
 import semiont.errors.TransportError
@@ -40,12 +42,16 @@ import semiont.transport.FrameRefusal
 import semiont.transport.FrameRefusalReason
 import semiont.transport.Heard
 import semiont.types.BeckonFocusEvent
+import semiont.types.wireJson
 
 /** The channel every case told to its readers is on but a request's, read here by type. */
 private val READ = Channels.BECKON_FOCUS
 
 /** The replies a request's case awaits, of `browse:resource-requested`: the first is the channel its readers are told on. */
 private val REPLIES = listOf(Channels.BROWSE_RESOURCE_RESULT.name, Channels.BROWSE_RESOURCE_FAILED.name)
+
+/** The channels a delivered case's payload is read on by type: `beckon:focus`, and the failures whose code the table reads. */
+private val READ_BY_TYPE: List<Channel<*>> = listOf(READ, Channels.BROWSE_RESOURCE_FAILED, Channels.GATHER_FAILED)
 
 /** The correlation id a request's case names the request awaiting its reply by. */
 private const val AWAITED = "c-1"
@@ -85,10 +91,21 @@ private fun written(frame: Frame): JsonObject = JsonObject(
     },
 )
 
+/** A typed read of `channel`, begun now: the payload it reads of the first frame, as the wire states one. */
+private fun <P> typedRead(transport: HttpTransport, channel: Channel<P>): suspend () -> JsonElement {
+    val typed = Bus(transport).frames(channel)
+    return {
+        when (val heard = withTimeout(5_000) { typed.first() }) {
+            is Delivered -> wireJson.encodeToJsonElement(channel.payload, heard.payload)
+            is FrameRefusal -> throw AssertionError("its typed reader refused it: $heard")
+        }
+    }
+}
+
 /** A transport over a stand-in gateway, its stream open, for `read`. */
 private fun carrying(read: suspend (StreamGateway, HttpTransport) -> Unit) = runBlocking {
     StreamGateway().use { gateway ->
-        HttpTransport(gateway.origin, MutableStateFlow("t"), listOf(READ.name) + REPLIES).use { transport ->
+        HttpTransport(gateway.origin, MutableStateFlow("t"), (REPLIES + READ_BY_TYPE.map { it.name }).distinct()).use { transport ->
             withTimeout(5_000) { while (gateway.subscriptions.isEmpty()) delay(5) }
             read(gateway, transport)
         }
@@ -100,7 +117,8 @@ private fun carrying(read: suspend (StreamGateway, HttpTransport) -> Unit) = run
  * table every SDK's stream reader runs. Each case's line is carried on a
  * stand-in gateway's stream, followed by a line that names no channel and a
  * frame of `beckon:focus` read cleanly. What the transport delivers, what a
- * typed read of the case's channel is given, what the failure report is
+ * typed read of the case's channel is given (of a delivered frame, the
+ * payload it reads), what the failure report is
  * told before that line, and what becomes of a request awaiting the case's
  * reply are each held to the case; the frame's coming shows the stream went
  * on.
@@ -124,17 +142,26 @@ class FrameCasesTest {
     }
 
     @TestFactory
-    fun aFrameBusFrameAllowsIsDeliveredAsItStatesIt(): List<DynamicTest> = delivered.map { case ->
+    fun aFrameBusFrameAllowsIsDeliveredAsItStatesItAndReadByTypeAsTheTableStates(): List<DynamicTest> = delivered.map { case ->
         DynamicTest.dynamicTest(case.why()) {
-            assertEquals(setOf("why", "frame"), case.keys)
+            assertEquals(setOf("why", "frame"), case.keys - "read")
             val stated = case.getValue("frame").jsonObject
+            val channel = stated.getValue("channel").jsonPrimitive.content
+            val byType = READ_BY_TYPE.singleOrNull { it.name == channel }
+            val read = case["read"]
+            assertTrue(read == null || byType != null, "the case states what a typed reader reads of $channel, which this runner reads by no type")
             carrying { gateway, transport ->
-                val frames = transport.frames(stated.getValue("channel").jsonPrimitive.content)
+                val frames = transport.frames(channel)
+                val typed = byType?.let { typedRead(transport, it) }
                 val failures = transport.failures()
                 gateway.send("e-1", stated.toString())
                 gateway.send("e-2", NAMES_NO_CHANNEL)
                 val frame = withTimeout(5_000) { frames.firstOf(1) }.single().frame()
                 assertTrue(sameJson(stated, written(frame)), "it is delivered as $frame")
+                if (typed != null) {
+                    val payload = typed()
+                    assertTrue(sameJson(read ?: stated.getValue("payload"), payload), "its typed reader reads $payload")
+                }
                 assertEquals(listOf(told(UNDECODED)), withTimeout(5_000) { failures.firstOf(1) }.map(::said))
             }
         }

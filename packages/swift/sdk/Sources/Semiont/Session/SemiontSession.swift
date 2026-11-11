@@ -82,12 +82,12 @@ public actor SemiontSession: StateUnit {
     precondition(starting == nil, "A session starts once")
     let id = UUID()
     let life = lifetime
-    let task = Task { [self] in
+    let task = spawn(on: self) { session in
       defer {
         life.forget(id)
-        readyState = true
+        session.readyState = true
       }
-      try await begin()
+      try await session.begin()
     }
     starting = task
     life.keep(task, id: id)
@@ -107,26 +107,31 @@ public actor SemiontSession: StateUnit {
       return try await sharedValue(task, lifetime: lifetime)
     }
     let id = UUID()
-    let task = Task<String?, any Error> { [self] in
-      defer {
-        lifetime.forget(id)
-        validation = nil
-      }
-      guard let renewed = try await renewed(), readyState, let validate else { return token.value }
-      do {
-        let named = try await validate(renewed)
-        if !lifetime.ended, token.value == renewed { user.set(named) }
-      } catch let failure as TransportError where failure.reason == .unauthorized {
-        if token.value == renewed { try await signedOut(.refused, code: .sessionCredentialRefused) }
-      } catch {
-        if Task.isCancelled { throw CancellationError() }
-        // The gateway has refused nothing: the renewed token remains usable.
-      }
-      return token.value
-    }
+    let task = spawn(on: self) { session in try await session.renewedAndConfirmed(refused, id: id) }
     validation = (refused, task)
     lifetime.keep(task, id: id)
     return try await sharedValue(task, lifetime: lifetime)
+  }
+  /// The validation `id` of `refused`: it renews the token, asks the gateway who the renewed one is,
+  /// and gives the token then held. It begins after `refresh` spawned it, so a renewal that ended in
+  /// between may have replaced `refused`: that refusal was answered already, and nothing is renewed.
+  private func renewedAndConfirmed(_ refused: String?, id: UUID) async throws -> String? {
+    defer {
+      lifetime.forget(id)
+      validation = nil
+    }
+    guard token.value == refused else { return token.value }
+    guard let renewed = try await renewed(), readyState, let validate else { return token.value }
+    do {
+      let named = try await validate(renewed)
+      if !lifetime.ended, token.value == renewed { user.set(named) }
+    } catch let failure as TransportError where failure.reason == .unauthorized {
+      if token.value == renewed { try await signedOut(.refused, code: .sessionCredentialRefused) }
+    } catch {
+      if Task.isCancelled { throw CancellationError() }
+      // The gateway has refused nothing: the renewed token remains usable.
+    }
+    return token.value
   }
   private func setToken(_ value: String?) async {
     guard !lifetime.ended else { return }
@@ -142,50 +147,54 @@ public actor SemiontSession: StateUnit {
     if let renewal { return try await sharedValue(renewal, lifetime: lifetime) }
     let holding = token.value ?? lastHeld
     let id = UUID()
-    let task = Task<String?, any Error> { [self] in
-      defer {
-        lifetime.forget(id)
-        renewal = nil
-      }
-      do {
-        if let next = try await renew(holding) {
-          try Task.checkCancellation()
-          unanswered = false
-          retryCap = reconnectMs
-          await setToken(next)
-          schedule()
-          return next
-        }
-        try Task.checkCancellation()
-        guard try await kept.held() != nil else {
-          await setToken(nil)
-          return nil
-        }
-      } catch let failure as SignInError where refusedAtIssuer(failure) {
-        if Task.isCancelled { throw CancellationError() }
-      } catch {
-        if Task.isCancelled { throw CancellationError() }
-        await setToken(nil)
-        unanswered = true
-        failed(
-          SessionError(
-            startup ? .sessionAuthFailed : .sessionRefreshExhausted,
-            "The token was not renewed: " + String(describing: error), kbId: kb.id))
-        schedule()
-        return nil
-      }
-      // The issuer refused it, or its renewal gave nothing while the sign-in is still kept.
-      if startup {
-        await setToken(nil)
-        try await forget()
-      } else {
-        try await signedOut(.expired, code: .sessionRefreshExhausted)
-      }
-      return nil
+    let task = spawn(on: self) { session in
+      try await session.renewing(holding, startup: startup, id: id)
     }
     renewal = task
     lifetime.keep(task, id: id)
     return try await sharedValue(task, lifetime: lifetime)
+  }
+  /// The renewal `id` of `holding`, at the start or later.
+  private func renewing(_ holding: String?, startup: Bool, id: UUID) async throws -> String? {
+    defer {
+      lifetime.forget(id)
+      renewal = nil
+    }
+    do {
+      if let next = try await renew(holding) {
+        try Task.checkCancellation()
+        unanswered = false
+        retryCap = reconnectMs
+        await setToken(next)
+        schedule()
+        return next
+      }
+      try Task.checkCancellation()
+      guard try await kept.held() != nil else {
+        await setToken(nil)
+        return nil
+      }
+    } catch let failure as SignInError where refusedAtIssuer(failure) {
+      if Task.isCancelled { throw CancellationError() }
+    } catch {
+      if Task.isCancelled { throw CancellationError() }
+      await setToken(nil)
+      unanswered = true
+      failed(
+        SessionError(
+          startup ? .sessionAuthFailed : .sessionRefreshExhausted,
+          "The token was not renewed: " + String(describing: error), kbId: kb.id))
+      schedule()
+      return nil
+    }
+    // The issuer refused it, or its renewal gave nothing while the sign-in is still kept.
+    if startup {
+      await setToken(nil)
+      try await forget()
+    } else {
+      try await signedOut(.expired, code: .sessionRefreshExhausted)
+    }
+    return nil
   }
   private func signedOut(_ reason: SessionEndReason, code: SessionErrorCode) async throws {
     unanswered = false
@@ -275,7 +284,7 @@ public actor SemiontSession: StateUnit {
     let wait = timer(.milliseconds(delay))
     let id = UUID()
     let life = lifetime
-    let task = Task { [weak self] in
+    let task = spawn { [weak self] in
       defer { life.forget(id) }
       do {
         try await wait()

@@ -438,6 +438,14 @@ func TestAPlaceIsNotWrittenBeforeTheRefresherHasTakenItsEvent(t *testing.T) {
 	gateway.send("e-2", map[string]any{"channel": string(bus.BrowseResourceRequested.Result().Channel()), "correlationId": *refetch.CorrelationId, "payload": map[string]any{
 		"response": map[string]any{"resource": map[string]any{"@context": "https://schema.org", "@id": "res-1", "name": "One, updated", "representations": []any{}}, "lastSequence": 2},
 	}})
+	until(t, "the refetch's answer kept", func() bool {
+		value, _ := client.live.resource.Get(resource)
+		return value.Name == "One, updated"
+	})
+	// The step that kept the answer ended its fetch, so the save the answer owes finds no fetch holding the place back.
+	if client.live.keptFetching() {
+		t.Fatal("a kept cache is fetching once its fetch's answer is kept")
+	}
 	until(t, "the place written once the refetch was kept", func() bool { return kept.Load()[resource] == "p-res-1-42" })
 }
 

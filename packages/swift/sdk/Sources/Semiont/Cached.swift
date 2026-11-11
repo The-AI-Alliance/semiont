@@ -34,7 +34,7 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
     held = entry
     reading = Reading(entry) { $0 }
     lifetime.onEnd { [weak entry] in
-      Task { await entry?.close() }
+      spawn { await entry?.close() }
     }
   }
 
@@ -101,9 +101,7 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
 
   func refreshIfKnown(coalescing: Bool) async { await entry.refreshIfKnown(coalescing: coalescing) }
   func writeIfKnown(_ value: Value) async { await entry.writeIfKnown(value) }
-  func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) async {
-    await entry.editIfKnown(change)
-  }
+  func patch(_ change: @escaping @Sendable (Value) -> Value) async { await entry.patch(change) }
   func removeIfKnown(_ error: BusRequestError) async { await entry.removeIfKnown(error) }
   func snapshot() async -> Value? { await entry.snapshot() }
   func isKnown() async -> Bool { await entry.isKnown }
@@ -130,10 +128,11 @@ private actor CacheEntry<Value: Sendable> {
     [UUID: (yield: @Sendable (State) -> Void, finish: @Sendable () -> Void, scope: ResourceHold?)] =
       [:]
   private var flights: [UUID: Task<Value, any Error>] = [:]
-  private var flightEdits: [UUID: [@Sendable (Value) -> Value]] = [:]
-  private var current: UUID?
-  private var validation: UUID?
-  private var mutation: UInt64 = 0
+  /// The key's newest flight, the only one that writes (B9), and the patches kept with it, which go
+  /// with it (B13b). One let go of answers its own reads.
+  private var current: (id: UUID, patches: [@Sendable (Value) -> Value])?
+  /// The flight a validation waits on, and whether it is the validation's second ask.
+  private var validation: (flight: UUID, revalidated: Bool)?
   private var windowOpen = false
   private var refreshOwed = false
 
@@ -209,7 +208,7 @@ private actor CacheEntry<Value: Sendable> {
       stream,
       ResourceHold { [weak self] in
         scope?.dispose()
-        Task { await self?.remove(id) }
+        spawn { await self?.remove(id) }
       }
     )
   }
@@ -224,45 +223,59 @@ private actor CacheEntry<Value: Sendable> {
     for listener in listeners.values { listener.yield(state) }
   }
 
-  private func fetching() -> Task<Value, any Error> {
-    if let current, let flight = flights[current] { return flight }
+  /// The flight in flight, or one begun.
+  private func fetching() -> (id: UUID, task: Task<Value, any Error>) {
+    if let current, let flight = flights[current.id] { return (current.id, flight) }
     rehydrated = false
     kept?.underway.begin()
     let id = UUID()
-    let revision = mutation
-    let task = Task {
-      defer {
+    let task = spawn(on: self) { entry in try await entry.fly(id) }
+    current = (id, [])
+    flights[id] = task
+    return (id, task)
+  }
+
+  /// The flight `id`: its fetch, which while it is the key's current flight (B9) is published, and
+  /// given to its reads, with the patches kept with it applied in the order made (B13b). The step
+  /// that settles the current flight also ends the validation waiting on it, and a retry that
+  /// validation owes is under way before the flight's own count ends: so a key is fetching exactly
+  /// while its current fetch has not settled (CACHE-SEMANTICS B17).
+  private func fly(_ id: UUID) async throws -> Value {
+    var failure: (any Error)?
+    defer {
+      flights.removeValue(forKey: id)
+      if current?.id == id {
+        current = nil
+        if validation?.flight == id { validated(failure) }
         kept?.underway.end()
-        flights.removeValue(forKey: id)
-        flightEdits.removeValue(forKey: id)
-        if current == id { current = nil }
       }
+    }
+    do {
       try Task.checkCancellation()
       let value = try await fetch()
       guard !lifetime.ended else { throw CancellationError() }
-      if mutation == revision {
-        let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
-        publish(.ready(edited))
-      }
-      return value
+      guard let held = current, held.id == id else { return value }
+      let patched = held.patches.reduce(value) { value, patch in patch(value) }
+      publish(.ready(patched))
+      return patched
+    } catch {
+      failure = error
+      throw error
     }
-    current = id
-    flights[id] = task
-    return task
   }
 
   func fresh() async throws -> Value {
     let closed = BusRequestError(.busClosed, "The client is closed")
     guard !lifetime.ended else { throw closed }
     try Task.checkCancellation()
-    let flight = fetching()
+    let flight = fetching().task
     let waiter = SharedWait<Value>()
     let ending = lifetime.onEnd { waiter.resolve(.failure(closed)) }
     defer { lifetime.forgetEnding(ending) }
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         waiter.install(continuation)
-        Task { waiter.resolve(await flight.result) }
+        spawn { waiter.resolve(await flight.result) }
       }
     } onCancel: {
       waiter.resolve(.failure(CancellationError()))
@@ -271,34 +284,43 @@ private actor CacheEntry<Value: Sendable> {
 
   func invalidate() {
     guard !lifetime.ended else { return }
-    current = nil
+    let replaced = lettingGo()
     validation = nil
     if case .failed = state { publish(.pending) }
     revalidate()
+    if replaced { kept?.underway.end() }
+  }
+
+  /// Lets go of the current flight, saying whether there was one. Its caller ends that flight's
+  /// count after the fetch or the save that follows it is owed, so no reader finds the key at rest
+  /// between them (B17).
+  private func lettingGo() -> Bool {
+    let held = current != nil
+    current = nil
+    return held
   }
 
   private func revalidate() {
     guard validation == nil else { return }
-    let id = UUID()
-    validation = id
-    let first = fetching()
-    kept?.underway.begin()
-    lifetime.start {
-      defer { self.kept?.underway.end() }
-      await self.validate(first, id: id)
-    }
+    validate(revalidated: false)
   }
 
-  private func validate(_ first: Task<Value, any Error>, id: UUID) async {
-    defer { if validation == id { validation = nil } }
-    guard case .failure(let error) = await first.result, !(error is CancellationError),
-      !lifetime.ended, validation == id
-    else { return }
-    guard case .failure(let retryError) = await fetching().result,
-      !(retryError is CancellationError),
-      !lifetime.ended, validation == id
-    else { return }
-    if case .pending = state { publish(.failed(retryError)) }
+  /// Validates with the flight in flight, starting one when none is.
+  private func validate(revalidated: Bool) {
+    validation = (fetching().id, revalidated)
+  }
+
+  /// Ends the validation, in the step that settles the flight it waits on. A first ask that fails
+  /// is asked once more; a second that fails fails a key that holds no value.
+  private func validated(_ failure: (any Error)?) {
+    guard let waited = validation else { return }
+    validation = nil
+    guard let failure, !(failure is CancellationError), !lifetime.ended else { return }
+    if !waited.revalidated {
+      validate(revalidated: true)
+    } else if case .pending = state {
+      publish(.failed(failure))
+    }
   }
 
   func refreshIfKnown(coalescing: Bool) {
@@ -318,10 +340,13 @@ private actor CacheEntry<Value: Sendable> {
     replace(.ready(value))
   }
 
-  func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) {
+  /// Part of the value is known (B13b): `change` is applied now to the value held, and kept with
+  /// the current flight, for its answer. That flight may still carry what the patch does not, so a
+  /// patch lets go of nothing. A key holding neither is left as it is (B20), and a restored value
+  /// stays one (B18).
+  func patch(_ change: @escaping @Sendable (Value) -> Value) {
     guard isKnown else { return }
-    // Keep unrelated changes from reads already underway, applying the edit to their answers too.
-    for id in flights.keys { flightEdits[id, default: []].append(change) }
+    current?.patches.append(change)
     if case .ready(let value) = state { publish(.ready(change(value))) }
   }
 
@@ -333,10 +358,9 @@ private actor CacheEntry<Value: Sendable> {
   /// A value written, or one gone (B13a), which is then kept no longer.
   func replace(_ state: State) {
     guard !lifetime.ended else { return }
-    // Earlier reads can finish for their callers but cannot undo a bus mutation.
-    mutation &+= 1
     rehydrated = false
-    current = nil
+    // Earlier reads can finish for their callers but cannot undo a bus mutation.
+    let replaced = lettingGo()
     validation = nil
     let wasOwed = refreshOwed
     refreshOwed = false
@@ -345,6 +369,7 @@ private actor CacheEntry<Value: Sendable> {
       gone = true
       kept?.forget()
     }
+    if replaced { kept?.underway.end() }
     if wasOwed { owed?.end() }
   }
 
@@ -370,13 +395,13 @@ private actor CacheEntry<Value: Sendable> {
   }
 
   func close() {
+    if lettingGo() { kept?.underway.end() }
     for flight in flights.values { flight.cancel() }
     for listener in listeners.values {
       listener.scope?.dispose()
       listener.finish()
     }
     flights.removeAll()
-    flightEdits.removeAll()
     listeners.removeAll()
     if refreshOwed { owed?.end() }
     refreshOwed = false

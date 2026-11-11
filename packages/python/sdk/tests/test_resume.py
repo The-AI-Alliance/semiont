@@ -12,6 +12,7 @@ from pydantic import JsonValue
 from spec import JsonObject
 
 from semiont.cache import Ready
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import ResourceId
@@ -69,7 +70,7 @@ def test_a_place_waits_for_the_client_it_is_coupled_to_to_be_at_rest() -> None:
         storage = MemoryStorage()
         places = CoupledBookmarks(storage, KEY)
         # The resource's answer is lost: its fetch is in flight until the test answers it.
-        transport = FaultyTransport([DropReply()], make_response=knowing)
+        transport = FaultyTransport([DropReply()], channels=BRIDGED_CHANNELS, make_response=knowing)
         persistence = CachePersistence(storage=places.storage, kb_id="kb-a", person_key=PERSON)
         client = SemiontClient(transport, knowing_content(), StubGateway(), persistence=persistence)
         places.couple_to(client)
@@ -210,7 +211,9 @@ def test_a_place_is_noted_only_once_the_refresher_has_taken_its_event() -> None:
 
         async with (
             GatewayServer() as gateway,
-            HttpTransport(gateway.origin, token=Variable[str | None]("t"), timing=QUICK, bookmarks=places) as transport,
+            HttpTransport(
+                gateway.origin, token=Variable[str | None]("t"), channels=BRIDGED_CHANNELS, timing=QUICK, bookmarks=places
+            ) as transport,
         ):
 
             def describe(emit: JsonObject, name: str) -> None:
@@ -263,10 +266,13 @@ def test_a_place_is_noted_only_once_the_refresher_has_taken_its_event() -> None:
                 places.storage.set(CACHE, document)
                 assert storage.get(KEY) is None
 
-                # The answer comes, and the resource's cache keeps it: every kept cache is at rest, and the place rides that write.
+                # The answer comes, and the resource's cache keeps it. Its save, fired the moment a read joined to that
+                # fetch has the value, finds every kept cache at rest, and the place rides that write.
+                refetched = asyncio.ensure_future(client.browse.resource(RESOURCE).fresh())
+                await turns()
                 describe(asked[1], "A resource, archived")
-                await settle()
-                await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+                assert (await soon(refetched)).name == "A resource, archived"
+                await pass_time(SAVE_DEBOUNCE_MS / 1000)
                 assert places.load() == {RESOURCE: "p-res-1-7"}
 
     run(scenario())

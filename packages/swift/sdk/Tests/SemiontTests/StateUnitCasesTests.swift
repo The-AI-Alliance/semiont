@@ -29,21 +29,38 @@ import Testing
       return try required(row, "unit").text
     })
   var run: Set<String> = []
+  var ended: [(name: String, executor: CaseExecutor)] = []
   for value in cases {
     let row = try expanded(value, fixtures: fixtures).object
     let kind = try required(row, "unit").text
     guard swiftUnits.contains(kind) else { continue }
     let name = try required(row, "case").text
+    let steps = try required(row, "steps").array
+    // Each case runs on a thread of its own, so its settle sees everything the case made ready.
+    let executor = CaseExecutor()
+    ended.append(("\(kind): \(name)", executor))
+    defer { executor.stop() }
     do {
-      let harness = try await StateCase(row, kind: kind, name: name)
-      defer { harness.dispose() }
-      for step in try required(row, "steps").array {
-        try await harness.step(step)
+      try await executor.run {
+        let harness = try await StateCase(row, kind: kind, name: name, executor: executor)
+        var failure: (any Error)?
+        do {
+          for step in steps { try await harness.step(step) }
+        } catch {
+          failure = error
+        }
+        await harness.close()
+        if let failure { throw failure }
       }
       run.insert(kind)
     } catch {
       Issue.record("\(kind): \(name) — \(error)")
     }
+  }
+  // A job is late only once its case's thread has ended, so each case is held to none once every
+  // case has run: the longest any could take to come.
+  for (name, executor) in ended {
+    #expect(executor.late == 0, "\(name) — jobs made ready after the case ended")
   }
   // Cache and session are held by their own case tables.
   #expect(run == swiftUnits.subtracting(["cache", "session"]))
@@ -51,20 +68,13 @@ import Testing
 
 private final class StateCaseHeard: Sendable {
   private let frames = Mutex<[Carried]>([])
-  let count = Watched(0)
 
-  func append(_ carried: Carried) {
-    frames.withLock {
-      $0.append(carried)
-      count.set($0.count)
-    }
-  }
+  func append(_ carried: Carried) { frames.withLock { $0.append(carried) } }
 
   func take() -> [Carried] {
     frames.withLock { frames in
       let taken = frames
       frames.removeAll()
-      count.set(0)
       return taken
     }
   }
@@ -79,9 +89,12 @@ private final class StateCase {
   let units: [String: StateCaseUnit]
   let heard = StateCaseHeard()
   let listening: Task<Void, Never>
+  let executor: CaseExecutor
 
-  init(_ row: [String: JSONValue], kind: String, name: String) async throws {
+  init(_ row: [String: JSONValue], kind: String, name: String, executor: CaseExecutor) async throws
+  {
     self.name = "\(kind): \(name)"
+    self.executor = executor
     let clock = clock
     let search = search
     let wire = try StateCaseWire(required(row, "transport").object, clock: clock)
@@ -92,7 +105,7 @@ private final class StateCase {
     let channels = try row["listen"]?.array.map { try $0.text } ?? []
     let heard = heard
     let frames = client.bus.listen(channels)
-    listening = Task {
+    listening = spawn {
       do {
         for try await carried in frames { heard.append(carried) }
       } catch {}
@@ -102,26 +115,38 @@ private final class StateCase {
     }
   }
 
-  func dispose() {
+  /// Disposes the case and lets what that makes ready run, then holds it to having run all its
+  /// work on its executor.
+  func close() async {
     for subject in units.values { subject.unit.dispose() }
     listening.cancel()
     client.dispose()
+    await settle()
+    #expect(clock.strays == 0, "\(name) — sleeps begun off the case's executor")
+    #expect(wire.transport.strays == 0, "\(name) — wire calls made off the case's executor")
+    #expect(search.strays == 0, "\(name) — searches asked off the case's executor")
   }
 
-  // A scheduler turn drains work made ready by the last step. Time in the case
-  // only advances when the scripted clock advances.
-  private func settle() async throws { try await Task.sleep(for: .milliseconds(20)) }
+  /// Lets what is ready run, and what that makes ready, until nothing more is. Time in the case
+  /// moves only when the scripted clock does.
+  private func settle() async { await executor.settle() }
+
+  /// Settles, then moves the clock by `duration` to each instant a sleeper waits for in turn,
+  /// settling after each, as what falls due runs to its end.
+  private func pass(_ duration: Duration) async {
+    let until = clock.now.advanced(by: duration)
+    await settle()
+    while clock.wakeNext(through: until) { await settle() }
+  }
 
   func step(_ value: JSONValue) async throws {
     if value == .string("settle") {
-      try await settle()
+      await settle()
       return
     }
     let row = try value.object
     if let duration = row["pass"] {
-      try await settle()
-      clock.advance(by: try stateCaseDuration(duration))
-      try await settle()
+      await pass(try stateCaseDuration(duration))
     } else if let channel = row["say"] ?? row["deliver"] {
       let frame = Carried.frame(
         ReceivedFrame(
@@ -133,6 +158,7 @@ private final class StateCase {
         wire.transport.deliver(frame)
       }
     } else if let request = row["answer"] {
+      await settle()
       try await wire.reply(
         to: request.text, nth: stateCaseInteger(required(row, "nth")),
         on: required(row, "reply").text,
@@ -157,18 +183,8 @@ private final class StateCase {
       let channel = try sent.text
       let expected = row["payloads"]
       let count = try row["count"].map(stateCaseInteger) ?? expected?.array.count ?? 0
-      let transport = wire.transport
-      let requests = try await withinTestDeadline {
-        func sentRequests() -> [Call] {
-          transport.calls.filter { $0.via == "request" && $0.name == channel }
-        }
-        var current = sentRequests()
-        while current.count < count {
-          try await Task.sleep(for: .milliseconds(2))
-          current = sentRequests()
-        }
-        return current
-      }
+      await settle()
+      let requests = wire.transport.calls.filter { $0.via == "request" && $0.name == channel }
       if let expected {
         check(.array(requests.map { .object($0.payload) }), expected, channel)
       } else {
@@ -177,14 +193,8 @@ private final class StateCase {
     } else if row["nothingSent"] != nil {
       #expect(wire.transport.calls.isEmpty, "\(name) — nothing sent")
     } else if let expected = row["heard"] {
-      let frames = try expected.array
-      let heard = heard
-      try await withinTestDeadline {
-        for await count in heard.count where count >= frames.count { return }
-        throw CancellationError()
-      }
-      try await settle()
-      try checkHeard(frames)
+      await settle()
+      try checkHeard(try expected.array)
     } else if let destroyed = row["busDestroyed"] {
       let open = (try? client.bus.emit(Channels.yieldClone, BusEmptyPayload())) != nil
       #expect(.bool(!open) == destroyed, "\(name) — client bus")

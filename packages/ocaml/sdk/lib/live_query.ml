@@ -9,13 +9,13 @@ type 'value observer = {
 }
 
 type 'value entry = {
-  mutable revision : int;
   mutable restored : bool;
   mutable confirmed : bool;
   mutable state : 'value state;
   mutable observers : 'value observer list;
   mutable release : unit -> unit;
   mutable in_flight : ('value, string) result Promise.t option;
+  mutable patches : ('value -> 'value) list;
   mutable invalidated : bool;
   mutable trailing : bool ref option;
 }
@@ -56,7 +56,6 @@ let entry t key =
       let restored = t.restore key in
       let entry =
         {
-          revision = 0;
           restored = Option.is_some restored;
           confirmed = false;
           state =
@@ -64,6 +63,7 @@ let entry t key =
           observers = [];
           release = Fun.id;
           in_flight = None;
+          patches = [];
           invalidated = false;
           trailing = None;
         }
@@ -80,37 +80,67 @@ let store t key entry state =
   t.save key (match state with Ready value -> Some value | _ -> None);
   publish entry state
 
+let held entry =
+  match entry with
+  | { state = Ready _ | Failed _; _ } | { in_flight = Some _; _ } -> true
+  | _ -> false
+
+let settled entry =
+  Option.is_none entry.in_flight
+  && (not entry.invalidated)
+  && Option.fold ~none:true ~some:(fun again -> not !again) entry.trailing
+
 let rec fetch ?(force = false) ?(retry = true) t key entry =
   match entry.in_flight with
   | Some pending when not force -> pending
   | _ ->
       let pending, settle = Promise.create () in
       entry.in_flight <- Some pending;
+      entry.patches <- [];
       entry.confirmed <- false;
-      let revision = entry.revision in
+      (* Only the key's current fetch writes (B9): one that an invalidation, a
+         write or a removal let go of answers its own callers. *)
+      let current () =
+        match entry.in_flight with
+        | Some active -> active == pending
+        | None -> false
+      in
       Fiber.fork ~sw:t.sw (fun () ->
           let result =
             Fiber.first
               (fun () ->
                 match t.load key with
-                | Error code when retry && code <> "bus.closed" -> t.load key
+                | Error code when retry && code <> "bus.closed" && current () ->
+                    (* The patches kept with the failed ask go with it; the
+                       retry is asked after their events (B13b). *)
+                    entry.patches <- [];
+                    t.load key
                 | result -> result)
               (fun () ->
                 Promise.await t.stopped;
                 Error "bus.closed")
           in
-          (match entry.in_flight with
-          | Some active when active == pending -> entry.in_flight <- None
-          | _ -> ());
-          if not (Promise.is_resolved t.stopped) then (
-            (if revision = entry.revision then
-               match (result, entry.state) with
-               | Ok value, _ -> store t key entry (Ready value)
-               | Error _, Ready _ -> ()
-               | Error reason, _ -> publish entry (Failed reason));
-            if entry.invalidated then (
-              entry.invalidated <- false;
-              if entry.observers <> [] then ignore (fetch t key entry)));
+          let result =
+            if Promise.is_resolved t.stopped || not (current ()) then result
+            else (
+              entry.in_flight <- None;
+              let kept = entry.patches in
+              entry.patches <- [];
+              let result =
+                Result.map
+                  (fun value ->
+                    List.fold_left (fun value change -> change value) value kept)
+                  result
+              in
+              (match (result, entry.state) with
+              | Ok value, _ -> store t key entry (Ready value)
+              | Error _, Ready _ -> ()
+              | Error reason, _ -> publish entry (Failed reason));
+              if entry.invalidated then (
+                entry.invalidated <- false;
+                ignore (fetch t key entry));
+              result)
+          in
           Promise.resolve settle result);
       pending
 
@@ -149,7 +179,7 @@ let fresh t key =
 let refetch_held t key =
   if not (Promise.is_resolved t.stopped) then
     match Hashtbl.find_opt t.entries key with
-    | Some entry when entry.observers <> [] ->
+    | Some entry when held entry ->
         if Option.is_some entry.in_flight then entry.invalidated <- true
         else ignore (fetch t key entry)
     | _ -> ()
@@ -195,16 +225,6 @@ let operations =
       (query, operation))
     Live_facts.queries
 
-let channels =
-  List.filter
-    (fun (Bus_registry.Channel channel) ->
-      Bus_registry.audience channel = Some Bus_registry.Everyone
-      && List.exists
-           (fun (trigger, _, _, _, _, _, _, _, _) ->
-             trigger = Bus_registry.name channel)
-           Live_facts.refresh)
-    Bus_registry.channels
-
 let rec at path value =
   match (path, value) with
   | [], value -> value
@@ -220,6 +240,50 @@ let rec valid_way valid path value =
       valid_way valid rest
         (Option.value (List.assoc_opt key fields) ~default:`Null)
   | _ -> false
+
+(* A whole write lets go of the key's fetch in flight and starts none
+   (B13b, B13a). *)
+let update t key state =
+  if not (Promise.is_resolved t.stopped) then (
+    let entry = entry t key in
+    entry.restored <- false;
+    entry.in_flight <- None;
+    entry.patches <- [];
+    entry.invalidated <- false;
+    store t key entry state)
+
+let set t key value = update t key (Ready value)
+let remove t key reason = update t key (Failed reason)
+
+(* A patch lets go of nothing (B13b): it is kept with the fetch in flight, to
+   be applied to that fetch's reply, and applied at once to the value the key
+   holds. It leaves the restored mark and the confirmation as they were. *)
+let patch t key change =
+  if not (Promise.is_resolved t.stopped) then
+    match Hashtbl.find_opt t.entries key with
+    | Some entry -> (
+        if Option.is_some entry.in_flight then
+          entry.patches <- entry.patches @ [ change ];
+        match entry.state with
+        | Ready value ->
+            let patched = change value in
+            t.save key (Some patched);
+            publish entry (Ready patched)
+        | Pending | Failed _ -> ())
+    | None -> ()
+
+(* An annotation an event carries, written into its resource's list: in place
+   of the one with its id, or at the end. *)
+let written_into annotation = function
+  | `List values ->
+      let id = at [ "id" ] annotation in
+      if List.exists (fun prior -> at [ "id" ] prior = id) values then
+        `List
+          (List.map
+             (fun prior -> if at [ "id" ] prior = id then annotation else prior)
+             values)
+      else `List (values @ [ annotation ])
+  | other -> other
 
 let refetch t ~on ~payload =
   let known =
@@ -271,7 +335,7 @@ let refetch t ~on ~payload =
     List.iter
       (fun (key, entry) ->
         let query, resource, annotation = key in
-        if entry.observers <> [] then
+        if held entry then
           List.iter
             (fun ( _,
                    when_,
@@ -298,25 +362,12 @@ let refetch t ~on ~payload =
                               (name annotation_way)))
               in
               if applies then (
-                let update state =
-                  entry.revision <- entry.revision + 1;
-                  store t key entry state
-                in
-                if List.mem query removes then update (Failed "bus.not-found");
+                if List.mem query removes then remove t key "bus.not-found";
                 (if List.mem query writes then
                    let value = at carries payload in
-                   match (query, entry.state) with
-                   | "annotation", _ -> update (Ready value)
-                   | "annotations", Ready (`List values) ->
-                       let id = at [ "id" ] value in
-                       update
-                         (Ready
-                            (`List
-                               (List.map
-                                  (fun prior ->
-                                    if at [ "id" ] prior = id then value
-                                    else prior)
-                                  values)))
+                   match query with
+                   | "annotation" -> set t key value
+                   | "annotations" -> patch t key (written_into value)
                    | _ -> ());
                 if List.mem query queries then
                   if on = "reopened" then refetch_held t key
@@ -343,9 +394,8 @@ let get t key =
 
 let known t key =
   match Hashtbl.find_opt t.entries key with
-  | Some { state = Ready _ | Failed _; _ } -> true
-  | Some { in_flight = Some _; _ } -> true
-  | _ -> false
+  | Some entry -> held entry
+  | None -> false
 
 let keys t =
   Hashtbl.fold
@@ -365,25 +415,9 @@ let ready_for_replay t scope changes =
     |> List.of_seq
   in
   keys <> []
+  && Hashtbl.fold (fun _ entry all -> all && settled entry) t.entries true
   && List.for_all
-       (fun (key, entry) ->
-         entry.confirmed && entry.in_flight = None && (not entry.invalidated)
-         && Option.fold ~none:true
-              ~some:(fun again -> not !again)
-              entry.trailing
-         && List.mem_assoc key changes)
+       (fun (key, entry) -> entry.confirmed && List.mem_assoc key changes)
        keys
 
 let invalidate_all t = List.iter (invalidate t) (keys t)
-
-let update t key state =
-  if not (Promise.is_resolved t.stopped) then (
-    let entry = entry t key in
-    entry.revision <- entry.revision + 1;
-    entry.restored <- false;
-    entry.in_flight <- None;
-    entry.invalidated <- false;
-    store t key entry state)
-
-let set t key value = update t key (Ready value)
-let remove t key reason = update t key (Failed reason)

@@ -14,7 +14,14 @@ from semiont.errors import BusRequestError
 from semiont.identifiers import JobId
 from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_STATUS_REQUESTED
-from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
+from semiont.timing import (
+    HELD_JOB_STALL_CHECK_MS,
+    HELD_JOB_STALL_MS,
+    JOB_CLAIM_TIMEOUT_MS,
+    JOB_POLL_MS,
+    JOB_POLL_TIMEOUT_MS,
+    MARK_COMMIT_TIMEOUT_MS,
+)
 from semiont.types import (
     JobCancelRequest,
     JobCompleteCommand,
@@ -57,24 +64,36 @@ class JobNamespace:
         return (await self._links.request(JOB_STATUS_REQUESTED, JobStatusRequest(job_id=job_id))).response
 
     async def poll_until_complete(
-        self, job_id: JobId, *, every_ms: int, within_ms: int, on_status: Callable[[JobStatusResponse], None] | None = None
+        self,
+        job_id: JobId,
+        *,
+        every_ms: int = JOB_POLL_MS,
+        within_ms: int = JOB_POLL_TIMEOUT_MS,
+        on_status: Callable[[JobStatusResponse], None] | None = None,
     ) -> JobStatusResponse:
         """Ask for a job's status every `every_ms` until it has ended, giving each answer to `on_status`.
 
-        The status it ended with. One that has not ended `within_ms` fails as
-        a timeout.
+        The status it ended with. One that has not ended `within_ms` after the
+        first ask, its asks and the waits between them included, fails as a
+        timeout then: the ask or the wait under way is given up, and no ask
+        follows. The two are the values of protocol/specs/src/client/timing.json
+        unless a caller states others.
         """
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + within_ms / 1000
-        while True:
-            status = await self.status(job_id)
-            if on_status is not None:
-                on_status(status)
-            if status.status in ("complete", "failed", "cancelled"):
-                return status
-            if loop.time() > deadline:
-                raise BusRequestError("bus.timeout", f"Job polling timeout after {within_ms}ms")
-            await asyncio.sleep(every_ms / 1000)
+        due = asyncio.timeout_at(asyncio.get_running_loop().time() + within_ms / 1000)
+        try:
+            async with due:
+                while True:
+                    status = await self.status(job_id)
+                    if on_status is not None:
+                        on_status(status)
+                    if status.status in ("complete", "failed", "cancelled"):
+                        return status
+                    await asyncio.sleep(every_ms / 1000)
+        except TimeoutError:
+            # Only the poll's own deadline times it out.
+            if not due.expired():
+                raise
+            raise BusRequestError("bus.timeout", f"Job polling timeout after {within_ms}ms") from None
 
     async def cancel(self, job_id: JobId) -> bool:
         """Cancel one job: whether the queue acted on it.

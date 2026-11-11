@@ -49,7 +49,7 @@ public sealed class ServiceToken : IDisposable
     internal TimeProvider Clock => clock;
 
     public async Task<string> AuthorizationAsync(CancellationToken cancellation = default) =>
-        "Bearer " + await TokenAsync(null, false, cancellation).ConfigureAwait(false);
+        "Bearer " + await TokenAsync(null, false, cancellation).ConfigureAwait(Spawning.Captures);
 
     internal Task<string> TokenAsync(string? refused, bool retry, CancellationToken cancellation)
     {
@@ -57,18 +57,18 @@ public sealed class ServiceToken : IDisposable
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            if (asking is { IsCompleted: false }) return asking.WaitAsync(cancellation);
+            if (asking is { IsCompleted: false }) return Spawning.WaitAsync(asking, cancellation);
             if (token is not null && token != refused && clock.GetElapsedTime(obtained).TotalSeconds < reuseSeconds)
                 return Task.FromResult(token);
-            asking = Task.Run(() => retry ? issuer.GrantByRefreshRuleAsync(GrantAsync, CancellationToken.None) : GrantAsync(CancellationToken.None));
-            return asking.WaitAsync(cancellation);
+            asking = Spawning.Run(() => retry ? issuer.GrantByRefreshRuleAsync(GrantAsync, CancellationToken.None) : GrantAsync(CancellationToken.None));
+            return Spawning.WaitAsync(asking, cancellation);
         }
     }
 
     private async Task<string> GrantAsync(CancellationToken cancellation)
     {
-        endpoint ??= (await issuer.ConfigurationAsync(authority, cancellation).ConfigureAwait(false)).Token;
-        var answer = await issuer.AnswerAsync(endpoint, proof(endpoint), cancellation: cancellation).ConfigureAwait(false);
+        endpoint ??= (await issuer.ConfigurationAsync(authority, cancellation).ConfigureAwait(Spawning.Captures)).Token;
+        var answer = await issuer.AnswerAsync(endpoint, proof(endpoint), cancellation: cancellation).ConfigureAwait(Spawning.Captures);
         if (answer.Status is < 200 or >= 300 || answer.Text("access_token") is not { Length: > 0 } access)
             throw new SignInError(ProtocolFacts.SignInError("exchange"), "The issuer refused the client credentials grant", answer.Status);
 

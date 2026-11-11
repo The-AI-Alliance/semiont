@@ -3,6 +3,7 @@ package semiont.testing
 import kotlinx.coroutines.Dispatchers
 import semiont.ClientTiming
 import semiont.SemiontClient
+import semiont.channels.BRIDGED_CHANNELS
 import semiont.storage.CachePersistence
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.TimeSource
@@ -15,12 +16,13 @@ import kotlin.time.TimeSource
  * nothing is scripted to answer and that holds nothing. Whoever made the
  * client closes it, and whoever made the transport closes that. The client's
  * work runs on `context`, and its waits keep `clock`; a transport it makes
- * itself delivers on `context` too.
+ * itself names a full client's channels (`BRIDGED_CHANNELS`) and delivers on
+ * `context` too.
  */
 public class TestClient @JvmOverloads constructor(
     context: CoroutineContext = Dispatchers.Default,
     clock: TimeSource = TimeSource.Monotonic,
-    public val transport: FaultyTransport = FaultyTransport(context = context),
+    public val transport: FaultyTransport = FaultyTransport(BRIDGED_CHANNELS, context = context),
     public val content: InMemoryContent = InMemoryContent(),
     public val gateway: StubGateway = StubGateway(),
     timing: ClientTiming = ClientTiming(),

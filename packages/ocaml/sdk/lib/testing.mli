@@ -42,6 +42,8 @@ val deliver :
   string ->
   Yojson.Safe.t ->
   unit
+(** Deliver a frame on a channel to each open stream whose subscribe request
+    names it: among its global channels, or among the channels of [scope]. *)
 
 val disconnect : transport -> unit
 

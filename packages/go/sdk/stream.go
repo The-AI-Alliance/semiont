@@ -408,11 +408,12 @@ type wireFrame struct {
 // carried is data read as a frame, and true; or, when BusFrame does not allow
 // it, its first fault. A frame carries what BusFrame names, and nothing more.
 func carried(data string) (Frame, required.Fault, bool) {
-	if fault, faulty := required.FaultOf([]byte(data), reflect.TypeFor[api.BusFrame]()); faulty {
+	stated, fault, faulty := required.Read([]byte(data), reflect.TypeFor[api.BusFrame]())
+	if faulty {
 		return Frame{}, fault, false
 	}
 	var read wireFrame
-	if json.Unmarshal([]byte(data), &read) != nil {
+	if json.Unmarshal(stated, &read) != nil {
 		return Frame{}, required.Undecoded, false
 	}
 	frame := Frame{Channel: bus.Channel(read.Channel), Payload: read.Payload}

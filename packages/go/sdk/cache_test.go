@@ -389,38 +389,83 @@ func TestB8InvalidatingAKeyNobodyAskedForAsksForIt(t *testing.T) {
 	isState(t, other.now(t), Ready[int]{Value: 9})
 }
 
-func TestB9InvalidatingWhileAFetchIsInFlightStartsAnotherAndTheLastAnswerIsTheValue(t *testing.T) {
-	c, service, _ := cacheWorld(t, nil, 0)
+func TestB9InvalidatingWhileAFetchIsInFlightStartsAnotherAndOnlyItWritesWhenItAnswersFirst(t *testing.T) {
+	persister := &keptBack{}
+	c, service, _ := cacheWorld(t, persister, 10*time.Millisecond)
+	// The read asks first, so the fetch it waits on is the one the invalidation lets go of.
+	older := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Pending{})
-	service.count(t, 1)
 	c.Invalidate(cacheKeyOne)
 	// Not joined: the one in flight may never be replied.
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	service.answer(t, 1, 5)
 	isState(t, o.now(t), Ready[int]{Value: 5})
-	// And when it is replied after all, it is as new as what was there.
+	eventually(t, "the newer answer saved", func() bool { return len(persister.saved()) == 1 })
+	// And when the one let go of is replied after all, its own reader is given its answer, and the key is not.
 	service.answer(t, 0, 3)
-	isState(t, o.now(t), Ready[int]{Value: 3})
+	if got := readEnded(t, older); got.err != nil || got.value != 3 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	o.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 5 || c.PersistencePending() {
+		t.Fatalf("the value is %d and owed %v, want 5 and nothing owed", value, c.PersistencePending())
+	}
+	if saves := persister.saved(); !reflect.DeepEqual(saves, []map[string]int{{cacheKeyOne: 5}}) {
+		t.Fatalf("saved %v", saves)
+	}
 	// Nothing is in flight now: the next observer is given the value and asks nothing.
-	isState(t, watching(t, c, cacheKeyOne).now(t), Ready[int]{Value: 3})
+	isState(t, watching(t, c, cacheKeyOne).now(t), Ready[int]{Value: 5})
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 }
 
-func TestB9AFetchThatWasLetGoOfDoesNotTakeThePlaceOfTheOneAfterIt(t *testing.T) {
-	c, service, _ := cacheWorld(t, nil, 0)
-	watching(t, c, cacheKeyOne).now(t)
+func TestB9AFetchThatWasLetGoOfAndAnswersFirstAnswersItsOwnReaderAndWritesNothing(t *testing.T) {
+	persister := &keptBack{}
+	c, service, _ := cacheWorld(t, persister, 10*time.Millisecond)
+	older := aRead(context.Background(), c, cacheKeyOne)
 	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
 	c.Invalidate(cacheKeyOne)
 	service.count(t, 2)
-	// The older ends first, while the newer is still in flight: a read now joins the newer.
+	// The older ends first, while the newer is still in flight: its reader is given its answer, and the key is not.
 	service.answer(t, 0, 3)
-	eventually(t, "the older answer written", func() bool { value, _ := c.Get(cacheKeyOne); return value == 3 })
+	if got := readEnded(t, older); got.err != nil || got.value != 3 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	o.nothingMore(t)
+	if _, has := c.Get(cacheKeyOne); has {
+		t.Fatal("the answer of a fetch let go of was written")
+	}
+	if saves := persister.saved(); len(saves) != 0 {
+		t.Fatalf("saved %v", saves)
+	}
+	// A read now joins the newer, whose answer is the key's.
 	read := aRead(context.Background(), c, cacheKeyOne)
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	service.answer(t, 1, 5)
 	if got := readEnded(t, read); got.err != nil || got.value != 5 {
 		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	isState(t, o.now(t), Ready[int]{Value: 5})
+}
+
+func TestB17OnlyTheKeysCurrentFetchIsInFlight(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	// Each fetch asks from its own goroutine, so the two asks are in order only if the first is made before the invalidation.
+	service.count(t, 1)
+	c.Invalidate(cacheKeyOne)
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+	if !c.keptFetching() {
+		t.Fatal("the invalidation's fetch is not in flight")
+	}
+	service.answer(t, 1, 5)
+	isState(t, o.now(t), Ready[int]{Value: 5})
+	if c.keptFetching() {
+		t.Fatal("the fetch the invalidation let go of is still in flight")
 	}
 }
 
@@ -587,11 +632,168 @@ func TestB13aARemovedKeyIsFailedAsItWasToldAtOnceAndNothingIsAskedFor(t *testing
 	isState(t, watching(t, c, cacheKeyOne).now(t), Pending{})
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	// A fetch in flight when the key is removed is let go of: a read after it does not join it.
+	// The live view's ask is let go of with it, so the read's failure is its caller's alone.
 	c.Remove(cacheKeyOne, gone)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	aRead(ctx, c, cacheKeyOne)
+	read := aRead(context.Background(), c, cacheKeyOne)
+	failure := service.fail(t, 2, "the service is down")
+	if got := readEnded(t, read); got.err != failure {
+		t.Fatalf("the read failed with %v, want the service's failure", got.err)
+	}
 	service.askedJust(t, cacheKeyOne, cacheKeyOne, cacheKeyOne)
+}
+
+func TestB13aAFetchInFlightWhenItsKeyIsRemovedAnswersItsOwnReaderAndWritesNothing(t *testing.T) {
+	persister := &keptBack{}
+	c, service, _ := cacheWorld(t, persister, 10*time.Millisecond)
+	older := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	gone := &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "it was removed"}
+	c.Remove(cacheKeyOne, gone)
+	isState(t, o.now(t), Failed{Err: gone})
+	if c.keptFetching() {
+		t.Fatal("the fetch the removal let go of is still in flight")
+	}
+	eventually(t, "the removal saved", func() bool { return len(persister.saved()) == 1 })
+	saves := []map[string]int{{}}
+	service.answer(t, 0, 3)
+	if got := readEnded(t, older); got.err != nil || got.value != 3 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	o.nothingMore(t)
+	if _, has := c.Get(cacheKeyOne); has || !c.Known(cacheKeyOne) {
+		t.Fatal("a removed key has a value, or is not known")
+	}
+	if got := persister.saved(); !reflect.DeepEqual(got, saves) || c.PersistencePending() {
+		t.Fatalf("saved %v and owed %v, want %v and nothing owed", got, c.PersistencePending(), saves)
+	}
+	service.askedJust(t, cacheKeyOne)
+}
+
+func TestB13bAValueWrittenWhileAFetchIsInFlightLetsGoOfIt(t *testing.T) {
+	persister := &keptBack{}
+	c, service, _ := cacheWorld(t, persister, 10*time.Millisecond)
+	older := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	c.Set(cacheKeyOne, 7)
+	isState(t, o.now(t), Ready[int]{Value: 7})
+	if c.keptFetching() {
+		t.Fatal("the fetch the write let go of is still in flight")
+	}
+	eventually(t, "the write saved", func() bool { return len(persister.saved()) == 1 })
+	// Its answer, coming later, is its reader's alone.
+	service.answer(t, 0, 3)
+	if got := readEnded(t, older); got.err != nil || got.value != 3 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	o.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 7 || c.PersistencePending() {
+		t.Fatalf("the value is %d and owed %v, want 7 and nothing owed", value, c.PersistencePending())
+	}
+	if saves := persister.saved(); !reflect.DeepEqual(saves, []map[string]int{{cacheKeyOne: 7}}) {
+		t.Fatalf("saved %v", saves)
+	}
+	// A write lets go of a revalidation too: when it fails, it is not asked again, and fails nothing.
+	c.Invalidate(cacheKeyOne)
+	service.count(t, 2)
+	c.Set(cacheKeyOne, 8)
+	isState(t, o.now(t), Ready[int]{Value: 8})
+	service.fail(t, 1, "the revalidation")
+	o.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 8 {
+		t.Fatalf("the value is %d, want 8", value)
+	}
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+}
+
+func TestB13bAPatchMadeWhileTheFirstFetchIsInFlightIsAppliedToItsAnswer(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
+	read := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	c.Patch(cacheKeyOne, func(value int) int { return value * 10 })
+	o.nothingMore(t)
+	if _, has := c.Get(cacheKeyOne); has || !c.keptFetching() {
+		t.Fatal("a patch gave a key with no value one, or let go of its fetch")
+	}
+	service.answer(t, 0, 3)
+	if got := readEnded(t, read); got.err != nil || got.value != 30 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	isState(t, o.now(t), Ready[int]{Value: 30})
+	service.askedJust(t, cacheKeyOne)
+}
+
+func TestB13bPatchesAreAppliedToTheValueAtOnceAndToTheAnswerOfTheFetchInFlightInTheOrderMade(t *testing.T) {
+	persister := &keptBack{}
+	c, service, _ := cacheWorld(t, persister, 10*time.Millisecond)
+	o := ready(t, c, service, 1)
+	c.Invalidate(cacheKeyOne)
+	read := aRead(context.Background(), c, cacheKeyOne)
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	c.Patch(cacheKeyOne, func(value int) int { return value * 10 })
+	if value, _ := c.Get(cacheKeyOne); value != 20 {
+		t.Fatalf("the value is %d, want 20", value)
+	}
+	isState(t, o.now(t), Ready[int]{Value: 20})
+	service.answer(t, 1, 5)
+	if got := readEnded(t, read); got.err != nil || got.value != 60 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	isState(t, o.now(t), Ready[int]{Value: 60})
+	eventually(t, "the answer saved", func() bool {
+		saves := persister.saved()
+		return len(saves) > 0 && reflect.DeepEqual(saves[len(saves)-1], map[string]int{cacheKeyOne: 60})
+	})
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+}
+
+func TestB13bThePatchesKeptWithAFetchThatWasReplacedGoWithIt(t *testing.T) {
+	c, service, _ := cacheWorld(t, nil, 0)
+	older := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	c.Patch(cacheKeyOne, func(value int) int { return value * 10 })
+	c.Invalidate(cacheKeyOne)
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+	// The newer fetch was asked after the patch's event arrived: its answer holds it.
+	service.answer(t, 1, 4)
+	isState(t, o.now(t), Ready[int]{Value: 4})
+	service.answer(t, 0, 5)
+	if got := readEnded(t, older); got.err != nil || got.value != 5 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	o.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 4 {
+		t.Fatalf("the value is %d, want 4", value)
+	}
+}
+
+func TestB13bAPatchToAKeyWithNeitherAValueNorAFetchInFlightDoesNothing(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
+	// One nothing asked for is not held.
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	if _, has := c.Get(cacheKeyOne); has || c.Known(cacheKeyOne) || c.PersistencePending() {
+		t.Fatal("a patch to a key nothing asked for wrote it, or owes a save")
+	}
+	// One whose fetch failed twice holds no value, and has nothing in flight.
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	service.fail(t, 0, "the first")
+	failure := service.fail(t, 1, "the retry")
+	isState(t, o.now(t), Failed{Err: failure})
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	o.nothingMore(t)
+	if _, has := c.Get(cacheKeyOne); has || c.PersistencePending() {
+		t.Fatal("a patch to a failed key wrote it, or owes a save")
+	}
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 }
 
 func TestAValueThatIsKnownIsWrittenAndNothingIsAskedFor(t *testing.T) {
@@ -716,6 +918,20 @@ func TestB17ACacheBeginsWithWhatWasKeptAndB18AsksForItAnewTheFirstTimeItIsObserv
 	}
 }
 
+func TestB18AKeptValueThatIsPatchedIsStillOneAndIsAskedForAnewTheFirstTimeItIsObserved(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{kept: map[string]int{cacheKeyOne: 1}}, time.Hour)
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	if value, _ := c.Get(cacheKeyOne); value != 2 {
+		t.Fatalf("the patched value is %d, want 2", value)
+	}
+	service.askedJust(t)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Ready[int]{Value: 2})
+	service.askedJust(t, cacheKeyOne)
+	service.answer(t, 0, 5)
+	isState(t, o.now(t), Ready[int]{Value: 5})
+}
+
 func TestB18AKeptValueWhoseRevalidationFailsTwiceStaysAndIsNotAskedForAThirdTime(t *testing.T) {
 	c, service, _ := cacheWorld(t, &keptBack{kept: map[string]int{cacheKeyOne: 1}}, time.Hour)
 	o := watching(t, c, cacheKeyOne)
@@ -823,6 +1039,27 @@ func TestB17ValuesAreSavedOnceTheyHaveStoppedChangingAndOnlyValues(t *testing.T)
 	eventually(t, "the save of the fetched value", func() bool { return len(persister.saved()) == 3 })
 	if saves := persister.saved(); !reflect.DeepEqual(saves[2], map[string]int{"b": 2, "c": 3}) {
 		t.Fatalf("saved %v", saves[2])
+	}
+}
+
+// In flight is a fetch whose promise has not settled: the caller given the
+// value finds the key fetching no more, and its save owed.
+func TestB17AFetchIsInFlightNoMoreOnceItsCallerHasItsValue(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
+	read := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	if !c.keptFetching() {
+		t.Fatal("a fetch asked and unanswered is not in flight")
+	}
+	service.answer(t, 0, 1)
+	if got := readEnded(t, read); got.err != nil || got.value != 1 {
+		t.Fatalf("the read came to %+v, want 1", got)
+	}
+	if c.keptFetching() {
+		t.Fatal("the key is fetching after its caller was given its value")
+	}
+	if !c.PersistencePending() {
+		t.Fatal("the settled value owes no save")
 	}
 }
 

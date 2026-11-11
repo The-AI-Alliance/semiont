@@ -317,7 +317,7 @@ def started_at(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, knowledge_base: 
     class Stream:
         def __init__(self, gateway: str, *, token: object, refresher: object, channels: Sequence[str]) -> None:
             self._channels: Final = channels
-            self._transport: Final = FaultyTransport(make_response=knowledge_base.answer)
+            self._transport: Final = FaultyTransport(channels=channels, make_response=knowledge_base.answer)
             self._transport.refuse_when(knowledge_base.refuse)
 
         async def __aenter__(self) -> FaultyTransport:

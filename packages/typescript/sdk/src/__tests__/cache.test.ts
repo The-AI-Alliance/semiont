@@ -11,8 +11,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { map, firstValueFrom, filter } from 'rxjs';
+import { BusRequestError, SAVE_DEBOUNCE_MS } from '@semiont/core';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
-import { createCache, isReady, type Cache, type CacheState } from '../cache';
+import { createCache, createPersistableCache, isReady, type Cache, type CachePersister, type CacheState } from '../cache';
 
 /**
  * Collector projection for sequence assertions: pending → undefined,
@@ -28,6 +29,15 @@ function flush(): Promise<void> {
 
 function firstDefined<T>(obs: import('rxjs').Observable<CacheState<T>>): Promise<T> {
   return firstValueFrom(obs.pipe(filter(isReady), map((s) => s.value)));
+}
+
+/** Fetches the test answers by hand: one per ask, in the order asked. */
+function heldFetches() {
+  const answers: Array<{ resolve: (v: string) => void; reject: (e: Error) => void }> = [];
+  const fetchFn = vi.fn().mockImplementation(
+    () => new Promise<string>((resolve, reject) => { answers.push({ resolve, reject }); }),
+  );
+  return { answers, fetchFn };
 }
 
 describe('Cache<K, V>', () => {
@@ -182,16 +192,6 @@ describe('Cache<K, V>', () => {
       // Unblock the dangling fetch to avoid leaks in the test.
       resolveFetch('ignored');
     });
-
-    it('last-write-wins when two fetches resolve in order', async () => {
-      const values = ['first', 'second'];
-      const fetchFn = vi.fn().mockImplementation(() => Promise.resolve(values.shift()!));
-      const cache = createCache<string, string>(fetchFn);
-      cache.observe('k').subscribe(() => {});
-      cache.invalidate('k');
-      await flush();
-      expect(cache.get('k')).toBe('second');
-    });
   });
 
   describe('B8 — invalidate of an empty key triggers a fetch', () => {
@@ -203,6 +203,83 @@ describe('Cache<K, V>', () => {
       expect(v).toBe('v1');
       // invalidate triggered a fetch; observe joined the existing in-flight guard.
       expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('B9 — only the newest fetch writes', () => {
+    it('two fetches answered in the order asked: only the newer, the one the invalidate started, is stored', async () => {
+      const values = ['first', 'second'];
+      const fetchFn = vi.fn().mockImplementation(() => Promise.resolve(values.shift()!));
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      cache.invalidate('k');
+      await flush();
+      expect(seen).toEqual([undefined, 'second']);
+    });
+
+    it('the fetch an invalidate let go of, answered after the newer one, answers its awaiter, and nothing is emitted or saved of it', async () => {
+      vi.useFakeTimers();
+      try {
+        const { answers, fetchFn } = heldFetches();
+        const persister: CachePersister<string, string> = { load: () => null, save: vi.fn() };
+        const cache = createCache<string, string>(fetchFn, { persister });
+        const seen: Array<string | undefined | Error> = [];
+        cache.observe('k').subscribe((s) => seen.push(st(s)));
+        const awaited = cache.fetch('k');
+        cache.invalidate('k');
+        expect(fetchFn).toHaveBeenCalledTimes(2);
+
+        answers[1]!.resolve('newer');
+        await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+        expect(seen).toEqual([undefined, 'newer']);
+        expect(persister.save).toHaveBeenCalledTimes(1);
+
+        answers[0]!.resolve('older');
+        expect(await awaited).toBe('older');
+        await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+        expect(seen).toEqual([undefined, 'newer']);
+        expect(cache.get('k')).toBe('newer');
+        expect(cache.persistencePending(), 'no save is owed').toBe(false);
+        expect(persister.save).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('the fetch an invalidate let go of, answered first, answers its awaiter and leaves the key as it was until the newer one answers', async () => {
+      const { answers, fetchFn } = heldFetches();
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      answers[0]!.resolve('v0');
+      await flush();
+
+      const awaited = cache.fetch('k');
+      cache.invalidate('k');
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+      answers[1]!.resolve('older');
+      expect(await awaited).toBe('older');
+      await flush();
+      expect(seen).toEqual([undefined, 'v0']);
+      expect(cache.get('k')).toBe('v0');
+
+      answers[2]!.resolve('newer');
+      await flush();
+      expect(seen).toEqual([undefined, 'v0', 'newer']);
+    });
+
+    it('a key is fetching only while its current fetch is unsettled: one an invalidate let go of holds nothing back, though it never answers (B17)', async () => {
+      const { answers, fetchFn } = heldFetches();
+      const cache = createCache<string, string>(fetchFn);
+      cache.observe('k').subscribe(() => {});
+      expect(cache.persistencePending()).toBe(true);
+      cache.invalidate('k');
+      expect(cache.persistencePending(), 'the newer fetch is in flight').toBe(true);
+
+      answers[1]!.resolve('newer');
+      await flush();
+      expect(cache.persistencePending(), 'the fetch let go of is in flight no more').toBe(false);
     });
   });
 
@@ -258,6 +335,26 @@ describe('Cache<K, V>', () => {
       expect(seen.at(-1)).toEqual({ status: 'failed', error: gone });
     });
 
+    it('the fetch a removal let go of stores nothing: the key stays failed with what remove was given (B9)', async () => {
+      const answers: Array<(v: string) => void> = [];
+      const fetchFn = vi.fn().mockImplementation(() => new Promise<string>((resolve) => { answers.push(resolve); }));
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<CacheState<string>> = [];
+      cache.observe('k').subscribe((s) => seen.push(s));
+      answers[0]!('v1');
+      await flush();
+
+      cache.invalidate('k');
+      const gone = new BusRequestError('gone', 'bus.not-found');
+      cache.remove('k', gone);
+      answers[1]!('late');
+      await flush();
+      expect(seen.map((s) => s.status)).toEqual(['pending', 'ready', 'failed']);
+      expect(seen.at(-1)).toEqual({ status: 'failed', error: gone });
+      expect(cache.get('k')).toBeUndefined();
+      expect(cache.persistencePending(), 'the fetch let go of is in flight no more').toBe(false);
+    });
+
     it('the key is still known, and an observer arriving at it asks again (B15)', async () => {
       const fetchFn = vi.fn().mockResolvedValue('v1');
       const cache = createCache<string, string>(fetchFn);
@@ -287,6 +384,166 @@ describe('Cache<K, V>', () => {
       const v = await firstDefined(cache.observe('k'));
       expect(v).toBe('direct');
       expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('a set lets go of the fetch in flight: the key is the written value and fetching no more, and the later answer goes to its awaiter alone (B9)', async () => {
+      vi.useFakeTimers();
+      try {
+        const { answers, fetchFn } = heldFetches();
+        const persister: CachePersister<string, string> = { load: () => null, save: vi.fn() };
+        const made = createPersistableCache<string, string>(fetchFn);
+        made.attach(persister, () => {});
+        const seen: Array<string | undefined | Error> = [];
+        made.cache.observe('k').subscribe((s) => seen.push(st(s)));
+        const awaited = made.cache.fetch('k');
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+
+        made.cache.set('k', 'written');
+        expect(seen).toEqual([undefined, 'written']);
+        expect(made.fetching(), 'the fetch let go of is in flight no more').toBe(false);
+        await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+        expect(persister.save).toHaveBeenCalledTimes(1);
+
+        answers[0]!.resolve('answered');
+        expect(await awaited).toBe('answered');
+        await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+        expect(seen).toEqual([undefined, 'written']);
+        expect(made.cache.get('k')).toBe('written');
+        expect(made.cache.persistencePending(), 'no save is owed').toBe(false);
+        expect(persister.save).toHaveBeenCalledTimes(1);
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a set lets go of the live view\'s ask: the fetch it let go of fails, and nothing is asked again or failed (B14)', async () => {
+      const { answers, fetchFn } = heldFetches();
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      cache.set('k', 'written');
+
+      answers[0]!.reject(new Error('down'));
+      await flush();
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(seen).toEqual([undefined, 'written']);
+    });
+  });
+
+  describe('B13b — patch writes part of a value, and rides on the fetch in flight', () => {
+    const appended = (part: string) => (value: string): string => `${value}+${part}`;
+
+    it('a key being fetched for the first time is patched in what that fetch answers, which its awaiter is given too', async () => {
+      const { answers, fetchFn } = heldFetches();
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      const awaited = cache.fetch('k');
+
+      cache.patch('k', appended('p'));
+      expect(seen).toEqual([undefined]);
+      answers[0]!.resolve('L');
+      expect(await awaited).toBe('L+p');
+      expect(seen).toEqual([undefined, 'L+p']);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('patches are applied at once, and to the answer in the order they were made, and nothing more is asked', async () => {
+      vi.useFakeTimers();
+      try {
+        const { answers, fetchFn } = heldFetches();
+        const persister: CachePersister<string, string> = { load: () => null, save: vi.fn() };
+        const cache = createCache<string, string>(fetchFn, { persister });
+        const seen: Array<string | undefined | Error> = [];
+        cache.observe('k').subscribe((s) => seen.push(st(s)));
+        answers[0]!.resolve('L0');
+        await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+        cache.invalidate('k');
+
+        cache.patch('k', appended('p1'));
+        cache.patch('k', appended('p2'));
+        expect(seen).toEqual([undefined, 'L0', 'L0+p1', 'L0+p1+p2']);
+        await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+        expect(persister.save).toHaveBeenLastCalledWith(new Map([['k', 'L0+p1+p2']]));
+
+        answers[1]!.resolve('L');
+        await vi.advanceTimersByTimeAsync(0);
+        expect(seen).toEqual([undefined, 'L0', 'L0+p1', 'L0+p1+p2', 'L+p1+p2']);
+        expect(cache.get('k')).toBe('L+p1+p2');
+        expect(fetchFn).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a replaced fetch\'s patches go with it: the newer answer is stored as it is, and the older changes nothing', async () => {
+      const { answers, fetchFn } = heldFetches();
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      cache.patch('k', appended('p'));
+      cache.invalidate('k');
+
+      answers[1]!.resolve('L1');
+      await flush();
+      expect(cache.get('k')).toBe('L1');
+      answers[0]!.resolve('L0');
+      await flush();
+      expect(seen).toEqual([undefined, 'L1']);
+    });
+
+    it('a failed fetch\'s patches go with it: its retry\'s answer is stored as it is', async () => {
+      const { answers, fetchFn } = heldFetches();
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      cache.patch('k', appended('p'));
+
+      answers[0]!.reject(new Error('down'));
+      await flush();
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      answers[1]!.resolve('L1');
+      await flush();
+      expect(seen).toEqual([undefined, 'L1']);
+    });
+
+    it('a patch to a key with neither a value nor a fetch in flight does nothing, emits nothing and owes no save (B20)', async () => {
+      const fetchFn = vi.fn().mockRejectedValue(new Error('down'));
+      const persister: CachePersister<string, string> = { load: () => null, save: vi.fn() };
+      const cache = createCache<string, string>(fetchFn, { persister });
+      const change = vi.fn(appended('p'));
+
+      cache.patch('unheld', change);
+      expect(cache.known('unheld')).toBe(false);
+
+      const seen: Array<CacheState<string>> = [];
+      cache.observe('failed').subscribe((s) => seen.push(s));
+      await flush();
+      expect(seen.map((s) => s.status)).toEqual(['pending', 'failed']);
+      cache.patch('failed', change);
+
+      expect(change).not.toHaveBeenCalled();
+      expect(seen.map((s) => s.status)).toEqual(['pending', 'failed']);
+      expect(cache.persistencePending(), 'no save is owed').toBe(false);
+      expect(persister.save).not.toHaveBeenCalled();
+    });
+
+    it('a patched restored value is still revalidated when first observed (B18)', async () => {
+      const { answers, fetchFn } = heldFetches();
+      const persister: CachePersister<string, string> = { load: () => new Map([['k', 'kept']]), save: vi.fn() };
+      const cache = createCache<string, string>(fetchFn, { persister });
+      cache.patch('k', appended('p'));
+      expect(cache.get('k')).toBe('kept+p');
+      expect(fetchFn).not.toHaveBeenCalled();
+
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      expect(seen).toEqual(['kept+p']);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      answers[0]!.resolve('fresh');
+      await flush();
+      expect(seen).toEqual(['kept+p', 'fresh']);
     });
   });
 
@@ -437,6 +694,33 @@ describe('Cache<K, V>', () => {
       await flush();
       expect(cache.get('k')).toBe('v2');
       expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
+
+    it('the retry is asked in the step that settles the failed fetch, so no reader finds the key at rest between the two asks (boundary 4, B17)', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const answers: Array<(e: Error) => void> = [];
+        const fetchFn = vi.fn().mockImplementation(() => new Promise<string>((_, reject) => { answers.push(reject); }));
+        const cache = createCache<string, string>(fetchFn);
+        cache.observe('k').subscribe(() => {});
+        answers[0]!(new Error('lost'));
+        await flush();
+        answers[1]!(new Error('lost'));
+        await flush();
+
+        // A one-shot read asks first, so its awaiter is told of the failure
+        // before the live view's ask that joins it is.
+        const read = cache.fetch('k').then(
+          () => null,
+          () => ({ asked: fetchFn.mock.calls.length, fetching: cache.persistencePending() }),
+        );
+        cache.observe('k').subscribe(() => {});
+        expect(fetchFn).toHaveBeenCalledTimes(3);
+        answers[2]!(new Error('lost again'));
+        expect(await read).toEqual({ asked: 4, fetching: true });
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it('await path is untouched: fetch() rejects without auto-retry (caller owns retry policy)', async () => {
@@ -740,6 +1024,7 @@ describe('Cache — StateUnit axioms', () => {
       surfaces: (cache) => [cache.observe('a'), cache.observe('b')],
       invocations: (cache) => [
         () => cache.set('a', 'set'),
+        () => cache.patch('a', (value) => `${value} patched`),
         () => cache.invalidate('a'),
         () => cache.invalidateAll(),
         () => cache.remove('b', new Error('gone')),

@@ -111,7 +111,7 @@ livenessCases fixtures=do
   refuses "L3" (Live.assertExactlyOnceDelivery qc (pure [Live.Transition,Live.Write]) (subject 2))
   time <- Time.newTime
   (clock,busOptions) <- clockOptions time
-  bracket (Faulty.newFaultyTransport clock [Faulty.DropReply,Faulty.Deliver] Faulty.refuseUnscriptedOperation (Set.fromList Channel.channelNames))
+  bracket (Faulty.newFaultyTransport clock [Faulty.DropReply,Faulty.Deliver] Faulty.refuseUnscriptedOperation (Set.fromList Channel.globalChannels))
     (Transport.dispose . Faulty.carrier) $ \over -> do
       Faulty.queueReply over "browse:kb-requested" [Just (toJSON (description::KbDescription)),Just (toJSON description {kbDescriptionName="next answer"})]
       let ask=Bus.request (Bus.newBus busOptions (Faulty.carrier over)) Channel.BrowseKbRequestedOperation (BrowseKbRequest mempty) 10

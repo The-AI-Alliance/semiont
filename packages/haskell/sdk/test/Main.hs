@@ -60,7 +60,7 @@ import WorkerCases (workerCases)
 import GatewayCases (gatewayCases)
 import HeldCases (heldCases, heldClockCases)
 import SurfaceCases (surfaceCases)
-import ClockCases (clockCensus, clientClockCases, cacheClockCases, httpClockCases, discoveryClockCases)
+import ClockCases (clockCensus, clientClockCases, jobPollClockCases, cacheClockCases, httpClockCases, discoveryClockCases)
 import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
@@ -279,12 +279,6 @@ factCases root = do
       let code = at "code" row
       require "error code codec changed its wire spelling" (roundTripError (Key.toText family) code == Right code)
     require "unknown error code was accepted" (isLeft (roundTripError (Key.toText family) (String "__unknown_test_code")))
-  let bus = at "busRequest" errors
-  forM_ (array (at "codes" bus)) $ \row -> case at "wire" row of
-    String wire -> require "wire error classifier differs from spec" (String (Errors.busRequestCode (Errors.busRequestCodeFromWire (Just wire))) == at "code" row)
-    _ -> pure ()
-  forM_ [Nothing, Just "__unknown_test_code"] $ \wire ->
-    require "unrecognized wire failure lost its declared fallback" (String (Errors.busRequestCode (Errors.busRequestCodeFromWire wire)) == at "unrecognizedFailure" bus)
   let transport = at "transport" errors
       statuses = array (at "codes" transport)
       exact status = [at "code" row | row <- statuses, at "status" row == Number (fromIntegral status)]
@@ -419,8 +413,8 @@ runCases root = do
   failureRows <- forM [row | row <- array (at "codes" busErrors), String _ <- [at "wire" row]] $ \row -> do
     wire <- either (ioError . userError) pure (parseEither parseJSON (at "wire" row))
     code <- either (ioError . userError) pure (parseEither parseJSON (at "code" row))
-    pure (Just wire, code)
-  busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
+    pure (Just wire, code, Just wire)
+  busCases command browse event (failureRows ++ [(Nothing, fallback, Nothing), (Just "__unknown_test_code", fallback, Nothing)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
   registryRuntimeCases fixtures
   testingCases fixtures
@@ -439,9 +433,10 @@ runCases root = do
   followerClock <- followerClockCases root fixtures
   surfaceCases root fixtures
   clientClock <- clientClockCases root fixtures
+  jobPollClock <- jobPollClockCases root fixtures
   refreshCases fixtures
   heldCases fixtures
   heldClock <- heldClockCases root fixtures
-  clockCensus root (concat [saveClock, httpClock, discoveryClock, deviceClock, sessionClock, followerClock, clientClock, heldClock])
+  clockCensus root (concat [saveClock, httpClock, discoveryClock, deviceClock, sessionClock, followerClock, clientClock, jobPollClock, heldClock])
   httpCases root fixtures
   corpusCases root

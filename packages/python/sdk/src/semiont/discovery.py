@@ -31,6 +31,7 @@ from typing import Final, Literal, Protocol, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont.timing import DISCOVERY_INTERVAL_MS
 from semiont.types import DiscoveredKB, DiscoveryDocument
 
 __all__ = [
@@ -48,7 +49,7 @@ __all__ = [
     "text_discovery",
 ]
 
-DISCOVERY_INTERVAL: Final = 5.0
+DISCOVERY_INTERVAL: Final = DISCOVERY_INTERVAL_MS / 1000
 """How often a launcher's document is read again, in seconds, unless a caller says otherwise."""
 
 _VERSION: Final = 1

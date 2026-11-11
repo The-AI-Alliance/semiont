@@ -93,6 +93,10 @@ private val PLAIN: Map<Int, String> = mapOf(0x2018 to "'", 0x2019 to "'", 0x201c
 /** The loose search allows one edit for each this many code points of the quote. */
 private const val ALLOWED_EDITS_ONE_IN = 20
 
+/** The capital sigma, and the small one it becomes where it ends a word. */
+private const val CAPITAL_SIGMA = 0x3a3
+private const val FINAL_SIGMA = 0x3c2
+
 /** A span of the text as its two offsets. */
 private typealias Place = Pair<Int, Int>
 
@@ -161,16 +165,33 @@ private fun normalized(text: IntArray): Changed {
 }
 
 /**
- * `text` in lower case, by Unicode's rule of no language, lower-cased whole: a
- * capital sigma that ends a word becomes the final one, which a character at a
- * time would miss. A character becomes as many code points whole as alone (a
- * capital I with a dot becomes two), and that is what the offsets count from.
+ * `text` in lower case, by Unicode's rule of no language: each character as it
+ * lower-cases alone (a capital I with a dot becomes two code points, which the
+ * offsets count from the one character), but a capital sigma that ends a word
+ * becomes the final one. The JDK decides that sigma by a rule of its own, which
+ * is not Unicode's Cased and Case_Ignorable properties.
  */
 private fun lowerCased(text: IntArray): Changed {
-    val lowered = codePointsOf(text.text().lowercase())
-    val cameFrom = text.withIndex().flatMap { (offset, character) -> List(codePointsOf(intArrayOf(character).text().lowercase()).size) { offset } }
-    check(cameFrom.size == lowered.size) { "a text lower-cased whole is not as long as its characters lower-cased one at a time" }
-    return Changed(lowered, cameFrom.toIntArray())
+    val written = mutableListOf<Int>()
+    val cameFrom = mutableListOf<Int>()
+    for ((offset, character) in text.withIndex()) {
+        val lowered = if (character == CAPITAL_SIGMA && endsWord(text, offset)) intArrayOf(FINAL_SIGMA) else codePointsOf(intArrayOf(character).text().lowercase())
+        for (point in lowered) {
+            written += point
+            cameFrom += offset
+        }
+    }
+    return Changed(written.toIntArray(), cameFrom.toIntArray())
+}
+
+/** Whether the character at `offset` ends a word: the first before it that is not case-ignorable is cased, and the first after it is not. */
+private fun endsWord(text: IntArray, offset: Int): Boolean =
+    casedFirst(text, offset - 1 downTo 0) && !casedFirst(text, offset + 1 until text.size)
+
+/** Whether the first character at `offsets` that is not case-ignorable is cased. */
+private fun casedFirst(text: IntArray, offsets: IntProgression): Boolean {
+    for (at in offsets) if (!caseIgnorable(text[at])) return cased(text[at])
+    return false
 }
 
 /**
@@ -251,7 +272,7 @@ internal fun looser(text: IntArray, exact: String): Pair<List<Place>, MatchQuali
     places(normal.points, wanted).takeIf { it.isNotEmpty() }?.let { return cameFrom(normal, it, wanted.size) to MatchQuality.Normalized }
 
     val lowered = lowerCased(text)
-    val lowerWanted = codePointsOf(exact.lowercase())
+    val lowerWanted = lowerCased(codePointsOf(exact)).points
     places(lowered.points, lowerWanted).takeIf { it.isNotEmpty() }?.let { return cameFrom(lowered, it, lowerWanted.size) to MatchQuality.CaseInsensitive }
 
     return nearestStretch(text, codePointsOf(exact))?.let { listOf(it) to MatchQuality.Fuzzy }

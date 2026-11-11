@@ -80,7 +80,7 @@ pub async fn discover_issuer(
         base_url: gateway(target)?,
         token: watch::channel(None).1,
         refresher: None,
-        channels: Some(Vec::new()),
+        channels: Vec::new(),
         http: http.clone(),
         timing: Timing::default(),
         random: None,

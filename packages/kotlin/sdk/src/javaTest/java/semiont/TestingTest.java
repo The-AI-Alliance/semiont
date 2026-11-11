@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.Test;
 import semiont.bus.BusKt;
 import semiont.bus.Operations;
+import semiont.channels.ChannelsKt;
 import semiont.identifiers.ResourceId;
 import semiont.testing.DeliveryOp;
 import semiont.testing.DeliverySubject;
@@ -121,7 +122,7 @@ final class TestingTest {
 
     @Test
     void aJavaTestAnswersWhatNobodyQueuedAndDrawsItsFaults() throws Exception {
-        FaultyTransport transport = new FaultyTransport(List.of(), (operation, payload) -> new JsonObject(Map.<String, JsonElement>of(
+        FaultyTransport transport = new FaultyTransport(ChannelsKt.getBRIDGED_CHANNELS(), List.of(), (operation, payload) -> new JsonObject(Map.<String, JsonElement>of(
                 "answered", JsonElementKt.JsonPrimitive(operation), "asked", payload)));
         TestClient made = new TestClient(Dispatchers.getDefault(), TimeSource.Monotonic.INSTANCE, transport);
         JsonObject answered = BusKt.requestFuture(made.getClient().getTransport(), Operations.BROWSE_KB_REQUESTED, new JsonObject(Map.of()), 5_000).get(10, SECONDS);
@@ -154,7 +155,7 @@ final class TestingTest {
         assertThrows(ExecutionException.class, () -> gateway.getMediaTokenFuture(resource).get(10, SECONDS));
         assertEquals(List.of("getMediaToken res-1"), gateway.getCalls());
 
-        FaultyTransport transport = new FaultyTransport();
+        FaultyTransport transport = new FaultyTransport(ChannelsKt.getBRIDGED_CHANNELS());
         transport.emitFuture("beckon:sparkle", object("annotationId", "ann-1"), resource, null).get(10, SECONDS);
         assertEquals(resource, transport.getEmitted().get(0).getScope());
         ResourceHold hold = transport.subscribeToResource(resource);

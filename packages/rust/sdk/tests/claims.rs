@@ -103,11 +103,25 @@ fn resource(id: &str) -> ResourceId {
     id.parse().expect("a resource id")
 }
 
+/// What a worker's stream names: the channels it claims by and those it
+/// commits by.
+fn a_workers_channels() -> Vec<&'static str> {
+    JOB_CLAIM_CHANNELS
+        .into_iter()
+        .chain(JOB_COMMIT_CHANNELS)
+        .collect()
+}
+
 /// A client over a transport whose i-th request meets `schedule[i % len]`.
 fn world_meeting(schedule: Vec<FaultAction>) -> World {
+    world_naming(&a_workers_channels(), schedule)
+}
+
+/// The same, over a transport whose stream names `channels`.
+fn world_naming(channels: &[&str], schedule: Vec<FaultAction>) -> World {
     let queue = Arc::new(Queue::default());
     let offered = queue.clone();
-    let transport = FaultyTransport::answering(schedule, move |operation, payload| {
+    let transport = FaultyTransport::answering(channels, schedule, move |operation, payload| {
         let nothing = || format!("nothing is scripted to answer {operation}");
         match operation {
             "job:claim" => offered
@@ -816,8 +830,11 @@ async fn a_stream_that_does_not_name_what_claiming_reads_cannot_carry_a_workers_
     // A worker on such a stream would claim once and never be woken, or never
     // hear a cancellation, with nothing to show for it.
     for channel in JOB_CLAIM_CHANNELS {
-        let w = world();
-        w.transport.unname(channel);
+        let named: Vec<&str> = a_workers_channels()
+            .into_iter()
+            .filter(|named| *named != channel)
+            .collect();
+        let w = world_naming(&named, vec![]);
         let claims = w.claims(everything());
 
         let refusal = claims
@@ -1492,11 +1509,8 @@ async fn any_other_failure_of_the_commits_request_is_returned_as_it_is_and_nothi
 #[tokio::test(start_paused = true)]
 async fn a_worker_whose_stream_does_not_name_the_commit_channels_claims_as_any_other_and_its_commit_fails_as_a_request_on_an_unnamed_reply_channel_does()
  {
-    let w = world();
-    for channel in JOB_COMMIT_CHANNELS {
-        w.transport.unname(channel);
-    }
     // A worker that never commits names nothing more.
+    let w = world_naming(&JOB_CLAIM_CHANNELS, vec![]);
     let (_claims, job) = holding(&w).await;
 
     let failed = job

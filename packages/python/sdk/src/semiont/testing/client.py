@@ -9,6 +9,7 @@ resource, and an operation of the gateway nobody scripted fails naming it.
 from dataclasses import dataclass
 from typing import ClassVar, Final, TypedDict, Unpack, final
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.session import MemorySignIn, SemiontSession, SignInKept
 from semiont.testing.content import InMemoryContent
@@ -48,11 +49,12 @@ def create_test_client(
     """A real `SemiontClient` over a `FaultyTransport`, an `InMemoryContent` and a `StubGateway`.
 
     Each double is the one given, as the test scripted it; absent, one that
-    nothing is scripted to answer and that holds nothing. `timing` and
+    nothing is scripted to answer and that holds nothing, the transport's
+    stream naming a full client's channels, `BRIDGED_CHANNELS`. `timing` and
     `persistence` are the client's own. The client is held with `async with`
     as any other is, and whoever made the transport closes it.
     """
-    over = FaultyTransport() if transport is None else transport
+    over = FaultyTransport(channels=BRIDGED_CHANNELS) if transport is None else transport
     holding = InMemoryContent() if content is None else content
     answering = StubGateway() if gateway is None else gateway
     client = SemiontClient(over, holding, answering, timing=timing, persistence=persistence)

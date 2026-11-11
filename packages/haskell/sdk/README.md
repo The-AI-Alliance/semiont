@@ -682,8 +682,11 @@ work, operation producers and callback tasks using the standard propagation API.
 ## Testing applications
 
 `Semiont.Testing.Transport` scripts answers and faults around the real native
-carrier. Queue typed JSON responses by operation; requests left unscripted fail
-by name. A dropped reply still consumes the peer's answer. `SharedStorage`
+carrier. Give it the global channels it carries, `Semiont.Channels.globalChannels`
+for a full client; like the HTTP transport, it adds the resource-scoped channels
+in the scopes it holds and delivers a frame on no other. Queue typed JSON
+responses by operation; requests left unscripted fail by name. A dropped reply
+still consumes the peer's answer. `SharedStorage`
 gives several contexts atomic access to the same values and notifies only other
 contexts. `createTestSession` builds a real session over a supplied real client.
 `ScriptedSessions` supplies a registry factory and records its transports,

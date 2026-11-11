@@ -4,7 +4,9 @@
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
 use crate::naming;
 use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated, MarkRemoved};
-use semiont::types::{JobFilter, MarkJobFilter, MarkJobFilterParams, YieldJobFilter};
+use semiont::types::{
+    CommandErrorCode, JobFilter, MarkJobFilter, MarkJobFilterParams, YieldJobFilter,
+};
 use semiont_archivist_record::agents::did_to_agent;
 use semiont_archivist_record::{Object, dictionary_order, kb};
 use serde_json::{Value, json};
@@ -85,7 +87,7 @@ pub async fn resource(archivist: &Archivist, request: &Object) -> Answered {
         )),
         None => Err(Refusal {
             message: "Resource not found".to_owned(),
-            code: Some("not-found"),
+            code: Some(CommandErrorCode::NotFound),
         }),
     }
 }

@@ -72,6 +72,9 @@ pub(crate) struct Discriminator {
 pub(crate) struct Shape {
     pub(crate) reference: Option<&'static str>,
     pub(crate) kinds: Option<&'static [Kind]>,
+    /// Of an object's member, the texts it is read as: one that holds a text
+    /// none of these is read as absent.
+    pub(crate) recognized: Option<&'static [&'static str]>,
     pub(crate) enumeration: Option<&'static [Listed]>,
     pub(crate) pattern: Option<&'static [Step]>,
     pub(crate) min_length: Option<usize>,
@@ -95,6 +98,7 @@ pub(crate) struct Shape {
 pub(crate) const NONE: Shape = Shape {
     reference: None,
     kinds: None,
+    recognized: None,
     enumeration: None,
     pattern: None,
     min_length: None,
@@ -257,19 +261,20 @@ fn is_as_stated(shape: &Shape, value: &Value) -> bool {
     }
 }
 
-/// The first fault `value` has as a value of `shape`, from `way`.
-fn fault_at(shape: &'static Shape, value: &Value, way: &str) -> Option<Fault> {
+/// The first fault `value` has as a value of `shape`, from `way`, each
+/// member the table reads as absent left out of it as it is found.
+fn fault_at(shape: &'static Shape, value: &mut Value, way: &str) -> Option<Fault> {
     let own = resolved(shape);
     if !allows(own.kinds, value) || !is_as_stated(own, value) {
         return Some(malformed(way));
     }
-    if let Value::Object(object) = value
+    if let Value::Object(object) = &mut *value
         && let Some(fault) = fault_of_members(own, object, way)
     {
         return Some(fault);
     }
-    if let (Value::Array(items), Some(item)) = (value, own.items)
-        && let Some(fault) = items.iter().find_map(|held| fault_at(item, held, way))
+    if let (Value::Array(items), Some(item)) = (&mut *value, own.items)
+        && let Some(fault) = items.iter_mut().find_map(|held| fault_at(item, held, way))
     {
         return Some(fault);
     }
@@ -283,11 +288,22 @@ fn fault_at(shape: &'static Shape, value: &Value, way: &str) -> Option<Fault> {
         .find_map(|part| fault_at(part, value, way))
 }
 
+/// Whether `held` is a text none of `member`'s recognized texts names: a
+/// member a reader reads as absent.
+fn unrecognized(member: &'static Shape, held: &Value) -> bool {
+    match (resolved(member).recognized, held) {
+        (Some(recognized), Value::String(text)) => !recognized.contains(&text.as_str()),
+        _ => false,
+    }
+}
+
 /// The first fault of an object in the members `shape` requires, in what its
-/// members are, in the members it may not carry, and in its values.
+/// members are, in the members it may not carry, and in its values. A
+/// member that holds a text none of its recognized texts names is no fault:
+/// it is left out of the object.
 fn fault_of_members(
     shape: &'static Shape,
-    object: &Map<String, Value>,
+    object: &mut Map<String, Value>,
     way: &str,
 ) -> Option<Fault> {
     for name in shape.required {
@@ -307,9 +323,12 @@ fn fault_of_members(
         }
     }
     for (name, member) in shape.members {
-        if let Some(held) = object.get(*name).filter(|held| !held.is_null())
-            && let Some(fault) = fault_at(member, held, &within(way, name))
-        {
+        let Some(held) = object.get_mut(*name).filter(|held| !held.is_null()) else {
+            continue;
+        };
+        if unrecognized(member, held) {
+            object.remove(*name);
+        } else if let Some(fault) = fault_at(member, held, &within(way, name)) {
             return Some(fault);
         }
     }
@@ -322,17 +341,18 @@ fn fault_of_members(
         return Some(malformed(&within(way, unnamed)));
     }
     let values = shape.values?;
-    let mut keys: Vec<&String> = object.keys().collect();
-    keys.sort();
-    keys.into_iter()
-        .find_map(|key| fault_at(values, &object[key], way))
+    let mut held: Vec<(&String, &mut Value)> = object.iter_mut().collect();
+    held.sort_by(|a, b| a.0.cmp(b.0));
+    held.into_iter()
+        .find_map(|(_, value)| fault_at(values, value, way))
 }
 
 /// The fault `value` has as one of the variants of `shape`: the variant its
 /// discriminator names, or else each variant whose kinds allow it. None when
 /// one of them has none; the first one's when each has one; and a value no
-/// variant allows is malformed.
-fn fault_of_one_of(shape: &'static Shape, value: &Value, way: &str) -> Option<Fault> {
+/// variant allows is malformed. Each of several variants is tried on a copy
+/// of `value`, and the value is what the one with none leaves of it.
+fn fault_of_one_of(shape: &'static Shape, value: &mut Value, way: &str) -> Option<Fault> {
     let named = shape.discriminator.as_ref().and_then(|discriminator| {
         let stated = value.get(discriminator.property)?.as_str()?;
         discriminator
@@ -349,24 +369,39 @@ fn fault_of_one_of(shape: &'static Shape, value: &Value, way: &str) -> Option<Fa
             .filter(|variant| allows(resolved(variant).kinds, value))
             .collect(),
     };
+    if let [only] = candidates.as_slice() {
+        return fault_at(only, value, way);
+    }
     let mut first = None;
     for candidate in &candidates {
-        let fault = fault_at(candidate, value, way)?;
-        first.get_or_insert(fault);
+        let mut tried = value.clone();
+        match fault_at(candidate, &mut tried, way) {
+            None => {
+                *value = tried;
+                return None;
+            }
+            Some(fault) => {
+                first.get_or_insert(fault);
+            }
+        }
     }
     first.or_else(|| Some(malformed(way)))
 }
 
 /// The first fault `value` has as a value of `shape`, by the rules every SDK
-/// reads the table by; nothing when it has none.
-pub(crate) fn fault_of(shape: &'static Shape, value: &Value) -> Option<Fault> {
+/// reads the table by; nothing when it has none. Each member the table reads
+/// as absent is left out of `value`, so what is decoded of it is what a
+/// reader reads.
+pub(crate) fn fault_of(shape: &'static Shape, value: &mut Value) -> Option<Fault> {
     fault_at(shape, value, "")
 }
 
 /// What every SDK says of the first fault `body` has as the component schema
 /// `T` is generated from, as it refuses it: "it has no \`member\`", "its
 /// \`member\` is malformed", or "it is malformed"; `None` when it has none.
-pub fn fault_said<T: Schema>(body: &Value) -> Option<String> {
+/// Each member the table reads as absent is left out of `body`, as
+/// `fault_of` leaves it out.
+pub fn fault_said<T: Schema>(body: &mut Value) -> Option<String> {
     fault_of(schema(T::NAME), body).map(|fault| fault.to_string())
 }
 
@@ -469,25 +504,26 @@ mod tests {
                 malformed("\u{ff61}"),
             ),
         ];
-        for (name, value, fault) in cases {
-            assert_eq!(fault_of(schema(name), &value), fault, "{name}: {value}");
+        for (name, mut value, fault) in cases {
+            assert_eq!(fault_of(schema(name), &mut value), fault, "{name}: {value}");
         }
     }
 
     #[test]
     fn the_first_fault_of_a_body_is_said_as_every_sdk_says_it() {
-        let user = json!({"did": "did:web:example.org:users:a", "domain": "example.org", "email": null, "name": null, "image": null});
-        assert_eq!(fault_said::<UserResponse>(&user), None);
+        let mut user = json!({"did": "did:web:example.org:users:a", "domain": "example.org", "email": null, "name": null, "image": null});
+        assert_eq!(fault_said::<UserResponse>(&mut user), None);
         assert_eq!(
-            fault_said::<UserResponse>(&json!({"did": "did:web:example.org:users:a"})).as_deref(),
+            fault_said::<UserResponse>(&mut json!({"did": "did:web:example.org:users:a"}))
+                .as_deref(),
             Some("it has no `email`")
         );
         assert_eq!(
-            fault_said::<UserResponse>(&json!({"did": "web", "domain": "example.org", "email": null, "name": null, "image": null})).as_deref(),
+            fault_said::<UserResponse>(&mut json!({"did": "web", "domain": "example.org", "email": null, "name": null, "image": null})).as_deref(),
             Some("its `did` is malformed")
         );
         assert_eq!(
-            fault_said::<UserResponse>(&json!("a user")).as_deref(),
+            fault_said::<UserResponse>(&mut json!("a user")).as_deref(),
             Some("it is malformed")
         );
     }

@@ -27,7 +27,7 @@ internal sealed class CachedPart<TWhole, T>(Cached<TWhole> whole, Func<TWhole, T
 {
     public override async IAsyncEnumerator<CacheState<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        await foreach (var state in whole.WithCancellation(cancellationToken).ConfigureAwait(false))
+        await foreach (var state in whole.WithCancellation(cancellationToken).ConfigureAwait(Spawning.Captures))
         {
             yield return state switch
             {
@@ -39,7 +39,7 @@ internal sealed class CachedPart<TWhole, T>(Cached<TWhole> whole, Func<TWhole, T
     }
 
     public override async Task<T> FreshAsync(CancellationToken cancellation = default) =>
-        part(await whole.FreshAsync(cancellation).ConfigureAwait(false));
+        part(await whole.FreshAsync(cancellation).ConfigureAwait(Spawning.Captures));
 
     public override void Invalidate() => whole.Invalidate();
 }
@@ -57,10 +57,11 @@ internal sealed class CacheEntry<T> : Cached<T>
     private readonly CancellationToken stopped;
     private readonly HashSet<ChannelWriter<CacheState<T>>> readers = [];
     private CacheState<T> state = new CacheState<T>.Pending();
-    private Task<T>? flight;
-    private object? validation;
-    private long writeEpoch;
-    private int activeLoads;
+    // The key's current fetch, until it settles: the one fetch whose answer is stored.
+    private Flight? flight;
+    // The flight a validation waits on, which is the current one, and whether it is the validation's second ask.
+    private Flight? validation;
+    private bool revalidated;
     private bool rehydrated;
     private bool windowOpen;
     private bool owed;
@@ -86,10 +87,10 @@ internal sealed class CacheEntry<T> : Cached<T>
         lock (gate)
         {
             if (closed) throw ClosedError();
-            work = Fetch();
+            work = Fetch().Answer;
         }
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellation, stopped);
-        try { return await work.WaitAsync(waiting.Token).ConfigureAwait(false); }
+        try { return await Spawning.WaitAsync(work, waiting.Token).ConfigureAwait(Spawning.Captures); }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested && stopped.IsCancellationRequested)
         {
             throw ClosedError();
@@ -125,15 +126,19 @@ internal sealed class CacheEntry<T> : Cached<T>
         }
     }
 
-    internal void UpdateIfReady(Func<T, T> update)
+    /// <summary>
+    /// Writes part of the key's value (B13b): <paramref name="change"/> takes the value to the patched one. It applies at
+    /// once to the value the key holds, and is kept with the key's current fetch, whose reply is stored, and given to its
+    /// awaiters, through every change kept with it in the order made. A patch lets go of nothing, and leaves a restored
+    /// value marked for revalidation. A key with neither a value nor a fetch is not changed.
+    /// </summary>
+    internal void Patch(Func<T, T> change)
     {
         lock (gate)
         {
-            if (!closed && state is CacheState<T>.Ready(var value))
-            {
-                ForgetPreviousValue();
-                Ready(update(value));
-            }
+            if (closed) return;
+            if (state is CacheState<T>.Ready(var value)) Ready(change(value));
+            if (flight is { } current) current.Keep(change);
         }
     }
 
@@ -150,7 +155,6 @@ internal sealed class CacheEntry<T> : Cached<T>
 
     private void ForgetPreviousValue()
     {
-        writeEpoch++;
         rehydrated = false;
         flight = null;
         validation = null;
@@ -160,7 +164,7 @@ internal sealed class CacheEntry<T> : Cached<T>
     internal bool IsKnown { get { lock (gate) return Held(); } }
     internal CacheState<T>.Ready? CurrentValue { get { lock (gate) return closed ? null : state as CacheState<T>.Ready; } }
 
-    private bool Held() => !closed && (flight is not null || validation is not null || state is not CacheState<T>.Pending);
+    private bool Held() => !closed && (flight is not null || state is not CacheState<T>.Pending);
 
     private async IAsyncEnumerable<CacheState<T>> ReadAsync([EnumeratorCancellation] CancellationToken cancellation)
     {
@@ -182,7 +186,7 @@ internal sealed class CacheEntry<T> : Cached<T>
         {
             try
             {
-                while (await ReadableAsync(channel.Reader, waiting.Token).ConfigureAwait(false))
+                while (await ReadableAsync(channel.Reader, waiting.Token).ConfigureAwait(Spawning.Captures))
                 {
                     if (waiting.IsCancellationRequested) yield break;
                     if (channel.Reader.TryRead(out var value)) yield return value;
@@ -198,7 +202,7 @@ internal sealed class CacheEntry<T> : Cached<T>
 
     private static async ValueTask<bool> ReadableAsync(ChannelReader<CacheState<T>> reader, CancellationToken cancellation)
     {
-        try { return await reader.WaitToReadAsync(cancellation).ConfigureAwait(false); }
+        try { return await reader.WaitToReadAsync(cancellation).ConfigureAwait(Spawning.Captures); }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return false; }
     }
 
@@ -224,91 +228,80 @@ internal sealed class CacheEntry<T> : Cached<T>
         }
     }
 
-    internal bool Fetching { get { lock (gate) return activeLoads > 0 || validation is not null; } }
+    internal bool Fetching { get { lock (gate) return flight is not null; } }
 
     /// <summary>The key's B19 window is open and holds an invalidation it has not yet run.</summary>
     internal bool RefetchOwed { get { lock (gate) return windowOpen && owed; } }
 
-    private Task<T> Fetch()
+    /// <summary>The key's current fetch, asked if it has none.</summary>
+    private Flight Fetch()
     {
-        if (flight is not null) return flight;
-        var result = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        flight = result.Task;
+        if (flight is { } current) return current;
+        var asked = new Flight();
+        flight = asked;
         rehydrated = false;
-        activeLoads++;
-        var epoch = writeEpoch;
-        _ = Task.Run(() => LoadAsync(result, epoch));
-        _ = ObserveFailureAsync(result.Task);
-        return result.Task;
+        _ = Spawning.Run(() => LoadAsync(asked));
+        _ = ObserveFailureAsync(asked.Answer);
+        return asked;
     }
 
-    private static async Task ObserveFailureAsync(Task work) => await work.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    private static async Task ObserveFailureAsync(Task work) => await work.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
 
-    private async Task LoadAsync(TaskCompletionSource<T> result, long epoch)
+    private async Task LoadAsync(Flight mine)
     {
         try
         {
             stopped.ThrowIfCancellationRequested();
-            var value = await fetch(stopped).ConfigureAwait(false);
-            Finish(() =>
+            var value = await fetch(stopped).ConfigureAwait(Spawning.Captures);
+            Finish(current =>
             {
-                if (closed) result.TrySetException(ClosedError());
-                else
+                if (closed) mine.Result.TrySetException(ClosedError());
+                else if (current)
                 {
-                    if (epoch == writeEpoch) Ready(value);
-                    result.TrySetResult(value);
+                    var patched = mine.Patched(value);
+                    Ready(patched);
+                    mine.Result.TrySetResult(patched);
                 }
-            });
+                else mine.Result.TrySetResult(value);
+            }, null);
         }
-        catch (OperationCanceledException error) { Finish(() => result.TrySetCanceled(error.CancellationToken)); }
-        catch (Exception error) { Finish(() => result.TrySetException(error)); }
+        catch (OperationCanceledException error) { Finish(_ => mine.Result.TrySetCanceled(error.CancellationToken), null); }
+        catch (Exception error) { Finish(_ => mine.Result.TrySetException(error), error); }
 
-        void Finish(Action settle)
+        // Only the key's current fetch writes, through the patches kept with it. One that an invalidate, a write, a
+        // removal or the closing let go of answers whoever awaited it with its own reply, and stores nothing.
+        void Finish(Action<bool> settle, Exception? failure)
         {
             lock (gate)
             {
-                activeLoads--;
-                if (flight == result.Task) flight = null;
-                settle();
+                var current = flight == mine;
+                if (current) flight = null;
+                settle(current);
+                if (validation == mine) Validated(failure);
             }
         }
     }
 
     private void Validate()
     {
-        var chain = new object();
-        validation = chain;
-        _ = ValidateAsync(Fetch(), chain);
+        revalidated = false;
+        validation = Fetch();
     }
 
-    private async Task ValidateAsync(Task<T> work, object chain)
+    /// <summary>Ends a validation in the step that settles the flight it waits on. A first ask that fails is asked once
+    /// more in that step, so the key is never at rest between the two asks; a second that fails fails a key that holds
+    /// no value.</summary>
+    private void Validated(Exception? failure)
     {
-        try
+        validation = null;
+        if (failure is null || closed) return;
+        if (!revalidated)
         {
-            for (var attempt = 0; ; attempt++)
-            {
-                try { await work.ConfigureAwait(false); return; }
-                catch (OperationCanceledException) { return; }
-                catch (Exception error)
-                {
-                    lock (gate)
-                    {
-                        if (closed || validation != chain) return;
-                        if (attempt > 0)
-                        {
-                            if (state is CacheState<T>.Pending) Publish(new CacheState<T>.Failed(error));
-                            return;
-                        }
-                        if (flight == work) flight = null;
-                        work = Fetch();
-                    }
-                }
-            }
+            revalidated = true;
+            validation = Fetch();
+            return;
         }
-        finally
-        {
-            lock (gate) if (validation == chain) validation = null;
-        }
+        if (state is CacheState<T>.Pending) Publish(new CacheState<T>.Failed(failure));
     }
 
     private void InvalidateLocked()
@@ -327,7 +320,7 @@ internal sealed class CacheEntry<T> : Cached<T>
 
     private async Task CloseWindowAsync()
     {
-        try { await Task.Delay(window, clock, stopped).ConfigureAwait(false); }
+        try { await Task.Delay(window, clock, stopped).ConfigureAwait(Spawning.Captures); }
         catch (OperationCanceledException) when (stopped.IsCancellationRequested) { return; }
         lock (gate)
         {
@@ -354,4 +347,15 @@ internal sealed class CacheEntry<T> : Cached<T>
     }
 
     private static BusRequestError ClosedError() => new(ProtocolFacts.BusError("closed"), "The cache is closed.");
+
+    /// <summary>One fetch of the key, and the patches made while it is the key's current fetch, in the order made. They
+    /// go with it: a fetch replaced, let go of or failed applies none.</summary>
+    private sealed class Flight
+    {
+        private readonly List<Func<T, T>> patches = [];
+        internal TaskCompletionSource<T> Result { get; } = new(Spawning.CompletionOptions);
+        internal Task<T> Answer => Result.Task;
+        internal void Keep(Func<T, T> change) => patches.Add(change);
+        internal T Patched(T reply) => patches.Aggregate(reply, (value, change) => change(value));
+    }
 }

@@ -202,7 +202,10 @@ cancelling the follower itself stops observing and leaves the job running.
 
 `job.queued`, `progress`, `complete` and `fail` are independent typed listeners
 that start when asked for. `pollUntilComplete` reports every status through its
-optional callback and bounds requests and sleeps by the caller's deadline.
+optional callback and bounds requests and sleeps by the caller's deadline. Named
+no interval, it asks every `jobPollMs`; named no limit, it fails as timed out
+`jobPollTimeoutMs` after its first ask, as `protocol/specs/src/client/timing.json`
+states them.
 
 Workers configure their HTTP transport with `jobClaimChannels` and add
 `jobCommitChannels` when they write annotations. Iterate `client.job.claim`
@@ -267,8 +270,12 @@ transport, and `ScriptedSessions` with `SharedStorage` for registry tests.
 `assertLivenessAxioms` checks outputs, settlements, and retry budgets over
 repeatable fault schedules. `assertExactlyOnceDelivery` checks event order
 and count across interleaved writes and connection transitions.
-`ScriptedTransport` keeps no deadline: a dropped reply never comes, and the
-client's bus fails the request at its own. A `LivenessSpec`'s `timeout` is the
+`ScriptedTransport` is given its global channels as an HTTP transport is, and
+delivers only those, and a resource-scoped frame only while its resource is held:
+a test of a full client gives it `bridgedChannels`, and a worker's test
+`jobClaimChannels`. It keeps no
+deadline: a dropped reply never comes, and the client's bus fails the request
+at its own. A `LivenessSpec`'s `timeout` is the
 time its composition gives a bus request, so its `setup` builds the client with
 that many milliseconds as its `busRequestTimeoutMs`.
 
@@ -280,6 +287,8 @@ caches and state units, a session's renewals, a registry's sign-ins. Hand the
 SDK a `TestClock` and call `advance(by:)` to end its reconnect backoff,
 deadlines, debounces, renewals and polls when a test says, and hand it a
 generator whose draws are fixed to make each jitter the same on every run.
+The sleepers an advance wakes wake earliest first and, at one instant, in the
+order they slept.
 
 ## Transports, the bus, and telemetry
 
@@ -327,7 +336,7 @@ gives a request up by cancelling its task, which the transport ends.
 
 The HTTP transport uses the caller's AsyncHTTPClient `HTTPClient` for every request. Its default proxy setting is `nil`; it does not read proxy environment variables. Callers configure trust and proxies on that client and shut it down after disposing the transport. The SDK reads only `SEMIONT_BUS_LOG`.
 
-`HttpTransport` exposes connection state, independent lossless `frames` sequences of `Carried` (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Each frame is held to `BusFrame`: one it allows is `Carried.frame`, one it does not that names its channel's readers is `Carried.refused`, and anything else is reported on `failures()`. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
+`HttpTransport` is always given the global channels its stream names, and assumes none of its own: a full client's transport is given `bridgedChannels`, which `SemiontClient.fromHttp` and `sessionFromKept` pass. A request whose reply channels it was not given fails at once as `bus.unsubscribed`. It exposes connection state, independent lossless `frames` sequences of `Carried` (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Each frame is held to `BusFrame`: one it allows is `Carried.frame`, one it does not that names its channel's readers is `Carried.refused`, and anything else is reported on `failures()`. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
 
 ## Working on the SDK
 

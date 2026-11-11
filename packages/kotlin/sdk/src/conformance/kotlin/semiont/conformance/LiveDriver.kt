@@ -32,6 +32,7 @@ import semiont.JobRefused
 import semiont.SemiontClient
 import semiont.cache.CacheState
 import semiont.cache.Cached
+import semiont.channels.BRIDGED_CHANNELS
 import semiont.errors.SemiontError
 import semiont.http.HttpContentTransport
 import semiont.http.HttpTransport
@@ -199,7 +200,7 @@ private class LiveDriver : Driver {
         }
         val (clientTiming, transportTiming) = timings(args)
         val persist = (args["persist"] as? JsonPrimitive)?.booleanOrNull == true
-        val transport = HttpTransport(args.text("baseUrl"), MutableStateFlow(args.text("token")), timing = transportTiming)
+        val transport = HttpTransport(args.text("baseUrl"), MutableStateFlow(args.text("token")), BRIDGED_CHANNELS, timing = transportTiming)
         // Taken at once, so every failure from the first request on is heard.
         val failures = transport.failures()
         val content = HttpContentTransport(transport)

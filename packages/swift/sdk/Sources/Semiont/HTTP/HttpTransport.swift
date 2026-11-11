@@ -49,7 +49,7 @@ public actor HttpTransport: Transport, GatewayOperations {
   var emitTail: Task<Void, Never>?
 
   public init(
-    baseUrl: String, httpClient: HTTPClient, token: String?, channels: [String]? = nil,
+    baseUrl: String, httpClient: HTTPClient, token: String?, channels: [String],
     timing: TransportTiming = TransportTiming(), clock: any Clock<Duration> = ContinuousClock(),
     random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator(),
     refresher: (@Sendable (String?) async throws -> String?)? = nil
@@ -57,7 +57,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     self.baseUrl = baseUrl.hasSuffix("/") ? String(baseUrl.dropLast()) : baseUrl
     self.http = httpClient
     self.token = token
-    self.channels = channels ?? bridgedChannels
+    self.channels = channels
     self.timing = timing
     self.clock = clock
     self.random = RandomSource(random)
@@ -69,7 +69,7 @@ public actor HttpTransport: Transport, GatewayOperations {
       state.finish(with: .closed)
       failures.finish()
     }
-    Task { [weak self] in await self?.start() }
+    spawn { [weak self] in await self?.start() }
   }
   deinit { lifetime.end() }
   public nonisolated func dispose() { lifetime.end() }
@@ -77,7 +77,7 @@ public actor HttpTransport: Transport, GatewayOperations {
 
   public func frames(_ channels: [String]) throws -> Events<Carried> {
     for channel in channels
-    where !self.channels.contains(channel) && !busAudience.scoped.contains(channel) {
+    where !self.channels.contains(channel) && !resourceScopedChannels.contains(channel) {
       throw unsubscribed(channel)
     }
     let id = UUID()
@@ -87,7 +87,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     lifetime.onEnd(id: id) { hub.finish() }
     return hub.listen { [weak self] in
       lifetime.forgetEnding(id)
-      Task { await self?.removeListener(id) }
+      spawn { await self?.removeListener(id) }
     }
   }
   func restoreBookmarks(_ bookmarks: [ResourceId: String]) {
@@ -108,7 +108,7 @@ public actor HttpTransport: Transport, GatewayOperations {
   func start() {
     guard !started, !lifetime.ended else { return }
     started = true
-    lifetime.onEnd { [weak self] in Task { await self?.stopped() } }
+    lifetime.onEnd { [weak self] in spawn { await self?.stopped() } }
     connect(keepingPrevious: false)
   }
   func stopped() {
@@ -119,13 +119,15 @@ public actor HttpTransport: Transport, GatewayOperations {
     pending.removeAll()
     connections.removeAll()
   }
-  func spawn(
+  /// Acts on the transport `milliseconds` from now on its clock, unless its lifetime ends first;
+  /// the id cancels it.
+  func act(
     after milliseconds: Int = 0, _ action: @escaping @Sendable (HttpTransport) async -> Void
   ) -> UUID {
     let id = UUID()
     let lifetime = self.lifetime
     let clock = self.clock
-    let task = Task { [weak self] in
+    let task = spawn { [weak self] in
       defer { lifetime.forget(id) }
       do { try await sleepMilliseconds(milliseconds, on: clock) } catch { return }
       guard !lifetime.ended, let self else { return }
@@ -141,7 +143,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     cancel(degraded)
     degraded = nil
     if next == .reconnecting {
-      degraded = spawn(after: Timings.degradedThresholdMs) { owner in await owner.markDegraded() }
+      degraded = act(after: Timings.degradedThresholdMs) { owner in await owner.markDegraded() }
     }
   }
   func markDegraded() { if state.value == .reconnecting { transition(.degraded) } }
@@ -153,11 +155,11 @@ public actor HttpTransport: Transport, GatewayOperations {
       cancel(removed)
       removed = nil
       cancel(changed)
-      changed = spawn(after: Timings.reconnectDebounceMs) { owner in
+      changed = act(after: Timings.reconnectDebounceMs) { owner in
         await owner.subscriptionChanged()
       }
     }
-    return ResourceHold { [weak self] in Task { await self?.release(resource) } }
+    return ResourceHold { [weak self] in spawn { await self?.release(resource) } }
   }
   func release(_ resource: ResourceId) {
     guard let count = holds[resource] else { return }
@@ -167,7 +169,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     }
     holds.removeValue(forKey: resource)
     if changed == nil, removed == nil {
-      removed = spawn(after: timing.lazyRemoveMs) { owner in await owner.subscriptionChanged() }
+      removed = act(after: timing.lazyRemoveMs) { owner in await owner.subscriptionChanged() }
     }
   }
   func subscriptionChanged() {
@@ -200,7 +202,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     if live == nil { transition(.connecting) }
     let scoped = holds.keys.sorted { $0.value < $1.value }.map { resource in
       BusSubscribeRequestScopedItem(
-        channels: busAudience.scoped, lastEventId: watermarks[resource], scope: resource)
+        channels: resourceScopedChannels, lastEventId: watermarks[resource], scope: resource)
     }
     let body = BusSubscribeRequest(
       clientId: clientID, global: channels, pendingReplies: pending.keys.sorted(), scoped: scoped)
@@ -211,7 +213,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     let bodyDeadline = timing.httpRequestMs
     let clock = self.clock
     let life = lifetime
-    let task = Task { [weak self] in
+    let task = spawn { [weak self] in
       defer { life.forget(id) }
       do {
         var request = HTTPClientRequest(url: base + "/bus/subscribe")
@@ -249,7 +251,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     guard let connection = connections[id], !lifetime.ended else { return }
     superseded.formUnion(connection.previous)
     for old in connection.previous {
-      _ = spawn(after: timing.lingerMs) { owner in await owner.retire(old) }
+      _ = act(after: timing.lingerMs) { owner in await owner.retire(old) }
     }
     live = id
     failuresInARow = 0
@@ -336,7 +338,7 @@ public actor HttpTransport: Transport, GatewayOperations {
       if live == nil { transition(.unauthenticated) }
       if refresher != nil, !askedRefresh {
         askedRefresh = true
-        _ = spawn { owner in
+        _ = act { owner in
           _ = try? await owner.renew(refused: connection.token)
           await owner.reconnect()
         }
@@ -365,7 +367,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     for _ in 0..<min(failuresInARow, 20) { cap = min(cap * 2, Timings.maxReconnectMs) }
     failuresInARow += 1
     cancel(retry)
-    retry = spawn(after: max(equalJitter(cap, from: random), floor)) { owner in
+    retry = act(after: max(equalJitter(cap, from: random), floor)) { owner in
       await owner.retryConnect(keepingPrevious: keepPrevious)
     }
   }
@@ -378,7 +380,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     if let renewal { return try await sharedValue(renewal.1, lifetime: lifetime) }
     guard let refresher else { return nil }
     let id = UUID()
-    let task = Task { [weak self] in
+    let task = spawn { [weak self] in
       do {
         let result = try await refresher(refused)
         await self?.renewed(id, token: result)

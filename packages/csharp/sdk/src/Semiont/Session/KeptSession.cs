@@ -58,13 +58,13 @@ internal sealed class KeptSession : IDisposable
         {
             validate = async (token, cancellation) =>
             {
-                var user = await Gateway.GetCurrentUserAsync(origin, token, httpClient, clock, cancellation).ConfigureAwait(false);
-                await answered(token, user, cancellation).ConfigureAwait(false);
+                var user = await Gateway.GetCurrentUserAsync(origin, token, httpClient, clock, cancellation).ConfigureAwait(Spawning.Captures);
+                await answered(token, user, cancellation).ConfigureAwait(Spawning.Captures);
                 return user;
             };
         }
         states.Publish(state);
-        ready = Task.Run(StartAsync);
+        ready = Spawning.Run(StartAsync);
     }
 
     internal KeptSession(ISignInKept kept, Func<string?, CancellationToken, Task<string?>> renew,
@@ -78,14 +78,14 @@ internal sealed class KeptSession : IDisposable
         this.clock = clock;
         this.random = random;
         states.Publish(state);
-        ready = Task.Run(StartAsync);
+        ready = Spawning.Run(StartAsync);
     }
 
     public SessionState State => Volatile.Read(ref state);
     public SessionEndReason? EndReason { get; private set; }
     public IAsyncEnumerable<SessionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
     public IAsyncEnumerable<SemiontError> Errors(CancellationToken cancellation = default) => errors.Observe(cancellation);
-    public Task ReadyAsync(CancellationToken cancellation = default) => ready.WaitAsync(cancellation);
+    public Task ReadyAsync(CancellationToken cancellation = default) => Spawning.WaitAsync(ready, cancellation);
 
     /// <summary>Says <paramref name="error"/>, a failure of the transport the session's token is sent by, on its errors.</summary>
     internal void Say(SemiontError error) => errors.Publish(error);
@@ -97,10 +97,10 @@ internal sealed class KeptSession : IDisposable
         lock (gate)
         {
             lifetime.Token.ThrowIfCancellationRequested();
-            if (renewal is null || renewal.IsCompleted) renewal = Task.Run(() => RefusedAsync(refused));
+            if (renewal is null || renewal.IsCompleted) renewal = Spawning.Run(() => RefusedAsync(refused));
             shared = renewal;
         }
-        return await shared.WaitAsync(cancellation).ConfigureAwait(false);
+        return await Spawning.WaitAsync(shared, cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     internal void SetOfflineToken(string? token)
@@ -129,14 +129,14 @@ internal sealed class KeptSession : IDisposable
         unanswered = false;
         ended = true;
         Set(null, null);
-        await ForgetStoredAsync().ConfigureAwait(false);
+        await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
         EndReason = reason;
         Report(code);
     }
 
     private async Task ForgetStoredAsync()
     {
-        try { await kept.ForgetAsync(lifetime.Token).ConfigureAwait(false); }
+        try { await kept.ForgetAsync(lifetime.Token).ConfigureAwait(Spawning.Captures); }
         catch (Exception error) when (error is not OperationCanceledException) { Report("auth-failed", error); }
     }
 
@@ -147,10 +147,10 @@ internal sealed class KeptSession : IDisposable
         {
             string? holding;
             lock (gate) holding = renewing;
-            var token = await renew(holding, lifetime.Token).ConfigureAwait(false);
+            var token = await renew(holding, lifetime.Token).ConfigureAwait(Spawning.Captures);
             lifetime.Token.ThrowIfCancellationRequested();
             unanswered = false;
-            if (token is null && await kept.HeldAsync(lifetime.Token).ConfigureAwait(false) is null)
+            if (token is null && await kept.HeldAsync(lifetime.Token).ConfigureAwait(Spawning.Captures) is null)
             {
                 ended = true;
                 Set(null, null);
@@ -172,9 +172,9 @@ internal sealed class KeptSession : IDisposable
             {
                 ended = true;
                 Set(null, null);
-                await ForgetStoredAsync().ConfigureAwait(false);
+                await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
             }
-            else await EndAsync(SessionEndReason.Expired, "refresh-exhausted").ConfigureAwait(false);
+            else await EndAsync(SessionEndReason.Expired, "refresh-exhausted").ConfigureAwait(Spawning.Captures);
             return null;
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -190,15 +190,15 @@ internal sealed class KeptSession : IDisposable
 
     private async Task StartAsync()
     {
-        await operations.WaitAsync(lifetime.Token).ConfigureAwait(false);
+        await Spawning.WaitAsync(operations, lifetime.Token).ConfigureAwait(Spawning.Captures);
         try
         {
-            var found = await kept.HeldAsync(lifetime.Token).ConfigureAwait(false);
+            var found = await kept.HeldAsync(lifetime.Token).ConfigureAwait(Spawning.Captures);
             if (offline) { Set(found?.Access, null); return; }
             if (found is null) { ended = true; return; }
             lock (gate) renewing = found.Access;
             var issued = Tokens.IsTokenExpired(found.Access, clock.GetUtcNow().ToUnixTimeMilliseconds() / 1000d);
-            var token = issued ? await RenewCoreAsync(starting: true).ConfigureAwait(false) : found.Access;
+            var token = issued ? await RenewCoreAsync(starting: true).ConfigureAwait(Spawning.Captures) : found.Access;
             if (token is null) return;
             Set(token, null);
             if (validate is null) return;
@@ -206,14 +206,14 @@ internal sealed class KeptSession : IDisposable
             {
                 try
                 {
-                    var user = await validate(token, lifetime.Token).ConfigureAwait(false);
+                    var user = await validate(token, lifetime.Token).ConfigureAwait(Spawning.Captures);
                     Set(token, user);
                     return;
                 }
                 catch (TransportError error) when (error.Code == ProtocolFacts.Error(401))
                 {
-                    if (issued) { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(false); return; }
-                    token = await RenewCoreAsync().ConfigureAwait(false);
+                    if (issued) { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(Spawning.Captures); return; }
+                    token = await RenewCoreAsync().ConfigureAwait(Spawning.Captures);
                     if (token is null) return;
                     issued = true;
                 }
@@ -229,17 +229,17 @@ internal sealed class KeptSession : IDisposable
 
     private async Task<string?> RefusedAsync(string? refused)
     {
-        await ready.ConfigureAwait(false);
-        await operations.WaitAsync(lifetime.Token).ConfigureAwait(false);
+        await ready.ConfigureAwait(Spawning.Captures);
+        await Spawning.WaitAsync(operations, lifetime.Token).ConfigureAwait(Spawning.Captures);
         try
         {
             if (ended) return null;
             if (State.Token != refused) return State.Token;
-            var token = await RenewCoreAsync().ConfigureAwait(false);
+            var token = await RenewCoreAsync().ConfigureAwait(Spawning.Captures);
             if (token is null || validate is null) return token;
-            try { Set(token, await validate(token, lifetime.Token).ConfigureAwait(false)); }
+            try { Set(token, await validate(token, lifetime.Token).ConfigureAwait(Spawning.Captures)); }
             catch (TransportError error) when (error.Code == ProtocolFacts.Error(401))
-            { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(false); }
+            { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(Spawning.Captures); }
             catch (SemiontError)
             {
                 // An unanswered identity request refuses nothing; keep the renewed token and last confirmed user.
@@ -262,27 +262,27 @@ internal sealed class KeptSession : IDisposable
                 var seconds = token is not null ? Tokens.RefreshDelay(token, clock.GetUtcNow().ToUnixTimeMilliseconds() / 1000d) : null;
                 if (!retrying && seconds is null)
                 {
-                    await changed.Reader.ReadAsync(lifetime.Token).ConfigureAwait(false);
+                    await changed.Reader.ReadAsync(lifetime.Token).ConfigureAwait(Spawning.Captures);
                     continue;
                 }
                 var delay = retrying ? Retry.EqualJitter(TimeSpan.FromMilliseconds(step), random) : TimeSpan.FromSeconds(seconds ?? throw new InvalidOperationException("No renewal delay"));
                 using var waiting = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 var timer = Task.Delay(delay, clock, waiting.Token);
-                var change = changed.Reader.WaitToReadAsync(waiting.Token).AsTask();
-                var completed = await Task.WhenAny(timer, change).ConfigureAwait(false);
-                await waiting.CancelAsync().ConfigureAwait(false);
+                var change = Spawning.AsTask(changed.Reader.WaitToReadAsync(waiting.Token));
+                var completed = await Spawning.WhenAny(timer, change).ConfigureAwait(Spawning.Captures);
+                await Spawning.CancelAsync(waiting).ConfigureAwait(Spawning.Captures);
                 if (completed != timer) continue;
-                await timer.ConfigureAwait(false);
-                await operations.WaitAsync(lifetime.Token).ConfigureAwait(false);
+                await timer.ConfigureAwait(Spawning.Captures);
+                await Spawning.WaitAsync(operations, lifetime.Token).ConfigureAwait(Spawning.Captures);
                 try
                 {
                     if (ended) return;
                     if (retrying != unanswered || State.Token != token) continue;
-                    var renewed = await RenewCoreAsync().ConfigureAwait(false);
+                    var renewed = await RenewCoreAsync().ConfigureAwait(Spawning.Captures);
                     if (renewed is not null && retrying && State.User is null && validate is not null)
                     {
-                        try { Set(renewed, await validate(renewed, lifetime.Token).ConfigureAwait(false)); }
-                        catch (TransportError error) when (error.Code == ProtocolFacts.Error(401)) { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(false); }
+                        try { Set(renewed, await validate(renewed, lifetime.Token).ConfigureAwait(Spawning.Captures)); }
+                        catch (TransportError error) when (error.Code == ProtocolFacts.Error(401)) { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(Spawning.Captures); }
                         catch (SemiontError error) { Report("auth-failed", error); }
                     }
                 }

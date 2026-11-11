@@ -17,9 +17,55 @@ public struct RequestAttempt: Sendable {
   public let action: FaultAction
 }
 
+/// What a double's stream is subscribed to, as a gateway holds a stream to what it subscribed: the
+/// global channels it was given, and each resource whose scope it holds, once for every hold not
+/// yet released.
+package final class Subscription: Sendable {
+  private let channels: [String]
+  private let held = Mutex<[ResourceId: Int]>([:])
+
+  package init(channels: [String]) { self.channels = channels }
+
+  /// How many holds are not yet released, over every resource.
+  package var holds: Int { held.withLock { $0.values.reduce(0, +) } }
+
+  /// Whether a frame reaches the stream: one with a scope on a resource-scoped channel while that
+  /// scope is held, and one with none on a channel it was given.
+  package func carries(_ carried: Carried) -> Bool {
+    guard let scope = carried.scope else { return channels.contains(carried.channel) }
+    return resourceScopedChannels.contains(carried.channel) && held.withLock { $0[scope] != nil }
+  }
+
+  /// The first of `channels` the stream can never carry: one neither given nor resource-scoped. A
+  /// resource-scoped channel is read with no scope held, and carries nothing until one is.
+  package func unreadable(_ channels: [String]) -> String? {
+    channels.first { !self.channels.contains($0) && !resourceScopedChannels.contains($0) }
+  }
+
+  /// The first reply channel of `operation` it was not given.
+  package func unanswered(_ operation: String) -> String? {
+    replyChannelsFor([operation]).first { !channels.contains($0) }
+  }
+
+  /// Holds `resource`'s scope until the hold is disposed; disposing it again releases nothing more.
+  package func hold(_ resource: ResourceId) -> ResourceHold {
+    held.withLock { $0[resource, default: 0] += 1 }
+    return ResourceHold { [self] in
+      held.withLock { held in
+        guard let count = held[resource] else {
+          preconditionFailure("\(resource.value) was released more often than it was held")
+        }
+        held[resource] = count > 1 ? count - 1 : nil
+      }
+    }
+  }
+}
+
 /// A transport for composing SDK clients without a network. Faults are consumed in request order.
 /// It keeps no deadline: a dropped reply never comes, and the bus that asked fails the request at
-/// its own.
+/// its own. As a real transport, it is given its global channels and assumes none of its own: it
+/// delivers those, and a resource-scoped frame only while its scope is held, and refuses a read or a
+/// request of another.
 public final class ScriptedTransport: Transport {
   private struct State: Sendable {
     var attempts: [RequestAttempt] = []
@@ -30,6 +76,7 @@ public final class ScriptedTransport: Transport {
 
   public let baseUrl: String
   public let state = Watched<ConnectionState>(.open)
+  private let subscription: Subscription
   private let events = Broadcast<Carried>()
   private let errors = Broadcast<TransportError>()
   private let wire = Mutex(State())
@@ -38,9 +85,10 @@ public final class ScriptedTransport: Transport {
   private let respond: Respond
 
   public init(
-    baseUrl: String = "http://localhost:4000", schedule: [FaultAction] = [],
+    channels: [String], baseUrl: String = "http://localhost:4000", schedule: [FaultAction] = [],
     clock: any Clock<Duration> = ContinuousClock(), respond: Respond? = nil
   ) {
+    self.subscription = Subscription(channels: channels)
     self.baseUrl = baseUrl
     self.schedule = schedule
     self.clock = clock
@@ -56,15 +104,19 @@ public final class ScriptedTransport: Transport {
     wire.withLock { if !$0.closed { $0.queued[operation, default: []].append(reply) } }
   }
 
-  /// Deliver a frame, or a frame's refusal in its place, as the transport's stream would.
-  public func deliver(_ carried: Carried) { events.yield(carried) }
+  /// Deliver a frame, or a frame's refusal in its place, as the transport's stream would: one with
+  /// no scope on a channel it was not given, or with a scope it does not hold, never reaches it.
+  public func deliver(_ carried: Carried) {
+    if subscription.carries(carried) { events.yield(carried) }
+  }
 
   public func frames(_ channels: [String]) async throws -> Events<Carried> {
+    if let channel = subscription.unreadable(channels) { throw unsubscribed(channel) }
     let source = events.listen()
     guard !channels.isEmpty else { return source }
     let selected = Set(channels)
     let (stream, continuation) = AsyncThrowingStream<Carried, any Error>.makeStream()
-    let task = Task {
+    let task = spawn {
       do {
         for try await carried in source where selected.contains(carried.channel) {
           continuation.yield(carried)
@@ -81,7 +133,9 @@ public final class ScriptedTransport: Transport {
     return Events(stream, stop: { continuation.finish() })
   }
 
-  public func subscribeToResource(_ resource: ResourceId) async -> ResourceHold { ResourceHold {} }
+  public func subscribeToResource(_ resource: ResourceId) async -> ResourceHold {
+    subscription.hold(resource)
+  }
 
   public func emit(
     channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
@@ -94,6 +148,7 @@ public final class ScriptedTransport: Transport {
   public func request(operation: String, payload: [String: JSONValue]) async throws
     -> [String: JSONValue]
   {
+    if let channel = subscription.unanswered(operation) { throw unsubscribed(channel) }
     try Task.checkCancellation()
     let id = UUID()
     let task = try wire.withLock { wire -> Task<[String: JSONValue], any Error> in
@@ -103,7 +158,7 @@ public final class ScriptedTransport: Transport {
       wire.attempts.append(RequestAttempt(operation: operation, payload: payload, action: action))
       let reply = wire.queued[operation]?.first
       if reply != nil { wire.queued[operation]?.removeFirst() }
-      let task = Task { [clock, respond, events] in
+      let task = spawn { [clock, respond, events, subscription] in
         switch action {
         case .rejectEmit:
           throw BusRequestError(.busPeerUnavailable, "The scripted wire rejected \(operation)")
@@ -123,9 +178,12 @@ public final class ScriptedTransport: Transport {
         if let reply { answer = reply } else { answer = try await respond(operation, payload) }
         try Task.checkCancellation()
         if let channel = replyChannelsFor([operation]).first {
-          let frame = ReceivedFrame(channel: channel, correlationId: id.uuidString, payload: answer)
-          events.yield(.frame(frame))
-          if action == .duplicateReply { events.yield(.frame(frame)) }
+          let carried = Carried.frame(
+            ReceivedFrame(channel: channel, correlationId: id.uuidString, payload: answer))
+          if subscription.carries(carried) {
+            events.yield(carried)
+            if action == .duplicateReply { events.yield(carried) }
+          }
         }
         return answer
       }

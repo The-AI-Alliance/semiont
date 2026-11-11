@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 import { ocamlString } from '../lib/ocaml-source.mjs';
 import { readCacheRefresh } from "../schemas/cache-refresh-table.mjs";
+import { readErrorCodes } from '../schemas/error-codes-table.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/LICENSE'),
@@ -54,12 +55,19 @@ const routes = Object.entries(names).map(([name, id]) => {
   const { path, method } = operations.get(id);
   return `let ${name} = (${ocamlString(method.toUpperCase())}, ${ocamlString(path)})`;
 });
-const { transport, busRequest } = readSpec('errors/codes.json');
-const statusCode = transport.codes.flatMap(({ code, status, statusFrom }) =>
+const { transportCodes, unclassified, busByWire, unrecognized } = readErrorCodes(
+  resolve(specRoot, 'errors/codes.json'), resolve(specRoot, 'components/schemas/CommandError.json'),
+  (message) => { throw new Error(`errors/codes.json: ${message}`); });
+const statusCode = transportCodes.flatMap(({ code, status, statusFrom }) =>
   status !== undefined ? [`  | ${status} -> ${ocamlString(code)}`]
     : statusFrom !== undefined ? [`  | status when status >= ${statusFrom} -> ${ocamlString(code)}`] : []);
-const busCode = busRequest.codes.flatMap(({ code, wire }) =>
-  wire === undefined ? [] : [`  | Some ${ocamlString(wire)} -> ${ocamlString(code)}`]);
+// CommandError's codes, each the bus request code it becomes: the table reader refuses a code either side
+// leaves unmapped.
+const failureCodes = [...busByWire].map(([wire, code]) => {
+  const constructor = wire[0].toUpperCase() + wire.slice(1).replaceAll('-', '_');
+  if (!/^[A-Z][a-z0-9_]*$/.test(constructor)) throw new Error(`CommandError's code ${wire} names no OCaml constructor`);
+  return { wire, code, constructor };
+});
 const retryStatuses = [...new Set(readSpec('retry/cases.json').rules
   .filter((row) => row.rule === 'transport' && row.retries && row.status !== undefined)
   .map((row) => row.status))].sort((a, b) => a - b);
@@ -68,8 +76,16 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/http_facts.ml'),
   [
     '(* Generated from OpenAPI paths, error codes and retry cases. Do not edit. *)',
     '', '[@@@ocamlformat "disable"]', '', ...routes,
-    'let status_code = function', ...statusCode, `  | _ -> ${ocamlString(transport.unclassified)}`,
-    'let bus_failure = function', ...busCode, `  | _ -> ${ocamlString(busRequest.unrecognizedFailure)}`,
+    'let status_code = function', ...statusCode, `  | _ -> ${ocamlString(unclassified.code)}`,
+    'module Failure_code = struct',
+    `  type t = ${failureCodes.map(({ constructor }) => constructor).join(' | ')}`,
+    '  let of_wire = function',
+    ...failureCodes.map(({ wire, constructor }) => `    | ${ocamlString(wire)} -> ${constructor}`),
+    `    | code -> invalid_arg ("a failure's code \\"" ^ code ^ "\\" is none of CommandError's: the reader leaves such a code out")`,
+    'end',
+    'let bus_failure = function',
+    `  | None -> ${ocamlString(unrecognized.code)}`,
+    ...failureCodes.map(({ code, constructor }) => `  | Some Failure_code.${constructor} -> ${ocamlString(code)}`),
     `let retry_statuses = [${retryStatuses.join('; ')}]`,
     `let upload_fields = [${uploadFields.map(ocamlString).join('; ')}]`, '',
   ].join('\n'), process.argv.includes('--check'));

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { faultOf, faultOfShape, said, type Fault, type Shape } from '../required';
+import { faultOf, readOfShape, said, type Fault, type Shape } from '../required';
 
 const lacks = (member: string): Fault => ({ member, reason: 'lacks' });
 const malformed = (member: string): Fault => ({ member, reason: 'malformed' });
@@ -48,9 +48,12 @@ describe('faultOf', () => {
   });
 });
 
-describe('faultOfShape', () => {
+describe('readOfShape', () => {
   const faultsAs = (shape: Shape, cases: readonly (readonly [string, Fault | undefined])[]): void => {
-    for (const [text, fault] of cases) expect(faultOfShape(shape, JSON.parse(text)), text).toEqual(fault);
+    for (const [text, fault] of cases) {
+      const reading = readOfShape(shape, JSON.parse(text));
+      expect('fault' in reading ? reading.fault : undefined, text).toEqual(fault);
+    }
   };
 
   it('holds a value to its values, its form and its size', () => {
@@ -105,6 +108,15 @@ describe('faultOfShape', () => {
       ['{}', undefined],
       ['{"x":1}', malformed('x')],
     ]);
+  });
+
+  it('reads a member that holds a text none of its recognized texts as absent, wherever it is, and leaves the rest as it is', () => {
+    const coded: Shape = { kinds: ['object'], members: { code: { kinds: ['string'], recognized: ['not-found'] } } };
+    const shape: Shape = { kinds: ['array'], items: { allOf: [coded, { kinds: ['object'], required: ['message'] }] } };
+    const value = [{ message: 'a', code: 'not-found' }, { message: 'b', code: 'not-invented-yet' }];
+    expect(readOfShape(shape, value)).toEqual({ read: [{ message: 'a', code: 'not-found' }, { message: 'b' }] });
+    expect(value[1]).toEqual({ message: 'b', code: 'not-invented-yet' });
+    expect(readOfShape(shape, [{ message: 'c', code: 7 }])).toEqual({ fault: malformed('code') });
   });
 });
 

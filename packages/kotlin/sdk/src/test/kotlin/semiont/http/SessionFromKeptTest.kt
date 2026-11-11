@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.cache.CacheState
 import semiont.cache.PERSISTED_QUERIES
-import semiont.channels.BRIDGED_CHANNELS
 import semiont.errors.SemiontError
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
@@ -682,7 +681,7 @@ class SessionFromKeptTest {
     fun forJavaASessionFromKeptIsOpenedWithNoCallbackForWhatWentWrong() {
         Realm().use { realm ->
             // What went wrong is read from the session's errors: the entry point for Java takes no callback for it either.
-            sessionFromKeptFuture(kb(realm), MemorySignIn(), true, BRIDGED_CHANNELS, null, null).get(10, TimeUnit.SECONDS).use { opened ->
+            sessionFromKeptFuture(kb(realm), MemorySignIn(), true, null, null).get(10, TimeUnit.SECONDS).use { opened ->
                 assertNull(opened.session.token.value)
                 assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
             }

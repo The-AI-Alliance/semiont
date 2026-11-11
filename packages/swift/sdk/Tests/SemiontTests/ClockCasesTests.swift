@@ -289,8 +289,8 @@ private struct Gateway: Sendable {
     }
     let loopback = try await Loopback.open(ledger)
     let transport = HttpTransport(
-      baseUrl: loopback.base, httpClient: loopback.http, token: "a-token", clock: clock,
-      random: LowestDraw())
+      baseUrl: loopback.base, httpClient: loopback.http, token: "a-token",
+      channels: bridgedChannels, clock: clock, random: LowestDraw())
     return Gateway(stream: stream, ledger: ledger, loopback: loopback, transport: transport)
   }
 
@@ -589,7 +589,8 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
     HeldSignIn(
       access: try token(), clientId: scriptClientID, refresh: "a-refresh-token",
       tokenEndpoint: "http://issuer.test/realms/semiont/token"))
-  let client = try await SemiontClient(transport: ScriptedTransport(clock: clock), clock: clock)
+  let client = try await SemiontClient(
+    transport: ScriptedTransport(channels: bridgedChannels, clock: clock), clock: clock)
   let session = SemiontSession(
     kb: alphaKb, client: client, kept: kept, forget: { await kept.forget() },
     renew: { _ in
@@ -616,7 +617,7 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
 /// begins; `act` reports that job's progress.
 private func heldJobStall(_ given: [String: JSONValue], _ clock: TestClock) async throws -> Subject
 {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: jobClaimChannels)
   surfaceReplies(probe, cloneAnswer: nil)
   let client = try await SemiontClient(transport: probe, clock: clock)
   let claims = client.job.claim(
@@ -680,7 +681,7 @@ private func requested(_ probe: ProbeTransport, _ operation: String) -> Int {
 private func invalidationWindow(_ given: [String: JSONValue], _ clock: TestClock) async throws
   -> Subject
 {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   surfaceReplies(probe, cloneAnswer: nil)
   let client = try await SemiontClient(transport: probe, clock: clock)
   let resource = try ResourceId("res-1")
@@ -737,7 +738,7 @@ private func saveDebounce(_ given: [String: JSONValue], _ clock: TestClock) asyn
 /// A client's `mark.delegate`, over a transport that answers `job:create` with a job and every
 /// status request with that job running; `act` delivers from the wire a progress report of it.
 private func jobFollower(_ given: [String: JSONValue], _ clock: TestClock) async throws -> Subject {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.handle { operation, _ in
     switch operation {
     case Operations.jobCreate.request.name: return try jobCreatedFixture()
@@ -767,6 +768,63 @@ private func jobFollower(_ given: [String: JSONValue], _ clock: TestClock) async
     })
 }
 
+/// A client's `job.pollUntilComplete` of one job, naming no interval and no limit, set going as the
+/// case begins, over a transport that answers every status request with that job running; how it
+/// ended, once it has; and the task that polls.
+private func polling(_ clock: TestClock) async throws -> (
+  ProbeTransport, SemiontClient, Ended, Task<Void, Never>
+) {
+  let probe = ProbeTransport(channels: bridgedChannels)
+  probe.handle { operation, _ in
+    guard operation == Operations.jobStatusRequested.request.name else {
+      throw SpecFailure.shape("Unscripted request: \(operation)")
+    }
+    return try wirePayload(JobStatusResult(response: statusFixture(status: .running)))
+  }
+  let client = try await SemiontClient(transport: probe, clock: clock)
+  let ended = Ended()
+  let asking = Task {
+    do {
+      _ = try await client.job.pollUntilComplete(JobId("job-1"))
+      ended.tell(.answered)
+    } catch let failure as BusRequestError where failure.reason == .busTimeout {
+      ended.tell(.timedOut)
+    } catch {
+      ended.tell(.otherwise("\(error)"))
+    }
+  }
+  return (probe, client, ended, asking)
+}
+
+private func jobPoll(_ given: [String: JSONValue], _ clock: TestClock) async throws -> Subject {
+  // How the poll ends is what jobPollTimeout counts.
+  let (probe, client, _, asking) = try await polling(clock)
+  let asked = Operations.jobStatusRequested.request.name
+  return Subject(
+    counted: { requested(probe, asked) }, activity: { probe.calls.count }, pending: { nil },
+    act: nil,
+    close: {
+      asking.cancel()
+      client.dispose()
+    })
+}
+
+private func jobPollTimeout(_ given: [String: JSONValue], _ clock: TestClock) async throws
+  -> Subject
+{
+  let (probe, client, ended, asking) = try await polling(clock)
+  return Subject(
+    counted: { ended.value == .timedOut ? 1 : 0 },
+    activity: { probe.calls.count + (ended.value == nil ? 0 : 1) }, pending: { nil }, act: nil,
+    close: {
+      asking.cancel()
+      client.dispose()
+      if case .otherwise(let failure) = ended.value {
+        throw ClockCaseFailure("The poll ended otherwise: \(failure)")
+      }
+    })
+}
+
 private let subjects: [String: Build] = [
   "refusedStream": refusedStream,
   "unansweredStream": unansweredStream,
@@ -785,6 +843,8 @@ private let subjects: [String: Build] = [
   "unansweredEmit": unansweredEmit,
   "refusedBusRequest": refusedBusRequest,
   "timedOutBusRequest": timedOutBusRequest,
+  "jobPoll": jobPoll,
+  "jobPollTimeout": jobPollTimeout,
 ]
 
 // ── A case, played ──────────────────────────────────────────────────────

@@ -12,8 +12,10 @@ import Testing
 // followed by a line that names no channel and a frame of `beckon:focus` read cleanly. What the
 // transport delivers, what a typed read of the case's channel is given, what the failure report is
 // told before that line, and what becomes of a request awaiting the case's reply are each held to
-// the case; the frame's coming shows the stream went on. A request chooses its own correlation id,
-// so a request's case is carried with that id in place of the table's.
+// the case; the frame's coming shows the stream went on. A delivered frame on a channel this
+// runner reads by type is read so too, and what its typed reader reads is held to the case's
+// `read`, or to the payload as the frame states it. A request chooses its own correlation id, so a
+// request's case is carried with that id in place of the table's.
 
 /// The channel every case told to its readers is on but a request's, read here by type.
 private let read = Channels.beckonFocus
@@ -21,6 +23,35 @@ private let read = Channels.beckonFocus
 /// The replies a request's case awaits, of `browse:resource-requested`: the first is the channel
 /// its readers are told on.
 private let replies = [Channels.browseResourceResult.name, Channels.browseResourceFailed.name]
+
+/// A typed reader of one channel over a transport, made before the case's line is carried.
+private struct TypedReading: Sendable {
+  /// What it reads of the first frame it is given: the payload it decoded, as the wire states it,
+  /// or nil for a refusal.
+  let first: @Sendable () async throws -> JSONValue?
+}
+
+private func readingByType<Payload>(_ channel: Semiont.Channel<Payload>)
+  -> @Sendable (HttpTransport) async throws -> TypedReading
+{
+  { transport in
+    let typed = try await Bus(transport).frames(channel)
+    return TypedReading {
+      guard case .delivered(let delivered)? = try await first(1, of: typed).first else {
+        return nil
+      }
+      return .object(try wirePayload(delivered.payload))
+    }
+  }
+}
+
+/// The channels a delivered case's payload is read on by type, as the table names them, and their
+/// typed readers.
+private let typedReaders: [String: @Sendable (HttpTransport) async throws -> TypedReading] = [
+  read.name: readingByType(read),
+  Channels.browseResourceFailed.name: readingByType(Channels.browseResourceFailed),
+  Channels.gatherFailed.name: readingByType(Channels.gatherFailed),
+]
 
 /// The correlation id the table names the request awaiting a case's reply by.
 private let awaited = "c-1"
@@ -113,7 +144,7 @@ private func carrying(_ run: @Sendable (HttpTransport) async throws -> Void) asy
   let http = HTTPClient(eventLoopGroupProvider: .singleton)
   let transport = HttpTransport(
     baseUrl: "http://127.0.0.1:\(port)", httpClient: http, token: nil,
-    channels: [read.name] + replies)
+    channels: Set(typedReaders.keys).union(replies).sorted())
   await transport.openedForTest()
   do {
     try await run(transport)
@@ -182,10 +213,19 @@ private func awaitingReply(_ transport: HttpTransport) async throws -> (
 @Test func aFrameBusFrameAllowsIsDeliveredAsItStatesIt() async throws {
   for value in try frameCases() where value["refused"] == nil {
     let why = try required(value, "why").text
-    #expect(Set(value.keys) == ["why", "frame"], "\(why)")
+    #expect(Set(value.keys).subtracting(["read"]) == ["why", "frame"], "\(why)")
     let stated = try required(value, "frame").object
+    let channel = try required(stated, "channel").text
+    let reader = typedReaders[channel]
+    if value["read"] != nil, reader == nil {
+      Issue.record("it states what a typed reader of \(channel) reads, and none is made: \(why)")
+      continue
+    }
+    // What its typed reader reads is the payload as the frame states it, unless the case says.
+    let expected = value["read"] ?? stated["payload"]
     try await carrying { transport in
-      let frames = try await transport.frames([required(stated, "channel").text])
+      let frames = try await transport.frames([channel])
+      let typed = try await reader?(transport)
       let failures = transport.failures()
       await transport.carryForTest(try line(stated), id: "e-1")
       await transport.carryForTest(namesNoChannel, id: "e-2")
@@ -197,6 +237,7 @@ private func awaitingReply(_ transport: HttpTransport) async throws -> (
       #expect(JSONValue.object(frame.payload) == stated["payload"], "\(why)")
       #expect(frame.correlationId.map(JSONValue.string) == stated["correlationId"], "\(why)")
       #expect(frame.scope.map { JSONValue.string($0.value) } == stated["scope"], "\(why)")
+      if let typed { #expect(try await typed.first() == expected, "\(why)") }
       #expect(try await first(1, of: failures).map(Told.init) == [Told(.undecoded)], "\(why)")
     }
   }

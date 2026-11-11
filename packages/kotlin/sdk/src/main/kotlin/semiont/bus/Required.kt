@@ -25,7 +25,9 @@ import java.util.concurrent.ConcurrentHashMap
  * packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
  * names the first fault it finds the same way: a member the value lacks, or
  * one that is not what its schema allows. What the decoder refuses that the
- * table does not state is a fault of the value itself.
+ * table does not state is a fault of the value itself. A member that holds a
+ * text none of those its shape recognizes (a failure's code a later peer may
+ * send) is no fault: a reader leaves it out before it decodes the value.
  */
 
 /** What a value must be: packages/codegen/schemas/required-shapes.mjs states what each part means. */
@@ -33,6 +35,8 @@ import java.util.concurrent.ConcurrentHashMap
 internal data class Shape(
     val ref: String? = null,
     val kinds: List<String>? = null,
+    /** Of an object's member, the texts it is read as: one that holds a text none of these is read as absent. */
+    val recognized: List<String>? = null,
     val enum: List<JsonPrimitive>? = null,
     val pattern: List<Step>? = null,
     val minLength: Int? = null,
@@ -161,58 +165,116 @@ private fun isAsStated(shape: Shape, value: JsonElement): Boolean {
     }
 }
 
-/** The first fault `value` has as a value of `shape`, from `way`. */
-private fun faultAt(shape: Shape, value: JsonElement, way: String): Fault? {
+/**
+ * A value as a reader reads it: `value` without each member that holds a text
+ * none of the texts its shape recognizes names, wherever the walk finds one,
+ * and `fault`, the first fault of what it read; null when it has none. What a
+ * value with a fault is read as is nothing anyone reads.
+ */
+internal class Read(val value: JsonElement, val fault: Fault?)
+
+/** `value` read as a value of `shape`, from `way`. */
+private fun readAt(shape: Shape, value: JsonElement, way: String): Read {
     val own = resolved(shape)
-    if (!allows(own.kinds, value) || !isAsStated(own, value)) return Fault(way, FrameRefusalReason.Malformed)
-    if (value is JsonObject) faultOfMembers(own, value, way)?.let { return it }
-    if (value is JsonArray && own.items != null) value.firstNotNullOfOrNull { faultAt(own.items, it, way) }?.let { return it }
-    if (own.oneOf != null) faultOfOneOf(own, own.oneOf, value, way)?.let { return it }
-    return own.allOf?.firstNotNullOfOrNull { faultAt(it, value, way) }
+    if (!allows(own.kinds, value) || !isAsStated(own, value)) return Read(value, Fault(way, FrameRefusalReason.Malformed))
+    var read = value
+    if (read is JsonObject) {
+        val members = readMembers(own, read, way)
+        if (members.fault != null) return members
+        read = members.value
+    }
+    if (read is JsonArray && own.items != null) {
+        val items = mutableListOf<JsonElement>()
+        for (item in read) {
+            val itemRead = readAt(own.items, item, way)
+            if (itemRead.fault != null) return itemRead
+            items += itemRead.value
+        }
+        read = JsonArray(items)
+    }
+    if (own.oneOf != null) {
+        val variant = readOneOf(own, own.oneOf, read, way)
+        if (variant.fault != null) return variant
+        read = variant.value
+    }
+    for (part in own.allOf.orEmpty()) {
+        val composed = readAt(part, read, way)
+        if (composed.fault != null) return composed
+        read = composed.value
+    }
+    return Read(read, null)
 }
 
-/** The first fault of an object in the members `shape` requires, in what its members are, in the members it may not carry, and in its values. */
-private fun faultOfMembers(shape: Shape, value: JsonObject, way: String): Fault? {
+/**
+ * An object read by the members `shape` requires, by what its members are, by
+ * the members it may not carry, and by its values. A member that holds a text
+ * none of the texts its shape recognizes is no fault, and is left out.
+ */
+private fun readMembers(shape: Shape, value: JsonObject, way: String): Read {
     val members = shape.members.orEmpty()
     for (name in shape.required.orEmpty()) {
         val held = value[name]
         val member = members[name]
-        if (held == null || (held == JsonNull && member != null && !allows(resolved(member).kinds, JsonNull))) return Fault(within(way, name), FrameRefusalReason.Lacks)
+        if (held == null || (held == JsonNull && member != null && !allows(resolved(member).kinds, JsonNull))) return Read(value, Fault(within(way, name), FrameRefusalReason.Lacks))
     }
+    val read = value.toMutableMap()
     for ((name, member) in members) {
         val held = value[name]
         if (held == null || held == JsonNull) continue
-        faultAt(member, held, within(way, name))?.let { return it }
+        if (isUnrecognized(member, held)) {
+            read.remove(name)
+            continue
+        }
+        val memberRead = readAt(member, held, within(way, name))
+        if (memberRead.fault != null) return memberRead
+        read[name] = memberRead.value
     }
-    shape.closed?.let { closed -> value.keys.filter { it !in closed }.minWithOrNull(BY_CODE_POINT)?.let { return Fault(within(way, it), FrameRefusalReason.Malformed) } }
-    return shape.values?.let { values -> value.keys.sortedWith(BY_CODE_POINT).firstNotNullOfOrNull { faultAt(values, value.getValue(it), way) } }
+    shape.closed?.let { closed -> value.keys.filter { it !in closed }.minWithOrNull(BY_CODE_POINT)?.let { return Read(value, Fault(within(way, it), FrameRefusalReason.Malformed)) } }
+    shape.values?.let { values ->
+        for (key in read.keys.sortedWith(BY_CODE_POINT)) {
+            val valueRead = readAt(values, read.getValue(key), way)
+            if (valueRead.fault != null) return valueRead
+            read[key] = valueRead.value
+        }
+    }
+    return Read(JsonObject(read), null)
+}
+
+/** Whether `held` is a text none of the texts `member`'s shape recognizes names. */
+private fun isUnrecognized(member: Shape, held: JsonElement): Boolean {
+    val recognized = resolved(member).recognized ?: return false
+    return held is JsonPrimitive && held.isString && held.content !in recognized
 }
 
 /**
- * The fault `value` has as one of `variants`: the variant its discriminator
- * names, or else each variant whose kinds allow it. None when one of them has
- * none; the first one's when each has one; and a value no variant allows is
- * malformed.
+ * `value` read as one of `variants`: the variant its discriminator names, or
+ * else each variant whose kinds allow it. It is read as the first of them that
+ * finds no fault, and only that one's members are left out; when each finds
+ * one, it has the first one's; and a value no variant allows is malformed.
  */
-private fun faultOfOneOf(shape: Shape, variants: List<Shape>, value: JsonElement, way: String): Fault? {
+private fun readOneOf(shape: Shape, variants: List<Shape>, value: JsonElement, way: String): Read {
     val named = shape.discriminator?.let { discriminator ->
         ((value as? JsonObject)?.get(discriminator.property) as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { discriminator.mapping[it] }
     }
     val candidates = named?.let { listOf(variants[it]) } ?: variants.filter { allows(resolved(it).kinds, value) }
-    if (candidates.isEmpty()) return Fault(way, FrameRefusalReason.Malformed)
-    var first: Fault? = null
-    for (candidate in candidates) {
-        val fault = faultAt(candidate, value, way) ?: return null
-        if (first == null) first = fault
+    if (candidates.isEmpty()) return Read(value, Fault(way, FrameRefusalReason.Malformed))
+    val first = readAt(candidates.first(), value, way)
+    if (first.fault == null) return first
+    for (candidate in candidates.drop(1)) {
+        val read = readAt(candidate, value, way)
+        if (read.fault == null) return read
     }
     return first
 }
 
+/** `value` as a reader reads it as a value of `descriptor`'s type, by the rules every SDK reads the table by, and its first fault. */
+internal fun readOf(descriptor: SerialDescriptor, value: JsonElement): Read = readAt(shapeOf(descriptor), value, "")
+
 /** The first fault `value` has as a value of `descriptor`'s type, by the rules every SDK reads the table by; null when it has none. */
-internal fun faultOf(descriptor: SerialDescriptor, value: JsonElement): Fault? = faultAt(shapeOf(descriptor), value, "")
+internal fun faultOf(descriptor: SerialDescriptor, value: JsonElement): Fault? = readOf(descriptor, value).fault
 
 /** The first fault `value` has as a value of the component schema `name`, which no type of `semiont.types` is the class of; null when it has none. */
-internal fun faultOfSchema(name: String, value: JsonElement): Fault? = faultAt(Shape(ref = name), value, "")
+internal fun faultOfSchema(name: String, value: JsonElement): Fault? = readAt(Shape(ref = name), value, "").fault
 
 /** The first fault of the JSON `text` as a value of `descriptor`'s type: a text that is no JSON is malformed. */
 internal fun faultIn(descriptor: SerialDescriptor, text: String): Fault? {

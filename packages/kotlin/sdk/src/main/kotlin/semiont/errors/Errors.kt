@@ -2,10 +2,12 @@
 
 package semiont.errors
 
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import semiont.identifiers.JobId
+import semiont.types.CommandErrorCode
 import semiont.types.FailureClass
 
 /** A failure of the SDK's, under a code of protocol/specs/src/errors/codes.json. */
@@ -46,16 +48,36 @@ public class BusRequestError(
     /** Why, as a code of the bus request's vocabulary. */
     public val reason: BusRequestErrorCode,
     message: String,
-    /** The payload of the failure frame the request was answered with, when it was answered with one. */
+    /** The payload of the failure frame the request was answered with, as its channel's reader reads it, when it was answered with one. */
     public val failure: JsonObject? = null,
 ) : SemiontError(message) {
     override val code: String get() = reason.code
 
     internal companion object {
-        /** The failure an operation's failure channel answered with, in its words `said`: under the client code its own code becomes. */
+        /**
+         * The failure an operation's failure channel answered with, as the
+         * table read it, in its words `said`: under the client code its own
+         * code becomes, or, when it states none, the code of a failure that
+         * states none (codes.json's `unrecognizedFailure`).
+         */
         fun answered(said: String, payload: JsonObject): BusRequestError {
-            val wire = (payload["code"] as? JsonPrimitive)?.contentOrNull
-            return BusRequestError(BUS_REQUEST_CODE_BY_WIRE_CODE[wire] ?: UNRECOGNIZED_FAILURE, said, payload)
+            val reason = when (val stated = codeOf(payload["code"])) {
+                null -> UNRECOGNIZED_FAILURE
+                else -> busRequestCodeOf(stated)
+            }
+            return BusRequestError(reason, said, payload)
+        }
+
+        /**
+         * The code a failure the table read states, as CommandError's closed
+         * code: none when it states none, or null. The table leaves out a
+         * code it does not recognize, so one that `CommandErrorCode` does not
+         * name is the table and the type disagreeing.
+         */
+        private fun codeOf(held: JsonElement?): CommandErrorCode? {
+            if (held == null || held == JsonNull) return null
+            return CommandErrorCode.entries.singleOrNull { held is JsonPrimitive && held.isString && it.value == held.content }
+                ?: error("the table read the code $held, which CommandErrorCode does not name")
         }
     }
 }

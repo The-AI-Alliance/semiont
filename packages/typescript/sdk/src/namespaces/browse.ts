@@ -549,16 +549,20 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.writeAnnotationDetail(resourceId, annotation);
   }
 
-  /** Write-through to the per-resource list, when the client holds it: the annotation spliced in where it was, or added. */
+  /**
+   * Patch the annotation into the per-resource list (B13b): where it was, or
+   * at the end. A list being fetched has it patched into what the fetch
+   * answers, so neither the event nor the answer is lost.
+   */
   private writeAnnotationIntoList(resourceId: ResourceId, annotation: Annotation): void {
-    const currentList = this.annotationListCache.get(resourceId);
-    if (!currentList) return;
-    const idx = currentList.annotations.findIndex((a) => a.id === annotation.id);
-    const nextAnnotations =
-      idx >= 0
-        ? currentList.annotations.map((a, i) => (i === idx ? annotation : a))
-        : [...currentList.annotations, annotation];
-    this.annotationListCache.set(resourceId, { ...currentList, annotations: nextAnnotations });
+    this.annotationListCache.patch(resourceId, (list) => {
+      const idx = list.annotations.findIndex((a) => a.id === annotation.id);
+      const annotations =
+        idx >= 0
+          ? list.annotations.map((a, i) => (i === idx ? annotation : a))
+          : [...list.annotations, annotation];
+      return { ...list, annotations };
+    });
   }
 
   /** Write-through to the annotation's own key, so its observers see the new value without a refetch. */

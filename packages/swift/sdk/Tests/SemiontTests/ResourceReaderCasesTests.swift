@@ -63,7 +63,7 @@ private func statedFault(_ row: [String: JSONValue]) throws -> Fault {
     let fault = try statedFault(row)
     guard fault.reason == .lacks else { continue }
     let resource = try required(row, "resource")
-    let probe = ProbeTransport()
+    let probe = ProbeTransport(channels: bridgedChannels)
     probe.handle { _, _ in
       ["response": .object(["resource": resource, "lastSequence": .number(1)])]
     }

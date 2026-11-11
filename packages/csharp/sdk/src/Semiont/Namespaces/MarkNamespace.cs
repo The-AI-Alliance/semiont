@@ -22,7 +22,7 @@ public sealed class MarkNamespace
         {
             Request = input,
             ResourceId = input.Target.Source,
-        }, cancellation: cancellation).ConfigureAwait(false)).Response;
+        }, cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response;
 
     public Task DeleteAsync(ResourceId resourceId, AnnotationId annotationId, CancellationToken cancellation = default) =>
         wire.RequestAsync(BusOperations.MarkDelete, new MarkDeleteCommand

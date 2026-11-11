@@ -13,8 +13,8 @@ let complete client receive =
 let fail client receive =
   Client_core.on_channel client B.Channels.job_fail receive
 
-let poll_until_complete client ?(every_ms = Client_timing.job_status_poll_ms)
-    ~within_ms ~on_status payload =
+let poll_until_complete client ?(every_ms = Client_timing.job_poll_ms)
+    ?(within_ms = Client_timing.job_poll_timeout_ms) ~on_status payload =
   let clock = Client_core.clock client in
   let after stamp milliseconds =
     Mtime.add_span stamp Mtime.Span.(max 0 milliseconds * ms)

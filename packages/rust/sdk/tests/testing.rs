@@ -7,6 +7,7 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures_core::Stream;
 use semiont::bus::{Bus, operation};
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{ClientOptions, ClientTiming};
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode};
 use semiont::session::{
@@ -70,7 +71,7 @@ async fn a_test_client_given_nothing_refuses_every_request_by_name() {
 
 #[tokio::test(start_paused = true)]
 async fn a_test_client_is_built_over_what_the_test_gives_it() {
-    let transport = FaultyTransport::new(vec![]);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, vec![]);
     transport.queue_reply(
         "browse:kb-requested",
         [Some(
@@ -123,10 +124,11 @@ async fn a_test_client_is_built_over_what_the_test_gives_it() {
 
     // The deadline is the one given: a request nobody answers is given up
     // on after three seconds, not the client's thirty.
-    let silent =
-        FaultyTransport::answering(vec![semiont::testing::FaultAction::DropReply], |_, _| {
-            Ok(None)
-        });
+    let silent = FaultyTransport::answering(
+        BRIDGED_CHANNELS,
+        vec![semiont::testing::FaultAction::DropReply],
+        |_, _| Ok(None),
+    );
     let impatient = create_test_client(TestClientOptions {
         transport: Some(silent),
         client: ClientOptions {

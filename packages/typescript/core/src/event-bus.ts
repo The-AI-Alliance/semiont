@@ -186,8 +186,8 @@ export class EventBus {
 
   /**
    * @internal — every frame on a channel, whatever its scope, for a reader
-   * that delivers all scopes (`FaultyTransport`). Counted as an observer of
-   * every scope.
+   * that decides itself which scopes it delivers (`FaultyTransport`).
+   * Counted as an observer of every scope.
    */
   channelStream<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> {
     const stream = this.channel(channel).asObservable();

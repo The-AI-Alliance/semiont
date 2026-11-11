@@ -39,6 +39,7 @@ from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.ocr_engine import Box, OcrLine, OcrParagraph, OcrRead, OcrWord
 from semiont_smelter.pdf_reader import Matrix, PdfEncrypted, PdfUnreadable, Pixels, Run
 from semiont_smelter.scripted import ScriptedDocument, ScriptedImage, ScriptedOcrEngine, ScriptedPage, ScriptedPdfReader
+from semiont_smelter.service import CHANNELS
 from semiont_smelter.smelter import Smelter
 
 ADA: Final[JsonObject] = {"@type": "Person", "@id": "did:web:example.org:users:ada"}
@@ -497,7 +498,7 @@ class Rig:
         """The operations nobody answers: each is refused as a peer that is not there."""
         self.failing: Final[set[str]] = set()
         """The operations that are answered with a failure of the Archivist's own."""
-        self.transport: Final = FaultyTransport(make_response=self._answer)
+        self.transport: Final = FaultyTransport(channels=CHANNELS, make_response=self._answer)
         self.transport.refuse_when(self._refuse)
         self.cursors: Final[Path] = home / "follower" / "cursors.json" if after is None else after.cursors
         if index is not None:

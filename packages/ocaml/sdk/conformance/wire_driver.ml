@@ -289,11 +289,7 @@ let run mode env =
           if field "commits" input = `Bool true then
             W.channels @ W.commit_channels
           else W.channels
-      | Live ->
-          [
-            B.Channel B.Channels.mark_delete_ok;
-            B.Channel B.Channels.mark_delete_failed;
-          ]
+      | Live -> B.bridged_channels
       | Wire ->
           field "channels" input |> J.to_list
           |> List.map (fun value -> channel (J.to_string value))
@@ -312,8 +308,8 @@ let run mode env =
             | _ -> ()
           in
           let facade =
-            Semiont.Client.connect ~subscribe_defaults:(mode = Live)
-              ~timing:subscription_timing ~http_timing ?telemetry ~restore ~save
+            Semiont.Client.connect ~timing:subscription_timing ~http_timing
+              ?telemetry ~restore ~save
               ?invalidation_window_ms:
                 (optional J.to_int "invalidationWindowMs" timing)
               ?delegation_silence_ms:(optional J.to_int "jobSilenceMs" timing)

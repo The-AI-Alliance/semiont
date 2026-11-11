@@ -117,14 +117,14 @@ public sealed class Bus
         where TRequest : class where TResult : class where TFailure : class
     {
         var response = await transport.RequestFrameAsync(operation.Request.Name, JsonSerializer.SerializeToElement(payload),
-            timeoutMs, cancellation).ConfigureAwait(false);
+            timeoutMs, cancellation).ConfigureAwait(Spawning.Captures);
         return Decoded<TResult>(response.Frame.Channel, response.Frame.Payload);
     }
 
     internal static async IAsyncEnumerable<Heard<T>> DecodeFrames<T>(IAsyncEnumerable<Carried> frames,
         ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation) where T : class
     {
-        await foreach (var carried in frames.WithCancellation(cancellation).ConfigureAwait(false))
+        await foreach (var carried in frames.WithCancellation(cancellation).ConfigureAwait(Spawning.Captures))
         {
             // A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
             if (resource is not null && ScopeOf(carried) != resource) continue;
@@ -158,17 +158,16 @@ public sealed class Bus
             ? decoded
             : throw new TransportError(ProtocolFacts.Error(0), "a payload on " + channel + " is not that channel's: " + fault);
 
-    /// <summary>A payload as <typeparamref name="T"/>, held to the table before it is decoded; or its first fault.
-    /// What the gateway stamps on a payload (a member whose name begins <c>_</c>) is the bus's, not the payload's: one
-    /// <typeparamref name="T"/> does not declare is left out before the payload is read.</summary>
+    /// <summary>A payload as <typeparamref name="T"/>, held to the table before it is decoded, and decoded as the table
+    /// reads it; or its first fault. What the gateway stamps on a payload (a member whose name begins <c>_</c>) is the
+    /// bus's, not the payload's: one <typeparamref name="T"/> does not declare is left out before the payload is read.</summary>
     private static bool TryDecode<T>(JsonElement payload, [NotNullWhen(true)] out T? decoded,
         [NotNullWhen(false)] out Fault? fault) where T : class
     {
         decoded = null;
-        var declared = Declared(typeof(T).Name, payload);
-        fault = Required.FaultOf(typeof(T).Name, declared);
+        fault = Required.FaultOf(typeof(T).Name, Declared(typeof(T).Name, payload), out var read);
         if (fault is not null) return false;
-        try { decoded = declared.Deserialize<T>() ?? throw new JsonException("A bus payload is null."); }
+        try { decoded = read.Deserialize<T>() ?? throw new JsonException("A bus payload is null."); }
         catch (JsonException)
         {
             fault = Fault.Undecoded;

@@ -25,14 +25,15 @@
 // else this file does not know how to state fails the generators, so the
 // table cannot fall behind the schemas unseen.
 //
-// One thing a schema states the table leaves out, though a decoding to a
-// closed type refuses it: the list CommandError's `code` is one of.
+// One list a schema states the table states otherwise: the one CommandError's
+// `code` is one of, which is its `recognized` codes and not its `enum`.
 // protocol/specs/src/errors/codes.json says what a reader makes of a failure
-// whose code that list does not name (`busRequest.unrecognizedFailure`): a
-// rejection that keeps the failure's words. So the table holds the code to
-// being a text, and a failure the table passes is read by its `code` and its
-// `message` as texts, never decoded to a type whose code is closed. A writer
-// is still held to the list.
+// whose code that list does not name (`busRequest.unrecognizedFailure`): what
+// it makes of one that states none, a rejection that keeps the failure's
+// words. So a reader reads such a code as absent, and decodes the failure
+// with no code, wherever it is read, among them the payloads of every
+// `*-failed` channel and the components that are a CommandError and more
+// (`allOf`). A writer is held to the list.
 //
 // A KIND is one of object, array, string, integer, number, boolean, null. An
 // integer is a number with no fractional part, as JSON Schema has it: 1.5 is
@@ -47,6 +48,12 @@
 //   - `ref`: the value is the component of that name, and is what it is;
 //   - `kinds`: the kinds the value may be. A shape that states none allows
 //     any;
+//   - `recognized`: of an object's member, the texts it is read as. A reader
+//     reads a member that holds a text none of these as absent: it is no
+//     fault, and the reader leaves it out of the object before it decodes
+//     it, so what it reads, and what it reports of the object, carries no
+//     such member. A writer holds the member to these as to an `enum`: one
+//     none of them is malformed;
 //   - `enum`: the value is one of these. A number is one of them where it is
 //     equal to one in value (1.0 is 1);
 //   - `pattern`: a text is of this form: a series of steps, each a set of
@@ -97,7 +104,9 @@
 //   5. then each member the shape describes, in the order the table states
 //      them (by name), that the object has and is not null: its faults. An
 //      optional member that holds null is no fault, whatever its shape: every
-//      SDK's decoding reads it as absent;
+//      SDK's decoding reads it as absent. A member whose shape states
+//      `recognized`, and that holds a text none of them, is no fault either:
+//      it is left out of what the reader reads;
 //   6. then, of a closed shape, a member the object carries that the shape
 //      does not name is malformed, the first of them by the order of their
 //      names' code points;
@@ -294,10 +303,13 @@ export function readRequiredShapes(root, refuse) {
   const schemaOf = new Map([...fileOf].map(([name, file]) => [name, translated(JSON.parse(readFileSync(file, 'utf8')))]));
 
   // A failure whose code CommandError's list does not name is read as the
-  // unrecognized failure codes.json names, so the table holds the code to no list.
+  // unrecognized failure codes.json names, as one that states none: the list
+  // is the code's `recognized` texts, and no `enum`.
   const { unrecognized } = readErrorCodes(resolve(specs, 'errors/codes.json'), fileOf.get('CommandError'), refuse);
   const failureCode = schemaOf.get('CommandError').properties.code;
   if (!Array.isArray(failureCode?.enum)) refuse(`CommandError's code is one of no list, and codes.json reads a code the list does not name as ${unrecognized.code}`);
+  if (schemaOf.get('CommandError').required?.includes('code')) refuse(`CommandError requires its code, and codes.json reads a code its list does not name as ${unrecognized.code}, as one that states none`);
+  const recognizedCodes = failureCode.enum;
   delete failureCode.enum;
 
   /** The component a reference in `file` names. */
@@ -419,6 +431,9 @@ export function readRequiredShapes(root, refuse) {
   }
 
   const unpruned = new Map([...schemaOf].map(([name, schema]) => [name, shapeOf(schema, fileOf.get(name))]));
+  const failureCodeShape = unpruned.get('CommandError').members?.code;
+  if (failureCodeShape === undefined || failureCodeShape.ref !== undefined) refuse(`CommandError's code is described by no shape of its own to state its recognized codes in`);
+  failureCodeShape.recognized = recognizedCodes;
 
   // Which components can be wrong: what a component refers to is read as
   // wrong in no way until it is found to be, and found again until nothing
@@ -428,6 +443,7 @@ export function readRequiredShapes(root, refuse) {
     if (shape.ref !== undefined) return canFaultComponent.get(shape.ref);
     return (
       shape.kinds !== undefined ||
+      shape.recognized !== undefined ||
       shape.enum !== undefined ||
       shape.pattern !== undefined ||
       ['minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems'].some((bound) => shape[bound] !== undefined) ||
@@ -454,7 +470,7 @@ export function readRequiredShapes(root, refuse) {
   function pruned(shape) {
     if (shape.ref !== undefined) return canFault(shape) ? shape : {};
     const kept = {};
-    for (const part of ['kinds', 'enum', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems', 'required']) {
+    for (const part of ['kinds', 'recognized', 'enum', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems', 'required']) {
       if (shape[part] !== undefined) kept[part] = shape[part];
     }
     const members = Object.entries(shape.members ?? {}).filter(([, member]) => canFault(member));

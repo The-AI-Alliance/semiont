@@ -178,7 +178,7 @@ impl Worker {
             base_url: text(args, "baseUrl")?.to_owned(),
             token: tokens,
             refresher: None,
-            channels: Some(channels),
+            channels,
             http: reqwest::Client::new(),
             timing,
             random: None,

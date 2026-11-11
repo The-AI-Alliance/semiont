@@ -8,7 +8,7 @@ Pass a `logger` in `HttpTransportConfig` and the transport logs its plain reques
 
 ```typescript
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl, type Logger } from '@semiont/core';
+import { BRIDGED_CHANNELS, baseUrl, type Logger } from '@semiont/core';
 
 const logger: Logger = {
   debug: (message, fields) => console.debug(message, fields),
@@ -18,7 +18,7 @@ const logger: Logger = {
   child: () => logger,
 };
 
-const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), logger });
+const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), channels: BRIDGED_CHANNELS, logger });
 ```
 
 ## What it logs

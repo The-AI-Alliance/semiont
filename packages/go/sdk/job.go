@@ -52,12 +52,35 @@ func (n *JobNamespace) Status(ctx context.Context, jobID api.JobId) (api.JobStat
 
 // PollUntilComplete asks for a job's status every every until it has ended,
 // giving each answer to onStatus when it is not nil. It gives the status the
-// job ended with. One that has not ended within within fails as a timeout.
+// job ended with. One that has not ended within within of the first ask, its
+// asks and the waits between them included, fails as a timeout then: an ask
+// or a wait under way at that instant is cut short. When every is zero, it
+// asks every JobPoll of the client's timing; when within is zero, it goes on
+// for its JobPollTimeout.
 func (n *JobNamespace) PollUntilComplete(ctx context.Context, jobID api.JobId, every, within time.Duration, onStatus func(api.JobStatusResponse)) (api.JobStatusResponse, error) {
+	if every == 0 {
+		every = n.links.timing.JobPoll
+	}
+	if within == 0 {
+		within = n.links.timing.JobPollTimeout
+	}
 	deadline := time.Now().Add(within)
+	polling, stop := context.WithDeadline(ctx, deadline)
+	defer stop()
+	// ended is the failure of a poll whose polling is over: the caller's
+	// ending, or the limit's coming.
+	ended := func(status api.JobStatusResponse) (api.JobStatusResponse, error) {
+		if err := ctx.Err(); err != nil {
+			return status, err
+		}
+		return status, &BusRequestError{Code: BusRequestErrorCodeTimeout, Message: fmt.Sprintf("Job polling timeout after %dms", within.Milliseconds())}
+	}
 	for {
-		status, err := n.Status(ctx, jobID)
+		status, err := n.Status(polling, jobID)
 		if err != nil {
+			if polling.Err() != nil {
+				return ended(status)
+			}
 			return status, err
 		}
 		if onStatus != nil {
@@ -67,13 +90,13 @@ func (n *JobNamespace) PollUntilComplete(ctx context.Context, jobID api.JobId, e
 		case api.JobStatusResponseStatusComplete, api.JobStatusResponseStatusFailed, api.JobStatusResponseStatusCancelled:
 			return status, nil
 		}
-		if time.Now().After(deadline) {
-			return status, &BusRequestError{Code: BusRequestErrorCodeTimeout, Message: fmt.Sprintf("Job polling timeout after %dms", within.Milliseconds())}
-		}
 		select {
 		case <-ctx.Done():
 			return status, ctx.Err()
-		case <-time.After(every):
+		case <-time.After(min(every, time.Until(deadline))):
+		}
+		if !time.Now().Before(deadline) {
+			return ended(status)
 		}
 	}
 }

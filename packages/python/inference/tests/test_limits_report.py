@@ -13,6 +13,7 @@ was sent under. No request waits for another's report.
 import asyncio
 import logging
 from collections.abc import Mapping
+from typing import Final
 
 import pytest
 from aio import pass_time, run, soon
@@ -203,6 +204,9 @@ def test_a_report_that_is_cancelled_ends_cancelled() -> None:
 
 type LimitsOperation = Operation[InferenceLimitsRequest, InferenceLimitsResult, CommandError]
 
+LIMITS_REQUESTS: Final = tuple(operation.request.name for operation in LIMITS_OPERATIONS)
+"""What the stream an answerer is on names here: every limits request, so a request it does not answer still reaches it."""
+
 
 def asked(operation: LimitsOperation, correlation_id: str | None, trace: TraceContext | None = None) -> Frame:
     """A request of `operation`, as a transport delivers one: with what the gateway stamped on it."""
@@ -225,7 +229,7 @@ async def turns() -> None:
 @pytest.mark.parametrize("operation", LIMITS_OPERATIONS, ids=lambda operation: operation.request.name)
 def test_a_request_is_answered_once_on_its_operations_result_channel_with_its_correlation_id(operation: LimitsOperation) -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=LIMITS_REQUESTS)
         answering = asyncio.ensure_future(answer_limits_requests(Bus(transport), operation, [MOCK]))
         await turns()
         # Nothing is said until something is asked.
@@ -254,7 +258,7 @@ def test_only_the_operation_named_is_answered() -> None:
     gather, job, _ = LIMITS_OPERATIONS
 
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=LIMITS_REQUESTS)
         answering = asyncio.ensure_future(answer_limits_requests(Bus(transport), job, [MOCK]))
         await turns()
         transport.deliver(asked(gather, "another-services"))
@@ -272,7 +276,7 @@ def test_an_engine_that_cannot_be_learned_is_left_out_of_the_answer_and_the_requ
     async def scenario() -> None:
         async with Ollama() as ollama:
             ollama.show = saying({"error": "down"}, status=500)
-            transport = FaultyTransport()
+            transport = FaultyTransport(channels=LIMITS_REQUESTS)
             clients: list[InferenceClient] = [OllamaInferenceClient(model="llama3", base_url=ollama.origin), MOCK]
             answering = asyncio.ensure_future(answer_limits_requests(Bus(transport), job, clients))
             await turns()
@@ -294,7 +298,7 @@ def test_no_request_waits_for_the_report_of_another() -> None:
     async def scenario() -> None:
         async with Ollama() as ollama:
             ollama.show = HOLD
-            transport = FaultyTransport()
+            transport = FaultyTransport(channels=LIMITS_REQUESTS)
             clients: list[InferenceClient] = [OllamaInferenceClient(model="llama3", base_url=ollama.origin), MOCK]
             answering = asyncio.ensure_future(answer_limits_requests(Bus(transport), job, clients))
             await turns()
@@ -321,7 +325,7 @@ def test_an_answer_is_sent_in_the_trace_its_request_was_sent_under(monkeypatch: 
     sent_under = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
 
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=LIMITS_REQUESTS)
         traces: list[TraceContext | None] = []
         emit = transport.emit
 
@@ -351,7 +355,7 @@ def test_an_answer_that_cannot_be_sent_is_said_on_the_failure_channel_and_in_the
     _, job, _ = LIMITS_OPERATIONS
 
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=LIMITS_REQUESTS)
         emit = transport.emit
 
         async def refusing_the_result(
@@ -386,7 +390,7 @@ def test_a_failure_that_cannot_be_sent_either_ends_nothing(monkeypatch: pytest.M
     _, job, _ = LIMITS_OPERATIONS
 
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=LIMITS_REQUESTS)
         emit = transport.emit
 
         async def refusing_everything(
@@ -415,7 +419,7 @@ def test_answering_ends_when_the_buss_frames_end() -> None:
     _, job, _ = LIMITS_OPERATIONS
 
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=LIMITS_REQUESTS)
         answering = asyncio.ensure_future(answer_limits_requests(Bus(transport), job, [MOCK]))
         await turns()
         await transport.close()
@@ -430,7 +434,7 @@ def test_answering_that_is_cancelled_ends_the_reports_it_was_making() -> None:
     async def scenario() -> None:
         async with Ollama() as ollama:
             ollama.show = HOLD
-            transport = FaultyTransport()
+            transport = FaultyTransport(channels=LIMITS_REQUESTS)
             answering = asyncio.ensure_future(
                 answer_limits_requests(Bus(transport), job, [OllamaInferenceClient(model="llama3", base_url=ollama.origin)])
             )

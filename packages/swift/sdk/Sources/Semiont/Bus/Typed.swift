@@ -29,7 +29,7 @@ public enum Carried: Sendable {
     }
   }
   /// The resource whose scope it was delivered on.
-  var scope: ResourceId? {
+  package var scope: ResourceId? {
     switch self {
     case .frame(let frame): frame.scope
     case .refused(let refusal): refusal.scope
@@ -82,15 +82,15 @@ func declared(_ payload: [String: JSONValue], stamps: Set<String>) -> [String: J
 }
 /// `payload`, a payload on `channel`, as `Value`, held to the table before it is decoded. What the
 /// gateway stamps on a payload (a member whose name begins `_`) is the bus's: one the channel's
-/// payload does not declare in `stamps` is left out before it is read. It is refused for its first
-/// fault, or, where the table finds none and its decoder refuses it, for the payload itself.
+/// payload does not declare in `stamps` is left out before it is read, as is a member the table
+/// reads as absent. It is refused for its first fault, or, where the table finds none and its
+/// decoder refuses it, for the payload itself.
 func held<Value: Decodable>(
   _ type: Value.Type, _ payload: [String: JSONValue], on channel: String, stamps: Set<String>
 ) throws(Fault) -> Value {
-  let stated = declared(payload, stamps: stamps)
-  if let fault = faultOf(payload: stated, on: channel) { throw fault }
+  let read = try payloadAsRead(declared(payload, stamps: stamps), on: channel)
   do {
-    return try JSONDecoder().decode(type, from: JSONEncoder().encode(stated))
+    return try JSONDecoder().decode(type, from: JSONEncoder().encode(read))
   } catch {
     throw Fault.undecoded
   }

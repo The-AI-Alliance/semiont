@@ -43,13 +43,28 @@ internal fun closed(): BusRequestError = BusRequestError(BusRequestErrorCode.Clo
 /** Where the fetches of a cache a host makes run: on `context`, under the job it has when it has one, one failing leaving the others be. */
 private fun ownScope(context: CoroutineContext): CoroutineScope = CoroutineScope(context + SupervisorJob(context[Job]))
 
-/** One key: its state, which every observer of it holds, and the fetch in flight for it, by its number. */
+/** One fetch of a key: what it answers, and the patches made while it is the key's fetch in flight, for its answer (B13b). */
+private class Flight<V : Any>(val answer: Deferred<Result<V>>) {
+    val patches = mutableListOf<(V) -> V>()
+}
+
+/** One key: its state, which every observer of it holds, and the fetch in flight for it. */
 private class Key<V : Any>(state: CacheState<V>) {
     /** The key's state; none once the cache is closed, which ends every observer. */
     val state = MutableStateFlow<CacheState<V>?>(state)
 
-    /** The fetch in flight, by its number. An `invalidate` lets go of it without waiting: its answer may never come. */
-    var inFlight: Pair<Int, Deferred<Result<V>>>? = null
+    /** The fetch in flight. An `invalidate`, a `set` or a `remove` lets go of it without waiting: its answer may never come. */
+    var inFlight: Flight<V>? = null
+
+    /** The fetch the live view waits on, and whether it is the view's second ask. */
+    var validation: Flight<V>? = null
+    var revalidated = false
+
+    /** Let go of the fetch in flight, and of the live view's ask waiting on it: its answer stores nothing (B9). */
+    fun letGo() {
+        inFlight = null
+        validation = null
+    }
 
     /** Whether anything asked for the key and has not let go of it. */
     fun known(): Boolean = inFlight != null || state.value !is CacheState.Pending
@@ -64,8 +79,9 @@ private class Key<V : Any>(state: CacheState<V>) {
  * whatever its refetches do. `fetch` is the one-shot read: it always asks,
  * gives what it was answered or throws the failure it met, and never retries.
  * `invalidate` asks again and shows the value meanwhile; `set` writes a value
- * that is known; `remove` ends a key whose entity is gone; `close` ends every
- * observer, and nothing is fetched, retried or written after it.
+ * that is known, and `patch` the part of one that is; `remove` ends a key
+ * whose entity is gone; `close` ends every observer, and nothing is fetched,
+ * retried or written after it.
  *
  * `ask` asks for a key's value, and whatever it fails with is the key's failure;
  * its fetches run in `scope`: the client's, for a cache the client makes, and one of the
@@ -103,7 +119,6 @@ public class Cache<K : Any, V : Any> internal constructor(
     private val lock = Any()
     private var keeping: CachePersister<K, V>? = null
     private var disposed = false
-    private var fetches = 0
 
     /** Whether the values changed since the persister last took them: a save waits for them to stop changing, or the persister refused the last. */
     private var owed = false
@@ -169,20 +184,25 @@ public class Cache<K : Any, V : Any> internal constructor(
      * it begins, so one that ends at once has let go of the key when it ends.
      * Its failure is handed on as a value, so each waiter is given the very
      * failure the fetch met, not the copy an awaited failure is rethrown as
-     * when the coroutine library recovers its stack trace.
+     * when the coroutine library recovers its stack trace. A fetch the live
+     * view is `validating` is the one its validation waits on, named before
+     * the fetch begins, as one that ends at once settles before this returns.
      */
-    private fun fetching(key: K): Deferred<Result<V>> {
+    private fun fetching(key: K, validating: Boolean): Deferred<Result<V>> {
         // Asked for by this cache now, whichever path asked.
         kept -= key
         val held = held(key)
-        held.inFlight?.let { return it.second }
-        fetches += 1
-        val number = fetches
+        held.inFlight?.let {
+            if (validating) held.validation = it
+            return it.answer
+        }
         val answer = CompletableDeferred<Result<V>>()
-        held.inFlight = number to answer
+        val flight = Flight(answer)
+        held.inFlight = flight
+        if (validating) held.validation = flight
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                answer.complete(Result.success(fetched(key, number)))
+                answer.complete(Result.success(fetched(key, flight)))
             } catch (cancelled: CancellationException) {
                 // A fetch the client's closing ended is cancelled for whoever waits on it, who is then told the client closed.
                 answer.cancel(cancelled)
@@ -194,25 +214,57 @@ public class Cache<K : Any, V : Any> internal constructor(
         return answer
     }
 
-    private suspend fun fetched(key: K, number: Int): V {
+    /**
+     * The answer of `flight`: what it was asked, with the patches kept with it
+     * applied in the order made while it is `key`'s current fetch (B13b).
+     */
+    private suspend fun fetched(key: K, flight: Flight<V>): V {
         val value = try {
             ask(key)
-        } finally {
-            // Only its own, and on every way out: an `invalidate` may have put a newer fetch in its place.
-            synchronized(lock) {
-                val held = keys[key]
-                if (held != null && held.inFlight?.first == number) held.inFlight = null
-            }
+        } catch (failure: Throwable) {
+            synchronized(lock) { current(key, flight)?.let { settled(key, it, flight, failure) } }
+            throw failure
         }
-        // A value from any fetch is written, the newest last: each is at least as new as what was there. A failure writes
-        // nothing. One answered after the cache was closed has no key to write to.
-        synchronized(lock) {
-            keys[key]?.let {
-                it.state.value = CacheState.Ready(value)
+        // Only the key's current fetch writes (B9). One an `invalidate`, a `set` or a `remove` let go of, or one answered
+        // after the cache was closed, answers whoever waited on it, and stores nothing. A failure writes nothing.
+        return synchronized(lock) {
+            val held = current(key, flight)
+            if (held == null) {
+                value
+            } else {
+                val patched = flight.patches.fold(value) { patching, change -> change(patching) }
+                held.state.value = CacheState.Ready(patched)
                 oweASave()
+                settled(key, held, flight, null)
+                patched
             }
         }
-        return value
+    }
+
+    /** The key `key`, while `flight` is the fetch in flight for it. Called under the lock. */
+    private fun current(key: K, flight: Flight<V>): Key<V>? = keys[key]?.takeIf { it.inFlight === flight }
+
+    /**
+     * `flight`, `key`'s current fetch, has settled, with `failure` or with its
+     * value written and its save owed: the key lets go of it, and the live
+     * view's validation waiting on it ends, in this one step. So a key whose
+     * fetch has settled is not fetching, and one whose fetch is not settled is
+     * (protocol/contract/CACHE-SEMANTICS.md B17's "in flight"); and the retry a
+     * first failure owes is in flight in the step that failure settles in. A
+     * second ask that fails fails a key that holds no value. Called under the
+     * lock.
+     */
+    private fun settled(key: K, held: Key<V>, flight: Flight<V>, failure: Throwable?) {
+        held.inFlight = null
+        if (held.validation !== flight) return
+        held.validation = null
+        if (failure !is Exception || failure is CancellationException) return
+        if (!held.revalidated) {
+            held.revalidated = true
+            fetching(key, validating = true)
+        } else if (held.state.value !is CacheState.Ready) {
+            held.state.value = CacheState.Failed(failure)
+        }
     }
 
     /** What a fetch gives, to one of those waiting on it: whoever stops waiting does not stop the fetch. */
@@ -228,32 +280,12 @@ public class Cache<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed.
-     * Whatever a fetch failed with is a failure; a cancellation is not one. Called under the lock.
+     * Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed
+     * (`settled`). Whatever a fetch failed with is a failure; a cancellation is not one. Called under the lock.
      */
     private fun revalidate(key: K) {
-        val first = fetching(key)
-        scope.launch {
-            try {
-                joined(first)
-                return@launch
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // Tried once more, below.
-            }
-            val again = synchronized(lock) { if (disposed) null else fetching(key) } ?: return@launch
-            try {
-                joined(again)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                synchronized(lock) {
-                    val held = keys[key]
-                    if (held != null && held.state.value !is CacheState.Ready) held.state.value = CacheState.Failed(failure)
-                }
-            }
-        }
+        held(key).revalidated = false
+        fetching(key, validating = true)
     }
 
     /**
@@ -297,7 +329,7 @@ public class Cache<K : Any, V : Any> internal constructor(
                 caller.ensureActive()
                 throw closed()
             }
-            fetching(key)
+            fetching(key, validating = false)
         }
         return joined(fetch)
     }
@@ -329,7 +361,7 @@ public class Cache<K : Any, V : Any> internal constructor(
     public fun invalidate(key: K): Unit = synchronized(lock) {
         if (disposed) return
         val held = held(key)
-        held.inFlight = null
+        held.letGo()
         if (held.state.value is CacheState.Failed) held.state.value = CacheState.Pending
         revalidate(key)
     }
@@ -341,17 +373,43 @@ public class Cache<K : Any, V : Any> internal constructor(
     public fun remove(key: K, gone: Exception): Unit = synchronized(lock) {
         if (disposed) return
         val held = held(key)
-        held.inFlight = null
+        held.letGo()
         held.state.value = CacheState.Failed(gone)
         oweASave()
     }
 
-    /** The key's value is known: write it, asking for nothing. */
+    /**
+     * The key's value is known: write it, asking for nothing. The fetch in
+     * flight was asked before it, so its answer may be the value this replaces:
+     * it is let go of, with the live view's ask, and stores nothing (B13b).
+     */
     public fun set(key: K, value: V): Unit = synchronized(lock) {
         if (disposed) return
         kept -= key
-        held(key).state.value = CacheState.Ready(value)
+        val held = held(key)
+        held.letGo()
+        held.state.value = CacheState.Ready(value)
         oweASave()
+    }
+
+    /**
+     * Part of the key's value is known: `change` takes the value to the
+     * patched one (B13b). The fetch in flight may still carry what the patch
+     * does not, so a patch lets go of nothing. It is applied now to the value
+     * the key holds, and kept with the fetch in flight: that fetch's answer,
+     * with every patch kept with it applied in the order made, is what is
+     * stored and what its awaiters are given. A key that holds neither is left
+     * as it is. A kept value stays one, asked for anew when first observed.
+     */
+    public fun patch(key: K, change: (V) -> V): Unit = synchronized(lock) {
+        if (disposed) return
+        val held = keys[key] ?: return
+        held.inFlight?.patches?.add(change)
+        val state = held.state.value
+        if (state is CacheState.Ready) {
+            held.state.value = CacheState.Ready(change(state.value))
+            oweASave()
+        }
     }
 
     /** End the cache: a save that was owed, or refused, is made now, every observer's states end, and nothing is fetched or written after. Closing twice is closing once. */

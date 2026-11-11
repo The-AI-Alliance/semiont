@@ -25,6 +25,6 @@ public static class Gateway
         TimeProvider? timeProvider = null, CancellationToken cancellation = default)
     {
         using var transport = new HttpTransport(origin, token, [], httpClient: httpClient, timeProvider: timeProvider);
-        return await transport.AnswerAsync<UserResponse>(HttpMethod.Get, "/api/users/me", cancellation: cancellation, retry: false).ConfigureAwait(false);
+        return await transport.AnswerAsync<UserResponse>(HttpMethod.Get, "/api/users/me", cancellation: cancellation, retry: false).ConfigureAwait(Spawning.Captures);
     }
 }

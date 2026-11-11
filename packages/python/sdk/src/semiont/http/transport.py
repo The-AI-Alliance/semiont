@@ -21,7 +21,7 @@ from pydantic import JsonValue, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log
-from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
+from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.http._withheld import why_unanswered
@@ -77,9 +77,10 @@ class HttpTransport(Transport, GatewayOperations):
     `refresher` is asked for another when the gateway refuses the one it has,
     and is told the token refused; with none, a refused token is waited out
     until `token` changes.
-    `channels` are the global channels its stream names: every channel a
-    client hears, unless a process that awaits only some operations names
-    their reply channels and no others. With `bookmarks`, each scope's stream
+    `channels` are the global channels its stream names, and it assumes
+    none of its own: a full client's are `semiont.channels.BRIDGED_CHANNELS`,
+    and a process that awaits only some operations names their reply
+    channels and no others. With `bookmarks`, each scope's stream
     begins where they say the client's last life left it; with none, at the
     present. `http` is the HTTP client every request is made with, which its
     caller built and closes: the certificates it trusts and the proxy it goes
@@ -93,7 +94,7 @@ class HttpTransport(Transport, GatewayOperations):
         *,
         token: Watched[str | None],
         refresher: TokenRefresher | None = None,
-        channels: Sequence[str] = BRIDGED_CHANNELS,
+        channels: Sequence[str],
         timing: Timing | None = None,
         bookmarks: Bookmarks | None = None,
         http: httpx.AsyncClient | None = None,

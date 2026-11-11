@@ -67,9 +67,9 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
         SemiontClient? client = null;
         try
         {
-            await kept.ReadyAsync(cancellation).ConfigureAwait(false);
+            await kept.ReadyAsync(cancellation).ConfigureAwait(Spawning.Captures);
             var bus = new HttpTransport(origin, kept.State.Token,
-                BusRegistry.FullClientChannels,
+                BusRegistry.BridgedChannels,
                 refresher: kept.RefreshAsync, httpClient: http, timeProvider: clock, random: random);
             var openedClient = client = new SemiontClient(bus);
             var session = new SemiontSession(new KbTarget { Id = kb.Id, Label = kb.Label, Endpoint = kb.Endpoint }, openedClient, kept);
@@ -81,7 +81,7 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
                     try
                     {
                         openedClient.Dispose();
-                        await openedClient.Flushed.ConfigureAwait(false);
+                        await openedClient.Flushed.ConfigureAwait(Spawning.Captures);
                     }
                     finally { session.Dispose(); }
                 }
@@ -102,7 +102,7 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
 
         async Task<UserResponse> IdentifyAsync(string _, CancellationToken stop)
         {
-            if (delay > TimeSpan.Zero) await Task.Delay(delay, clock, stop).ConfigureAwait(false);
+            if (delay > TimeSpan.Zero) await Task.Delay(delay, clock, stop).ConfigureAwait(Spawning.Captures);
             return identity ?? throw new TransportError(ProtocolFacts.Error(0), $"No identity scripted for knowledge base '{kb.Id}'.");
         }
 
@@ -112,8 +112,8 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
             if (!renewals.TryDequeue(out var renewal))
                 throw new SignInError(ProtocolFacts.SignInError("exchange"), $"No renewal scripted for knowledge base '{kb.Id}'.", 503);
             if (renewal is Renewal.Failure(var error)) throw error;
-            if (renewal is Renewal.Token(var token) && token is not null && await stored.HeldAsync(stop).ConfigureAwait(false) is { } read)
-                return await stored.RenewedAsync(read, token, read.Refresh, stop).ConfigureAwait(false);
+            if (renewal is Renewal.Token(var token) && token is not null && await stored.HeldAsync(stop).ConfigureAwait(Spawning.Captures) is { } read)
+                return await stored.RenewedAsync(read, token, read.Refresh, stop).ConfigureAwait(Spawning.Captures);
             return null;
         }
     }

@@ -17,7 +17,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import semiont.Timings
-import semiont.channels.BRIDGED_CHANNELS
 import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.errors.SemiontError
 import semiont.errors.TransportError
@@ -76,7 +75,10 @@ public data class Timing @JvmOverloads constructor(
  * The bus over HTTP: emits to `POST /bus/emit`, and one stream from
  * `POST /bus/subscribe` (protocol/contract/TRANSPORT-HTTP.md). It reads its token
  * from `token`, which its owner feeds, and asks `refresher` for another when
- * the gateway refuses it. The stream opens once there is a token and
+ * the gateway refuses it. Its stream names `channels` on no scope, and
+ * assumes none of its own: a full client gives it `BRIDGED_CHANNELS`, and a
+ * process that awaits only some operations their reply channels
+ * (`replyChannelsFor`). The stream opens once there is a token and
  * something to carry: a channel it names on no scope, or a resource's scope. With
  * `bookmarks`, each scope's stream begins where they say the client's last
  * life left it; with none, at the present. Every request, its stream's among
@@ -90,7 +92,7 @@ public class HttpTransport @JvmOverloads constructor(
     baseUrl: String,
     private val token: StateFlow<String?>,
     /** The channels the stream names on no scope. */
-    private val channels: List<String> = BRIDGED_CHANNELS,
+    private val channels: List<String>,
     private val timing: Timing = Timing(),
     private val refresher: TokenRefresher? = null,
     bookmarks: Bookmarks? = null,

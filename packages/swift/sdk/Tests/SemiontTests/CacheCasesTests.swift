@@ -74,7 +74,7 @@ private func keepingClient(
   clock: any Clock<Duration> = ContinuousClock()
 ) async throws -> SemiontClient {
   try await SemiontClient(
-    transport: ProbeTransport(),
+    transport: ProbeTransport(channels: bridgedChannels),
     persistence: CachePersistence(storage: storage, kbId: kbId, personKey: keys.person),
     clock: clock)
 }

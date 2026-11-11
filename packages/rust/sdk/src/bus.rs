@@ -48,9 +48,9 @@ use crate::transport::{
     ConnectionState, Envelope, Frame, FrameRefusal, Frames, Lagged, ResourceHold, TraceCarrier,
     Transport,
 };
-use crate::types::ResourceId;
+use crate::types::{CommandError, ResourceId};
 use futures_core::Stream;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{Map, Value};
 use std::fmt;
 use std::marker::PhantomData;
@@ -269,26 +269,19 @@ impl Bus {
     }
 }
 
-/// What a request reads of a failure its table passed: its words, and its
-/// code as a text, which the table holds to no list.
-#[derive(Deserialize)]
-struct Failure {
-    message: String,
-    code: Option<String>,
-}
-
 /// The failure a request was answered with on `channel`, its operation's
-/// failure channel: under the code its own code becomes, in its own words. A
-/// failure with a fault as its channel's is refused, as a result with one is.
+/// failure channel, as it is read (`held_to`): under the code its own code
+/// becomes, in its own words. A failure with a fault as its channel's is
+/// refused, as a result with one is.
 fn answered(channel: &str, failure: Map<String, Value>) -> SemiontError {
-    let fault = match held_to(channel, failure.clone()) {
+    let fault = match held_to(channel, failure) {
         Err(fault) => fault,
-        Ok(declared) => match serde_json::from_value::<Failure>(declared) {
-            Ok(read) => {
+        Ok(read) => match serde_json::from_value::<CommandError>(read.clone()) {
+            Ok(failed) => {
                 return BusRequestError {
-                    code: BusRequestErrorCode::of_wire(read.code.as_deref()),
-                    message: read.message,
-                    failure: Some(failure),
+                    code: BusRequestErrorCode::of_wire(failed.code),
+                    message: failed.message,
+                    failure: read.as_object().cloned(),
                 }
                 .into();
             }
@@ -336,14 +329,16 @@ impl fmt::Display for StreamError {
 
 impl std::error::Error for StreamError {}
 
-/// A payload held to the channel `channel`. A gateway's stamps its type does
-/// not declare are the bus's, not the payload's, and are left out. A payload
-/// with a fault as the channel's is refused, for the fault.
+/// A payload held to the channel `channel`, as a reader reads it. A
+/// gateway's stamps its type does not declare are the bus's, not the
+/// payload's, and are left out, and so is each member the table reads as
+/// absent: a failure's code none of CommandError's names. A payload with a
+/// fault as the channel's is refused, for the fault.
 pub(crate) fn held_to(channel: &str, mut payload: Map<String, Value>) -> Result<Value, Fault> {
     let stamps = payload_stamps(channel);
     payload.retain(|key, _| !key.starts_with('_') || stamps.contains(&key.as_str()));
-    let payload = Value::Object(payload);
-    match fault_of(payload_shape(channel), &payload) {
+    let mut payload = Value::Object(payload);
+    match fault_of(payload_shape(channel), &mut payload) {
         Some(fault) => Err(fault),
         None => Ok(payload),
     }

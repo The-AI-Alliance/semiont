@@ -16,7 +16,7 @@ import { BUS_OPERATIONS } from './bus-operations';
  * `recorded`. An OPERATION's channels are absent: a request reaches the one
  * service that answers it, and a reply is correlated-addressed to its owner.
  *
- *   everyone — every default client auto-subscribes (derives BRIDGED_CHANNELS)
+ *   everyone — every full client subscribes, with every operation's reply channels (derives BRIDGED_CHANNELS)
  *   scoped   — delivered to clients that joined the frame's RESOURCE scope
  *              (derives RESOURCE_SCOPED_CHANNELS)
  *   declared — only clients whose manifest names it: workers, sidecars, and

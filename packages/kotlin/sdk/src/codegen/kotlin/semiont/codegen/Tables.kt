@@ -14,9 +14,10 @@ import kotlinx.serialization.json.longOrNull
  * (errors/codes.json), the media types a knowledge base admits
  * (media-types/registry.json), the Encoding Standard's labels and
  * single-byte encodings (text/encoding-cases.json), what each event does to
- * a client's cache (client/refresh.json); and what each component schema
- * requires of a value, from the SDK's copy of that table. Each refuses what
- * it cannot render.
+ * a client's cache (client/refresh.json); what each component schema
+ * requires of a value, from the SDK's copy of that table; and Unicode's Cased
+ * and Case_Ignorable properties, from the SDK's copy of theirs. Each refuses
+ * what it cannot render.
  */
 private fun JsonElement?.obj(what: String): JsonObject = this as? JsonObject ?: refuse("$what is no object")
 
@@ -102,7 +103,7 @@ internal fun channelsFile(registry: JsonObject, definitions: JsonObject): String
     append("}\n\n")
     append("/** Every channel's name, in the registry's order. */\n")
     append("@Generated\npublic val CHANNEL_NAMES: List<String> = listOf(${rows.joinToString(", ") { literal(it.name) }})\n\n")
-    append("/** What a client with no narrower list of its own subscribes to on no scope: the channels every client hears, and every operation's reply channels. */\n")
+    append("/** What a full client gives its transport to name on no scope: the channels every client hears, and every operation's reply channels. */\n")
     append("@Generated\npublic val BRIDGED_CHANNELS: List<String> = listOf(${bridged.joinToString(", ") { literal(it) }})\n\n")
     append("/** The channels a resource's scope carries. */\n")
     append("@Generated\npublic val RESOURCE_SCOPED_CHANNELS: List<String> = listOf(${scoped.joinToString(", ") { literal(it) }})\n\n")
@@ -253,8 +254,13 @@ internal fun timingFile(table: JsonObject): String = buildString {
     append("}\n")
 }
 
-/** The codes a client's failures carry: an enum per vocabulary of errors/codes.json, each value as the wire spells it. */
-internal fun errorCodesFile(table: JsonObject): String = buildString {
+/**
+ * The codes a client's failures carry: an enum per vocabulary of errors/codes.json, each value as the wire spells it, and the
+ * client code each of CommandError's codes becomes, as an exhaustive `when` over its closed code (`definitions`, typed as
+ * `generation` types it). Refused where CommandError's codes, the codes the required table (`required`) recognizes and the
+ * wire codes codes.json maps are not the same codes, each mapped once.
+ */
+internal fun errorCodesFile(table: JsonObject, definitions: JsonObject, generation: Generation, required: JsonObject): String = buildString {
     fun vocabulary(key: String, name: String, doc: String) {
         val codes = table[key].obj(key)["codes"].list("$key's codes").map { it.obj("a code of $key") }
         append("/** $doc */\n@Generated\npublic enum class $name(\n    /** The code as the wire and every SDK spell it. */\n    public val code: String,\n) {\n")
@@ -289,15 +295,28 @@ internal fun errorCodesFile(table: JsonObject): String = buildString {
     val unclassified = table["transport"].obj("transport")["unclassified"].text("transport's unclassified")
     append("    else -> TransportErrorCode.${variantOf(unclassified)}\n}\n\n")
     val bus = table["busRequest"].obj("busRequest")
-    append("/** The client code a failure's own wire code becomes. */\n")
-    append("internal val BUS_REQUEST_CODE_BY_WIRE_CODE: Map<String, BusRequestErrorCode> = mapOf(\n")
+    val listed = definitions["CommandError"].obj("CommandError")["properties"].obj("CommandError's properties")["code"].obj("CommandError's code")["enum"]
+        .list("CommandError's codes").map { it.text("a code of CommandError") }
+    val recognized = required["schemas"].obj("the required table's schemas")["CommandError"].obj("the required table's CommandError")["members"]
+        .obj("the required table's CommandError members")["code"].obj("the required table's CommandError code")["recognized"]
+        .list("the codes the required table recognizes").map { it.text("a recognized code") }
+    if (recognized.toSet() != listed.toSet() || recognized.size != listed.size) refuse("the required table recognizes the codes $recognized, and CommandError lists $listed")
+    val mapped = mutableMapOf<String, String>()
     for (entry in bus["codes"].list("busRequest's codes").map { it.obj("a code") }) {
         val wire = (entry["wire"] as? JsonPrimitive)?.content ?: continue
-        append("    ${literal(wire)} to BusRequestErrorCode.${variantOf(entry["code"].text("a code").substringAfter('.'))},\n")
+        if (wire !in listed) refuse("codes.json maps the wire code $wire, which CommandError does not list")
+        if (mapped.put(wire, entry["code"].text("a code")) != null) refuse("codes.json maps the wire code $wire twice")
     }
-    append(")\n\n")
+    val codeType = valueTypeOf(definitions, generation, "../components/schemas/CommandError.json#/properties/code")
+    append("/** The client code each of CommandError's codes, a failure's own code, becomes. */\n")
+    append("internal fun busRequestCodeOf(code: $codeType): BusRequestErrorCode = when (code) {\n")
+    for (code in listed) {
+        val becomes = mapped[code] ?: refuse("CommandError's code $code becomes no bus request code in codes.json")
+        append("    $codeType.${variantOf(code)} -> BusRequestErrorCode.${variantOf(becomes.substringAfter('.'))}\n")
+    }
+    append("}\n\n")
     val unrecognized = bus["unrecognizedFailure"].text("busRequest's unrecognizedFailure")
-    append("/** The client code of a failure whose own code is none it knows. */\n")
+    append("/** The client code of a failure that states no code: one whose code the required table does not recognize is read as stating none. */\n")
     append("internal val UNRECOGNIZED_FAILURE: BusRequestErrorCode = BusRequestErrorCode.${variantOf(unrecognized.substringAfter('.'))}\n")
 }
 
@@ -366,6 +385,42 @@ internal fun requiredFile(table: JsonObject): String = buildString {
     append("internal val REQUIRED_SCHEMAS: Map<String, String> = mapOf(\n")
     for ((name, shape) in schemas) append("    ${literal(name)} to ${literal(shape.obj("$name's shape").toString())},\n")
     append(")\n")
+}
+
+/**
+ * Whether a code point is cased, and whether it is case-ignorable, as Unicode's
+ * Cased and Case_Ignorable properties have it, which the JDK gives neither of.
+ * The table is the SDK's copy (src/codegen/unicode-case.json), which
+ * packages/codegen/schemas/generate-unicode-case.mjs writes from Node's Unicode data.
+ */
+internal fun unicodeCaseFile(table: JsonObject): String = buildString {
+    fun ranges(property: String): Pair<List<Long>, List<Long>> {
+        val ranges = table[property].list("the table's $property").map { range ->
+            val bounds = range.list("a range of $property").map { (it as? JsonPrimitive)?.longOrNull ?: refuse("a range of $property holds $it, which is no code point") }
+            if (bounds.size != 2) refuse("a range of $property is not a first and a last code point: $range")
+            bounds[0] to bounds[1]
+        }
+        if (ranges.isEmpty() || ranges.any { (first, last) -> last < first } || ranges.zipWithNext().any { (before, after) -> after.first <= before.second }) {
+            refuse("the ranges of $property are none, or do not ascend")
+        }
+        return ranges.map { it.first } to ranges.map { it.second }
+    }
+    val (casedFirsts, casedLasts) = ranges("cased")
+    val (ignorableFirsts, ignorableLasts) = ranges("caseIgnorable")
+    append("/** Whether a code point is cased, as Unicode's Cased property has it. */\n")
+    append("internal fun cased(point: Int): Boolean = within(point, CASED_FIRSTS, CASED_LASTS)\n\n")
+    append("/** Whether a code point is case-ignorable, as Unicode's Case_Ignorable property has it. */\n")
+    append("internal fun caseIgnorable(point: Int): Boolean = within(point, CASE_IGNORABLE_FIRSTS, CASE_IGNORABLE_LASTS)\n\n")
+    append("private fun within(point: Int, firsts: IntArray, lasts: IntArray): Boolean {\n")
+    append("    val at = lasts.binarySearch(point)\n")
+    append("    if (at >= 0) return true\n")
+    append("    val next = -at - 1\n")
+    append("    return next < firsts.size && firsts[next] <= point\n")
+    append("}\n\n")
+    append("private val CASED_FIRSTS = intArrayOf(${casedFirsts.joinToString(", ")})\n\n")
+    append("private val CASED_LASTS = intArrayOf(${casedLasts.joinToString(", ")})\n\n")
+    append("private val CASE_IGNORABLE_FIRSTS = intArrayOf(${ignorableFirsts.joinToString(", ")})\n\n")
+    append("private val CASE_IGNORABLE_LASTS = intArrayOf(${ignorableLasts.joinToString(", ")})\n")
 }
 
 /**

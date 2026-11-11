@@ -48,6 +48,7 @@ import { currentUserOf } from '@semiont/http-transport';
 import {
   accessToken,
   baseUrl,
+  BRIDGED_CHANNELS,
   equalJitter,
   MAX_RECONNECT_MS,
   RECONNECT_MS,
@@ -696,6 +697,7 @@ export class SemiontSession implements StateUnit {
     const transport = new HttpTransport({
       baseUrl: url,
       token$,
+      channels: BRIDGED_CHANNELS,
       tokenRefresher: (refused) => session.refresh(refused),
       ...(keeps === null ? {} : { saveLastEventId: keeps.saveLastEventId }),
       ...(keeps === null || keeps.fromStart === null ? {} : { loadLastEventIds: keeps.fromStart.places.loadLastEventIds }),

@@ -56,13 +56,13 @@ public sealed partial class HttpTransport : IDisposable
     private ConnectionState state;
     private long outages;
 
-    public HttpTransport(string baseUrl, string? token, IEnumerable<string>? channels = null, Timing? timing = null,
+    public HttpTransport(string baseUrl, string? token, IEnumerable<string> channels, Timing? timing = null,
         Func<string?, CancellationToken, Task<string?>>? refresher = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null)
     {
         BaseUrl = baseUrl.TrimEnd('/');
         this.token = token;
-        this.channels = (channels ?? ProtocolFacts.Channels("everyone")).Distinct(StringComparer.Ordinal).ToArray();
+        this.channels = channels.Distinct(StringComparer.Ordinal).ToArray();
         this.timing = timing ?? new Timing();
         clock = timeProvider ?? TimeProvider.System;
         this.random = random ?? Random.Shared;
@@ -129,21 +129,22 @@ public sealed partial class HttpTransport : IDisposable
     private async IAsyncEnumerable<Carried> ObserveFrames(HashSet<string> selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
     {
         var view = new FrameView(selected);
-        await using var events = view.Stream.Observe(cancellation).GetAsyncEnumerator();
+        var events = view.Stream.Observe(cancellation).GetAsyncEnumerator();
+        await using var disposing = events.ConfigureAwait(Spawning.Captures);
         Task<bool> first;
         IDisposable? hold;
         lock (gate)
         {
             if (closed) yield break;
             hold = resource is ResourceId id ? SubscribeToResource(id) : null;
-            first = events.MoveNextAsync().AsTask();
+            first = Spawning.AsTask(events.MoveNextAsync());
             listeners.Add(view);
         }
         using var retained = hold;
         try
         {
-            if (!await first.ConfigureAwait(false)) yield break;
-            do { yield return events.Current; } while (await events.MoveNextAsync().ConfigureAwait(false));
+            if (!await first.ConfigureAwait(Spawning.Captures)) yield break;
+            do { yield return events.Current; } while (await events.MoveNextAsync().ConfigureAwait(Spawning.Captures));
         }
         finally
         {
@@ -162,7 +163,7 @@ public sealed partial class HttpTransport : IDisposable
         {
             try
             {
-                await foreach (var carried in frames.ConfigureAwait(false))
+                await foreach (var carried in frames.ConfigureAwait(Spawning.Captures))
                 {
                     try { handler(carried); }
                     catch (Exception error) { failures.Publish(new TransportError(ProtocolFacts.Error(0), error.Message, inner: error)); }
@@ -207,7 +208,7 @@ public sealed partial class HttpTransport : IDisposable
         using var activity = SdkTelemetry.Start("bus.emit:{channel}", SdkTelemetry.BusTags(channel, scope), channel);
         SdkTelemetry.Sent(channel, scope);
         BusLog.Line("EMIT", channel, payload);
-        try { return await SentAsync(channel, payload, scope, correlationId, cancellation).ConfigureAwait(false); }
+        try { return await SentAsync(channel, payload, scope, correlationId, cancellation).ConfigureAwait(Spawning.Captures); }
         catch (TransportError error) { failures.Publish(error); throw; }
     }
 
@@ -230,12 +231,12 @@ public sealed partial class HttpTransport : IDisposable
             using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timing.EmitTimeoutMs), clock);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token, deadline.Token);
             HttpResponseMessage response;
-            try { response = await SendAsync(request, linked.Token).ConfigureAwait(false); }
+            try { response = await SendAsync(request, linked.Token).ConfigureAwait(Spawning.Captures); }
             catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !cancellation.IsCancellationRequested)
             {
                 if (lifetime.IsCancellationRequested) throw new TransportError(ProtocolFacts.Error(0), "The transport is closed");
                 if (attempt >= timing.EmitRetry.Attempts) throw new TransportError(ProtocolFacts.Error(503), "Emit was not answered", inner: error);
-                await Task.Delay(Retry.EqualJitter(TimeSpan.FromMilliseconds(cap), random), clock, waiting.Token).ConfigureAwait(false);
+                await Task.Delay(Retry.EqualJitter(TimeSpan.FromMilliseconds(cap), random), clock, waiting.Token).ConfigureAwait(Spawning.Captures);
                 cap = Math.Min(timing.EmitRetry.MaxDelayMs, checked(cap * 2));
                 continue;
             }
@@ -243,19 +244,19 @@ public sealed partial class HttpTransport : IDisposable
             {
                 if (response.IsSuccessStatusCode)
                 {
-                    try { return (await response.Content.ReadFromJsonAsync<BusEmitAccepted>(linked.Token).ConfigureAwait(false))?.Subscribers; }
+                    try { return (await response.Content.ReadFromJsonAsync<BusEmitAccepted>(linked.Token).ConfigureAwait(Spawning.Captures))?.Subscribers; }
                     catch (JsonException) { return null; }
                 }
-                var failure = await RefusalAsync(response, linked.Token).ConfigureAwait(false);
+                var failure = await RefusalAsync(response, linked.Token).ConfigureAwait(Spawning.Captures);
                 if (failure.Code == ProtocolFacts.Error(401) && !renewed)
                 {
                     renewed = true;
-                    if (await RenewAsync(sent, cancellation).ConfigureAwait(false) is { } renewal) { sent = renewal; attempt = 0; cap = timing.EmitRetry.InitialDelayMs; continue; }
+                    if (await RenewAsync(sent, cancellation).ConfigureAwait(Spawning.Captures) is { } renewal) { sent = renewal; attempt = 0; cap = timing.EmitRetry.InitialDelayMs; continue; }
                 }
                 if (!ProtocolFacts.RetryEmit((int)response.StatusCode) || failure.Code == ProtocolFacts.Error(401) || attempt >= timing.EmitRetry.Attempts) throw failure;
                 var wait = Retry.EqualJitter(TimeSpan.FromMilliseconds(cap), random);
                 var stated = TimeSpan.FromMilliseconds(RetryAfter(response));
-                await Task.Delay(stated > wait ? stated : wait, clock, waiting.Token).ConfigureAwait(false);
+                await Task.Delay(stated > wait ? stated : wait, clock, waiting.Token).ConfigureAwait(Spawning.Captures);
                 cap = Math.Min(timing.EmitRetry.MaxDelayMs, checked(cap * 2));
             }
         }
@@ -263,7 +264,7 @@ public sealed partial class HttpTransport : IDisposable
 
     public async Task<JsonElement?> RequestAsync(string operation, JsonElement payload, int? timeoutMs = null, CancellationToken cancellation = default)
     {
-        var frame = await RequestFrameAsync(operation, payload, timeoutMs, cancellation).ConfigureAwait(false);
+        var frame = await RequestFrameAsync(operation, payload, timeoutMs, cancellation).ConfigureAwait(Spawning.Captures);
         return frame.Frame.Payload.TryGetProperty("response", out var value) ? value.Clone() : null;
     }
 
@@ -284,15 +285,15 @@ public sealed partial class HttpTransport : IDisposable
         var ownsTurn = false;
         try
         {
-            await sendOrder.WaitAsync(linked.Token).ConfigureAwait(false);
+            await Spawning.WaitAsync(sendOrder, linked.Token).ConfigureAwait(Spawning.Captures);
             ownsTurn = true;
             Task open;
             lock (gate) { open = attached.Task; }
-            await open.WaitAsync(linked.Token).ConfigureAwait(false);
-            await EmitAsync(operation, payload, correlationId: correlation, cancellation: linked.Token).ConfigureAwait(false);
+            await Spawning.WaitAsync(open, linked.Token).ConfigureAwait(Spawning.Captures);
+            await EmitAsync(operation, payload, correlationId: correlation, cancellation: linked.Token).ConfigureAwait(Spawning.Captures);
             sendOrder.Release();
             ownsTurn = false;
-            var frame = await reply.Completion.Task.WaitAsync(linked.Token).ConfigureAwait(false) switch
+            var frame = await Spawning.WaitAsync(reply.Completion.Task, linked.Token).ConfigureAwait(Spawning.Captures) switch
             {
                 FrameRefusal refusal => throw new TransportError(ProtocolFacts.Error(0),
                     "a frame on " + refusal.Channel + " is not that channel's: " + new Fault(refusal.Member, refusal.Reason)),
@@ -314,14 +315,15 @@ public sealed partial class HttpTransport : IDisposable
 
     /// <summary>What a request answered on <paramref name="channel"/>, its operation's failure channel, fails with. A
     /// failure is held to its channel's schema as a result is: one with a fault is refused, naming the fault. One the
-    /// schema passes is a <see cref="BusRequestError"/> in its own words, under the code its own code becomes; the schema
-    /// holds the code to no list.</summary>
+    /// schema passes is a <see cref="BusRequestError"/> in its own words, under the code its own code becomes, as the
+    /// table reads it: a code it does not recognize is read as none.</summary>
     private SemiontError Answered(string channel, JsonElement failure)
     {
-        if (Required.FaultOf(failureSchemas[channel], failure) is { } fault)
+        if (Required.FaultOf(failureSchemas[channel], failure, out var read) is { } fault)
             return new TransportError(ProtocolFacts.Error(0), $"a payload on {channel} is not that channel's: {fault}");
-        var code = failure.TryGetProperty("code", out var field) ? field.GetString() : null;
-        return new BusRequestError(ProtocolFacts.Failure(code), failure.GetProperty("message").GetString()
+        var code = read.TryGetProperty("code", out var field) && field.ValueKind != JsonValueKind.Null
+            ? field.Deserialize<CommandErrorCode>() : (CommandErrorCode?)null;
+        return new BusRequestError(FailureCodes.Of(code), read.GetProperty("message").GetString()
             ?? throw new InvalidOperationException($"The schema of {channel} let a failure's message be null."));
     }
 
@@ -339,7 +341,7 @@ public sealed partial class HttpTransport : IDisposable
                 if (string.IsNullOrEmpty(sent) || IsRefused(sent))
                 {
                     Transition(ConnectionState.Unauthenticated);
-                    await WaitChangeAsync(TimeSpan.FromMilliseconds(timing.ReconnectMs)).ConfigureAwait(false);
+                    await WaitChangeAsync(TimeSpan.FromMilliseconds(timing.ReconnectMs)).ConfigureAwait(Spawning.Captures);
                     continue;
                 }
                 BusSubscribeRequest body;
@@ -360,7 +362,7 @@ public sealed partial class HttpTransport : IDisposable
                 }
                 if (channels.Length == 0 && body.Scoped.Count == 0)
                 {
-                    await WaitChangeAsync(TimeSpan.FromMilliseconds(timing.ReconnectMs)).ConfigureAwait(false);
+                    await WaitChangeAsync(TimeSpan.FromMilliseconds(timing.ReconnectMs)).ConfigureAwait(Spawning.Captures);
                     continue;
                 }
                 using var request = Request(HttpMethod.Post, "/bus/subscribe", sent);
@@ -370,11 +372,11 @@ public sealed partial class HttpTransport : IDisposable
                 using (var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timing.StreamOpenMs), clock))
                 using (var linked = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, lifetime.Token))
                 {
-                    try { response = await SendAsync(request, linked.Token).ConfigureAwait(false); }
+                    try { response = await SendAsync(request, linked.Token).ConfigureAwait(Spawning.Captures); }
                     catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !lifetime.IsCancellationRequested)
                     {
                         Transition(ConnectionState.Reconnecting);
-                        await WaitChangeAsync(Backoff(ref cap)).ConfigureAwait(false);
+                        await WaitChangeAsync(Backoff(ref cap)).ConfigureAwait(Spawning.Captures);
                         continue;
                     }
                 }
@@ -382,18 +384,18 @@ public sealed partial class HttpTransport : IDisposable
                 {
                     using (response)
                     {
-                        var error = await RefusalAsync(response, lifetime.Token).ConfigureAwait(false);
+                        var error = await RefusalAsync(response, lifetime.Token).ConfigureAwait(Spawning.Captures);
                         failures.Publish(error);
                         if (error.Code == ProtocolFacts.Error(401))
                         {
-                            if (await RenewAsync(sent, lifetime.Token).ConfigureAwait(false) is null) Transition(ConnectionState.Unauthenticated);
+                            if (await RenewAsync(sent, lifetime.Token).ConfigureAwait(Spawning.Captures) is null) Transition(ConnectionState.Unauthenticated);
                         }
                         else
                         {
                             Transition(ConnectionState.Reconnecting);
                             var wait = Backoff(ref cap);
                             var stated = TimeSpan.FromMilliseconds(RetryAfter(response));
-                            await WaitChangeAsync(stated > wait ? stated : wait).ConfigureAwait(false);
+                            await WaitChangeAsync(stated > wait ? stated : wait).ConfigureAwait(Spawning.Captures);
                         }
                     }
                     continue;
@@ -408,13 +410,13 @@ public sealed partial class HttpTransport : IDisposable
                 Transition(ConnectionState.Open);
                 lock (gate) { attached.TrySetResult(); }
                 using var changing = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-                var change = changed.Reader.ReadAsync(changing.Token).AsTask();
-                var done = await Task.WhenAny(drain, change).ConfigureAwait(false);
+                var change = Spawning.AsTask(changed.Reader.ReadAsync(changing.Token));
+                var done = await Spawning.WhenAny(drain, change).ConfigureAwait(Spawning.Captures);
                 changing.Cancel();
                 if (done == change)
                 {
-                    if (await change.ConfigureAwait(false) == Change.Debounced)
-                        await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()), clock, lifetime.Token).ConfigureAwait(false);
+                    if (await change.ConfigureAwait(Spawning.Captures) == Change.Debounced)
+                        await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()), clock, lifetime.Token).ConfigureAwait(Spawning.Captures);
                 }
                 else
                 {
@@ -422,7 +424,7 @@ public sealed partial class HttpTransport : IDisposable
                     previous = null;
                     lock (gate) { attached = NewCompletion(); }
                     Transition(ConnectionState.Reconnecting);
-                    await WaitChangeAsync(Backoff(ref cap)).ConfigureAwait(false);
+                    await WaitChangeAsync(Backoff(ref cap)).ConfigureAwait(Spawning.Captures);
                 }
             }
         }
@@ -431,7 +433,7 @@ public sealed partial class HttpTransport : IDisposable
         {
             previous?.Cancel();
             previous?.Dispose();
-            if (read is not null) await read.ConfigureAwait(false);
+            if (read is not null) await read.ConfigureAwait(Spawning.Captures);
         }
     }
 
@@ -441,11 +443,11 @@ public sealed partial class HttpTransport : IDisposable
         {
             try
             {
-                using var stream = await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(false);
+                using var stream = await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(Spawning.Captures);
                 var parser = new SseParser();
                 var buffer = new byte[8192];
                 int count;
-                while ((count = await stream.ReadAsync(buffer, cancellation).ConfigureAwait(false)) != 0)
+                while ((count = await stream.ReadAsync(buffer, cancellation).ConfigureAwait(Spawning.Captures)) != 0)
                 {
                     foreach (var message in parser.Feed(buffer.AsSpan(0, count)))
                     {
@@ -554,7 +556,8 @@ public sealed partial class HttpTransport : IDisposable
     private static bool TryFrame(JsonElement value, [NotNullWhen(true)] out BusFrame? frame, [NotNullWhen(false)] out Fault? fault)
     {
         frame = null;
-        fault = Required.FaultOf("BusFrame", value);
+        // A frame is delivered as it states itself: what is read of its payload is its channel's typed reader's.
+        fault = Required.FaultOf("BusFrame", value, out _);
         if (fault is not null) return false;
         // The walk reads a null member BusFrame does not require as one the frame does not carry, and so is it read.
         var carried = value;
@@ -586,9 +589,9 @@ public sealed partial class HttpTransport : IDisposable
             if (renewing is null || renewingToken != refused)
             {
                 renewingToken = refused;
-                renewing = Task.Run(async () =>
+                renewing = Spawning.Run(async () =>
                 {
-                    var renewed = await refresher(refused, lifetime.Token).ConfigureAwait(false);
+                    var renewed = await refresher(refused, lifetime.Token).ConfigureAwait(Spawning.Captures);
                     lock (gate)
                     {
                         if (token != refused) return string.IsNullOrEmpty(token) ? null : token;
@@ -600,7 +603,7 @@ public sealed partial class HttpTransport : IDisposable
             }
             refresh = renewing;
         }
-        return await refresh.WaitAsync(cancellation).ConfigureAwait(false);
+        return await Spawning.WaitAsync(refresh, cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     private HttpRequestMessage Request(HttpMethod method, string path, string? credential)
@@ -621,7 +624,7 @@ public sealed partial class HttpTransport : IDisposable
         string text;
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timing.HttpRequestMs), clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cancellation);
-        try { text = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false); }
+        try { text = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(Spawning.Captures); }
         catch (Exception error) when (error is OperationCanceledException || error is IOException) { text = ""; }
         var status = (int)response.StatusCode;
         var code = ProtocolFacts.Error(status);
@@ -641,7 +644,7 @@ public sealed partial class HttpTransport : IDisposable
 
     private string? Token() { lock (gate) { return token; } }
     private bool IsRefused(string credential) { lock (gate) { return refusedToken == credential; } }
-    private static TaskCompletionSource NewCompletion() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource NewCompletion() => new(Spawning.CompletionOptions);
     private static BusRequestError BusError(string code, string message) => new(ProtocolFacts.BusError(code), message);
     private void Transition(ConnectionState value)
     {
@@ -659,7 +662,7 @@ public sealed partial class HttpTransport : IDisposable
     /// <summary>A stream that stays down is degraded once it has been reconnecting for degradedThresholdMs.</summary>
     private async Task DegradeAsync(long outage)
     {
-        try { await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("degradedThresholdMs").GetInt32()), clock, lifetime.Token).ConfigureAwait(false); }
+        try { await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("degradedThresholdMs").GetInt32()), clock, lifetime.Token).ConfigureAwait(Spawning.Captures); }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return; }
         lock (gate)
         {
@@ -681,7 +684,7 @@ public sealed partial class HttpTransport : IDisposable
     {
         try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(timing.LazyRemoveMs), clock, lifetime.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(timing.LazyRemoveMs), clock, lifetime.Token).ConfigureAwait(Spawning.Captures);
             lock (gate)
             {
                 if (holds.TryGetValue(scope, out var count) && count == 0) { holds.Remove(scope); changed.Writer.TryWrite(Change.AtOnce); }
@@ -689,12 +692,12 @@ public sealed partial class HttpTransport : IDisposable
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
     }
-    private async Task RetireAsync(CancellationTokenSource source) { try { await Task.Delay(TimeSpan.FromMilliseconds(timing.LingerMs), clock, lifetime.Token).ConfigureAwait(false); } catch (OperationCanceledException) { } source.Cancel(); source.Dispose(); }
+    private async Task RetireAsync(CancellationTokenSource source) { try { await Task.Delay(TimeSpan.FromMilliseconds(timing.LingerMs), clock, lifetime.Token).ConfigureAwait(Spawning.Captures); } catch (OperationCanceledException) { } source.Cancel(); source.Dispose(); }
     private async Task WaitChangeAsync(TimeSpan wait)
     {
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-        var change = changed.Reader.ReadAsync(waiting.Token).AsTask();
-        await Task.WhenAny(change, Task.Delay(wait, clock, waiting.Token)).ConfigureAwait(false);
+        var change = Spawning.AsTask(changed.Reader.ReadAsync(waiting.Token));
+        await Spawning.WhenAny(change, Task.Delay(wait, clock, waiting.Token)).ConfigureAwait(Spawning.Captures);
         waiting.Cancel();
         lifetime.Token.ThrowIfCancellationRequested();
     }
@@ -725,7 +728,7 @@ public sealed partial class HttpTransport : IDisposable
 
     private sealed record Pending(string Result, string Failure)
     {
-        internal TaskCompletionSource<Carried> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<Carried> Completion { get; } = new(Spawning.CompletionOptions);
     }
     private sealed class Hold(Action release) : IDisposable
     {

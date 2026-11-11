@@ -1,8 +1,9 @@
 import Foundation
 
 // The first fault of a value as one of the protocol's component schemas. Every SDK holds what it
-// reads to the table of what each schema requires, and names the first fault it finds the same
-// way. The table is generated at build time (requiredSchemas, from the SDK's copy of it,
+// reads to the table of what each schema requires, names the first fault it finds the same way,
+// and leaves out of what it reads a member the table reads as absent. The table is generated at
+// build time (requiredSchemas, from the SDK's copy of it,
 // Sources/SemiontCodegen/required-schemas.json), by the rules of
 // packages/codegen/schemas/required-shapes.mjs, which states what each part of a shape means and
 // the order a reader walks them in.
@@ -47,6 +48,8 @@ struct Discriminator: Sendable {
 final class Shape: Sendable {
   let ref: String?
   let kinds: [Kind]?
+  /// Of an object's member, the texts it is read as: one that holds another text is read as absent.
+  let recognized: [String]?
   let enumeration: [JSONValue]?
   let pattern: [Step]?
   let minLength: Int?
@@ -65,15 +68,16 @@ final class Shape: Sendable {
   let allOf: [Shape]?
 
   init(
-    ref: String? = nil, kinds: [Kind]? = nil, enumeration: [JSONValue]? = nil,
-    pattern: [Step]? = nil, minLength: Int? = nil, maxLength: Int? = nil,
-    minimum: Double? = nil, maximum: Double? = nil, minItems: Int? = nil, maxItems: Int? = nil,
-    required: [String]? = nil, members: [String: Shape]? = nil, closed: [String]? = nil,
-    items: Shape? = nil, values: Shape? = nil, oneOf: [Shape]? = nil,
+    ref: String? = nil, kinds: [Kind]? = nil, recognized: [String]? = nil,
+    enumeration: [JSONValue]? = nil, pattern: [Step]? = nil, minLength: Int? = nil,
+    maxLength: Int? = nil, minimum: Double? = nil, maximum: Double? = nil, minItems: Int? = nil,
+    maxItems: Int? = nil, required: [String]? = nil, members: [String: Shape]? = nil,
+    closed: [String]? = nil, items: Shape? = nil, values: Shape? = nil, oneOf: [Shape]? = nil,
     discriminator: Discriminator? = nil, allOf: [Shape]? = nil
   ) {
     self.ref = ref
     self.kinds = kinds
+    self.recognized = recognized
     self.enumeration = enumeration
     self.pattern = pattern
     self.minLength = minLength
@@ -96,16 +100,24 @@ final class Shape: Sendable {
 /// The first fault `value` has as the component schema `schema`, by the rules every SDK reads the
 /// table by; nil when it has none.
 func faultOf(_ schema: String, _ value: JSONValue) -> Fault? {
-  faultAt(component(schema), value, way: "")
+  var read = value
+  return faultAt(component(schema), &read, way: "")
 }
 
-/// The first fault of `payload` as a payload on `channel`, by the rules every SDK reads the table
-/// by; nil when it has none.
-func faultOf(payload: [String: JSONValue], on channel: String) -> Fault? {
+/// `payload`, a payload on `channel`, as it is read by the rules every SDK reads the table by: a
+/// member it reads as absent left out. It is refused for its first fault.
+func payloadAsRead(_ payload: [String: JSONValue], on channel: String) throws(Fault)
+  -> [String: JSONValue]
+{
   guard let shape = requiredPayloadShapes[channel] else {
     preconditionFailure("\(channel) is no channel of the bus's registry")
   }
-  return faultAt(shape, .object(payload), way: "")
+  var read = JSONValue.object(payload)
+  if let fault = faultAt(shape, &read, way: "") { throw fault }
+  guard case .object(let object) = read else {
+    preconditionFailure("a payload read on \(channel) is no object")
+  }
+  return object
 }
 
 private func component(_ name: String) -> Shape {
@@ -183,36 +195,52 @@ private func isAsStated(_ shape: Shape, _ value: JSONValue) -> Bool {
   }
 }
 
-/// The first fault `value` has as a value of `shape`, from `way`.
-private func faultAt(_ shape: Shape, _ value: JSONValue, way: String) -> Fault? {
+/// The first fault `value` has as a value of `shape`, from `way`. What the shape reads as absent
+/// is left out of `value`.
+private func faultAt(_ shape: Shape, _ value: inout JSONValue, way: String) -> Fault? {
   let own = resolved(shape)
   if !allows(own.kinds, value) || !isAsStated(own, value) {
     return Fault(member: way, reason: .malformed)
   }
-  if case .object(let object) = value, let fault = faultOfMembers(own, object, way: way) {
-    return fault
+  if case .object(var object) = value {
+    if let fault = faultOfMembers(own, &object, way: way) { return fault }
+    value = .object(object)
   }
-  if case .array(let held) = value, let items = own.items {
-    for item in held {
-      if let fault = faultAt(items, item, way: way) { return fault }
+  if case .array(var held) = value, let items = own.items {
+    for index in held.indices {
+      var item = held[index]
+      if let fault = faultAt(items, &item, way: way) { return fault }
+      if item != held[index] { held[index] = item }
     }
+    value = .array(held)
   }
   if let variants = own.oneOf,
-    let fault = faultOfOneOf(variants, own.discriminator, value, way: way)
+    let fault = faultOfOneOf(variants, own.discriminator, &value, way: way)
   {
     return fault
   }
   if let parts = own.allOf {
     for part in parts {
-      if let fault = faultAt(part, value, way: way) { return fault }
+      if let fault = faultAt(part, &value, way: way) { return fault }
     }
   }
   return nil
 }
 
+/// Whether `shape`, a member's, reads `value` as absent: a text none of its recognized texts.
+private func isUnrecognized(_ shape: Shape, _ value: JSONValue) -> Bool {
+  guard let recognized = resolved(shape).recognized, case .string(let text) = value else {
+    return false
+  }
+  return !recognized.contains(text)
+}
+
 /// The first fault of an object in the members `shape` requires, in what its members are, in the
-/// members it may not carry, and in its values.
-private func faultOfMembers(_ shape: Shape, _ object: [String: JSONValue], way: String) -> Fault? {
+/// members it may not carry, and in its values. A member it reads as absent is left out of
+/// `object`.
+private func faultOfMembers(_ shape: Shape, _ object: inout [String: JSONValue], way: String)
+  -> Fault?
+{
   if let required = shape.required {
     for name in required {
       switch object[name] {
@@ -228,7 +256,13 @@ private func faultOfMembers(_ shape: Shape, _ object: [String: JSONValue], way: 
   if let members = shape.members {
     for (name, member) in members.sorted(by: { byCodePoint($0.key, $1.key) }) {
       guard let held = object[name], held != .null else { continue }
-      if let fault = faultAt(member, held, way: within(way, name)) { return fault }
+      if isUnrecognized(member, held) {
+        object.removeValue(forKey: name)
+        continue
+      }
+      var read = held
+      if let fault = faultAt(member, &read, way: within(way, name)) { return fault }
+      if read != held { object[name] = read }
     }
   }
   if let closed = shape.closed,
@@ -237,8 +271,10 @@ private func faultOfMembers(_ shape: Shape, _ object: [String: JSONValue], way: 
     return Fault(member: within(way, unnamed), reason: .malformed)
   }
   if let values = shape.values {
-    for (_, held) in object.sorted(by: { byCodePoint($0.key, $1.key) }) {
-      if let fault = faultAt(values, held, way: way) { return fault }
+    for (name, held) in object.sorted(by: { byCodePoint($0.key, $1.key) }) {
+      var read = held
+      if let fault = faultAt(values, &read, way: way) { return fault }
+      if read != held { object[name] = read }
     }
   }
   return nil
@@ -246,9 +282,10 @@ private func faultOfMembers(_ shape: Shape, _ object: [String: JSONValue], way: 
 
 /// The fault `value` has as one of a union's `variants`: the variant its discriminator names, or
 /// else each variant whose kinds allow it. None when one of them has none; the first one's when
-/// each has one; and a value no variant allows is malformed.
+/// each has one; and a value no variant allows is malformed. `value` is read as the first variant
+/// that has none reads it.
 private func faultOfOneOf(
-  _ variants: [Shape], _ discriminator: Discriminator?, _ value: JSONValue, way: String
+  _ variants: [Shape], _ discriminator: Discriminator?, _ value: inout JSONValue, way: String
 ) -> Fault? {
   var candidates = variants.filter { allows(resolved($0).kinds, value) }
   if case .object(let object) = value, let discriminator,
@@ -260,7 +297,11 @@ private func faultOfOneOf(
   if candidates.isEmpty { return Fault(member: way, reason: .malformed) }
   var first: Fault?
   for candidate in candidates {
-    guard let fault = faultAt(candidate, value, way: way) else { return nil }
+    var read = value
+    guard let fault = faultAt(candidate, &read, way: way) else {
+      value = read
+      return nil
+    }
     if first == nil { first = fault }
   }
   return first

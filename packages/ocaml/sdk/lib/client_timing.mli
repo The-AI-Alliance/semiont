@@ -27,6 +27,8 @@ val save_debounce_ms : int
 val max_stored_bytes_count : int
 val job_silence_ms : int
 val job_status_poll_ms : int
+val job_poll_ms : int
+val job_poll_timeout_ms : int
 val generation_stall_floor_ms : int
 val generation_stall_per_token_ms : int
 val generation_stall_assumed_tokens_count : int

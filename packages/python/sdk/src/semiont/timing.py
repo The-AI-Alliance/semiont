@@ -35,6 +35,8 @@ __all__ = [
     "HTTP_REQUEST_TIMEOUT_MS",
     "INVALIDATION_WINDOW_MS",
     "JOB_CLAIM_TIMEOUT_MS",
+    "JOB_POLL_MS",
+    "JOB_POLL_TIMEOUT_MS",
     "JOB_SILENCE_MS",
     "JOB_STATUS_POLL_MS",
     "LAZY_REMOVE_MS",
@@ -205,6 +207,15 @@ JOB_SILENCE_MS: Final = 10000
 # the job says something or its status is an end.
 JOB_STATUS_POLL_MS: Final = 5000
 
+# How often a job's `pollUntilComplete` asks for its status (`job:status-requested`) until the
+# status is an end, when its caller names no interval of its own.
+JOB_POLL_MS: Final = 1000
+
+# How long a job's `pollUntilComplete` goes on asking for its status before it fails as timed
+# out, when its caller names no limit of its own: from its first ask, its asks and the waits
+# between them included.
+JOB_POLL_TIMEOUT_MS: Final = 60000
+
 # The shortest a client waits, with a generation it follows saying nothing, before it asks for
 # the job to be cancelled and gives up on it. A floor, so a job that never says anything at all
 # is caught whatever its size.
@@ -308,6 +319,8 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "maxStoredBytesCount",
     "jobSilenceMs",
     "jobStatusPollMs",
+    "jobPollMs",
+    "jobPollTimeoutMs",
     "generationStallFloorMs",
     "generationStallPerTokenMs",
     "generationStallAssumedTokensCount",

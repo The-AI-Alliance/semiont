@@ -20,7 +20,7 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import qualified Data.Vector as V
 import Numeric (showHex)
-import Facts (generateFacts)
+import Facts (generateFacts, wireClassifier)
 import HttpFacts (httpFacts)
 import TransportFacts (transportFacts)
 import WorkerFacts (workerFacts)
@@ -309,8 +309,8 @@ runtimeSchema value = value
 member :: Text -> Text
 member = T.concat . map identifier . T.split (\character -> character == ':' || character == '-')
 
-busDescriptors :: Schemas -> Value -> Either String (Schemas, [(FilePath, Text)])
-busDescriptors original registry = do
+busDescriptors :: (Map.Map Text Text, Text) -> Schemas -> Value -> Either String (Schemas, [(FilePath, Text)])
+busDescriptors (wires, unrecognized) original registry = do
   root <- fieldsOf registry
   rows <- arrayAt "channels" root
   operations <- arrayAt "operations" root
@@ -350,7 +350,7 @@ busDescriptors original registry = do
     failure <- required "failure" fields >>= find
     forM_ [request, result, failure] $ \(_, _, scope) -> when scope (Left "operation channel unexpectedly needs resource scope")
     pure (request, result, failure)
-  failureMessages <- forM ops $ \((request,_,_),_,(_,typ,_)) -> do
+  failureReaders <- forM ops $ \((request,_,_),_,(_,typ,_)) -> do
     schema <- maybe (Left "operation failure schema is missing") Right (Map.lookup typ schemas') >>= normalize schemas' >>= fieldsOf
     properties <- maybe (Left "operation failure has no properties") fieldsOf (KM.lookup "properties" schema)
     requiredNames <- arrayAt "required" schema >>= traverse stringValue
@@ -359,7 +359,12 @@ busDescriptors original registry = do
           Just (Object definition) -> textAt "type" definition == Just "string"
           _ -> False
     unless ("message" `elem` requiredNames && wordsAreText) (Left "operation failure does not require its words as a string `message`")
-    pure (request,lower typ <> identifier "message")
+    stated <- case KM.lookup "code" properties of
+      Just (Object definition) | Just (Array values) <- KM.lookup "enum" definition -> traverse stringValue (toList values)
+      _ -> Left "operation failure states its code as one of no list: update typed error classification"
+    mapped <- forM stated $ \value -> maybe (Left ("codes.json reads the failure code " ++ T.unpack value ++ " as no bus request code"))
+      (\member' -> Right (value, member')) (Map.lookup value wires)
+    pure (request, lower typ <> identifier "message", typ, mapped)
   let limits = [request | ((request,input,_),(_,output,_),(_,failure,_)) <- ops,
                 output == "InferenceLimitsResult", input == "InferenceLimitsRequest", failure == "CommandError"]
       namedLimits = [constructor | (name,constructor,_,_,_) <- typed, ":limits-requested" `T.isSuffixOf` name]
@@ -413,13 +418,22 @@ busDescriptors original registry = do
         <> T.unlines ["  " <> literal name <> " -> Right (channelName " <> constructor <> ", channelSchema " <> constructor <> ", channelIsScoped " <> constructor <> ")" | (name, constructor, _, _, _) <- typed]
         <> "  _ -> Left \"unknown channel in metadata dispatcher\"\n"
         <> "operationMetadata :: [(Text, Text, Text)]\noperationMetadata = [" <> T.intercalate ", " ["names " <> request <> "Operation" | ((request, _, _), _, _) <- ops] <> "]\n  where names operation = let (asked, result, failure) = operationChannels operation in (channelName asked, channelName result, channelName failure)\n"
-  let failures = header <> T.unlines
-        [ "module Semiont.Internal.Generated.OperationFailure (message) where"
+  let reader typ = "from" <> typ <> identifier "code"
+      failures = T.unlines
+        [ "-- Generated from protocol/specs/src/bus/registry.json and protocol/specs/src/errors/codes.json. Do not edit."
+        , "{-# LANGUAGE DataKinds, GADTs, KindSignatures, OverloadedStrings #-}"
+        , "module Semiont.Internal.Generated.OperationFailure (message, code) where"
         , "import Data.Text (Text)"
         , "import Semiont.Channels"
+        , "import Semiont.ErrorCodes (BusRequestCode(..))"
         , "import qualified Semiont.Types as Types"
         , "message :: Operation input output failure -> failure -> Text"
-        ] <> T.unlines ["message " <> request <> "Operation = Types." <> accessor | (request,accessor) <- failureMessages]
+        ] <> T.unlines ["message " <> request <> "Operation = Types." <> accessor | (request,accessor,_,_) <- failureReaders]
+        <> "-- | The bus request code of an operation's failure: the one its code is read as, and for no code the\n-- unrecognized failure's.\ncode :: Operation input output failure -> failure -> BusRequestCode\n"
+        <> T.unlines ["code " <> request <> "Operation = " <> reader typ <> " . Types." <> lower typ <> identifier "code" | (request,_,typ,_) <- failureReaders]
+        <> T.concat [reader typ <> " :: Maybe Types." <> typ <> identifier "code" <> " -> BusRequestCode\n" <> reader typ <> " value = case value of\n  Nothing -> " <> unrecognized <> "\n"
+            <> T.unlines ["  Just Types." <> typ <> identifier "code" <> identifier wire <> " -> " <> busCode | (wire, busCode) <- mapped]
+          | (typ, mapped) <- nub [(typ, mapped) | (_,_,typ,mapped) <- failureReaders]]
   pure (schemas', [("generated/Semiont/Internal/Generated/OperationFailure.hs", failures), ("src/Semiont/Channels.hs", code), ("test/Semiont/Internal/Generated/ChannelRoundTrip.hs", roundTrips)])
   where
     required key fields = maybe (Left ("missing bus field: " ++ show key)) Right (textAt key fields)
@@ -651,7 +665,8 @@ main = do
     when (Map.member name schemas) (ioError (userError ("adapter schema name is owned by OpenAPI: " ++ T.unpack name)))
   facts <- generateFacts root
   workerFiles <- workerFacts root member
-  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList (storedSchemas ++ optionSchemas ++ httpSchemas) <> schemas))) registry)
+  wires <- readJSON (root </> "protocol/specs/src/errors/codes.json") >>= either (ioError . userError) pure . wireClassifier
+  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors wires (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList (storedSchemas ++ optionSchemas ++ httpSchemas) <> schemas))) registry)
   (moduleNames, models) <- either (ioError . userError) pure (generate busSchemas (Set.fromList ids))
   template <- readUTF8 (output </> "semiont.cabal.in")
   forM_ ["@VERSION@", "@MODEL_MODULES@"] $ \marker ->

@@ -25,7 +25,7 @@ public sealed class Upload : IAsyncEnumerable<UploadProgress>, IDisposable
     public async Task<CreateResourceResponse> CompleteAsync(CancellationToken cancellation = default)
     {
         using var registration = cancellation.Register(Dispose);
-        return await completion.WaitAsync(cancellation).ConfigureAwait(false);
+        return await Spawning.WaitAsync(completion, cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     public TaskAwaiter<CreateResourceResponse> GetAwaiter() => CompleteAsync().GetAwaiter();
@@ -49,9 +49,9 @@ public sealed class Upload : IAsyncEnumerable<UploadProgress>, IDisposable
     {
         try
         {
-            await foreach (var update in progress.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+            await foreach (var update in Spawning.ReadAll(progress.Reader, cancellation).ConfigureAwait(Spawning.Captures))
                 yield return update;
-            await completion.ConfigureAwait(false);
+            await completion.ConfigureAwait(Spawning.Captures);
         }
         finally { Dispose(); }
     }
@@ -61,7 +61,7 @@ public sealed class Upload : IAsyncEnumerable<UploadProgress>, IDisposable
         try
         {
             stopping.Token.ThrowIfCancellationRequested();
-            return await content.UploadAsync(request, new Reporter(progress.Writer), stopping.Token).ConfigureAwait(false);
+            return await content.UploadAsync(request, new Reporter(progress.Writer), stopping.Token).ConfigureAwait(Spawning.Captures);
         }
         finally
         {

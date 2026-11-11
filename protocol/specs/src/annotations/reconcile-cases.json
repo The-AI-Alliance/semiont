@@ -1168,6 +1168,114 @@
         "anchorMethod": "fuzzy-match",
         "matchQuality": "normalized"
       }
+    },
+    {
+      "why": "a capital sigma ends a word when a cased letter is before it and none after it, past what is case-ignorable, as Unicode's Case_Ignorable property has it, which is more than marks and apostrophes: a full stop is case-ignorable, so this sigma, with a capital beta beyond the full stop, does not end a word, and lower-cases to the sigma that is not final, which the model wrote",
+      "text": "\u0391\u03a3.\u0392",
+      "quoted": { "exact": "\u03b1\u03c3.\u03b2" },
+      "reconciled": {
+        "start": 0,
+        "end": 4,
+        "exact": "\u0391\u03a3.\u0392",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a colon is case-ignorable too: the capital sigma, with a capital beta beyond the colon, does not end a word, and lower-cases to the sigma that is not final",
+      "text": "\u0391\u03a3:\u0392",
+      "quoted": { "exact": "\u03b1\u03c3:\u03b2" },
+      "reconciled": {
+        "start": 0,
+        "end": 4,
+        "exact": "\u0391\u03a3:\u0392",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a middle dot (U+00B7) is case-ignorable too: the capital sigma, with a capital beta beyond the dot, does not end a word, and lower-cases to the sigma that is not final",
+      "text": "\u0391\u03a3\u00b7\u0392",
+      "quoted": { "exact": "\u03b1\u03c3\u00b7\u03b2" },
+      "reconciled": {
+        "start": 0,
+        "end": 4,
+        "exact": "\u0391\u03a3\u00b7\u0392",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a left single quotation mark (U+2018) is case-ignorable too, and the case-insensitive search lower-cases the text as it is, not the apostrophe the normalized search makes of the mark: the capital sigma, with a capital beta beyond the mark, does not end a word, and lower-cases to the sigma that is not final",
+      "text": "\u0391\u03a3\u2018\u0392",
+      "quoted": { "exact": "\u03b1\u03c3\u2018\u03b2" },
+      "reconciled": {
+        "start": 0,
+        "end": 4,
+        "exact": "\u0391\u03a3\u2018\u0392",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a character is cased as Unicode's Cased property has it, not only when it is a capital, small or title-case letter: the feminine ordinal indicator (U+00AA), which is none of those, is cased, so the capital sigma after it ends a word, and lower-cases to the final sigma, which the model wrote",
+      "text": "\u00aa\u03a3",
+      "quoted": { "exact": "\u00aa\u03c2" },
+      "reconciled": {
+        "start": 0,
+        "end": 2,
+        "exact": "\u00aa\u03a3",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a circled capital A (U+24B6), a symbol, is cased too, and lower-cases to the circled small a (U+24D0): the capital sigma after it ends a word, and lower-cases to the final sigma",
+      "text": "\u24b6\u03a3",
+      "quoted": { "exact": "\u24d0\u03c2" },
+      "reconciled": {
+        "start": 0,
+        "end": 2,
+        "exact": "\u24b6\u03a3",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "the Roman numeral one (U+2160), a number, is cased too, and lower-cases to the small Roman numeral one (U+2170): the capital sigma after it ends a word, and lower-cases to the final sigma",
+      "text": "\u2160\u03a3",
+      "quoted": { "exact": "\u2170\u03c2" },
+      "reconciled": {
+        "start": 0,
+        "end": 2,
+        "exact": "\u2160\u03a3",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a character that is both cased and case-ignorable is case-ignorable first, as Unicode's rule has it (the Standard, 3.13: its repetition takes as many as it can, with no backup): the modifier letter small h (U+02B0) is both, so the capital sigma after it has no cased letter before it once the case-ignorable are passed, does not end a word, and lower-cases to the sigma that is not final, which the model wrote",
+      "text": "\u02b0\u03a3",
+      "quoted": { "exact": "\u02b0\u03c3" },
+      "reconciled": {
+        "start": 0,
+        "end": 2,
+        "exact": "\u02b0\u03a3",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "after a capital sigma too, a character that is both cased and case-ignorable is case-ignorable first: the modifier letter small h (U+02B0) after this sigma is passed over, no cased letter is beyond it, and the sigma, with a capital alpha before it, ends a word and lower-cases to the final sigma",
+      "text": "\u0391\u03a3\u02b0",
+      "quoted": { "exact": "\u03b1\u03c2\u02b0" },
+      "reconciled": {
+        "start": 0,
+        "end": 3,
+        "exact": "\u0391\u03a3\u02b0",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
     }
   ]
 }

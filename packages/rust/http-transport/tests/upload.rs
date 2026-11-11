@@ -10,6 +10,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use bytes::Bytes;
 use futures::StreamExt;
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::timing::REQUEST_RETRY_PAUSE;
 use semiont::transport::{BoxFuture, ContentTransport, PutBinaryRequest, UploadProgress};
 use semiont_http_transport::content::HttpContentTransport;
@@ -159,7 +160,7 @@ fn transport(origin: String, refresher: Option<Arc<dyn TokenRefresher>>) -> Http
         base_url: origin,
         token: watch::channel(Some("first".to_owned())).1,
         refresher,
-        channels: None,
+        channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
         http: reqwest::Client::new(),
         timing: Timing::default(),
         random: None,

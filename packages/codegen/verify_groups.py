@@ -16,6 +16,7 @@ OUTPUTS = {
     "mcp-tools-go": "packages/go/launcher/verbs/mcp_tools_gen.go",
     "control": "packages/go/launcher/control_types_gen.go",
     "required": "packages/rust/sdk/src/required-schemas.json",
+    "unicode-case": "packages/csharp/sdk/generators/Semiont.Generator/unicode-case.json",
     "discovery-go": "packages/go/launcher/discovery_types_gen.go",
     "encoding-cases": "protocol/specs/src/text/encoding-cases.json",
     "model-catalogue": "packages/python/inference/tests/catalogue/model-catalogue.json",

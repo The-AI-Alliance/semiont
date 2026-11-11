@@ -83,8 +83,40 @@ let request_routing row source =
               (Promise.is_resolved request))
   | _ -> Alcotest.fail "unknown request verdict"
 
+(* What a case of bus/frame-cases.json may state. *)
+let frame_case_keys =
+  [
+    "why";
+    "frame";
+    "data";
+    "read";
+    "refused";
+    "member";
+    "reason";
+    "told";
+    "correlationId";
+    "request";
+  ]
+
+(* The channels the table's delivered frames are read on by type. *)
+let typed_channels =
+  let open Bus_registry in
+  List.map
+    (fun (Channel channel) -> name channel)
+    [
+      Channel Channels.beckon_focus;
+      Channel Channels.browse_resource_failed;
+      Channel Channels.gather_failed;
+    ]
+
 (* Shared cases from bus/frame-cases.json. *)
 let frame row =
+  List.iter
+    (fun (key, _) ->
+      if not (List.mem key frame_case_keys) then
+        Alcotest.failf
+          "a frame case states `%s`, which this runner does not know" key)
+    (J.to_assoc row);
   let source =
     match field "data" row with
     | `String data -> data
@@ -112,18 +144,33 @@ let frame row =
         (field "correlationId" row)
         (nullable text
            (Option.bind fault.route (fun route -> route.correlation_id)))
-  | `Null, _ ->
+  | `Null, _ -> (
       (* Envelope acceptance is distinct from the typed payload result. *)
-      let (Wire_stream.Frame { route; _ }) = Result.get_ok raw in
-      let expected = field "frame" row in
-      check "channel" (field "channel" expected) (text route.channel);
-      check "correlation"
-        (field "correlationId" expected)
-        (nullable text route.correlation_id);
-      check "scope" (field "scope" expected)
-        (nullable
-           (fun value -> text (Identifiers.Resource_id.to_string value))
-           route.scope)
+      match Result.get_ok raw with
+      | Wire_stream.Frame { route; payload; _ } -> (
+          let expected = field "frame" row in
+          check "channel" (field "channel" expected) (text route.channel);
+          check "correlation"
+            (field "correlationId" expected)
+            (nullable text route.correlation_id);
+          check "scope" (field "scope" expected)
+            (nullable
+               (fun value -> text (Identifiers.Resource_id.to_string value))
+               route.scope);
+          let read =
+            match field "read" row with
+            | `Null -> field "payload" expected
+            | read -> read
+          in
+          match (List.mem route.channel typed_channels, payload) with
+          | true, Ok payload ->
+              check "read" read
+                (Yojson.Safe.from_string (Bus_registry.encode payload))
+          | true, Error _ ->
+              Alcotest.fail "the typed reader refused the payload"
+          | false, _ when field "read" row <> `Null ->
+              Alcotest.fail "a read is stated on a channel not read by type"
+          | false, _ -> ()))
   | _ -> Alcotest.fail "unexpected frame refusal result"
 
 (* Shared cases from annotations/reader-cases.json. *)

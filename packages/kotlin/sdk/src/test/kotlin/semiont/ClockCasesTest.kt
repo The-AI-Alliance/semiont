@@ -39,6 +39,7 @@ import semiont.bus.Operations
 import semiont.bus.request
 import semiont.cache.Cache
 import semiont.cache.CachePersister
+import semiont.channels.BRIDGED_CHANNELS
 import semiont.cache.CacheRefreshTrigger
 import semiont.discovery.DiscoveryRead
 import semiont.discovery.DiscoveryTransport
@@ -50,6 +51,8 @@ import semiont.errors.BusRequestErrorCode
 import semiont.errors.TransportError
 import semiont.http.HttpTransport
 import semiont.http.signInDevice
+import semiont.identifiers.JobId
+import semiont.jobs.JOB_CLAIM_CHANNELS
 import semiont.jobs.running
 import semiont.live.KbWorld
 import semiont.live.RESOURCE
@@ -72,6 +75,7 @@ import semiont.types.DiscoveredKB
 import semiont.types.HighlightingJobParams
 import semiont.types.JobFilter
 import semiont.types.JobProgress
+import semiont.types.JobStatusResponse
 import semiont.types.wireJson
 import java.net.Authenticator
 import java.net.CookieHandler
@@ -307,7 +311,7 @@ private class Gateway(
 
     /** A transport to this gateway, holding a token, so its stream is set going. */
     fun transport(bench: Bench): HttpTransport = bench.held(
-        HttpTransport(GATEWAY, MutableStateFlow<String?>("a-token"), http = Network(::answer), context = bench.context, clock = bench.clock, random = LowestDraw),
+        HttpTransport(GATEWAY, MutableStateFlow<String?>("a-token"), BRIDGED_CHANNELS, http = Network(::answer), context = bench.context, clock = bench.clock, random = LowestDraw),
     )
 }
 
@@ -486,7 +490,7 @@ private val MARK_JOBS: List<JobFilter> = wireJson.decodeFromString(ListSerialize
 
 private suspend fun heldJobStall(given: JsonObject, bench: Bench): Subject {
     val dispatcher = Respond { operation, payload -> if (operation == "job:claim") running("job-1") else REFUSE_UNSCRIPTED.respond(operation, payload) }
-    val transport = bench.held(FaultyTransport(emptyList(), dispatcher, null, bench.context))
+    val transport = bench.held(FaultyTransport(JOB_CLAIM_CHANNELS, emptyList(), dispatcher, bench.context))
     val gateway = Recording()
     val client = bench.held(SemiontClient(transport, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
     val claims = client.job.claim(MARK_JOBS)
@@ -568,11 +572,41 @@ private suspend fun jobFollower(given: JsonObject, bench: Bench): Subject {
             else -> REFUSE_UNSCRIPTED.respond(operation, payload)
         }
     }
-    val transport = bench.held(FaultyTransport(emptyList(), queue, null, bench.context))
+    val transport = bench.held(FaultyTransport(BRIDGED_CHANNELS, emptyList(), queue, bench.context))
     val gateway = Recording()
     val client = bench.held(SemiontClient(transport, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
     bench.work.launch { client.mark.delegate(RESOURCE, HighlightingJobParams()).collect {} }
     return Subject({ transport.requestLog.count { it.channel == "job:status-requested" } }, { transport.deliver(Frame("job:report-progress", PROGRESSED)) })
+}
+
+/** A client's poll of `job-1`, naming no interval and no limit, over a job queue that says the job is running whenever it is asked. */
+private fun jobPolled(bench: Bench): Pair<FaultyTransport, Deferred<JobStatusResponse>> {
+    val queue = Respond { operation, payload -> if (operation == "job:status-requested") JOB_RUNNING else REFUSE_UNSCRIPTED.respond(operation, payload) }
+    val transport = bench.held(FaultyTransport(BRIDGED_CHANNELS, emptyList(), queue, bench.context))
+    val gateway = Recording()
+    val client = bench.held(SemiontClient(transport, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
+    return transport to bench.work.async { client.job.pollUntilComplete(JobId("job-1")) }
+}
+
+private suspend fun jobPoll(given: JsonObject, bench: Bench): Subject {
+    val (transport, _) = jobPolled(bench)
+    return Subject({ transport.requestLog.count { it.channel == "job:status-requested" } }, null)
+}
+
+private suspend fun jobPollTimeout(given: JsonObject, bench: Bench): Subject {
+    val (_, polling) = jobPolled(bench)
+    return Subject(
+        {
+            if (!polling.isCompleted) {
+                0
+            } else {
+                val failure = polling.getCompletionExceptionOrNull()
+                assertTrue(failure is BusRequestError && failure.reason == BusRequestErrorCode.Timeout, "the poll ended otherwise: $failure")
+                1
+            }
+        },
+        null,
+    )
 }
 
 /** How this SDK builds each subject the table names. */
@@ -594,6 +628,8 @@ private val SUBJECTS: Map<String, suspend (JsonObject, Bench) -> Subject> = mapO
     "unansweredEmit" to ::unansweredEmit,
     "refusedBusRequest" to ::refusedBusRequest,
     "timedOutBusRequest" to ::timedOutBusRequest,
+    "jobPoll" to ::jobPoll,
+    "jobPollTimeout" to ::jobPollTimeout,
 )
 
 // ── A case, played ──────────────────────────────────────────────────────

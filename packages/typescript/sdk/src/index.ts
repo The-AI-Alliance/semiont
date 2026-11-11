@@ -18,9 +18,9 @@
  *
  * ```ts
  * import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
- * import { baseUrl } from '@semiont/core';
+ * import { BRIDGED_CHANNELS, baseUrl } from '@semiont/core';
  *
- * const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
+ * const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/'), channels: BRIDGED_CHANNELS });
  * // HttpTransport implements both ITransport and IGatewayOperations;
  * // passing it as the third arg wires `client.auth` and `client.system`.
  * const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);

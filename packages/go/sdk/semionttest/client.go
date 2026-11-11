@@ -5,6 +5,7 @@ package semionttest
 
 import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // TestClient is a client, and the doubles it speaks through.
@@ -17,7 +18,8 @@ type TestClient struct {
 
 // TestClientConfig is what a test client is made of. Each double is the one
 // given, as the test scripted it; absent, one that nothing is scripted to
-// answer and that holds nothing.
+// answer and that holds nothing. The transport made for a client that is
+// given none names what a client's stream names, bus.BridgedChannels.
 type TestClientConfig struct {
 	Transport *FaultyTransport
 	Content   *InMemoryContent
@@ -36,7 +38,7 @@ type TestClientConfig struct {
 func NewTestClient(config TestClientConfig) TestClient {
 	made := TestClient{Transport: config.Transport, Content: config.Content, Gateway: config.Gateway}
 	if made.Transport == nil {
-		made.Transport = NewFaultyTransport(FaultyConfig{})
+		made.Transport = NewFaultyTransport(FaultyConfig{Channels: bus.BridgedChannels})
 	}
 	if made.Content == nil {
 		made.Content = NewInMemoryContent()

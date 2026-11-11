@@ -2,6 +2,7 @@
 //! methods that delegate one: `mark.delegate` and `yield_.delegate`. And a
 //! client's end.
 
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::namespaces::{Delegation, JobEvent, stall_deadline};
@@ -34,7 +35,7 @@ fn client_over(transport: &FaultyTransport) -> Arc<SemiontClient> {
 
 /// A client whose `job:create` is answered with `job-1`.
 fn world() -> (Arc<SemiontClient>, FaultyTransport) {
-    let transport = FaultyTransport::new(vec![]);
+    let transport = FaultyTransport::new(BRIDGED_CHANNELS, vec![]);
     transport.queue_reply("job:create", [Some(json!({ "jobId": "job-1" }))]);
     (client_over(&transport), transport)
 }
@@ -412,7 +413,10 @@ async fn a_job_is_named_before_anything_else_of_it_is_given() {
 #[tokio::test(start_paused = true)]
 async fn frames_that_arrive_before_the_jobs_id_is_known_are_kept() {
     // The reply that names the job is a second behind the job's own frames.
-    let transport = FaultyTransport::new(vec![FaultAction::Delay(Duration::from_secs(1))]);
+    let transport = FaultyTransport::new(
+        BRIDGED_CHANNELS,
+        vec![FaultAction::Delay(Duration::from_secs(1))],
+    );
     transport.queue_reply("job:create", [Some(json!({ "jobId": "job-1" }))]);
     let client = client_over(&transport);
     let following = collected(highlighting(&client));
@@ -442,7 +446,10 @@ fn refused(client: &SemiontClient, channel: &str, member: &str, payload: Value) 
 #[tokio::test(start_paused = true)]
 async fn a_refused_frame_of_the_lifecycle_is_reported_once_the_job_is_named_in_the_order_it_came() {
     // The reply that names the job is a second behind what comes of it.
-    let transport = FaultyTransport::new(vec![FaultAction::Delay(Duration::from_secs(1))]);
+    let transport = FaultyTransport::new(
+        BRIDGED_CHANNELS,
+        vec![FaultAction::Delay(Duration::from_secs(1))],
+    );
     transport.queue_reply("job:create", [Some(json!({ "jobId": "job-1" }))]);
     let client = client_over(&transport);
     let following = collected(highlighting(&client));
@@ -747,7 +754,10 @@ async fn a_generation_that_says_nothing_is_cancelled_and_given_up_on() {
 #[tokio::test(start_paused = true)]
 async fn a_generation_that_stalls_before_its_job_is_known_has_nothing_to_cancel() {
     // The knowledge base never answers the job's creation.
-    let transport = FaultyTransport::answering(vec![FaultAction::DropReply], |_, _| Ok(None));
+    let transport =
+        FaultyTransport::answering(BRIDGED_CHANNELS, vec![FaultAction::DropReply], |_, _| {
+            Ok(None)
+        });
     let client = client_over(&transport);
 
     let seen = ended(collected(

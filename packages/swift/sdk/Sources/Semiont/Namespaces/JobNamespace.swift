@@ -23,10 +23,11 @@ public struct JobNamespace: Sendable {
       .cancelled
   }
   public func pollUntilComplete(
-    _ jobId: JobId, intervalMs: Int = 1000, timeoutMs: Int = 60000,
+    _ jobId: JobId, intervalMs: Int? = nil, timeoutMs: Int? = nil,
     onStatus: (@Sendable (JobStatusResponse) -> Void)? = nil
   ) async throws -> JobStatusResponse {
-    let timeout = Duration.milliseconds(timeoutMs)
+    let interval = Duration.milliseconds(intervalMs ?? Timings.jobPollMs)
+    let timeout = Duration.milliseconds(timeoutMs ?? Timings.jobPollTimeoutMs)
     let elapsed = stopwatch(clock)
     while true {
       try Task.checkCancellation()
@@ -42,7 +43,7 @@ public struct JobNamespace: Sendable {
       }
       let left = timeout - elapsed()
       if left <= .zero { throw BusRequestError(.busTimeout, "Job polling timed out") }
-      try await clock.sleep(for: min(left, .milliseconds(intervalMs)))
+      try await clock.sleep(for: min(left, interval))
     }
   }
 }

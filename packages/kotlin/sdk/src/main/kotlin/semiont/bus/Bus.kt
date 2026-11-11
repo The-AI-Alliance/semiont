@@ -63,9 +63,10 @@ public fun replyChannelsFor(vararg operations: Operation<*, *, *>): List<String>
  * A payload as its channel types it, held to the table before it is decoded.
  * What the gateway stamps on a payload (a member whose name begins `_`) is the
  * bus's, not the payload's: one the channel's payload does not declare is left
- * out before the payload is read. Throws `TransportError` (`error`) for a
- * payload that is not that channel's, saying its first fault in every SDK's
- * words.
+ * out before the payload is read, and so is a member that holds a text none of
+ * those its shape recognizes (a failure's code a later peer may send). Throws
+ * `TransportError` (`error`) for a payload that is not that channel's, saying
+ * its first fault in every SDK's words.
  */
 public fun <P> decoded(channel: Channel<P>, payload: JsonObject): P = decode(channel.name, channel.payload, channel.stamps, payload)
 
@@ -75,15 +76,25 @@ public fun <P> decoded(channel: ScopedChannel<P>, payload: JsonObject): P = deco
 /** `payload` without what the gateway stamped on it that `stamps` does not declare. */
 private fun declared(stamps: Set<String>, payload: JsonObject): JsonObject = JsonObject(payload.filterKeys { !it.startsWith("_") || it in stamps })
 
-private fun <P> decode(channel: String, serializer: KSerializer<P>, stamps: Set<String>, payload: JsonObject): P {
-    val declared = declared(stamps, payload)
-    val fault = faultOf(serializer.descriptor, declared) ?: try {
-        return wireJson.decodeFromJsonElement(serializer, declared)
+/**
+ * `payload` read as a value of `serializer`'s type: without what the gateway
+ * stamped on it that `stamps` does not declare, read by the table (a member
+ * that holds a text none of those its shape recognizes left out), and decoded
+ * when the table finds no fault. What `read` makes of the value, or what
+ * `refused` makes of its first fault.
+ */
+private inline fun <P, R> reading(serializer: KSerializer<P>, stamps: Set<String>, payload: JsonObject, read: (P) -> R, refused: (Fault) -> R): R {
+    val asRead = readOf(serializer.descriptor, declared(stamps, payload))
+    val fault = asRead.fault ?: try {
+        return read(wireJson.decodeFromJsonElement(serializer, asRead.value))
     } catch (_: IllegalArgumentException) {
         UNDECODED
     }
-    throw TransportError(TransportErrorCode.Error, notTheChannels(channel, fault))
+    return refused(fault)
 }
+
+private fun <P> decode(channel: String, serializer: KSerializer<P>, stamps: Set<String>, payload: JsonObject): P =
+    reading(serializer, stamps, payload, { it }) { throw TransportError(TransportErrorCode.Error, notTheChannels(channel, it)) }
 
 private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.encodeToJsonElement(channel.payload, payload).jsonObject
 
@@ -170,15 +181,16 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
 
 /**
  * The failure a request was answered with on `channel`, its operation's
- * failure channel. It is held to its channel's shape before it is read, as a
- * result is: one with a fault is refused, naming the fault. One the shape
- * passes is the request's `BusRequestError`, in its own words, under the code
- * its own code becomes; the shape holds the code to no list.
+ * failure channel. It is read as its channel's reader reads it, and held to
+ * its channel's shape, as a result is: one with a fault is refused, naming the
+ * fault. One the shape passes is the request's `BusRequestError`, in its own
+ * words, under the code its own code becomes, carrying the failure as read: a
+ * code none of those CommandError recognizes is read as absent, and the
+ * failure is the unrecognized one.
  */
 private fun answered(channel: Channel<*>, failure: JsonObject): SemiontError {
-    val declared = declared(channel.stamps, failure)
-    val fault = faultOf(channel.payload.descriptor, declared)
-        ?: return BusRequestError.answered(declared.getValue("message").jsonPrimitive.content, failure)
+    val asRead = readOf(channel.payload.descriptor, declared(channel.stamps, failure))
+    val fault = asRead.fault ?: return asRead.value.jsonObject.let { read -> BusRequestError.answered(read.getValue("message").jsonPrimitive.content, read) }
     return TransportError(TransportErrorCode.Error, notTheChannels(channel.name, fault))
 }
 
@@ -206,13 +218,9 @@ private fun <P> heard(payload: KSerializer<P>, stamps: Set<String>, carried: Car
         is Frame -> carried
         is FrameRefusal -> return carried
     }
-    val declared = declared(stamps, frame.payload)
-    val fault = faultOf(payload.descriptor, declared) ?: try {
-        return delivered(frame, wireJson.decodeFromJsonElement(payload, declared))
-    } catch (_: IllegalArgumentException) {
-        UNDECODED
+    return reading<P, Heard<P>>(payload, stamps, frame.payload, { delivered(frame, it) }) { fault ->
+        FrameRefusal(frame.channel, inPayload(fault.member), fault.reason, frame.payload, frame.correlationId, frame.scope)
     }
-    return FrameRefusal(frame.channel, inPayload(fault.member), fault.reason, frame.payload, frame.correlationId, frame.scope)
 }
 
 /**

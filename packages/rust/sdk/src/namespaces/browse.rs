@@ -565,16 +565,17 @@ impl Live {
             return;
         };
         match query {
-            // Into the resource's list, when the client holds it: where the
-            // annotation was, or at its end.
+            // Patched into the resource's list: where the annotation was, or
+            // at its end. A list being fetched has it patched into what the
+            // fetch answers, so neither the event nor the answer is lost.
             CacheQuery::Annotations => {
-                if let Some(mut list) = self.annotations.get(resource) {
+                let written = written.clone();
+                self.annotations.patch(resource, move |list| {
                     match list.annotations.iter_mut().find(|a| a.id == written.id) {
                         Some(was) => *was = written.clone(),
                         None => list.annotations.push(written.clone()),
                     }
-                    self.annotations.set(resource, list);
-                }
+                });
             }
             CacheQuery::Annotation => {
                 locked(&self.annotation_of).insert(written.id.clone(), resource.clone());

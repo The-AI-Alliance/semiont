@@ -1,6 +1,6 @@
 -- Generated from protocol/specs/src/client/timing.json; do not edit.
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.Timing (RetryBudget(..), busRequestTimeoutMs, emitTimeoutMs, emitRetry, httpRequestTimeoutMs, requestRetryPauseMs, streamOpenTimeoutMs, reconnectMs, maxReconnectMs, degradedThresholdMs, lingerMs, seenEventIdsCount, reconnectDebounceMs, lazyRemoveMs, refreshRetry, refreshBeforeExpMs, minRefreshDelayMs, devicePollMs, deviceSlowDownMs, devicePollFloorMs, invalidationWindowMs, saveDebounceMs, maxStoredBytesCount, jobSilenceMs, jobStatusPollMs, generationStallFloorMs, generationStallPerTokenMs, generationStallAssumedTokensCount, delegateSilenceMs, jobClaimTimeoutMs, heldJobStallMs, heldJobStallCheckMs, markCommitTimeoutMs, generatedTextAsksCount, anchoredTextReaskMs, hoverDelayMs, searchDebounceMs, discoveryIntervalMs, checksAtOnceCount) where
+module Semiont.Timing (RetryBudget(..), busRequestTimeoutMs, emitTimeoutMs, emitRetry, httpRequestTimeoutMs, requestRetryPauseMs, streamOpenTimeoutMs, reconnectMs, maxReconnectMs, degradedThresholdMs, lingerMs, seenEventIdsCount, reconnectDebounceMs, lazyRemoveMs, refreshRetry, refreshBeforeExpMs, minRefreshDelayMs, devicePollMs, deviceSlowDownMs, devicePollFloorMs, invalidationWindowMs, saveDebounceMs, maxStoredBytesCount, jobSilenceMs, jobStatusPollMs, jobPollMs, jobPollTimeoutMs, generationStallFloorMs, generationStallPerTokenMs, generationStallAssumedTokensCount, delegateSilenceMs, jobClaimTimeoutMs, heldJobStallMs, heldJobStallCheckMs, markCommitTimeoutMs, generatedTextAsksCount, anchoredTextReaskMs, hoverDelayMs, searchDebounceMs, discoveryIntervalMs, checksAtOnceCount) where
 import Control.Monad (unless)
 import Data.Aeson (FromJSON(..), ToJSON(..), withObject, object, (.:), (.=))
 import qualified Data.Aeson.KeyMap as KM
@@ -83,6 +83,12 @@ jobSilenceMs = 10000
 
 jobStatusPollMs :: Integer
 jobStatusPollMs = 5000
+
+jobPollMs :: Integer
+jobPollMs = 1000
+
+jobPollTimeoutMs :: Integer
+jobPollTimeoutMs = 60000
 
 generationStallFloorMs :: Integer
 generationStallFloorMs = 120000

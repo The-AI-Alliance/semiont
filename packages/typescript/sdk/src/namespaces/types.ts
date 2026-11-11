@@ -467,6 +467,12 @@ export interface JobNamespace {
   readonly fail$: Observable<EventMap['job:fail'] | FrameRefusal>;
 
   status(jobId: JobId): Promise<JobStatusResponse>;
+  /**
+   * Ask for the job's status, at once and then every `interval` ms
+   * (`JOB_POLL_MS` when unnamed), until it is an end. Fails `bus.timeout` at
+   * `timeout` ms from the first ask (`JOB_POLL_TIMEOUT_MS` when unnamed), the
+   * asks and the waits between them counted.
+   */
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
   /** Cancel ONE job by id; resolves with whether the queue acted on it. */
   cancel(jobId: JobId): Promise<boolean>;

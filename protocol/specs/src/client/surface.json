@@ -919,6 +919,9 @@
           "member": "set"
         },
         {
+          "member": "patch"
+        },
+        {
           "member": "persistencePending"
         },
         {

@@ -37,7 +37,7 @@ extension HttpTransport {
     _ operation: @escaping @Sendable (isolated HttpTransport) async throws -> Value
   ) async throws -> Value {
     let id = UUID()
-    let task = Task { try await operation(self) }
+    let task = spawn(on: self, operation)
     lifetime.keep(task, id: id)
     defer { lifetime.forget(id) }
     return try await withTaskCancellationHandler {
@@ -197,16 +197,16 @@ extension HttpTransport {
     let previous = emitTail
     let id = UUID()
     let life = lifetime
-    let task = Task { [self] in
+    let task = spawn(on: self) { transport in
       defer { life.forget(id) }
       if let previous { await previous.value }
       try Task.checkCancellation()
-      if afterOpen { try await waitUntilOpen() }
-      return try await send(
+      if afterOpen { try await transport.waitUntilOpen() }
+      return try await transport.send(
         channel: channel, payload: payload, scope: scope, correlationId: correlationId,
         parent: parent)
     }
-    emitTail = Task { _ = try? await task.value }
+    emitTail = spawn { _ = try? await task.value }
     life.keep(task, id: id)
     return task
   }

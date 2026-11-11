@@ -79,7 +79,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
   }
 }
 @Test func delegationBuffersEarlyFramesAndNamesTheJobFirst() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let gate = ReplyGate<[String: JSONValue]>()
@@ -118,7 +118,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
   #expect(probe.calls.count == 1)
 }
 @Test func aRefusedFrameOfTheLifecycleIsReportedOnceTheJobHasItsIdInTheOrderItCame() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let gate = ReplyGate<[String: JSONValue]>()
@@ -158,7 +158,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
     ])
 }
 @Test func aCompletionWhoseJobTypeItsChannelRefusesIsReportedAndIsNotTheEnd() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   probe.handle { _, _ in try jobCreatedFixture() }
@@ -183,7 +183,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
 }
 @Test func aRefusedFrameIsNoWordOfTheJobItsSilenceGoesOnBeingCounted() async throws {
   let clock = TestClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 1000, statusPollMs: 60000),
     clock: clock)
@@ -215,7 +215,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
 }
 @Test func aRefusedFrameStartsNoGenerationsStallDeadlineAgain() async throws {
   let clock = TestClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 60000, statusPollMs: 60000),
     clock: clock)
@@ -251,7 +251,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
   #expect(names.value == ["created", "refused job:report-progress payload.jobId lacks"])
 }
 /// A test clock that keeps each instant it is asked to sleep until.
-private final class Asked: Clock {
+final class AskedClock: Clock {
   let clock = TestClock()
   private let instants = Mutex<[TestClock.Instant]>([])
   var now: TestClock.Instant { clock.now }
@@ -266,8 +266,8 @@ private final class Asked: Clock {
   }
 }
 @Test func aRefusedFrameStartsNoMarkUnitsQuietAgain() async throws {
-  let clock = Asked()
-  let probe = ProbeTransport()
+  let clock = AskedClock()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 600_000, statusPollMs: 600_000),
     clock: clock)
@@ -306,7 +306,7 @@ private final class Asked: Clock {
   #expect(clock.asked(again) == 1, "the quiet started again for the progress alone")
 }
 @Test func aRetriedAttemptIsReportedAndNotAnEnd() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   probe.handle { [weak client] _, payload in
@@ -333,7 +333,7 @@ private final class Asked: Clock {
 }
 @Test func terminalFailurePreservesItsMessageAndClassification() async throws {
   for retry in [nil, false] as [Bool?] {
-    let probe = ProbeTransport()
+    let probe = ProbeTransport(channels: bridgedChannels)
     let client = try await SemiontClient(transport: probe)
     defer { client.dispose() }
     probe.handle { [weak client] _, _ in
@@ -360,7 +360,7 @@ private final class Asked: Clock {
   }
 }
 @Test func silencePollsOneAtATimeAndRecoversAnUnheardEnd() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 5, statusPollMs: 5))
   defer { client.dispose() }
@@ -391,7 +391,7 @@ private final class Asked: Clock {
   #expect(polls.withLock { $0 } == 2)
 }
 @Test func aStaleStatusCannotEndTheAttemptThatFollowsASetback() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 5, statusPollMs: 5))
   defer { client.dispose() }
@@ -431,7 +431,7 @@ private final class Asked: Clock {
 }
 @Test func statusReportsCancellationAndFailureAndRejectsTheWrongVerb() async throws {
   for state in [JobStatusResponseStatus.cancelled, .failed, .complete] {
-    let probe = ProbeTransport()
+    let probe = ProbeTransport(channels: bridgedChannels)
     let client = try await SemiontClient(
       transport: probe, followTiming: FollowTiming(silenceMs: 1, statusPollMs: 1))
     defer { client.dispose() }
@@ -459,7 +459,7 @@ private final class Asked: Clock {
 }
 @Test func generationStallCancelsTheNamedJobAndEndsAsStalled() async throws {
   let clock = TestClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 1000, statusPollMs: 1000),
     clock: clock)
@@ -488,30 +488,41 @@ private final class Asked: Clock {
   try await withinTestDeadline { for await ready in cancelled where ready { return } }
 }
 @Test func progressRestartsAGenerationStallDeadline() async throws {
-  let probe = ProbeTransport()
+  let clock = TestClock()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
-    transport: probe, followTiming: FollowTiming(silenceMs: 60000, statusPollMs: 60000))
+    transport: probe, followTiming: FollowTiming(silenceMs: 60000, statusPollMs: 60000),
+    clock: clock)
   defer { client.dispose() }
-  let began = Watched(false)
-  probe.handle { _, _ in
-    began.set(true)
-    return try jobCreatedFixture()
-  }
+  probe.handle { _, _ in try jobCreatedFixture() }
   let params = try GenerationJobParams(
     context: contextFixture(), storageUri: "file://notes.md", title: "Notes")
-  let following = try client.yield.delegate(params: params, stallDeadlineMs: 2_000)
-  let collector = Task { try await following.completed() }
-  try await withinTestDeadline { for await ready in began where ready { return } }
-  // Progress for 2.5 s, longer than the deadline, so the job lives only by its restarting. Each
-  // gap leaves the deadline 1.75 s to spare, more than a busy runner pauses a test's tasks.
-  for _ in 0..<10 {
-    try await Task.sleep(for: .milliseconds(250))
+  let stallMs = 2_000
+  let following = try client.yield.delegate(params: params, stallDeadlineMs: stallMs)
+  let created = Watched(false)
+  let collector = Task {
+    for try await event in following {
+      if case .created = event { created.set(true) }
+      if case .complete(let value) = event { return value }
+    }
+    throw SpecFailure.shape("Missing completion")
+  }
+  try await withinTestDeadline { for await ready in created where ready { return } }
+  // The deadline was set when the following began, at the clock's start. Each progress comes a
+  // millisecond before the deadline the last one set, so the job outlives its first deadline only
+  // because each progress restarts it.
+  var deadline = clock.now.advanced(by: .milliseconds(stallMs))
+  for _ in 0..<3 {
+    try await sleeping(clock, until: deadline)
+    clock.advance(by: clock.now.duration(to: deadline) - .milliseconds(1))
     try report(
       Channels.jobReportProgress,
       JobReportProgressCommand(
         jobId: JobId("job-1"), jobType: .yield, percentage: 10, resourceId: ResourceId("res-1")),
       on: client.bus)
+    deadline = clock.now.advanced(by: .milliseconds(stallMs))
   }
+  try await sleeping(clock, until: deadline)
   try report(
     Channels.jobComplete,
     JobCompleteCommand.yieldJobCompleteCommand(
@@ -521,7 +532,7 @@ private final class Asked: Clock {
     try await withinTestDeadline { try await collector.value }.jobId.value == "job-1")
 }
 @Test func cancellingAFollowerStopsFollowingWithoutCancellingItsJob() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let created = Watched(false)
@@ -542,7 +553,7 @@ private final class Asked: Clock {
 private struct UnexpectedStatusFailure: Error {}
 @Test func unexpectedStatusFailuresAndWrongCompletionFramesReachTheCaller() async throws {
   for wrongFrame in [false, true] {
-    let probe = ProbeTransport()
+    let probe = ProbeTransport(channels: bridgedChannels)
     let client = try await SemiontClient(
       transport: probe,
       followTiming: wrongFrame ? FollowTiming() : FollowTiming(silenceMs: 1, statusPollMs: 1))
@@ -573,7 +584,7 @@ private struct UnexpectedStatusFailure: Error {}
   }
 }
 @Test func jobPollingReportsEveryStatusUntilCompletion() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let calls = Mutex(0)
@@ -594,19 +605,32 @@ private struct UnexpectedStatusFailure: Error {}
 }
 @Test(arguments: [false, true])
 func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws {
-  let probe = ProbeTransport()
-  let client = try await SemiontClient(transport: probe)
+  let clock = AskedClock()
+  let probe = ProbeTransport(channels: bridgedChannels)
+  let client = try await SemiontClient(transport: probe, clock: clock)
   defer { client.dispose() }
+  let requestBegan = Watched(false)
   let requestEnded = Watched(false)
   probe.handle { _, _ in
+    requestBegan.set(true)
     defer { requestEnded.set(true) }
     if unanswered { try await Task.sleep(for: .milliseconds(60000)) }
     return try wirePayload(JobStatusResult(response: statusFixture(status: .pending)))
   }
-  do {
-    _ = try await withinTestDeadline {
-      try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 60000, timeoutMs: 2000)
+  let deadline = clock.now.advanced(by: .milliseconds(2000))
+  let polling = Task {
+    try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 60000, timeoutMs: 2000)
+  }
+  // The request's bound sleeps until the deadline; answered, so does the interval after it.
+  let waits = unanswered ? 1 : 2
+  try await withinTestDeadline {
+    while !requestBegan.value || clock.asked(deadline) < waits {
+      try await Task.sleep(for: .milliseconds(1))
     }
+  }
+  clock.clock.advance(by: .milliseconds(2000))
+  do {
+    _ = try await withinTestDeadline { try await polling.value }
     Issue.record("Unanswered polling succeeded")
   } catch let error as BusRequestError { #expect(error.reason == .busTimeout) }
   #expect(requestEnded.value)
@@ -683,7 +707,7 @@ func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws
   #expect(markDecline.reason == declined.reason)
 }
 @Test func followingRefusesAnotherJobsStatusAndExposesItsFailureCode() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 1, statusPollMs: 1))
   defer { client.dispose() }

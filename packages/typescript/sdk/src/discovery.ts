@@ -21,7 +21,7 @@
  */
 
 import { Observable } from 'rxjs';
-import { DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, isArray, isNumber, isObject, isString, withinDeadline } from '@semiont/core';
+import { DISCOVERY_INTERVAL_MS, DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, isArray, isNumber, isObject, isString, withinDeadline } from '@semiont/core';
 import type { DiscoveredKB } from '@semiont/core';
 import { fetchOf } from './fetch-of';
 
@@ -221,7 +221,7 @@ export function subscribeDiscovery(
   transport: DiscoveryTransport,
   options?: { intervalMs?: number },
 ): Observable<DiscoveryDiff> {
-  const intervalMs = options?.intervalMs ?? 5_000;
+  const intervalMs = options?.intervalMs ?? DISCOVERY_INTERVAL_MS;
 
   return new Observable<DiscoveryDiff>((subscriber) => {
     let closed = false;

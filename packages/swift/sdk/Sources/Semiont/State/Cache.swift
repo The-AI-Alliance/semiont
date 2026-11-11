@@ -107,6 +107,12 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
 
   public func set(_ key: Key, value: Value) async { await observe(key).replace(.ready(value)) }
 
+  /// Writes the part of `key`'s value that is known: `change` takes the value to the patched one
+  /// (CACHE-SEMANTICS B13b). A key that holds neither a value nor a fetch is left as it is.
+  public func patch(_ key: Key, _ change: @escaping @Sendable (Value) -> Value) async {
+    await existing(key)?.patch(change)
+  }
+
   public func persistencePending() -> Bool { persistenceWork?() == true }
 
   public func dispose() { lifetime.end() }

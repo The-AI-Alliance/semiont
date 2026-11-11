@@ -12,7 +12,7 @@ public struct TestSessionOptions: Sendable {
 
   public init(
     kb: KbTarget, kept: any SignInKept = MemorySignIn(),
-    transport: ScriptedTransport = ScriptedTransport(),
+    transport: ScriptedTransport = ScriptedTransport(channels: bridgedChannels),
     random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator(),
     validate: @escaping @Sendable (String) async throws -> UserResponse = { _ in
       UserResponse(
@@ -87,7 +87,8 @@ public actor ScriptedSessions: SessionFactory {
   public func session(_ options: SessionFactoryOptions) async throws -> OpenedSession {
     let kb = options.kb
     let answer = answer
-    let transport = ScriptedTransport(clock: clock) { operation, payload in
+    let transport = ScriptedTransport(channels: bridgedChannels, clock: clock) {
+      operation, payload in
       try await answer(kb.id, operation, payload)
     }
     transports[kb.id, default: []].append(transport)

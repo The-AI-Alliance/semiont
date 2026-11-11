@@ -134,7 +134,7 @@ actor LiveDriver {
       ? CachePersistence(storage: storage, kbId: "conformance", personKey: personKey(driver)) : nil
     let transport = HttpTransport(
       baseUrl: try args.text("baseUrl"), httpClient: http, token: try args.text("token"),
-      timing: transportTiming)
+      channels: bridgedChannels, timing: transportTiming)
     let failures = transport.failures()
     do {
       client = try await SemiontClient(

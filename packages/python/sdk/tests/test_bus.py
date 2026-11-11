@@ -211,17 +211,18 @@ def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_
         return Frame(channel="mark:archived", payload={**recorded("mark:archived", resource), "id": event}, scope=resource)
 
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=())
         bus = Bus(transport)
         assert transport.holds(RESOURCE) == 0
 
         async with bus.frames(MARK_ARCHIVED, RESOURCE) as mine:
             # Its scope is held from the call, with nothing else holding it: no live query is open.
             assert (transport.holds(RESOURCE), transport.holds(other)) == (1, 0)
-            # A stream carries every scope it holds on the one channel.
-            transport.deliver(archived(other, "evt-theirs"))
-            transport.deliver(archived(RESOURCE, "evt-mine"))
-            heard = await soon(anext(mine))
+            # A stream carries every scope it holds on the one channel: one something else holds, too.
+            with transport.subscribe_to_resource(other):
+                transport.deliver(archived(other, "evt-theirs"))
+                transport.deliver(archived(RESOURCE, "evt-mine"))
+                heard = await soon(anext(mine))
             assert isinstance(heard, Delivered)
             assert (heard.payload.id, heard.scope) == ("evt-mine", RESOURCE)
             # One that lacks a member deep inside it is refused by the way to that member.
@@ -251,7 +252,7 @@ def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_
 
 def test_a_read_that_names_the_wrong_thing_is_refused_when_it_is_called_and_holds_nothing() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=())
         bus = Bus(transport)
         # What a type checker refuses (tests/refusals) is refused when it is called, too: asked here as untyped code asks.
         with pytest.raises(TypeError, match="mark:archived is delivered on a resource's scope"):

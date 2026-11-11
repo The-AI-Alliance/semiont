@@ -33,11 +33,11 @@ Kotlin calls a `suspend` member and collects a `Flow`. Java calls the member's t
 
 ## Connecting
 
-A client of a knowledge base, over HTTP, signed in with a token. In Kotlin:
+A client of a knowledge base, over HTTP, signed in with a token. A transport is always given the channels its stream names on no scope, and assumes none of its own: a full client gives it `BRIDGED_CHANNELS` (`semiont.channels`; `ChannelsKt.getBRIDGED_CHANNELS()` from Java), the channels every client hears and every operation's replies. In Kotlin:
 
 <!-- readme: connect -->
 ```kotlin
-val transport = HttpTransport(baseUrl, MutableStateFlow(token))
+val transport = HttpTransport(baseUrl, MutableStateFlow(token), BRIDGED_CHANNELS)
 val client = SemiontClient(transport, HttpContentTransport(transport), transport)
 ```
 
@@ -45,7 +45,7 @@ In Java:
 
 <!-- readme: connect-java -->
 ```java
-HttpTransport transport = new HttpTransport(baseUrl, StateFlowKt.MutableStateFlow(token));
+HttpTransport transport = new HttpTransport(baseUrl, StateFlowKt.MutableStateFlow(token), ChannelsKt.getBRIDGED_CHANNELS());
 SemiontClient client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
@@ -137,7 +137,7 @@ What a worker promises is protocol/contract/WORKER-CONTRACT.md, and the worker c
 
 ## Testing
 
-`semiont.testing` is what a program's tests are built on: `FaultyTransport`, a transport with no wire whose gateway answers what a test queued and refuses the rest by name, and whose wire delivers, drops, delays or doubles each reply as a schedule says; `InMemoryContent` and `StubGateway`; `TestClient`, a real client over the three; `createTestSession`, a real session over one; `ScriptedSessions` and `SharedStorage`, for a registry; and the liveness axioms (`assertLivenessAxioms`, `assertExactlyOnceDelivery`), which hold a composition to saying something and to delivering each event once under any behaviour of the wire. Each is usable from Java as from Kotlin.
+`semiont.testing` is what a program's tests are built on: `FaultyTransport`, a transport with no wire, given its channels as a real one is (`BRIDGED_CHANNELS` for a full client) and carrying only what a gateway would give a stream that names them, whose gateway answers what a test queued and refuses the rest by name, and whose wire delivers, drops, delays or doubles each reply as a schedule says; `InMemoryContent` and `StubGateway`; `TestClient`, a real client over the three, whose own transport names `BRIDGED_CHANNELS`; `createTestSession`, a real session over one; `ScriptedSessions` and `SharedStorage`, for a registry; and the liveness axioms (`assertLivenessAxioms`, `assertExactlyOnceDelivery`), which hold a composition to saying something and to delivering each event once under any behaviour of the wire. Each is usable from Java as from Kotlin.
 
 Every maker that waits takes the `context: CoroutineContext` its work runs on (`Dispatchers.Default` when none is given) and the `clock: TimeSource` its deadlines and intervals are measured by (`TimeSource.Monotonic`), and every maker that backs off takes the `random: Random` its jitter draws from (`Random.Default`). What a maker makes keeps them: a client's namespaces, caches and state units, a transport's stream and its content transport, a session's renewals, a registry's sessions and sign-ins. A suspending function waits on its caller's context. A Java future runs on its receiver's context, or, for a free function, on the `context` it takes. Under `runTest`, hand the SDK `StandardTestDispatcher(testScheduler)` and `testScheduler.timeSource`, and move the time with `advanceTimeBy`: its reconnect backoff, deadlines, debounces, renewals and polls end when the test says. Hand it a `Random` whose draws are fixed to make each jitter the same on every run.
 

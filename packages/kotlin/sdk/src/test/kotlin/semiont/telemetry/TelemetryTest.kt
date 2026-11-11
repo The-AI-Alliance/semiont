@@ -1,5 +1,6 @@
 package semiont.telemetry
 
+import semiont.channels.BRIDGED_CHANNELS
 import semiont.http.HttpTransport
 import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -135,7 +136,7 @@ class TelemetryTest {
         }
         gateway.start()
         try {
-            HttpTransport("http://127.0.0.1:${gateway.address.port}", MutableStateFlow<String?>(null)).use { transport ->
+            HttpTransport("http://127.0.0.1:${gateway.address.port}", MutableStateFlow<String?>(null), BRIDGED_CHANNELS).use { transport ->
                 runBlocking { transport.emit("beckon:sparkle", JsonObject(emptyMap())) }
             }
             val span = kept.spans.single { it.name == "bus.emit:beckon:sparkle" }

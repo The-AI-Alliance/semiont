@@ -7,8 +7,9 @@ from typing import Final, final
 import pytest
 from aio import pass_time, run, under_way
 from pydantic import JsonValue
-from semiont.bus import Bus
+from semiont.bus import Bus, reply_channels_for
 from semiont.errors import BusRequestError
+from semiont.operations import BROWSE_RESOURCES_REQUESTED
 from semiont.testing import FaultyTransport
 
 from semiont_service import catalog
@@ -31,7 +32,7 @@ class Archivist:
         self.failing: Mapping[str, JsonValue] | None = None
         """The failure it answers every request with, when it answers with one that is not its being away."""
         self.asked: Final[list[Mapping[str, JsonValue]]] = []
-        self.transport: Final = FaultyTransport(make_response=self._answer)
+        self.transport: Final = FaultyTransport(channels=reply_channels_for(BROWSE_RESOURCES_REQUESTED), make_response=self._answer)
         self.transport.refuse_when(self._refuse)
         self.bus: Final = Bus(self.transport)
 
@@ -77,7 +78,7 @@ def test_a_page_of_nothing_ends_the_read_whatever_total_the_archivist_states() -
         def nothing_of_seven(operation: str, payload: Mapping[str, JsonValue]) -> JsonValue:
             return {"resources": [], "total": 7, "offset": 0, "limit": 200}
 
-        transport = FaultyTransport(make_response=nothing_of_seven)
+        transport = FaultyTransport(channels=reply_channels_for(BROWSE_RESOURCES_REQUESTED), make_response=nothing_of_seven)
         assert await catalog.resources(Bus(transport), asyncio.Event(), archived=None) == []
         assert len(transport.request_log) == 1
         await transport.close()

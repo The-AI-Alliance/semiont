@@ -29,7 +29,7 @@ public sealed partial class TransportTests
             {
                 Assert.True(refused.GetBoolean(), why);
                 Assert.True(members.Order(StringComparer.Ordinal).SequenceEqual(ResourceRefusedMembers.Order(StringComparer.Ordinal)), why);
-                var fault = FaultOf("ResourceDescriptor", resource);
+                var fault = FaultOf("ResourceDescriptor", resource, out _);
                 Assert.NotNull(fault);
                 Assert.True(fault.Member == Text(row, "member"), why + ": the fault is at " + fault.Member);
                 Assert.True(fault.Reason.ToString().ToLowerInvariant() == Text(row, "reason"), why + ": the fault " + fault.Reason);
@@ -38,7 +38,7 @@ public sealed partial class TransportTests
                 continue;
             }
             Assert.True(members.All(member => ResourceReadMembers.Contains(member, StringComparer.Ordinal)), why);
-            Assert.Null(FaultOf("ResourceDescriptor", resource));
+            Assert.Null(FaultOf("ResourceDescriptor", resource, out _));
             var descriptor = Required<ResourceDescriptor>(resource);
             switch (descriptor.Representations)
             {

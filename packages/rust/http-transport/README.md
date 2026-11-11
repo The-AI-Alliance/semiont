@@ -194,7 +194,7 @@ let client = client(
         base_url: agent.gateway().to_owned(),
         token: agent.token(),
         refresher: Some(agent.clone()),
-        channels: None,
+        channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
         http,
         timing: Timing::default(),
         random: None,
@@ -218,7 +218,7 @@ while let Some(event) = completed.next().await {
 | `base_url` | The gateway's origin. |
 | `token` | The token every request carries: the current one, and each one after it. With none, the transport sends nothing and waits for one. |
 | `refresher` | Asked for a new token when the gateway refuses the one a request carries: a 401, or a 429 whose `code` is `refusal-rate`. It is told the token refused. With none, such a refusal is final. |
-| `channels` | The global channels the stream names. `None` is every channel a client hears. A process that awaits only some operations names their reply channels, and is not sent every other client's replies. |
+| `channels` | The global channels the stream names. A transport assumes none of its own: a full client names `BRIDGED_CHANNELS`, every channel a client hears. A process that awaits only some operations names their reply channels, and is not sent every other client's replies. |
 | `http` | The application's `reqwest::Client`. |
 | `timing` | The deadlines. `Timing::default()` is the ones every Semiont SDK keeps. |
 | `random` | What the jitter of the stream's reconnects and of each emit's retries is drawn from. With none, the system's source. |
@@ -268,7 +268,7 @@ let client = client(
         base_url: agent.gateway().to_owned(),
         token: agent.token(),
         refresher: Some(agent.clone()),
-        channels: Some(channels),
+        channels,
         http,
         timing: Timing::default(),
         random: None,

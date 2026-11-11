@@ -30,7 +30,7 @@ class Archivist:
         self.failing: Mapping[str, JsonValue] | None = None
         """The failure it answers with, when it answers with one that is not its being away."""
         self.asked = 0
-        self.transport: Final = FaultyTransport(make_response=self._answer)
+        self.transport: Final = FaultyTransport(channels=CONFIRMING_CHANNELS, make_response=self._answer)
         self.transport.refuse_when(self._refuse)
         self.bus: Final = Bus(self.transport)
 

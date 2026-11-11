@@ -28,16 +28,16 @@ public sealed class YieldNamespace
 
     public async Task<CloneResourceWithTokenResponse> CloneTokenAsync(ResourceId resourceId, CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.YieldCloneTokenRequested, new YieldCloneTokenRequest { ResourceId = resourceId },
-            cancellation: cancellation).ConfigureAwait(false)).Response;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response;
 
     public async Task<ResourceDescriptor> FromTokenAsync(string token, CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.YieldCloneResourceRequested, new YieldCloneResourceRequest { Token = token },
-            cancellation: cancellation).ConfigureAwait(false)).Response.SourceResource;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response.SourceResource;
 
     public async Task<CreateResourceResponse> CreateFromTokenAsync(string token, string name, string text, bool? archiveOriginal = null,
         CancellationToken cancellation = default)
     {
-        var source = await FromTokenAsync(token, cancellation).ConfigureAwait(false);
+        var source = await FromTokenAsync(token, cancellation).ConfigureAwait(Spawning.Captures);
         var mediaType = PrimaryMediaType(source);
         var format = MediaTypes.CloneFormat(mediaType);
         return await content.UploadAsync(new ResourceUpload
@@ -48,7 +48,7 @@ public sealed class YieldNamespace
             StorageUri = "file://" + MediaTypes.StorageFileName(name, format),
             CloneToken = token,
             ArchiveOriginal = archiveOriginal is bool archive ? archive ? "true" : "false" : null,
-        }, null, cancellation).ConfigureAwait(false);
+        }, null, cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     public void Clone() => bus.Emit(BusChannels.YieldClone, new EmptyBusPayload());

@@ -8,6 +8,7 @@
 
 use semiont::cache::CacheState;
 use semiont::cached::Observed;
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::errors::SemiontError;
 use semiont::namespaces::ResourceFilters;
@@ -169,7 +170,7 @@ fn annotated() -> InMemoryContent {
 }
 
 fn world() -> (Arc<SemiontClient>, FaultyTransport, InMemoryContent) {
-    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[]));
     let content = annotated();
     let client = create_test_client(TestClientOptions {
         transport: Some(transport.clone()),
@@ -474,7 +475,7 @@ async fn b13_a_stream_that_stays_open_and_the_first_open_ask_for_nothing() {
     assert_eq!(all.more().await, [0; 10]);
 
     // A client whose stream opens for the first time missed nothing either.
-    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[]));
     transport.set_state(ConnectionState::Connecting);
     let client = client_over(&transport, None);
     let _watching = client.browse.entity_types().watch();
@@ -805,7 +806,10 @@ impl SessionStorage for ReachedAtEachWrite {
 fn keeping(storage: &Arc<ReachedAtEachWrite>) -> (Arc<SemiontClient>, CoupledBookmarks) {
     let places = places_in(storage.clone());
     storage.places.get_or_init(|| places.clone());
-    let client = coupled(&places, FaultyTransport::answering(vec![], answers(&[])));
+    let client = coupled(
+        &places,
+        FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[])),
+    );
     (client, places)
 }
 
@@ -890,7 +894,7 @@ async fn b17_a_place_whose_event_the_refresher_has_not_taken_is_not_written() {
     let places_key = stored_key("lastEventIdKeyPrefix", "kb-1", PERSON);
     let storage = Arc::new(InMemorySessionStorage::new());
     let places = places_in(storage.clone());
-    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[]));
     let client = coupled(&places, transport.clone());
     let _watching = client.browse.resource(&as_id("res-1")).watch();
     settle().await;
@@ -912,8 +916,9 @@ async fn b17_a_place_whose_event_the_refresher_has_not_taken_is_not_written() {
 
 /// Once the refresher has taken an event, the place is noted, and the fetch
 /// the event started holds it back while it is in flight: a kept cache
-/// written meanwhile does not carry it. Once the fetch is in and its value
-/// saved, the place is written (B17).
+/// written meanwhile does not carry it. A fetch is in flight until it has
+/// settled and no longer (B17): once its value is seen through `fresh()`, the
+/// save the clock fires at once carries the place.
 #[tokio::test(start_paused = true)]
 async fn b17_a_place_is_noted_once_the_refresher_has_taken_its_event_and_waits_for_its_fetch() {
     let entity_types = cache_key("kb-1", PERSON, CacheQuery::EntityTypes);
@@ -923,6 +928,7 @@ async fn b17_a_place_is_noted_once_the_refresher_has_taken_its_event_and_waits_f
     // The resource's first ask is answered at once and its refetch half a
     // second later; the entity types, asked third, at once.
     let transport = FaultyTransport::answering(
+        BRIDGED_CHANNELS,
         vec![
             FaultAction::Deliver,
             FaultAction::Delay(Duration::from_millis(500)),
@@ -960,7 +966,20 @@ async fn b17_a_place_is_noted_once_the_refresher_has_taken_its_event_and_waits_f
         "the place waits for the fetch its event started"
     );
 
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    client
+        .browse
+        .resource(&as_id("res-1"))
+        .fresh()
+        .await
+        .expect("the refetch is answered");
+    assert_eq!(
+        asked_of(&transport, "browse:resource-requested", "res-1"),
+        2,
+        "the read joined the refetch"
+    );
+    tokio::time::advance(SAVE_DEBOUNCE).await;
+    // The runtime polls the test before the save the clock woke: one yield lets the save run.
+    tokio::task::yield_now().await;
     assert!(client.persistence_settled(), "the refetch is in and saved");
     assert_eq!(
         storage
@@ -1403,6 +1422,7 @@ async fn each_engine_has_its_limits_as_its_key_holder_reports_them() {
 #[tokio::test(start_paused = true)]
 async fn a_key_holder_that_does_not_answer_holds_up_nothing_but_its_own_engines_limits() {
     let transport = FaultyTransport::answering(
+        BRIDGED_CHANNELS,
         vec![],
         answers(&["gather:limits-requested", "match:limits-requested"]),
     );
@@ -1446,7 +1466,7 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
     let storage = Arc::new(InMemorySessionStorage::new());
     let kept = |kb_id: &str, person_key: &str| Some(kept_for(storage.clone(), kb_id, person_key));
     let persistence = || kept("kb-1", PERSON);
-    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[]));
     let first = client_over(&transport, persistence());
     let _ = first.browse.events(&as_id("res-1")).fresh().await;
     let had = first
@@ -1457,7 +1477,7 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
         .expect("a resource");
     first.close().await;
 
-    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[]));
     let returning = client_over(&transport, persistence());
     let mut watcher = returning.browse.resource(&as_id("res-1")).watch();
     // At once, and what was had; then what it is now.
@@ -1477,7 +1497,7 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
     // person's client of the same one.
     for (kb_id, person_key) in [("kb-2", PERSON), ("kb-1", "another-person-key")] {
         let elsewhere = client_over(
-            &FaultyTransport::answering(vec![], answers(&[])),
+            &FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[])),
             kept(kb_id, person_key),
         );
         assert_eq!(
@@ -1494,7 +1514,7 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
 #[tokio::test(start_paused = true)]
 async fn b17_a_client_keeps_the_queries_the_table_marks_persisted_and_no_other() {
     let storage = Arc::new(SharedStorage::new());
-    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let transport = FaultyTransport::answering(BRIDGED_CHANNELS, vec![], answers(&[]));
     let client = create_test_client(TestClientOptions {
         transport: Some(transport),
         content: Some(annotated()),
