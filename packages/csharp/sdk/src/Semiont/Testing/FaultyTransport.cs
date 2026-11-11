@@ -149,7 +149,7 @@ public sealed class FaultyTransport(IEnumerable<FaultAction>? schedule = null, R
             catch (SemiontError error)
             {
                 channel = channels.Failure;
-                payload = JsonSerializer.SerializeToElement(new { code = error.Code, message = error.Message });
+                payload = JsonSerializer.SerializeToElement(new CommandError { Message = error.Message });
             }
         }
         return new BusFrame { Channel = channel, Scope = sent.Scope, CorrelationId = sent.CorrelationId, Payload = payload };
