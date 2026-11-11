@@ -225,7 +225,9 @@ let emit t ~client_id ?scope ?correlation_id ?trace channel source =
         read_text)
 
 let bus_failure payload =
-  Http_facts.bus_failure (json_text "code" (Bus_registry.encode payload))
+  Http_facts.bus_failure
+    (Option.map Http_facts.Failure_code.of_wire
+       (json_text "code" (Bus_registry.encode payload)))
 
 let json_get t ?(auth = true) path =
   exchange t ~auth ~timeout_ms:t.timing.request_timeout_ms ~attempts:2
