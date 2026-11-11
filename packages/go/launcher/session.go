@@ -40,6 +40,10 @@ type Session struct {
 	// session, and its stream can be refused, and ask Refresh for a token,
 	// while that session is still being resumed.
 	resumed chan struct{}
+	// heard is closed once everything the SDK's session said has been taken
+	// in: its errors have ended, which they do when it is closed. Set before
+	// resumed is closed.
+	heard <-chan struct{}
 
 	// ended is done once the session is over for this command, with a
 	// *SessionRejected as its cause.
@@ -128,7 +132,7 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 		s.client.closeTransports()
 		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
 	}
-	heard := s.hear()
+	s.heard = s.hear()
 	close(s.resumed)
 	if err := s.sdk.Ready(context.Background()); err != nil {
 		s.Close()
@@ -147,7 +151,7 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 	// that the issuer would not renew said nothing, as there was no session to
 	// end: its sign-in is forgotten.
 	s.Close()
-	<-heard
+	<-s.heard
 	if why := s.whyUnconfirmed(); why != "" {
 		s.end(&SessionRejected{refresh: errors.New(why), kept: true})
 	} else {
@@ -294,11 +298,26 @@ func (s *Session) Refresh(ctx context.Context, refused string) (token string, ok
 		if s.signIn.RefreshToken != "" {
 			why = errors.New("the stack was signed out while its session was being renewed")
 		}
-		s.end(&SessionRejected{refresh: why})
+		s.over(&SessionRejected{refresh: why})
 		return "", false
 	}
 	s.noteRenewal(before)
 	return renewed, true
+}
+
+// over ends the session, once the SDK's session can give it no token, for
+// why: unless what the SDK's session said ended it first. That session says
+// why it holds no token before it answers so, but its errors are read on
+// their own, so it is closed and they are read to their end before why is
+// given. Its transports are left no token to offer first: once the SDK's
+// session is closed, its token changes no more. The command's client keeps
+// nothing, so no closing flush of it has anything to say: the SDK's session
+// can end before it.
+func (s *Session) over(why *SessionRejected) {
+	s.token.Set("")
+	s.sdk.Close()
+	<-s.heard
+	s.end(why)
 }
 
 // unauthorized: the gateway refused the token a call bore.

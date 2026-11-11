@@ -362,7 +362,7 @@ func TestNothingTheTransportStartedOutlivesClose(t *testing.T) {
 // report, and the stream goes on to the frames after it.
 func TestALineThatNamesNoChannelIsToldToTheFailureReportAndTheStreamGoesOn(t *testing.T) {
 	gateway := newRecordingGateway(t)
-	transport := gateway.transport(nil)
+	transport := gateway.transport(nil, nil)
 	defer transport.Close()
 	told := make(chan *TransportError, 3)
 	go func() {

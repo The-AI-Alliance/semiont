@@ -155,7 +155,7 @@ func (s *Session) refusal(err error) error {
 		// again with it, so this is the second refusal: unless the session has
 		// already ended for its own reason, the gateway refused a token the
 		// session had just renewed.
-		s.end(&SessionRejected{cause: err})
+		s.over(&SessionRejected{cause: err})
 		return context.Cause(s.ended)
 	}
 	if s.ended.Err() != nil {

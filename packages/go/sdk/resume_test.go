@@ -277,7 +277,9 @@ func (g *recordingGateway) sendData(id, data string) {
 	newest <- fmt.Sprintf("event: bus-event\nid: %s\ndata: %s\n\n", id, data)
 }
 
-func (g *recordingGateway) transport(bookmarks Bookmarks) *HTTPTransport {
+// transport is a transport to the gateway whose stream names channels
+// globally, and begins each scope where bookmarks say.
+func (g *recordingGateway) transport(bookmarks Bookmarks, channels []bus.Channel) *HTTPTransport {
 	timing := DefaultTiming()
 	timing.Reconnect = 10 * time.Millisecond
 	timing.LazyRemove = 10 * time.Millisecond
@@ -286,6 +288,7 @@ func (g *recordingGateway) transport(bookmarks Bookmarks) *HTTPTransport {
 	return NewHTTPTransport(HTTPTransportConfig{
 		BaseURL:   g.URL,
 		Token:     NewVariable("t"),
+		Channels:  channels,
 		HTTP:      &http.Client{Transport: &http.Transport{}},
 		Timing:    timing,
 		Bookmarks: bookmarks,
@@ -378,7 +381,9 @@ func TestAPlaceIsNotWrittenBeforeTheRefresherHasTakenItsEvent(t *testing.T) {
 	storage := NewMemoryStorage()
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	gateway := newRecordingGateway(t)
-	transport := holdingFrames(gateway.transport(kept))
+	// A refetch whose replies the stream does not carry is never sent.
+	asked := bus.BrowseResourceRequested.Request().Channel()
+	transport := holdingFrames(gateway.transport(kept, bus.ReplyChannelsFor(asked)))
 	defer transport.Close()
 	client := NewClient(ClientConfig{Transport: transport, Timing: DefaultTiming(), Persistence: &CachePersistence{Storage: kept.Storage(), KbID: "kb-a", PersonKey: keptPerson}})
 	kept.CoupleTo(client)
@@ -419,7 +424,6 @@ func TestAPlaceIsNotWrittenBeforeTheRefresherHasTakenItsEvent(t *testing.T) {
 	// Taken: the refetch it starts is in flight, unanswered, and the place is
 	// held back.
 	transport.release()
-	asked := bus.BrowseResourceRequested.Request().Channel()
 	until(t, "the refetch asked", func() bool { return len(gateway.emittedOn(asked)) == 1 })
 	write()
 	if place, written := kept.Load()[resource]; written {
@@ -445,7 +449,7 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndNotesNoPlaceInThem(t *test
 	storage.Set(keptPlacesKey, `{"res-1":"p-res-1-41"}`)
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	gateway := newRecordingGateway(t)
-	transport := gateway.transport(kept)
+	transport := gateway.transport(kept, nil)
 	defer transport.Close()
 
 	heard, err := transport.Frames(context.Background(), bus.MarkAdded.Channel())
@@ -493,7 +497,7 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndNotesNoPlaceInThem(t *test
 
 func TestAStreamWithNoBookmarksBeginsEveryScopeAtThePresent(t *testing.T) {
 	gateway := newRecordingGateway(t)
-	transport := gateway.transport(nil)
+	transport := gateway.transport(nil, nil)
 	defer transport.Close()
 	defer transport.SubscribeToResource(mustResource(t, "res-1"))()
 	until(t, "a subscription of the scope", func() bool { _, ok := gateway.asked(1); return ok })
@@ -512,7 +516,7 @@ func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testi
 	elsewhere.Set(keptPlacesKey, `{"res-1":"p-res-1-99","res-2":"p-res-2-3"}`)
 
 	gateway := newRecordingGateway(t)
-	transport := gateway.transport(NewCoupledBookmarks(storage, keptPlacesKey))
+	transport := gateway.transport(NewCoupledBookmarks(storage, keptPlacesKey), nil)
 	defer transport.Close()
 	transport.takeUpPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
 	defer transport.SubscribeToResource(resource)()
@@ -524,7 +528,7 @@ func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testi
 
 	// A stream made with no bookmarks takes up the places it is given all the same.
 	bare := newRecordingGateway(t)
-	unkept := bare.transport(nil)
+	unkept := bare.transport(nil, nil)
 	defer unkept.Close()
 	unkept.takeUpPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
 	defer unkept.SubscribeToResource(other)()
