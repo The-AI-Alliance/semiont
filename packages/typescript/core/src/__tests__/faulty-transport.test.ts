@@ -17,6 +17,7 @@
 import { describe, it, expect } from 'vitest';
 import { Bus } from '../bus';
 import { BUS_OPERATIONS, type BusOperationKey } from '../bus-operations';
+import { BRIDGED_CHANNELS } from '../bridged-channels';
 import { FaultyTransport } from '../faulty-transport';
 import { resourceId } from '../identifiers';
 import type { GatheredContext } from '../payload-types';
@@ -30,6 +31,7 @@ const pageOf = (total: number): components['schemas']['ListResourcesResponse'] =
 describe('FaultyTransport.queueReply', () => {
   it('queued replies are consumed in FIFO order; an empty queue falls back to makeResponse', async () => {
     const transport = new FaultyTransport({
+      channels: BRIDGED_CHANNELS,
       makeResponse: () => pageOf(99),
     });
     transport.queueReply(OP, pageOf(1));
@@ -48,6 +50,7 @@ describe('FaultyTransport.queueReply', () => {
 
   it('duplicate-reply replays ONE queued body twice — the queue models the gateway, not the wire', async () => {
     const transport = new FaultyTransport({
+      channels: BRIDGED_CHANNELS,
       schedule: [{ kind: 'duplicate-reply' }, { kind: 'deliver' }],
       makeResponse: () => pageOf(99),
     });
@@ -67,6 +70,7 @@ describe('FaultyTransport.queueReply', () => {
 
   it('drop-reply consumes the entry: the gateway answered, the wire ate it', async () => {
     const transport = new FaultyTransport({
+      channels: BRIDGED_CHANNELS,
       schedule: [{ kind: 'drop-reply' }, { kind: 'deliver' }],
       makeResponse: () => pageOf(99),
     });
@@ -86,6 +90,7 @@ describe('FaultyTransport.queueReply', () => {
 
   it('composes with the attach gate: no emit reaches the gateway until state$ reports open', async () => {
     const transport = new FaultyTransport({
+      channels: BRIDGED_CHANNELS,
       makeResponse: () => pageOf(7),
     });
     transport.state$.next('connecting');
@@ -153,7 +158,7 @@ describe('a reply that names what it answers for', () => {
       { referenceId: 'ann-1', response: candidates },
     ],
   ])('the reply to %s states the id its request stated, beside the queued response', async (op, request, response, reply) => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     transport.queueReply(op, response);
 
     expect(await repliesTo(transport, op, request)).toStrictEqual([reply]);
@@ -163,6 +168,7 @@ describe('a reply that names what it answers for', () => {
 
   it('so does a reply makeResponse answers, and each copy of a duplicated one', async () => {
     const transport = new FaultyTransport({
+      channels: BRIDGED_CHANNELS,
       schedule: [{ kind: 'duplicate-reply' }],
       makeResponse: () => context,
     });
@@ -177,7 +183,7 @@ describe('a reply that names what it answers for', () => {
   });
 
   it('a reply that names nothing is its response and no more', async () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const page = pageOf(1);
     transport.queueReply(OP, page);
 
@@ -187,7 +193,7 @@ describe('a reply that names what it answers for', () => {
   });
 
   it('a request that does not state what its reply names cannot be answered, and that is said', async () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     transport.queueReply('gather:resource-requested', 'scripted');
 
     await expect(new Bus(transport).request('gather:resource-requested', { options: {} }, 1_000)).rejects.toThrow(
@@ -207,7 +213,7 @@ describe('a reply that names what it answers for', () => {
 
 describe('requestLog payloads', () => {
   it('carries the emitted payload on each entry, in arrival order', async () => {
-    const transport = new FaultyTransport({ makeResponse: () => pageOf(0) });
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS, makeResponse: () => pageOf(0) });
 
     await new Bus(transport).request(OP, { limit: 10, entityType: 'Concept' }, 5_000);
     await new Bus(transport).request(OP, { limit: 25 }, 5_000);
@@ -225,7 +231,7 @@ describe('requestLog payloads', () => {
   });
 
   it('snapshots the payload — a later mutation of the caller object cannot rewrite history', async () => {
-    const transport = new FaultyTransport({ makeResponse: () => pageOf(0) });
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS, makeResponse: () => pageOf(0) });
 
     const payload: Record<string, unknown> = { limit: 10 };
     await new Bus(transport).request(OP, payload, 5_000);
@@ -238,6 +244,7 @@ describe('requestLog payloads', () => {
 
   it('logs the payload even when the wire eats the request (drop / reject)', async () => {
     const transport = new FaultyTransport({
+      channels: BRIDGED_CHANNELS,
       schedule: [{ kind: 'reject-emit' }],
       makeResponse: () => pageOf(0),
     });

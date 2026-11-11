@@ -29,7 +29,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { CachePersistence } from './cache-persister';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, resourceId as makeResourceId } from '@semiont/core';
 import { FaultyTransport, type FaultyTransportConfig } from '@semiont/core/testing';
 import { SemiontClient } from './client';
 import { SemiontSession } from './session/semiont-session';
@@ -122,8 +122,12 @@ export function inMemoryContent(): IContentTransport {
 }
 
 export interface TestClientOptions {
-  /** FaultyTransport scripting: fault schedule, scope model, `makeResponse`. */
-  transport?: FaultyTransportConfig;
+  /**
+   * FaultyTransport scripting: fault schedule and `makeResponse`. Its
+   * channels are a full client's, `BRIDGED_CHANNELS`: a test of a client that
+   * hears other channels builds its own `FaultyTransport`.
+   */
+  transport?: Omit<FaultyTransportConfig, 'channels'>;
   /**
    * Gateway operations for the `auth`/`system` namespaces. Omitted = both are
    * `undefined` (a transport-only client). Pass `stubGateway()` when a unit
@@ -167,15 +171,16 @@ export function stubGateway(): IGatewayOperations {
 /**
  * A real `SemiontClient` over a scriptable `FaultyTransport`.
  *
- * The returned `transport` IS the `FaultyTransport` instance — script faults
- * via its config, drive connection state via `transport.state$.next(...)`,
- * and account requests via `transport.requestLog`.
+ * The returned `transport` IS the `FaultyTransport` instance, given a full
+ * client's channels (`BRIDGED_CHANNELS`) — script faults via its config,
+ * drive connection state via `transport.state$.next(...)`, and account
+ * requests via `transport.requestLog`.
  */
 export function createTestClient(options: TestClientOptions = {}): {
   client: SemiontClient;
   transport: FaultyTransport;
 } {
-  const transport = new FaultyTransport(options.transport);
+  const transport = new FaultyTransport({ ...options.transport, channels: BRIDGED_CHANNELS });
   const client = new SemiontClient(transport, options.content ?? inMemoryContent(), options.gateway, {
     ...(options.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
     ...(options.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),

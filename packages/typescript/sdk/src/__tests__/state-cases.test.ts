@@ -27,7 +27,7 @@ import {
   type Watched,
 } from '@semiont/core';
 import type { SemiontClient } from '../client';
-import { createTestClient, refuseUnscriptedOperation, type FaultAction, type FaultyTransport, type FaultyTransportConfig } from '../testing';
+import { createTestClient, refuseUnscriptedOperation, type FaultAction, type FaultyTransport, type TestClientOptions } from '../testing';
 import { createBeckonStateUnit, createHoverDwell, type BeckonStateUnit, type HoverDwell } from '../state/flows/beckon-state-unit';
 import { createGatherStateUnit, type GatherStateUnit } from '../state/flows/gather-state-unit';
 import { createMarkStateUnit, type MarkStateUnit } from '../state/flows/mark-state-unit';
@@ -321,7 +321,7 @@ function jobs(operation: BusOperationKey): unknown {
 }
 
 /** The transport a case states. Its stream carries what a client's does: the replies and the broadcasts, never the requests. */
-function transportOf(stated: JsonObject): FaultyTransportConfig {
+function transportOf(stated: JsonObject): NonNullable<TestClientOptions['transport']> {
   const answers = text(stated['answers'], 'transport.answers');
   const delay = stated['delayMs'];
   const schedule: FaultAction[] = delay === undefined ? [] : [{ kind: 'delay', ms: durationMs(delay) }];

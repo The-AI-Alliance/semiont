@@ -9,6 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { asDeclared, Bus, FrameRefusal, type Delivered, type Heard } from '../bus';
+import { BRIDGED_CHANNELS } from '../bridged-channels';
 import { FaultyTransport } from '../faulty-transport';
 import { EventBus } from '../event-bus';
 import type { EventMap } from '../bus-protocol';
@@ -49,7 +50,7 @@ function delivered<T>(heard: Heard<T>): Delivered<T> {
 
 describe('Bus.frames: a channel of no scope', () => {
   it('gives each frame with its envelope and who emitted it, as the gateway stamped it', () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const wire = new Bus(transport);
     const { seen } = collect(wire.frames('beckon:focus'));
 
@@ -66,7 +67,7 @@ describe('Bus.frames: a channel of no scope', () => {
   });
 
   it('leaves out of a payload a stamp its channel does not declare, and keeps one it does', () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const { seen } = collect(new Bus(transport).frames('job:fail'));
 
     const failed = { resourceId: RID, jobId: jobId('job-1'), jobType: 'mark', error: 'the model did not answer' } as const;
@@ -83,7 +84,7 @@ describe('Bus.frames: a channel of no scope', () => {
         return super.frames(channel).pipe(map((frame) => ({ ...frame, trace })));
       }
     }
-    const transport = new Traced();
+    const transport = new Traced({ channels: BRIDGED_CHANNELS });
     const { seen } = collect(new Bus(transport).frames('beckon:focus'));
 
     void transport.emit('beckon:focus', { resourceId: RID, annotationId: annotationId('ann-1') });
@@ -92,7 +93,7 @@ describe('Bus.frames: a channel of no scope', () => {
   });
 
   it('refuses a channel of a resource\'s scope read with no resource: it would hear nothing', () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const held = vi.spyOn(transport, 'subscribeToResource');
 
     // @ts-expect-error — mark:archived is delivered on its resource's scope, so a read of it names the resource
@@ -122,7 +123,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
   it('is told the reader in place of its frame, by the way to what it lacks; the frames after it follow', () => {
     const warned = vi.spyOn(console, 'warn');
     try {
-      const transport = new FaultyTransport();
+      const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
       const { seen } = collect(new Bus(transport).frames('job:fail'));
       const lacking = withNoJobId();
       void transport.emit('job:fail', lacking);
@@ -144,7 +145,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
   it('is published, in place of the payload, on the bus a transport bridges into', () => {
     const warned = vi.spyOn(console, 'warn');
     try {
-      const transport = new FaultyTransport();
+      const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
       const bridged = new EventBus();
       transport.bridgeInto(bridged);
       const { seen } = collect(bridged.on('job:fail'));
@@ -161,7 +162,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
   });
 
   it('is told the reader by the way to a member of a kind its schema does not allow, and by the first of two faults', () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const { seen } = collect(new Bus(transport).frames('job:fail'));
     // What a peer might send: what the payload's type says it cannot be.
     const numbered = { ...failed };
@@ -177,7 +178,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
 
 describe('Bus.frames: a channel of a resource\'s scope', () => {
   it("holds the resource's scope for as long as it is read, and gives that resource's frames only", () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const leave = vi.fn();
     const held = vi.spyOn(transport, 'subscribeToResource').mockReturnValue(leave);
     const reading = collect(new Bus(transport).frames('mark:archived', RID));
@@ -197,7 +198,7 @@ describe('Bus.frames: a channel of a resource\'s scope', () => {
   });
 
   it('holds no scope until it is read', () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const held = vi.spyOn(transport, 'subscribeToResource');
 
     new Bus(transport).frames('mark:archived', RID);
@@ -206,7 +207,7 @@ describe('Bus.frames: a channel of a resource\'s scope', () => {
   });
 
   it('refuses a channel of no scope read for a resource: it would hold a scope and hear nothing', () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const held = vi.spyOn(transport, 'subscribeToResource');
 
     // @ts-expect-error — beckon:hover is no resource's channel
@@ -217,7 +218,7 @@ describe('Bus.frames: a channel of a resource\'s scope', () => {
 
 describe('Bus.emit', () => {
   it('sends on the transport, envelope and all, and gives what the transport counted', async () => {
-    const transport = new FaultyTransport();
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const { seen } = collect(transport.frames('beckon:sparkle'));
 
     const count = await new Bus(transport).emit('beckon:sparkle', { annotationId: annotationId('ann-1') }, { correlationId: 'c-2' });

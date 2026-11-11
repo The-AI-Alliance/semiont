@@ -32,14 +32,15 @@ import {
 } from '@semiont/core';
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import { createCache, type CachePersister } from '../cache';
-import type { HeldJob } from '../claims';
+import { JOB_CLAIM_CHANNELS, type HeldJob } from '../claims';
+import { SemiontClient } from '../client';
 import { subscribeDiscovery, type DiscoveryReadResult, type DiscoveryTransport } from '../discovery';
 import { httpKb } from '../session/knowledge-base';
 import { signInWithDeviceGrant } from '../session/oauth';
 import { SemiontSession, type UserInfo } from '../session/semiont-session';
 import { InMemorySessionStorage } from '../session/session-storage';
 import { keptIn, setStoredSession } from '../session/storage';
-import { createTestClient, refuseUnscriptedOperation, type FaultyTransport } from '../testing';
+import { createTestClient, FaultyTransport, inMemoryContent, refuseUnscriptedOperation } from '../testing';
 import { mockAnnotation } from './fixtures/annotation';
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -507,7 +508,9 @@ function answering(held: Held, answers: Partial<Record<BusOperationKey, (payload
 }
 
 async function heldJobStall(_given: JsonObject | undefined, held: Held): Promise<Subject> {
-  const { client } = createTestClient({ transport: { makeResponse: answering(held, { 'job:claim': () => CLAIMED }) } });
+  // A worker's transport names what its claims read, and no more.
+  const transport = new FaultyTransport({ channels: JOB_CLAIM_CHANNELS, makeResponse: answering(held, { 'job:claim': () => CLAIMED }) });
+  const client = new SemiontClient(transport, inMemoryContent());
   held.later(() => client.dispose());
   const claims = client.job.claim({ accepts: MARK_JOBS });
   let job: HeldJob | undefined;

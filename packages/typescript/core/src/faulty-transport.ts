@@ -27,7 +27,6 @@ import { TRACE_FIELD, type EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame } from './event-bus';
 import type { ConnectionState, ITransport } from './transport';
 import { EventBus } from './event-bus';
-import { BRIDGED_CHANNELS } from './bridged-channels';
 import { BUS_OPERATIONS, REPLY_NAMES, type BusOperationKey } from './bus-operations';
 import { asDeclared, type FrameRefusal } from './bus';
 
@@ -67,6 +66,14 @@ export interface RequestLogEntry {
 }
 
 export interface FaultyTransportConfig {
+  /**
+   * The global channels this transport is given, as a wire transport is
+   * given its stream's: it bridges them into a client's bus, answers
+   * `isSubscribed` for them alone, and assumes none of its own. A full
+   * client's test gives it `BRIDGED_CHANNELS`; a worker's, the reply channels
+   * it awaits and what its claims read (`JOB_CLAIM_CHANNELS`).
+   */
+  channels: readonly (keyof EventMap)[];
   /**
    * The i-th request-channel emit applies `schedule[i % schedule.length]`.
    * Empty/omitted → every request delivers.
@@ -126,6 +133,7 @@ export class FaultyTransport implements ITransport {
   readonly requestLog: RequestLogEntry[] = [];
 
   private readonly bus = new EventBus();
+  private readonly channels: ReadonlySet<keyof EventMap>;
   private readonly schedule: readonly FaultAction[];
   private readonly makeResponse: (op: BusOperationKey, payload: Record<string, unknown>) => unknown;
   private readonly replyQueues = new Map<BusOperationKey, unknown[]>();
@@ -133,7 +141,8 @@ export class FaultyTransport implements ITransport {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private disposed = false;
 
-  constructor(cfg: FaultyTransportConfig = {}) {
+  constructor(cfg: FaultyTransportConfig) {
+    this.channels = new Set(cfg.channels);
     this.schedule = cfg.schedule ?? [];
     this.makeResponse = cfg.makeResponse ?? refuseUnscriptedOperation;
   }
@@ -270,12 +279,12 @@ export class FaultyTransport implements ITransport {
   }
 
   /**
-   * Every channel: delivery here is bus-direct, so the receive path carries
-   * anything asked of it. The true answer for an in-process transport, which
-   * is why `isSubscribed` is a required member rather than an omitted one.
+   * Whether the channels this transport was given name `channel`, as a wire
+   * transport answers for its stream's global set: a request whose replies
+   * they do not name fails at once, as `bus.unsubscribed`.
    */
-  isSubscribed(_channel: keyof EventMap): boolean {
-    return true;
+  isSubscribed(channel: keyof EventMap): boolean {
+    return this.channels.has(channel);
   }
 
   subscribeToResource(_rid: ResourceId): () => void {
@@ -305,15 +314,16 @@ export class FaultyTransport implements ITransport {
     };
   }
 
+  /** Publish on `bus` every frame of the channels this transport was given, and of no other. */
   bridgeInto(bus: EventBus): void {
-    for (const channel of BRIDGED_CHANNELS) {
-      this.bus.frames(channel as keyof EventMap).subscribe((frame) => {
+    for (const channel of this.channels) {
+      this.bus.frames(channel).subscribe((frame) => {
         // A bridge FORWARDS a frame; it does not re-originate one. Dropping
         // the envelope here would strip the correlation key on the way to the
         // application bus and strand the awaiting request.
         const { payload, ...envelope } = frame;
         // A payload that is not its channel's is published as its refusal, as a wire transport's bridge does.
-        bus.emit(channel as keyof EventMap, asDeclared(channel as keyof EventMap, payload, envelope.correlationId), envelope);
+        bus.emit(channel, asDeclared(channel, payload, envelope.correlationId), envelope);
       });
     }
   }
