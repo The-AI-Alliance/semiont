@@ -50,7 +50,11 @@ data CacheOptions key value = CacheOptions
   , cacheScope :: key -> IO (IO ())
   }
 data Task value = Task Integer Integer (TMVar (Either SomeException value))
-data Entry key value = Entry (TVar key) (State.StateValue (CacheState value)) (TVar (Maybe (Task value))) (TVar Integer) (TVar Bool) (TVar (Maybe Integer)) (TVar [value -> value]) (TVar Integer) (TVar Integer)
+-- | The task of this version that the SWR retry (B14) belongs to: the Owed
+-- task's failure asks once more; the Asked task is that ask, and its failure
+-- is published.
+data Drive = Owed Integer | Asked Integer deriving Eq
+data Entry key value = Entry (TVar key) (State.StateValue (CacheState value)) (TVar (Maybe (Task value))) (TVar Integer) (TVar Bool) (TVar (Maybe Drive)) (TVar [value -> value]) (TVar Integer) (TVar Integer)
 data Cache key value = Cache
   { entries :: TVar (Map.Map Text (Entry key value))
   , configuration :: CacheOptions key value
@@ -231,11 +235,11 @@ startOwned cache work = do
       unless over (throwIO failure)
 
 launchFetch :: Cache key value -> Entry key value -> (Task value, Bool) -> IO ()
-launchFetch cache (Entry keyCell state active version _ _ patches writeVersion busy) (Task epoch fence result,owned) = when owned $
+launchFetch cache target@(Entry keyCell state active version _ driver patches writeVersion busy) (Task epoch fence result,owned) = when owned $
   startOwned cache $ mask $ \restore -> do
     key <- readTVarIO keyCell
     outcome <- try (restore (fetchValue cache key))
-    saving <- atomically $ do
+    (saving,retrying) <- atomically $ do
       modifyTVar' busy (subtract 1)
       currentVersion <- readTVar version
       currentWrite <- readTVar writeVersion
@@ -249,12 +253,29 @@ launchFetch cache (Entry keyCell state active version _ _ patches writeVersion b
       when (currentVersion==epoch) $ do
         writeTVar active Nothing
         writeTVar patches []
-      if over || currentWrite /= fence then pure Nothing else case final of
+      -- The retry is reserved in the step its first failure settles in, so the
+      -- key is never at rest between the two asks.
+      retrying <- case final of
+        Left failure | not over && currentVersion == epoch -> do
+          drive <- readTVar driver
+          if drive == Just (Owed epoch) then do
+            again <- reserve cache target True
+            forM_ again $ \(Task next _ _,_) -> writeTVar driver (Just (Asked next))
+            pure again
+          else do
+            when (drive == Just (Asked epoch)) $ do
+              prior <- State.current state
+              case prior of Ready _ -> pure (); _ -> publish cache state (Failed failure)
+            pure Nothing
+        _ -> pure Nothing
+      saving <- if over || currentWrite /= fence then pure Nothing else case final of
         Left (_ :: SomeException) -> pure Nothing
         Right value -> do
           publish cache state (Ready value)
           markDirty cache
+      pure (saving,retrying)
     mapM_ (saveLater cache) saving
+    mapM_ (launchFetch cache target) retrying
 
 awaitTask :: Cache key value -> Task value -> IO value
 awaitTask cache (Task _ _ result) = do
@@ -275,42 +296,13 @@ fetch cache key = mask $ \restore -> do
 
 -- Exactly one SWR driver owns a task's bounded retry, including when fresh()
 -- started that task and a subscriber joined it.
-reserveBackground :: Cache key value -> Entry key value -> Bool -> STM (Maybe (Task value, Bool, Bool))
+reserveBackground :: Cache key value -> Entry key value -> Bool -> STM (Maybe (Task value, Bool))
 reserveBackground cache target@(Entry _ _ _ _ _ driver _ _ _) force = do
   planned <- reserve cache target force
-  case planned of
-    Nothing -> pure Nothing
-    Just (task@(Task epoch _ _),owned) -> do
-      prior <- readTVar driver
-      writeTVar driver (Just epoch)
-      pure (Just (task,owned,prior /= Just epoch))
-
-launchBackground :: Cache key value -> Entry key value -> Maybe (Task value, Bool, Bool) -> IO ()
-launchBackground cache target@(Entry _ state _ version _ driver _ _ _) planned = forM_ planned $ \(first@(Task epoch _ _),owned,drive) -> do
-  launchFetch cache target (first,owned)
-  when drive $ startOwned cache $ do
-    initial <- try (awaitTask cache first)
-    case initial of
-      Right _ -> pure ()
-      Left (_ :: SomeException) -> do
-        retried <- atomically $ do
-          over <- readTVar (disposed cache)
-          currentVersion <- readTVar version
-          if over || currentVersion /= epoch then pure Nothing else do
-            retryPlan <- reserve cache target True
-            forM_ retryPlan $ \(Task next _ _,_) -> writeTVar driver (Just next)
-            pure retryPlan
-        forM_ retried $ \plan@(task@(Task next _ _),_) -> do
-          launchFetch cache target plan
-          outcome <- try (awaitTask cache task)
-          case outcome of
-            Right _ -> pure ()
-            Left (failure :: SomeException) -> atomically $ do
-              over <- readTVar (disposed cache)
-              currentVersion <- readTVar version
-              unless (over || currentVersion /= next) $ do
-                prior <- State.current state
-                case prior of Ready _ -> pure (); _ -> publish cache state (Failed failure)
+  forM_ planned $ \(Task epoch _ _,_) -> do
+    prior <- readTVar driver
+    unless (prior `elem` [Just (Owed epoch),Just (Asked epoch)]) (writeTVar driver (Just (Owed epoch)))
+  pure planned
 
 observe :: Cache key value -> key -> (Stream (Of (CacheState value)) IO () -> IO result) -> IO result
 observe cache key consume = mask $ \restore -> do
@@ -322,7 +314,7 @@ observe cache key consume = mask $ \restore -> do
         planned <- reserveBackground cache target False
         pure (target,planned)
       State.watch state $ \values -> do
-        launchBackground cache target planned
+        mapM_ (launchFetch cache target) planned
         restore (consume values)
 
 get :: Cache key value -> key -> STM (Maybe value)
@@ -359,7 +351,7 @@ invalidateSTM cache key = do
     writeTVar patches []
     writeTVar driver Nothing
     next <- reserveBackground cache target True
-    pure (launchBackground cache target next)
+    pure (mapM_ (launchFetch cache target) next)
 invalidateAll :: Cache key value -> IO ()
 invalidateAll cache = atomically (keys cache) >>= mapM_ (invalidate cache)
 

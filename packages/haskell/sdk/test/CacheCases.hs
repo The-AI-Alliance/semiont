@@ -163,6 +163,24 @@ failureCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \
   cancel reader
   require "B11 unobserved settled keys must stay known" . (==[1]) =<< atomically (Cache.keys cache)
 
+-- | A subscriber's retry (B14) is reserved in the step its first failure
+-- settles in, so a caller that saw that failure finds the key still fetching.
+retryHandOffCases :: IO ()
+retryHandOffCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache requests _) -> do
+  first <- async (try (Cache.fetch cache 1) :: IO (Either SomeException Int))
+  (_,answer) <- atomically (readTQueue requests)
+  (reader,events) <- subscriber cache 1
+  pending events
+  atomically (putTMVar answer (Left failure))
+  wait first >>= require "the first ask did not fail" . either (const True) (const False)
+  require "B14 the key was at rest between a failure and its retry" =<< atomically (Internal.fetching cache)
+  reply h 1 (Right 5)
+  ready 5 events
+  idle cache
+  noRequest h
+  noEmission events
+  cancel reader
+
 orphanCases :: IO ()
 orphanCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache requests _) -> do
   old <- async (Cache.fetch cache 1)
@@ -343,6 +361,7 @@ cacheCases = do
   result <- timeout 15000000 $ do
     queryCases
     failureCases
+    retryHandOffCases
     orphanCases
     persistenceCases
     failedSaveCases

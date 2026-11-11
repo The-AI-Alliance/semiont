@@ -159,6 +159,45 @@ writeCases fixtures = withCarrier $ \carrier input local -> do
       readTVarIO requests >>= require "a removal refetched its ended key" . (==1)
       require "written/ended keys left an invalidation owed" . not =<< atomically (Refresh.owes refresher)
 
+-- | A patch writes one member of a list whose window owes a refetch; the
+-- refetch still runs at the window's deadline.
+patchCases :: Map.Map Text Value -> IO ()
+patchCases fixtures = withCarrier $ \carrier input local -> do
+  time <- Time.newTime
+  requests <- newTVarIO (0::Int)
+  resource <- either (ioError . userError) pure (mkResourceId "listed")
+  stored <- fixture fixtures "StoredEventResponse"
+  enriched <- fixture fixtures "EnrichedResourceEvent"
+  annotation <- fixture fixtures "Annotation"
+  let fetch (_::ResourceId) = atomically (modifyTVar' requests (+1) >> readTVar requests)
+      matches info identity = Refresh.subjectResource info == Just identity
+      added = BusFrame (Channel.channelName Channel.MarkAdded) Nothing
+        (payload stored { storedEventResponseResourceId = Just resource }) (Just resource)
+      changed = BusFrame (Channel.channelName Channel.MarkBodyUpdated) Nothing
+        (payload enriched { enrichedResourceEventResourceId = Just resource, enrichedResourceEventAnnotation = Just annotation }) Nothing
+      window = Timing.invalidationWindowMs Timing.protocolSettings * 1000000
+  bracket (Cache.newCache fetch (options time)) Cache.dispose $ \cache -> do
+    Cache.set cache resource 0
+    let control = Refresh.Acts (Refresh.cacheTargets cache matches)
+          (Just (Refresh.updateTargets cache matches (\_ prior -> prior + 100))) Nothing
+    bracket (Refresh.newRefresher local carrier (clock time) Timing.protocolSettings [(Fact.Annotations,control)]) Refresh.dispose $ \refresher -> do
+      Transport.receive input added
+      Time.settle
+      readTVarIO requests >>= require "an added mark did not ask again for its list" . (==1)
+      Transport.receive input added
+      Time.settle
+      require "a second added mark in the window was not owed" =<< atomically (Refresh.owes refresher)
+      Transport.receive input changed
+      Time.settle
+      require "an enriched change did not patch the list" . (==Just 101) =<< atomically (Cache.get cache resource)
+      require "a patch dropped the refetch its window owed" =<< atomically (Refresh.owes refresher)
+      Time.advance time (window - 1000000)
+      readTVarIO requests >>= require "an owed refetch ran before its deadline" . (==1)
+      require "a refetch stopped being owed before it ran" =<< atomically (Refresh.owes refresher)
+      Time.advance time 1000000
+      readTVarIO requests >>= require "a patch left the refetch its window owed unrun" . (==2)
+      require "a refetch stayed owed once it ran" . not =<< atomically (Refresh.owes refresher)
+
 reopenCases :: Map.Map Text Value -> IO ()
 reopenCases _ = withCarrier $ \carrier input local -> do
   time <- Time.newTime
@@ -220,6 +259,6 @@ disposalCases fixtures = do
 
 refreshCases :: Map.Map Text Value -> IO ()
 refreshCases fixtures = do
-  outcome <- timeout 10000000 (windowCases fixtures >> writeCases fixtures >> reopenCases fixtures >> disposalCases fixtures)
+  outcome <- timeout 10000000 (windowCases fixtures >> writeCases fixtures >> patchCases fixtures >> reopenCases fixtures >> disposalCases fixtures)
   require "refresh runtime exceeded its liveness guard" (outcome == Just ())
   putStrLn "PASS atomic refresh, coalescing, held-only effects, writes/removals, resumption gaps, trace context and disposal"

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Semiont.Internal.Refresh
-  ( Refresher, SubjectInfo(..), Target(..), Acts(..), newRefresher, owes, dispose
+  ( Refresher, SubjectInfo(..), Target(..), Write, Acts(..), newRefresher, owes, dispose
   , cacheTargets, writeTargets, updateTargets, endTargets
   ) where
 
@@ -35,9 +35,12 @@ data SubjectInfo = SubjectInfo
   , subjectAnnotation :: Maybe AnnotationId, subjectWritten :: Maybe Annotation
   } deriving (Eq, Show)
 data Target = Target Text (STM (IO ()))
+-- | A replaced value settles what its key's window owes. A patched one changes
+-- only its written member, so the refetch the window owes still runs.
+data Write = Replace (SubjectInfo -> STM [Target]) | Patch (SubjectInfo -> STM [Target])
 data Acts = Acts
   { refetch :: SubjectInfo -> Fact.Reach -> STM [Target]
-  , write :: Maybe (SubjectInfo -> STM [Target])
+  , write :: Maybe Write
   , end :: Maybe (SubjectInfo -> STM [Target])
   }
 type Parent = Maybe Context.Context
@@ -153,14 +156,19 @@ apply runtime trigger parent info = do
     row <- case candidates of [one] -> pure one; _ -> throwSTM (userError "refresh trigger has no single matching row")
     let Fact.Row _ _ reach _ fetches writes removes = row
         immediate select query = forM_ (Map.lookup query (acts runtime)) $ \control -> do
-          action <- case select control of Just value -> pure value; Nothing -> throwSTM (userError "refresh action has no implementation")
+          (settles,action) <- case select control of Just value -> pure value; Nothing -> throwSTM (userError "refresh action has no implementation")
           targets <- action info
           forM_ targets $ \(Target identity mutation) -> do
-            modifyTVar' (windows runtime) (Map.delete (query,identity))
+            when settles (modifyTVar' (windows runtime) (Map.delete (query,identity)))
             launch <- mutation
             writeTQueue (queue runtime) (parent,launch)
-    mapM_ (immediate write) writes
-    mapM_ (immediate end) removes
+        written control = case write control of
+          Just (Replace action) -> Just (True,action)
+          Just (Patch action) -> Just (False,action)
+          Nothing -> Nothing
+        ended control = (,) True <$> end control
+    mapM_ (immediate written) writes
+    mapM_ (immediate ended) removes
     forM_ fetches $ \query -> forM_ (Map.lookup query (acts runtime)) $ \control -> do
       targets <- refetch control info reach
       forM_ targets $ \(Target identity mutation) -> coalesce runtime (query,identity) parent mutation
@@ -222,13 +230,13 @@ cacheTargets cache matches info reach = do
     case find (\candidate -> Cache.encodeKey cache candidate == Cache.encodeKey cache key) current of
       Nothing -> pure (pure ())
       Just found -> Cache.invalidateSTM cache found) | key <- selected]
-writeTargets :: Cache.Cache key value -> (SubjectInfo -> key -> Bool) -> (SubjectInfo -> Maybe value -> Maybe value) -> SubjectInfo -> STM [Target]
-writeTargets cache matches update info = do
+writeTargets :: Cache.Cache key value -> (SubjectInfo -> key -> Bool) -> (SubjectInfo -> Maybe value -> Maybe value) -> Write
+writeTargets cache matches update = Replace $ \info -> do
   keys <- Cache.keys cache
   found <- mapM (\key -> do value <- Cache.get cache key; pure (key,update info value)) (filter (matches info) keys)
   pure [Target (Cache.encodeKey cache key) (Cache.setSTM cache key value) | (key,Just value) <- found]
-updateTargets :: Cache.Cache key value -> (SubjectInfo -> key -> Bool) -> (SubjectInfo -> value -> value) -> SubjectInfo -> STM [Target]
-updateTargets cache matches update info = do
+updateTargets :: Cache.Cache key value -> (SubjectInfo -> key -> Bool) -> (SubjectInfo -> value -> value) -> Write
+updateTargets cache matches update = Patch $ \info -> do
   keys <- Cache.keys cache
   pure [Target (Cache.encodeKey cache key) (Cache.updateSTM cache key (update info)) | key <- keys, matches info key]
 
