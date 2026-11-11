@@ -246,7 +246,7 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 		}
 		strictly(t, raw, &stated)
 		// What the SDK holds a resource to before it decodes it.
-		fault, faulty := required.FaultOf(stated.Resource, reflect.TypeFor[api.ResourceDescriptor]())
+		_, fault, faulty := required.Read(stated.Resource, reflect.TypeFor[api.ResourceDescriptor]())
 		if stated.Refused != nil && *stated.Refused {
 			shapes["refused, "+string(*stated.Reason)] = true
 			if want := (required.Fault{Member: *stated.Member, Reason: *stated.Reason}); !faulty || fault != want {

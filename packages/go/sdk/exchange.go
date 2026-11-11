@@ -227,10 +227,11 @@ func answer[T any](ctx context.Context, s *transportShared, spec request) (T, er
 		failure := &TransportError{Code: TransportErrorCodeError, Message: fmt.Sprintf("%s %s answered what is not its declared body: %s", spec.method, spec.path, fault), status: got.response.StatusCode, hasStatus: true}
 		return s.failures.report(failure)
 	}
-	if fault, faulty := required.FaultOf(raw, reflect.TypeFor[T]()); faulty {
+	body, fault, faulty := required.Read(raw, reflect.TypeFor[T]())
+	if faulty {
 		return out, notItsBody(fault)
 	}
-	if json.Unmarshal(raw, &out) != nil {
+	if json.Unmarshal(body, &out) != nil {
 		return out, notItsBody(required.Undecoded)
 	}
 	return out, nil

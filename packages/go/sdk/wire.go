@@ -145,19 +145,20 @@ func (w *Wire) result(ctx context.Context, request bus.Channel, payload map[stri
 }
 
 // failureOf is what a request answered on its operation's failure channel,
-// which carries a payload, fails with: a *BusRequestError under the code the
-// failure's own code becomes, in the failure's words, a code the wire does
-// not list being a rejection. A failure with a fault as its channel's is
-// refused, as a result with one is.
+// which carries a payload, fails with: a *BusRequestError carrying the
+// failure as read, under the code the failure's own code becomes, in the
+// failure's words. A code the wire does not list is read as absent, and the
+// failure is a rejection. A failure with a fault as its channel's is refused,
+// as a result with one is.
 func failureOf(reply Frame, payload reflect.Type) error {
-	fault, faulty := required.FaultOfFramePayload(reply.Payload, payload)
+	read, fault, faulty := required.ReadFramePayload(reply.Payload, payload)
 	if !faulty {
 		var failure struct {
 			Code    *api.CommandErrorCode `json:"code"`
 			Message string                `json:"message"`
 		}
-		if json.Unmarshal(reply.Payload, &failure) == nil {
-			return &BusRequestError{Code: BusRequestErrorCodeOfWire(failure.Code), Message: failure.Message, Failure: reply.Payload}
+		if json.Unmarshal(read, &failure) == nil {
+			return &BusRequestError{Code: BusRequestErrorCodeOfWire(failure.Code), Message: failure.Message, Failure: read}
 		}
 		fault = required.Undecoded
 	}
@@ -195,16 +196,17 @@ func refusedPayload(frame Frame, fault required.Fault) *FrameRefusal {
 	return &FrameRefusal{Channel: frame.Channel, Member: fault.Within("payload").Member, Reason: fault.Reason, Payload: frame.Payload, Envelope: frame.Envelope}
 }
 
-// payloadAs is frame with its payload decoded as P; or, true, the payload's
-// first fault as P's, named from the payload, which is the payload itself
-// for one Go's decoding refuses. What a gateway stamps on a payload is the
-// bus's, and P does not read it unless P declares it.
+// payloadAs is frame with its payload decoded as P, as P's reader reads it;
+// or, true, the payload's first fault as P's, named from the payload, which
+// is the payload itself for one Go's decoding refuses. What a gateway stamps
+// on a payload is the bus's, and P does not read it unless P declares it.
 func payloadAs[P any](frame Frame) (Delivered[P], required.Fault, bool) {
-	if fault, faulty := required.FaultOfFramePayload(frame.Payload, reflect.TypeFor[P]()); faulty {
+	read, fault, faulty := required.ReadFramePayload(frame.Payload, reflect.TypeFor[P]())
+	if faulty {
 		return Delivered[P]{}, fault, true
 	}
 	var payload P
-	if json.Unmarshal(frame.Payload, &payload) != nil {
+	if json.Unmarshal(read, &payload) != nil {
 		return Delivered[P]{}, required.Undecoded, true
 	}
 	var stamped struct {

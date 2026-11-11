@@ -127,15 +127,18 @@ func ParseDiscoveryDocument(text string) DiscoveryState {
 			),
 		}
 	}
-	if fault, faulty := required.FaultOf(data, reflect.TypeFor[api.DiscoveryDocument]()); faulty {
+	read, fault, faulty := required.Read(data, reflect.TypeFor[api.DiscoveryDocument]())
+	if faulty {
 		return invalid(fault.String())
 	}
-	var entries []json.RawMessage
-	if err := json.Unmarshal(members["kbs"], &entries); err != nil {
+	var document struct {
+		KBs []json.RawMessage `json:"kbs"`
+	}
+	if err := json.Unmarshal(read, &document); err != nil {
 		return invalid(fmt.Sprintf("kbs: %v", err))
 	}
-	kbs := make([]api.DiscoveredKB, 0, len(entries))
-	for i, entry := range entries {
+	kbs := make([]api.DiscoveredKB, 0, len(document.KBs))
+	for i, entry := range document.KBs {
 		var entryMembers map[string]json.RawMessage
 		if json.Unmarshal(entry, &entryMembers) != nil || entryMembers == nil {
 			return invalid(fmt.Sprintf("kbs[%d] is not an object", i))

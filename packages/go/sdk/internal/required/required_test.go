@@ -41,7 +41,7 @@ var none = Fault{}
 
 func faults(t *testing.T, generated reflect.Type, text string, want Fault) {
 	t.Helper()
-	fault, faulty := FaultOf([]byte(text), generated)
+	_, fault, faulty := Read([]byte(text), generated)
 	if faulty != (want != none) || fault != want {
 		t.Errorf("%s has the fault %+v (%v), not %+v", text, fault, faulty, want)
 	}
@@ -116,7 +116,7 @@ func faultsAs(t *testing.T, written string, text string, want Fault) {
 	if err := json.Unmarshal([]byte(text), &value); err != nil {
 		t.Fatalf("%s is no JSON: %v", text, err)
 	}
-	fault, faulty := faultOf(&s, value, "")
+	fault, _, faulty := faultOf(&s, value, "")
 	if faulty != (want != none) || fault != want {
 		t.Errorf("%s as %s has the fault %+v (%v), not %+v", text, written, fault, faulty, want)
 	}
@@ -164,17 +164,57 @@ func TestAClosedObjectCarriesNoMemberItDoesNotName(t *testing.T) {
 	faultsAs(t, `{"kinds":["object"],"closed":[]}`, `{"x":1}`, malformed("x"))
 }
 
+// readsAs reads the JSON text as the shape written as the table writes one.
+func readsAs(t *testing.T, written string, text string) (string, Fault, bool) {
+	t.Helper()
+	var s shape
+	var value any
+	if err := json.Unmarshal([]byte(written), &s); err != nil {
+		t.Fatalf("%s is no shape: %v", written, err)
+	}
+	if err := json.Unmarshal([]byte(text), &value); err != nil {
+		t.Fatalf("%s is no JSON: %v", text, err)
+	}
+	read, fault, faulty := readOf(&s, []byte(text), value)
+	return string(read), fault, faulty
+}
+
+// A member that holds a text none of its recognized texts is left out of what
+// is read, wherever it is, and the rest is read as it was written; one that
+// holds no text is malformed.
+func TestAMemberHoldingATextItDoesNotRecognizeIsLeftOutOfWhatIsRead(t *testing.T) {
+	coded := `{"kinds":["object"],"members":{"code":{"kinds":["string"],"recognized":["not-found"]},"n":{"kinds":["number"]}}}`
+	for _, c := range []struct{ why, shape, text, read string }{
+		{"a text it does not recognize", coded, `{"code":"later","n":1.0}`, `{"n":1.0}`},
+		{"a text it recognizes", coded, `{"code":"not-found","n":1.0}`, `{"code":"not-found","n":1.0}`},
+		{"within each item of a list", `{"kinds":["array"],"items":` + coded + `}`, `[{"code":"not-found"},{"code":"later","n":2}]`, `[{"code":"not-found"},{"n":2}]`},
+		{
+			"read as a variant that has a fault, and kept by the variant that has none",
+			`{"oneOf":[{"kinds":["object"],"members":{"code":{"kinds":["string"],"recognized":["not-found"]}},"closed":["code"]},{"kinds":["object"]}]}`,
+			`{"code":"later","more":1}`, `{"code":"later","more":1}`,
+		},
+	} {
+		read, fault, faulty := readsAs(t, c.shape, c.text)
+		if faulty || read != c.read {
+			t.Errorf("%s: %s is read as %s (%+v, %v), not %s", c.why, c.text, read, fault, faulty, c.read)
+		}
+	}
+	if _, fault, _ := readsAs(t, coded, `{"code":7}`); fault != malformed("code") {
+		t.Errorf("a code that is no text has the fault %+v", fault)
+	}
+}
+
 func TestAFramePayloadIsHeldToItsShapeWithoutTheStampsItsTypeDoesNotName(t *testing.T) {
 	request := reflect.TypeFor[api.BrowseProfilesRequest]()
 	stamped := []byte(`{"dids":["did:web:example.org:users:a"],"_userId":"did:web:example.org:users:b","_roles":["admin"]}`)
-	if fault, faulty := FaultOfFramePayload(stamped, request); faulty {
+	if _, fault, faulty := ReadFramePayload(stamped, request); faulty {
 		t.Errorf("a payload with the gateway's stamps has the fault %+v", fault)
 	}
-	if fault, _ := FaultOf(stamped, request); fault != malformed("_roles") {
+	if _, fault, _ := Read(stamped, request); fault != malformed("_roles") {
 		t.Errorf("a reply that carries what a closed object does not name has the fault %+v", fault)
 	}
 	more := []byte(`{"dids":["did:web:example.org:users:a"],"more":1}`)
-	if fault, _ := FaultOfFramePayload(more, request); fault != malformed("more") {
+	if _, fault, _ := ReadFramePayload(more, request); fault != malformed("more") {
 		t.Errorf("a payload that carries what a closed object does not name has the fault %+v", fault)
 	}
 	if read, ok := ReadFramePayloadAs[api.BrowseProfilesRequest](stamped); !ok || len(read.Dids) != 1 {

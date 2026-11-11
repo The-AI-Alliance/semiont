@@ -116,7 +116,7 @@ func TestEveryRequiredListLeftNilIsWrittenAsTheEmptyList(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.where, err)
 		}
-		if fault, faulty := required.FaultOf(written, c.of); faulty {
+		if _, fault, faulty := required.Read(written, c.of); faulty {
 			t.Errorf("%s: %s is written as %s, and a reader of it finds that %s", c.where, c.of.Name(), written, fault)
 		}
 		if !reflect.DeepEqual(value, before) {
