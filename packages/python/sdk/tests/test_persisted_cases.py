@@ -35,6 +35,7 @@ from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, token
 
 from semiont.cache import CacheState, Pending, Ready
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.http.session import HttpSessionFactory, session_from_kept
 from semiont.identifiers import ResourceId
 from semiont.registry import (
@@ -453,7 +454,9 @@ def test_a_session_that_does_not_ask_who_its_token_is_keeps_for_the_person_its_s
             storage = Held(STARTUP_STORAGE)
             store_session(storage, KB, signed_in(JO))
 
-            async with session_from_kept(gateway.target(KB), kept=kept_in(storage, KB), validate=False, storage=storage) as session:
+            async with session_from_kept(
+                gateway.target(KB), kept=kept_in(storage, KB), validate=False, storage=storage, channels=BRIDGED_CHANNELS
+            ) as session:
                 client = session.client
                 await soon(reached(client.transport.state, lambda state: state == "open"))
                 async with client.browse.resource(ResourceId("res-2")) as live:
@@ -543,7 +546,7 @@ def test_a_session_whose_sign_in_what_holds_it_changes_writes_what_the_table_say
             read = held_by(gateway, JO, 1)
             kept = MemorySignIn(read)
 
-            async with session_from_kept(gateway.target(KB), kept=kept, storage=storage) as session:
+            async with session_from_kept(gateway.target(KB), kept=kept, storage=storage, channels=BRIDGED_CHANNELS) as session:
                 client = session.client
                 assert (await soon(client.browse.resource(ResourceId("res-1")).fresh())).name == "fresh"
                 # Held, and not yet written.

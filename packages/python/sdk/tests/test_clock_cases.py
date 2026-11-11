@@ -290,7 +290,9 @@ class Gateway:
     async def transport(self, held: AsyncExitStack) -> HttpTransport:
         """A transport to this gateway, open and holding a token, so its stream is set going."""
         http = await held.enter_async_context(httpx.AsyncClient(transport=httpx.MockTransport(self.answer), trust_env=False))
-        return await held.enter_async_context(HttpTransport(GATEWAY, token=Variable[str | None]("a-token"), http=http))
+        return await held.enter_async_context(
+            HttpTransport(GATEWAY, token=Variable[str | None]("a-token"), channels=BRIDGED_CHANNELS, http=http)
+        )
 
 
 async def refused_stream(given: JsonObject, held: AsyncExitStack) -> Subject:

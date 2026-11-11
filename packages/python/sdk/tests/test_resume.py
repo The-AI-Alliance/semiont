@@ -12,6 +12,7 @@ from pydantic import JsonValue
 from spec import JsonObject
 
 from semiont.cache import Ready
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import ResourceId
@@ -210,7 +211,9 @@ def test_a_place_is_noted_only_once_the_refresher_has_taken_its_event() -> None:
 
         async with (
             GatewayServer() as gateway,
-            HttpTransport(gateway.origin, token=Variable[str | None]("t"), timing=QUICK, bookmarks=places) as transport,
+            HttpTransport(
+                gateway.origin, token=Variable[str | None]("t"), channels=BRIDGED_CHANNELS, timing=QUICK, bookmarks=places
+            ) as transport,
         ):
 
             def describe(emit: JsonObject, name: str) -> None:

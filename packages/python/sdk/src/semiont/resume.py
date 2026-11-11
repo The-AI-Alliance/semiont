@@ -21,7 +21,7 @@ resource's id and a recorded event's id (`is_recorded_event_id`) is no place,
 and is skipped; what is kept under the key and is no JSON object is no places.
 
     places = CoupledBookmarks(storage, last_event_id_key(kb_id, person))
-    transport = HttpTransport(origin, token=token, bookmarks=places)
+    transport = HttpTransport(origin, token=token, channels=BRIDGED_CHANNELS, bookmarks=places)
     persistence = CachePersistence(storage=places.storage, kb_id=kb_id, person_key=person)
     client = SemiontClient(transport, transport.content, transport, persistence=persistence)
     places.couple_to(client)

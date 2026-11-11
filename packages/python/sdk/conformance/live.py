@@ -15,6 +15,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont.cache import CacheState, Failed, Pending, Ready
 from semiont.cached import Cached
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import SemiontError
 from semiont.events import Events
@@ -224,7 +225,9 @@ class Live:
         if self._client is not None and not self._closed:
             raise Misuse("a client is already open")
         wire, timing = _timings(object_of(args, "timing") if "timing" in args else {})
-        transport = HttpTransport(text(args, "baseUrl"), token=Variable[str | None](text(args, "token")), timing=wire)
+        transport = HttpTransport(
+            text(args, "baseUrl"), token=Variable[str | None](text(args, "token")), channels=BRIDGED_CHANNELS, timing=wire
+        )
         persistence = CachePersistence(storage=self._storage, kb_id=_KB_ID, person_key=_PERSON) if args.get("persist") is True else None
         self._transport = await self._held.enter_async_context(transport)
         self._client = await self._held.enter_async_context(

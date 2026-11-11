@@ -16,6 +16,7 @@ from aio import run, settle, soon
 from gateway_server import Answer, GatewayServer
 from spec import JsonObject
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.errors import SemiontError, SignInError, TransportError
 from semiont.events import Events
 from semiont.http import HttpTransport, Timing
@@ -92,7 +93,9 @@ def test_a_stream_refused_asks_its_refresher_and_opens_at_once_with_what_it_is_g
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
             # A reconnect that waited out its backoff would not have opened by the time this test ends.
             slow = Timing(reconnect_ms=60_000)
-            async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=slow) as transport:
+            async with HttpTransport(
+                gateway.origin, token=source.token, refresher=source.refresh, channels=BRIDGED_CHANNELS, timing=slow
+            ) as transport:
                 failures = transport.failures()
                 await state_is(transport, "open")
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer stale", "Bearer fresh"]
@@ -113,7 +116,9 @@ def test_a_stream_whose_refresher_gives_no_other_token_waits_for_one_and_asks_on
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
-            async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=QUICK) as transport:
+            async with HttpTransport(
+                gateway.origin, token=source.token, refresher=source.refresh, channels=BRIDGED_CHANNELS, timing=QUICK
+            ) as transport:
                 await state_is(transport, "unauthenticated")
                 # Many of its retries pass: the token the gateway refused is not sent again, and nobody is asked again.
                 await asyncio.sleep(0.3)
@@ -136,7 +141,9 @@ def test_a_stream_whose_renewed_token_is_refused_too_asks_for_no_third() -> None
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED, REFUSED]
-            async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=QUICK) as transport:
+            async with HttpTransport(
+                gateway.origin, token=source.token, refresher=source.refresh, channels=BRIDGED_CHANNELS, timing=QUICK
+            ) as transport:
                 await soon(gateway.arrived("POST", "/bus/subscribe", 2))
                 await asyncio.sleep(0.2)
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer first", "Bearer second"]
@@ -156,7 +163,9 @@ def test_a_stream_refused_again_after_it_opened_asks_its_refresher_again() -> No
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
-            async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=QUICK) as transport:
+            async with HttpTransport(
+                gateway.origin, token=source.token, refresher=source.refresh, channels=BRIDGED_CHANNELS, timing=QUICK
+            ) as transport:
                 await state_is(transport, "open")
                 assert len(source.asked) == 1
 
@@ -177,7 +186,7 @@ def test_a_stream_with_no_refresher_waits_for_its_token_to_change() -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
-            async with HttpTransport(gateway.origin, token=token, timing=QUICK) as transport:
+            async with HttpTransport(gateway.origin, token=token, channels=BRIDGED_CHANNELS, timing=QUICK) as transport:
                 await state_is(transport, "unauthenticated")
                 await asyncio.sleep(0.1)
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer stale"]

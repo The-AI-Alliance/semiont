@@ -1,5 +1,5 @@
 from semiont.bus import Bus, Delivered
-from semiont.channels import MARK_ADDED
+from semiont.channels import BRIDGED_CHANNELS, MARK_ADDED
 from semiont.errors import BusRequestError
 from semiont.http import HttpTransport
 from semiont.identifiers import ResourceId
@@ -10,7 +10,7 @@ from semiont.watched import Variable
 
 
 async def read(origin: str, token: str, resource: ResourceId) -> None:
-    async with HttpTransport(origin, token=Variable[str | None](token)) as transport:
+    async with HttpTransport(origin, token=Variable[str | None](token), channels=BRIDGED_CHANNELS) as transport:
         bus = Bus(transport)
         try:
             reply = await bus.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource))

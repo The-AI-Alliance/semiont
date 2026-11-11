@@ -19,7 +19,7 @@ every reader of its own bus is told there is no more, and the tasks it
 started have ended. It does not open or close its transport: whoever opened
 that closes it, after the client.
 
-    async with HttpTransport(origin, token=token) as transport:
+    async with HttpTransport(origin, token=token, channels=BRIDGED_CHANNELS) as transport:
         async with SemiontClient(transport, transport.content, transport) as client:
             resource = await client.browse.resource(resource_id).fresh()
 """

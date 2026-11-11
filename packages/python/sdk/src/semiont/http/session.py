@@ -394,7 +394,7 @@ async def session_from_kept(
     *,
     kept: SignInKept,
     validate: bool = True,
-    channels: Sequence[str] = BRIDGED_CHANNELS,
+    channels: Sequence[str],
     storage: SessionStorage | None = None,
     on_auth_failed: Callable[[SessionEndReason], None] | None = None,
     http: httpx.AsyncClient | None = None,
@@ -412,7 +412,7 @@ async def session_from_kept(
     With nothing kept, the session is signed out: its `token` is none, and a
     request made through its client is refused. `validate` is whether the
     gateway is asked who the token is; `channels` are the global channels the
-    transport's stream names.
+    transport's stream names, a full client's `semiont.channels.BRIDGED_CHANNELS`.
 
     With a `storage`, what the client's persisted queries hold is kept there
     for the person the gateway says the token is, once `kept` has recorded
