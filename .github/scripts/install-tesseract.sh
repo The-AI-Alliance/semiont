@@ -7,6 +7,12 @@ apt_options=(
   -o Acquire::https::Timeout=10
 )
 
+# GitHub's Ubuntu runners can stall on azure.archive.ubuntu.com before trying
+# their fallback mirror. Use the fallback directly for this package install.
+if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+  printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+fi
+
 for attempt in 1 2; do
   echo "Installing Tesseract (attempt ${attempt}/2)"
   if sudo timeout 90 apt-get "${apt_options[@]}" update -qq &&
