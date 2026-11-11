@@ -176,7 +176,6 @@ package struct TableGenerator {
       ("media-types/registry.json", "mediaTypes", "mediaTypes"),
       ("text/encoding-cases.json", "cases", "encodings"),
       ("client/refresh.json", "queries", "cacheQueries"),
-      ("bus/registry.json", "audience", "busAudience"),
       ("bus/log-cases.json", "names", "credentialNames"),
     ] {
       let value = try required(table(path), key)
@@ -394,7 +393,8 @@ package struct TableGenerator {
   }
   func channels(_ registry: Schema) throws -> String {
     let audience = try required(registry, "audience").object
-    let scoped = Set(try required(audience, "scoped").array.map { try $0.text })
+    let resourceScoped = try required(audience, "scoped").array.map { try $0.text }
+    let scoped = Set(resourceScoped)
     let everyone = Set(try required(audience, "everyone").array.map { try $0.text })
     var rows: [String: (type: String, schema: Schema?)] = [:]
     let schemaShapes = try requiredShapes()
@@ -536,6 +536,8 @@ package struct TableGenerator {
     }
     out +=
       "]\n/// The global channels a full client's transport is given: every channel delivered to everyone, and every operation's reply channels.\npublic let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
+    out +=
+      "/// The channels delivered to a transport for each resource whose scope it holds, as the registry orders them.\npackage let resourceScopedChannels = [\(resourceScoped.map(literal).joined(separator: ", "))]\n"
     out +=
       "internal let storedEventChannels = [\(storedEventChannels.map(literal).joined(separator: ", "))]\n"
     out += shapeTable(

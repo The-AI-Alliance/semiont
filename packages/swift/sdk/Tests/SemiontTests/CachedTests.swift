@@ -7,7 +7,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func cacheFailureRetriesOnceAndNewObserverRecoversTheOriginalObserver() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   transport.handle { _, _ in throw BusRequestError(.busClosed, "scripted failure") }
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
@@ -54,7 +54,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func vocabularyEventRefreshesOnlyItsKnownQueryAndKeepsTheOldValueVisible() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   transport.handle { _, _ in try entityTypesReply(["Old"]) }
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
@@ -99,7 +99,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func invalidationDoesNotWaitForAnOrphanedFetch() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   let started = Watched(false)
   let release = Watched(false)
   transport.handle { _, _ in
@@ -144,7 +144,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func scopedEventsRefreshOnlyTheirResourceAndScopesEndWithObservation() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   surfaceReplies(transport, cloneAnswer: nil)
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
@@ -209,7 +209,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 }
 
 @Test func annotationEditsWriteThroughOrRefetchTheNamedCaches() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   let resource = try ResourceId("document")
   let id = try AnnotationId("annotated")
   let original = Annotation(
@@ -275,7 +275,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 
 @Test(arguments: [false, true])
 func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   let started = Watched(false)
   let release = Watched(false)
   let resource = try ResourceId("document")
@@ -371,7 +371,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
 }
 
 @Test func enginesKeepTheirOrderAndOnlyJoinLimitsForTheSameProviderAndModel() async throws {
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   let first = Engine(model: "shared-name", provider: .openai)
   let second = Engine(model: "shared-name", provider: .ollama)
   let answering = try #require(Operations.limits.first).request.name

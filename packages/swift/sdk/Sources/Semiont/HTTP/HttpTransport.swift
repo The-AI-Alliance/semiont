@@ -77,7 +77,7 @@ public actor HttpTransport: Transport, GatewayOperations {
 
   public func frames(_ channels: [String]) throws -> Events<Carried> {
     for channel in channels
-    where !self.channels.contains(channel) && !busAudience.scoped.contains(channel) {
+    where !self.channels.contains(channel) && !resourceScopedChannels.contains(channel) {
       throw unsubscribed(channel)
     }
     let id = UUID()
@@ -200,7 +200,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     if live == nil { transition(.connecting) }
     let scoped = holds.keys.sorted { $0.value < $1.value }.map { resource in
       BusSubscribeRequestScopedItem(
-        channels: busAudience.scoped, lastEventId: watermarks[resource], scope: resource)
+        channels: resourceScopedChannels, lastEventId: watermarks[resource], scope: resource)
     }
     let body = BusSubscribeRequest(
       clientId: clientID, global: channels, pendingReplies: pending.keys.sorted(), scoped: scoped)

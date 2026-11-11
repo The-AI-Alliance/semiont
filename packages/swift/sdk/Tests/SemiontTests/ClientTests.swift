@@ -23,10 +23,14 @@ struct Call: Equatable, Sendable {
   let name: String
   let payload: [String: JSONValue]
 }
+/// A transport given its global channels, as a real one is: it delivers those and the
+/// resource-scoped ones, and refuses a read or a request of another.
 final class ProbeTransport: Transport, GatewayOperations, Sendable {
   let baseUrl = "http://kb.test"
   let emitted = Watched(false)
   let state = Watched<ConnectionState>(.open)
+  private let channels: [String]
+  init(channels: [String]) { self.channels = channels }
   private let hub = Broadcast<Carried>()
   private let failureEvents = Broadcast<TransportError>()
   private struct State: Sendable {
@@ -54,8 +58,15 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func reset() { storage.withLock { $0.calls = [] } }
   func setCount(_ count: Int?) { storage.withLock { $0.count = count } }
   func setFailure(_ failure: BusRequestError?) { storage.withLock { $0.failure = failure } }
-  func deliver(_ carried: Carried) { hub.yield(carried) }
+  func deliver(_ carried: Carried) {
+    guard isDelivered(carried.channel) else { return }
+    hub.yield(carried)
+  }
+  private func isDelivered(_ channel: String) -> Bool {
+    channels.contains(channel) || resourceScopedChannels.contains(channel)
+  }
   func frames(_ channels: [String]) async throws -> Events<Carried> {
+    for channel in channels where !isDelivered(channel) { throw unsubscribed(channel) }
     let source = hub.listen { [weak self] in self?.storage.withLock { $0.frameEnds += 1 } }
     storage.withLock { $0.onFrames }?()
     return source
@@ -78,6 +89,9 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func request(operation: String, payload: [String: JSONValue]) async throws
     -> [String: JSONValue]
   {
+    for channel in replyChannelsFor([operation]) where !channels.contains(channel) {
+      throw unsubscribed(channel)
+    }
     let handler = try storage.withLock { state in
       state.calls.append(Call(via: "request", name: operation, payload: payload))
       if let failure = state.failure { throw failure }
@@ -512,7 +526,7 @@ private let callsByName:
       for value in try required(row, "cases").array {
         let item = try expanded(value, fixtures: required(table, "fixtures").object).object
         let via = try required(row, "via").object
-        let probe = ProbeTransport()
+        let probe = ProbeTransport(channels: bridgedChannels + jobClaimChannels)
         surfaceReplies(probe, cloneAnswer: key == "yield.createFromToken" ? item["answers"] : nil)
         let client = try await SemiontClient(transport: probe, gateway: probe)
         defer { client.dispose() }
@@ -586,7 +600,7 @@ private let callsByName:
 }
 
 @Test func typedWirePreservesEnvelopeRefusesBadPayloadsAndKeepsReading() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let bus = Bus(probe)
   let source = try await bus.frames(Channels.beckonFocus)
   let trace = ["traceparent": "00-trace-parent-01"]
@@ -634,7 +648,7 @@ private let callsByName:
   #expect(try await iterator.next() == nil)
 }
 @Test func scopedReadsHoldOnlyTheirResourceAndReleaseAtTheEnd() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let bus = Bus(probe)
   let resource = try ResourceId("res-1")
   let source = try await bus.frames(Channels.markAdded, resource: resource)
@@ -659,7 +673,7 @@ private let callsByName:
   #expect(probe.holds == 0)
 }
 @Test func clientsBridgeOnlyReceivedFramesAndDisposeExactlyOnce() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   var client: SemiontClient? = try await SemiontClient(transport: probe)
   #expect(client?.auth == nil)
   #expect(client?.system == nil)
@@ -689,7 +703,7 @@ private let callsByName:
   }
 }
 @Test func namespaceRequestsPropagateFailuresAndStopSequentialWrites() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   probe.setFailure(BusRequestError(.busRejected, "refused"))
@@ -705,7 +719,7 @@ private let callsByName:
   }
 }
 @Test func malformedOperationRepliesFailWithoutDiscardingARequiredName() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.handle { _, _ in [:] }
   let bus = Bus(probe)
   do {
@@ -719,7 +733,7 @@ private let callsByName:
 }
 
 @Test func payloadDiagnosticsFollowTheSchemaAndPreferMissingParents() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let user = try await encoded(probe.getCurrentUser()).object
   let schema = try Spec.read("components/schemas/UserResponse.json").object
   #expect(faultOf("UserResponse", .object(user)) == nil)
@@ -750,7 +764,7 @@ private let callsByName:
   #expect(Set(requiredPayloadShapes.keys) == Set(channels))
 }
 @Test func cancellingScopedConstructionReleasesItsHold() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let task = Task {
     withUnsafeCurrentTask { $0?.cancel() }
     return try await Bus(probe).frames(Channels.markAdded, resource: ResourceId("res-1"))
@@ -763,7 +777,7 @@ private let callsByName:
 }
 
 @Test func breakingOrCancellingATypedReadReleasesItsScopeWhileTheSequenceIsHeld() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let source = try await Bus(probe).frames(Channels.markAdded, resource: ResourceId("res-1"))
   probe.deliver(
     .frame(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-1"))))
@@ -798,7 +812,7 @@ private let eventReadersByName:
   ]
 
 @Test func cancelledClientConstructionReleasesItsListenerBeforeTakingOwnership() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.onFrames { withUnsafeCurrentTask { $0?.cancel() } }
   let task = Task { try await SemiontClient(transport: probe) }
   do {

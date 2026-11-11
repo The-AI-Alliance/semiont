@@ -83,7 +83,7 @@ private final class SayingSessions: SessionFactory {
   func session(_ options: SessionFactoryOptions) async throws -> OpenedSession {
     let kb = options.kb
     let kept = keptIn(options.storage, kbId: kb.id)
-    let transport = ScriptedTransport { operation, _ in
+    let transport = ScriptedTransport(channels: bridgedChannels) { operation, _ in
       guard operation == Channels.browseKbRequested.name else {
         throw BusRequestError(.busRejected, "Unread")
       }

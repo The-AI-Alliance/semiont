@@ -11,7 +11,7 @@ final class StateCaseWire: Sendable {
     var jobs: [String: JSONValue] = [:]
   }
 
-  let transport = ProbeTransport()
+  let transport = ProbeTransport(channels: bridgedChannels)
   private let clock: TestClock
   private let mode: String
   private let delay: Duration

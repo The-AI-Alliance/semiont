@@ -19,7 +19,8 @@ public struct RequestAttempt: Sendable {
 
 /// A transport for composing SDK clients without a network. Faults are consumed in request order.
 /// It keeps no deadline: a dropped reply never comes, and the bus that asked fails the request at
-/// its own.
+/// its own. As a real transport, it is given its global channels and assumes none of its own: it
+/// delivers those and the resource-scoped ones, and refuses a read or a request of another.
 public final class ScriptedTransport: Transport {
   private struct State: Sendable {
     var attempts: [RequestAttempt] = []
@@ -30,6 +31,7 @@ public final class ScriptedTransport: Transport {
 
   public let baseUrl: String
   public let state = Watched<ConnectionState>(.open)
+  private let channels: [String]
   private let events = Broadcast<Carried>()
   private let errors = Broadcast<TransportError>()
   private let wire = Mutex(State())
@@ -38,9 +40,10 @@ public final class ScriptedTransport: Transport {
   private let respond: Respond
 
   public init(
-    baseUrl: String = "http://localhost:4000", schedule: [FaultAction] = [],
+    channels: [String], baseUrl: String = "http://localhost:4000", schedule: [FaultAction] = [],
     clock: any Clock<Duration> = ContinuousClock(), respond: Respond? = nil
   ) {
+    self.channels = channels
     self.baseUrl = baseUrl
     self.schedule = schedule
     self.clock = clock
@@ -56,10 +59,19 @@ public final class ScriptedTransport: Transport {
     wire.withLock { if !$0.closed { $0.queued[operation, default: []].append(reply) } }
   }
 
-  /// Deliver a frame, or a frame's refusal in its place, as the transport's stream would.
-  public func deliver(_ carried: Carried) { events.yield(carried) }
+  /// Deliver a frame, or a frame's refusal in its place, as the transport's stream would: one on a
+  /// channel it was not given, and that is not resource-scoped, never reaches it.
+  public func deliver(_ carried: Carried) {
+    guard isDelivered(carried.channel) else { return }
+    events.yield(carried)
+  }
+
+  private func isDelivered(_ channel: String) -> Bool {
+    channels.contains(channel) || resourceScopedChannels.contains(channel)
+  }
 
   public func frames(_ channels: [String]) async throws -> Events<Carried> {
+    for channel in channels where !isDelivered(channel) { throw unsubscribed(channel) }
     let source = events.listen()
     guard !channels.isEmpty else { return source }
     let selected = Set(channels)
@@ -94,6 +106,9 @@ public final class ScriptedTransport: Transport {
   public func request(operation: String, payload: [String: JSONValue]) async throws
     -> [String: JSONValue]
   {
+    for channel in replyChannelsFor([operation]) where !channels.contains(channel) {
+      throw unsubscribed(channel)
+    }
     try Task.checkCancellation()
     let id = UUID()
     let task = try wire.withLock { wire -> Task<[String: JSONValue], any Error> in

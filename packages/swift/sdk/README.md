@@ -270,8 +270,11 @@ transport, and `ScriptedSessions` with `SharedStorage` for registry tests.
 `assertLivenessAxioms` checks outputs, settlements, and retry budgets over
 repeatable fault schedules. `assertExactlyOnceDelivery` checks event order
 and count across interleaved writes and connection transitions.
-`ScriptedTransport` keeps no deadline: a dropped reply never comes, and the
-client's bus fails the request at its own. A `LivenessSpec`'s `timeout` is the
+`ScriptedTransport` is given its global channels as an HTTP transport is, and
+delivers only those and the resource-scoped ones: a test of a full client gives
+it `bridgedChannels`, and a worker's test `jobClaimChannels`. It keeps no
+deadline: a dropped reply never comes, and the client's bus fails the request
+at its own. A `LivenessSpec`'s `timeout` is the
 time its composition gives a bus request, so its `setup` builds the client with
 that many milliseconds as its `busRequestTimeoutMs`.
 

@@ -11,7 +11,7 @@ import Testing
 
 /// A transport its caller wrote, which never answers a request until the request is abandoned.
 private func unanswering() -> ProbeTransport {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels + jobClaimChannels)
   probe.handle { operation, _ in
     try await Task.sleep(for: .seconds(3600))
     throw SpecFailure.shape("The transport answered \(operation)")

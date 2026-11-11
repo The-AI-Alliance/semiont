@@ -589,7 +589,8 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
     HeldSignIn(
       access: try token(), clientId: scriptClientID, refresh: "a-refresh-token",
       tokenEndpoint: "http://issuer.test/realms/semiont/token"))
-  let client = try await SemiontClient(transport: ScriptedTransport(clock: clock), clock: clock)
+  let client = try await SemiontClient(
+    transport: ScriptedTransport(channels: bridgedChannels, clock: clock), clock: clock)
   let session = SemiontSession(
     kb: alphaKb, client: client, kept: kept, forget: { await kept.forget() },
     renew: { _ in
@@ -616,7 +617,7 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
 /// begins; `act` reports that job's progress.
 private func heldJobStall(_ given: [String: JSONValue], _ clock: TestClock) async throws -> Subject
 {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: jobClaimChannels)
   surfaceReplies(probe, cloneAnswer: nil)
   let client = try await SemiontClient(transport: probe, clock: clock)
   let claims = client.job.claim(
@@ -680,7 +681,7 @@ private func requested(_ probe: ProbeTransport, _ operation: String) -> Int {
 private func invalidationWindow(_ given: [String: JSONValue], _ clock: TestClock) async throws
   -> Subject
 {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   surfaceReplies(probe, cloneAnswer: nil)
   let client = try await SemiontClient(transport: probe, clock: clock)
   let resource = try ResourceId("res-1")
@@ -737,7 +738,7 @@ private func saveDebounce(_ given: [String: JSONValue], _ clock: TestClock) asyn
 /// A client's `mark.delegate`, over a transport that answers `job:create` with a job and every
 /// status request with that job running; `act` delivers from the wire a progress report of it.
 private func jobFollower(_ given: [String: JSONValue], _ clock: TestClock) async throws -> Subject {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.handle { operation, _ in
     switch operation {
     case Operations.jobCreate.request.name: return try jobCreatedFixture()
@@ -773,7 +774,7 @@ private func jobFollower(_ given: [String: JSONValue], _ clock: TestClock) async
 private func polling(_ clock: TestClock) async throws -> (
   ProbeTransport, SemiontClient, Ended, Task<Void, Never>
 ) {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.handle { operation, _ in
     guard operation == Operations.jobStatusRequested.request.name else {
       throw SpecFailure.shape("Unscripted request: \(operation)")

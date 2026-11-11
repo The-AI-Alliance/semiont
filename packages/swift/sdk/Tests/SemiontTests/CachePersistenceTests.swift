@@ -212,7 +212,7 @@ private func saved(
   let kept = try #require(storage.get(documentKey))
 
   // The key's fetch fails before the gateway names the person.
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.setFailure(BusRequestError(.busRejected, "The knowledge base refused"))
   let client = try await SemiontClient(
     transport: probe,
@@ -250,7 +250,7 @@ private func saved(
       "@context": .string("https://schema.org/"), "@id": .string("res-1"),
       "name": .string("fresh"), "representations": .array([]),
     ]))
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.handle { operation, _ in
     guard operation == Operations.browseResourceRequested.request.name else {
       throw SpecFailure.shape("Unscripted request: \(operation)")
@@ -288,7 +288,7 @@ private func saved(
 
   // Before the gateway names the person: res-1 is answered, res-2's entity is gone, and res-4,
   // which nothing kept, is answered too.
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   probe.handle { operation, _ in
     guard operation == Operations.browseResourceRequested.request.name else {
       throw SpecFailure.shape("Unscripted request: \(operation)")
@@ -373,7 +373,7 @@ private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async thr
   let asked = Mutex(0)
   let (refetched, reached) = AsyncStream<Void>.makeStream()
   let (answered, answer) = AsyncStream<Void>.makeStream()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels + ["test:drained"])
   probe.handle { operation, _ in
     guard operation == Operations.browseResourceRequested.request.name else {
       throw SpecFailure.shape("Unscripted request: \(operation)")

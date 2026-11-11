@@ -40,7 +40,7 @@ import Testing
   }
 
   let job = try JobId("job-1")
-  let transport = ScriptedTransport { operation, _ in
+  let transport = ScriptedTransport(channels: bridgedChannels) { operation, _ in
     switch operation {
     case Channels.browseResourceRequested.name:
       try wirePayload(

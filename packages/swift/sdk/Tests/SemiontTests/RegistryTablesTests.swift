@@ -226,7 +226,7 @@ private func hold(_ query: CacheQuery, in live: LiveQueries) async throws {
   let storage = MemorySessionStorage()
   let jo = personKey(try UserId("did:web:kb.example.org:users:jo%40example.org"))
   let client = try await SemiontClient(
-    transport: ProbeTransport(),
+    transport: ProbeTransport(channels: bridgedChannels),
     persistence: CachePersistence(storage: storage, kbId: "kb-a", personKey: jo))
   for query in CacheQuery.allCases { try await hold(query, in: client.browse.live) }
   client.dispose()

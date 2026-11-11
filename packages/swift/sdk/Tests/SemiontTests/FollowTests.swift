@@ -79,7 +79,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
   }
 }
 @Test func delegationBuffersEarlyFramesAndNamesTheJobFirst() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let gate = ReplyGate<[String: JSONValue]>()
@@ -118,7 +118,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
   #expect(probe.calls.count == 1)
 }
 @Test func aRefusedFrameOfTheLifecycleIsReportedOnceTheJobHasItsIdInTheOrderItCame() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let gate = ReplyGate<[String: JSONValue]>()
@@ -158,7 +158,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
     ])
 }
 @Test func aCompletionWhoseJobTypeItsChannelRefusesIsReportedAndIsNotTheEnd() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   probe.handle { _, _ in try jobCreatedFixture() }
@@ -183,7 +183,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
 }
 @Test func aRefusedFrameIsNoWordOfTheJobItsSilenceGoesOnBeingCounted() async throws {
   let clock = TestClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 1000, statusPollMs: 60000),
     clock: clock)
@@ -215,7 +215,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
 }
 @Test func aRefusedFrameStartsNoGenerationsStallDeadlineAgain() async throws {
   let clock = TestClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 60000, statusPollMs: 60000),
     clock: clock)
@@ -267,7 +267,7 @@ final class AskedClock: Clock {
 }
 @Test func aRefusedFrameStartsNoMarkUnitsQuietAgain() async throws {
   let clock = AskedClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 600_000, statusPollMs: 600_000),
     clock: clock)
@@ -306,7 +306,7 @@ final class AskedClock: Clock {
   #expect(clock.asked(again) == 1, "the quiet started again for the progress alone")
 }
 @Test func aRetriedAttemptIsReportedAndNotAnEnd() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   probe.handle { [weak client] _, payload in
@@ -333,7 +333,7 @@ final class AskedClock: Clock {
 }
 @Test func terminalFailurePreservesItsMessageAndClassification() async throws {
   for retry in [nil, false] as [Bool?] {
-    let probe = ProbeTransport()
+    let probe = ProbeTransport(channels: bridgedChannels)
     let client = try await SemiontClient(transport: probe)
     defer { client.dispose() }
     probe.handle { [weak client] _, _ in
@@ -360,7 +360,7 @@ final class AskedClock: Clock {
   }
 }
 @Test func silencePollsOneAtATimeAndRecoversAnUnheardEnd() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 5, statusPollMs: 5))
   defer { client.dispose() }
@@ -391,7 +391,7 @@ final class AskedClock: Clock {
   #expect(polls.withLock { $0 } == 2)
 }
 @Test func aStaleStatusCannotEndTheAttemptThatFollowsASetback() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 5, statusPollMs: 5))
   defer { client.dispose() }
@@ -431,7 +431,7 @@ final class AskedClock: Clock {
 }
 @Test func statusReportsCancellationAndFailureAndRejectsTheWrongVerb() async throws {
   for state in [JobStatusResponseStatus.cancelled, .failed, .complete] {
-    let probe = ProbeTransport()
+    let probe = ProbeTransport(channels: bridgedChannels)
     let client = try await SemiontClient(
       transport: probe, followTiming: FollowTiming(silenceMs: 1, statusPollMs: 1))
     defer { client.dispose() }
@@ -459,7 +459,7 @@ final class AskedClock: Clock {
 }
 @Test func generationStallCancelsTheNamedJobAndEndsAsStalled() async throws {
   let clock = TestClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 1000, statusPollMs: 1000),
     clock: clock)
@@ -489,7 +489,7 @@ final class AskedClock: Clock {
 }
 @Test func progressRestartsAGenerationStallDeadline() async throws {
   let clock = TestClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 60000, statusPollMs: 60000),
     clock: clock)
@@ -532,7 +532,7 @@ final class AskedClock: Clock {
     try await withinTestDeadline { try await collector.value }.jobId.value == "job-1")
 }
 @Test func cancellingAFollowerStopsFollowingWithoutCancellingItsJob() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let created = Watched(false)
@@ -553,7 +553,7 @@ final class AskedClock: Clock {
 private struct UnexpectedStatusFailure: Error {}
 @Test func unexpectedStatusFailuresAndWrongCompletionFramesReachTheCaller() async throws {
   for wrongFrame in [false, true] {
-    let probe = ProbeTransport()
+    let probe = ProbeTransport(channels: bridgedChannels)
     let client = try await SemiontClient(
       transport: probe,
       followTiming: wrongFrame ? FollowTiming() : FollowTiming(silenceMs: 1, statusPollMs: 1))
@@ -584,7 +584,7 @@ private struct UnexpectedStatusFailure: Error {}
   }
 }
 @Test func jobPollingReportsEveryStatusUntilCompletion() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
   let calls = Mutex(0)
@@ -606,7 +606,7 @@ private struct UnexpectedStatusFailure: Error {}
 @Test(arguments: [false, true])
 func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws {
   let clock = AskedClock()
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(transport: probe, clock: clock)
   defer { client.dispose() }
   let requestBegan = Watched(false)
@@ -707,7 +707,7 @@ func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws
   #expect(markDecline.reason == declined.reason)
 }
 @Test func followingRefusesAnotherJobsStatusAndExposesItsFailureCode() async throws {
-  let probe = ProbeTransport()
+  let probe = ProbeTransport(channels: bridgedChannels)
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 1, statusPollMs: 1))
   defer { client.dispose() }

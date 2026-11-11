@@ -74,7 +74,8 @@ public func assertLivenessAxioms(_ spec: LivenessSpec) async throws {
   else { throw AxiomViolation("Liveness needs a timeout, retry budget and at least one schedule") }
 
   for schedule in spec.schedules {
-    let transport = ScriptedTransport(schedule: schedule, clock: spec.clock, respond: spec.respond)
+    let transport = ScriptedTransport(
+      channels: bridgedChannels, schedule: schedule, clock: spec.clock, respond: spec.respond)
     defer { transport.dispose() }
     let scenario = try await spec.setup(transport)
     defer { scenario.dispose() }
