@@ -66,20 +66,23 @@ requestOptions clock waits = do
         pure ("request-" <> Text.pack (show number))
     }
 
-busCases :: FrameAddEntityTypeCommand -> BrowseResourceRequest -> Value -> [(Maybe Text.Text, Code.BusRequestCode)] -> IO ()
+-- | Each failure row: the code a peer's failure states, the code its request fails with, and the code the failure is
+-- read with.
+busCases :: FrameAddEntityTypeCommand -> BrowseResourceRequest -> Value -> [(Maybe Text.Text, Code.BusRequestCode, Maybe Text.Text)] -> IO ()
 busCases command browse event failureRows = do
   result <- timeout 10000000 (requests command >> requestFailures command browse failureRows >> scopesAndFrames event >> lifecycle >> contextCases command)
   require "typed bus liveness deadline expired" (result == Just ())
   putStrLn "PASS typed bus attachment, correlation, deadlines, scopes, identity, traces and disposal"
 
-requestFailures :: FrameAddEntityTypeCommand -> BrowseResourceRequest -> [(Maybe Text.Text, Code.BusRequestCode)] -> IO ()
+requestFailures :: FrameAddEntityTypeCommand -> BrowseResourceRequest -> [(Maybe Text.Text, Code.BusRequestCode, Maybe Text.Text)] -> IO ()
 requestFailures command browse failureRows = do
   let operation = FrameAddEntityTypeOperation
       (_, _, failure) = operationChannels operation
-  mapM_ (\(stated, expected) -> do
+      failureWith code = KM.fromList (("message", String "peer refused") : ("details", String "preserved")
+        : maybe [] (\value -> [("code", String value)]) code)
+  mapM_ (\(stated, expected, readCode) -> do
     inputCell <- newEmptyTMVarIO
-    let payload = KM.fromList (("message", String "peer refused") : ("details", String "preserved")
-          : maybe [] (\code -> [("code", String code)]) stated)
+    let payload = failureWith stated
         send frame = do
           input <- atomically (readTMVar inputCell)
           Transport.receive input (BusFrame (channelName failure) (busFrameCorrelationId frame) (BusFramePayload payload) Nothing)
@@ -92,8 +95,8 @@ requestFailures command browse failureRows = do
       options <- requestOptions clock waits
       outcome <- try (Bus.request (Bus.newBus options transport) operation command Timing.busRequestTimeoutMs) :: IO (Either BusRequestError EmptyBusPayload)
       case outcome of
-        Left problem -> require "peer failure lost its code, words or original payload"
-          (busRequestErrorCode problem == expected && busRequestErrorMessage problem == "peer refused" && busRequestFailure problem == Just payload)
+        Left problem -> require "peer failure lost its code, its words, or the failure as read"
+          (busRequestErrorCode problem == expected && busRequestErrorMessage problem == "peer refused" && busRequestFailure problem == Just (failureWith readCode))
         Right _ -> ioError (userError "failure reply became a successful result")) failureRows
   -- A failure that is not its channel's is refused, naming its first fault, and is never given words.
   -- It is told to the request awaiting it, and the transport's failure report carries nothing.

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Semiont.Internal.Required
-  ( Fault(..), FaultReason(..), faultOf, faultChannel, faultSaid, undecoded, channelValue, faultHttp ) where
+  ( Fault(..), FaultReason(..), faultOf, faultChannel, faultSaid, undecoded, channelValue, channelRead, faultHttp ) where
 
 import Control.Applicative ((<|>))
 import Control.Monad (unless)
@@ -35,6 +35,7 @@ data Shape = Shape
   { shapeRef :: Maybe Text
   , shapeKinds :: Maybe [Text]
   , shapeEnum :: Maybe [Value]
+  , recognized :: Maybe [Text]
   , shapePattern :: Maybe [Step]
   , minLength :: Maybe Integer
   , maxLength :: Maybe Integer
@@ -66,11 +67,11 @@ instance FromJSON Discriminator where
     Discriminator <$> fields .: "property" <*> fields .: "mapping"
 instance FromJSON Shape where
   parseJSON = withObject "required shape" $ \fields -> do
-    only ["ref","kinds","enum","pattern","minLength","maxLength","minimum","maximum","minItems","maxItems","required","members","closed","items","values","oneOf","discriminator","allOf"] fields
+    only ["ref","kinds","enum","recognized","pattern","minLength","maxLength","minimum","maximum","minItems","maxItems","required","members","closed","items","values","oneOf","discriminator","allOf"] fields
     kinds <- fields .:? "kinds"
     unless (maybe True (all (`elem` (["object","array","string","integer","number","boolean","null"] :: [Text]))) kinds)
       (fail "required-shape table gained an unread kind")
-    Shape <$> fields .:? "ref" <*> pure kinds <*> fields .:? "enum" <*> fields .:? "pattern"
+    Shape <$> fields .:? "ref" <*> pure kinds <*> fields .:? "enum" <*> fields .:? "recognized" <*> fields .:? "pattern"
       <*> fields .:? "minLength" <*> fields .:? "maxLength" <*> fields .:? "minimum" <*> fields .:? "maximum"
       <*> fields .:? "minItems" <*> fields .:? "maxItems" <*> fields .:? "required" .!= []
       <*> fields .:? "members" .!= [] <*> fields .:? "closed" <*> fields .:? "items" <*> fields .:? "values"
@@ -169,14 +170,37 @@ faultOf name value = let Tables schemas _ _ = tables in walk (lookupShape name s
 faultChannel :: Text -> Value -> Maybe Fault
 faultChannel name value = let Tables _ channels _ = tables in walk (lookupShape name channels) (channelValue name value) ""
 
+-- | What a channel's typed reader decodes: its payload as read, without the
+-- members its shape does not declare that start with an underscore.
 channelValue :: Text -> Value -> Value
 channelValue name (Object fields) =
   let Tables _ channels _ = tables
-      declared original = let shape = resolved original in map fst (members shape)
-        ++ concatMap declared (fromMaybe [] (oneOf shape) ++ allOf shape)
-      names = declared (lookupShape name channels)
-  in Object (KM.filterWithKey (\key _ -> let text = Key.toText key in not (Text.isPrefixOf "_" text) || text `elem` names) fields)
+      shape = lookupShape name channels
+      declared original = let own = resolved original in map fst (members own)
+        ++ concatMap declared (fromMaybe [] (oneOf own) ++ allOf own)
+      names = declared shape
+  in Object (KM.filterWithKey (\key _ -> let text = Key.toText key in not (Text.isPrefixOf "_" text) || text `elem` names) (readObject shape fields))
 channelValue _ value = value
+
+-- | A channel's payload as its reader reads it.
+channelRead :: Text -> Object -> Object
+channelRead name = let Tables _ channels _ = tables in readObject (lookupShape name channels)
+
+-- | An object as a reader reads it: a member whose shape names the texts it
+-- is read as (`recognized`), and that holds a text none of them, is left out.
+readObject :: Shape -> Object -> Object
+readObject original = KM.mapMaybeWithKey kept
+  where
+    described shape = let own = resolved shape in members own ++ concatMap described (allOf own)
+    shapes = described original
+    kept key actual = case lookup (Key.toText key) shapes of
+      Just shape | Just texts <- recognized (resolved shape), String text <- actual, text `notElem` texts -> Nothing
+      Just shape -> Just (readValue shape actual)
+      Nothing -> Just actual
+readValue :: Shape -> Value -> Value
+readValue shape (Object fields) = Object (readObject shape fields)
+readValue shape (Array list) | Just inner <- items (resolved shape) = Array (fmap (readValue inner) list)
+readValue _ value = value
 
 faultHttp :: Text -> Value -> Maybe Fault
 faultHttp name value = let Tables _ _ http = tables in walk (lookupShape name http) value ""

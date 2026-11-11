@@ -123,19 +123,41 @@ const actualStates = new Set(Object.entries(inventory.modules['Semiont.Transport
   .map(([name]) => name[0].toLowerCase() + name.slice(1)));
 same('Haskell connection states', expectedStates, actualStates);
 
-// Accept future codes; each operation's generated failure validates its other fields.
+// A failure is read as its channel's generated required table reads it: the table leaves out a code none of
+// CommandError's codes names, so the bus deletes no member, and the operation's own typed failure reads the rest.
+const requiredLiteral = /^shapesJSON = "(.*)"$/m.exec(read('packages/haskell/sdk/generated/Semiont/Internal/Generated/Required.hs'))?.[1];
+if (requiredLiteral === undefined) throw new Error('no generated Haskell required table');
+const requiredTable = JSON.parse(requiredLiteral.replace(/\\x([0-9a-f]+)\\&|\\(["\\])/g,
+  (_, point, escaped) => escaped ?? String.fromCodePoint(parseInt(point, 16))));
+const resolvedShape = (shape) => {
+  if (shape.ref === undefined) return shape;
+  const target = requiredTable.schemas[shape.ref];
+  if (target === undefined) throw new Error(`the Haskell required table names no shape ${shape.ref}`);
+  return resolvedShape(target);
+};
+const codeShapes = (shape) => {
+  const own = resolvedShape(shape);
+  return [...(own.members ?? []).filter(([name]) => name === 'code').map(([, member]) => member), ...(own.allOf ?? []).flatMap(codeShapes)];
+};
+const recognizedCodes = JSON.parse(read('protocol/specs/src/components/schemas/CommandError.json')).properties.code?.enum;
+if (!Array.isArray(recognizedCodes)) throw new Error('CommandError lists no codes a failure is read with');
+for (const { failure } of JSON.parse(read('protocol/specs/src/bus/registry.json')).operations) {
+  const channel = requiredTable.channels[failure];
+  if (channel === undefined) throw new Error(`the Haskell required table has no failure channel ${failure}`);
+  const codes = codeShapes(channel);
+  if (codes.length !== 1) throw new Error(`${failure} describes its code ${codes.length} times in the Haskell required table`);
+  same(`codes ${failure} is read with`, new Set(recognizedCodes), new Set(codes[0].recognized ?? []));
+}
 const busType = /^(?:data|newtype) ([\w.]+)\b/.exec(inventory.modules['Semiont.Bus'].types.Bus.definition);
 if (!busType) throw new Error('GHC declares no implementation of Bus');
 const busPath = busType[1].split('.').slice(0, -1).join('/');
 const busFiles = ['src', 'internal', 'generated'].map((directory) => `packages/haskell/sdk/${directory}/${busPath}.hs`).filter(existsSync);
 if (busFiles.length !== 1) throw new Error(`Bus implementation source is ambiguous: ${busFiles}`);
 const bus = read(busFiles[0]);
-const readKeys = [...bus.matchAll(/KM\.lookup "(\w+)" fields/g)].map((match) => match[1]);
-const commandError = JSON.parse(read('protocol/specs/src/components/schemas/CommandError.json'));
-same('Haskell direct failure fields', new Set(['code']), new Set(readKeys));
-if (commandError.properties.code?.type !== 'string') throw new Error('failure reader needs the new code type');
-if (!bus.includes('KM.delete "code" fields') || !bus.includes('case decoded failure (Transport.Arrived diagnostic) of') || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
-  throw new Error('failure fields besides the forward-compatible code must use the operation’s own typed decoder and diagnostic');
+if (/\bKM\.delete\b/.test(bus)) throw new Error('the Haskell bus deletes a payload member: the required table leaves out what a reader does not read');
+same('Haskell failure members read directly', new Set(['code']), new Set([...bus.matchAll(/KM\.lookup "(\w+)"/g)].map((match) => match[1])));
+if (!bus.includes('Required.channelRead (channelName failure) fields') || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
+  throw new Error('a failure must be read by its channel’s required table and its words by the operation’s own typed failure');
 }
 const diagnosticOperations = new Map(Object.entries(inventory.modules['Semiont.Channels'].values)
   .flatMap(([name, signature]) => {

@@ -419,8 +419,8 @@ runCases root = do
   failureRows <- forM [row | row <- array (at "codes" busErrors), String _ <- [at "wire" row]] $ \row -> do
     wire <- either (ioError . userError) pure (parseEither parseJSON (at "wire" row))
     code <- either (ioError . userError) pure (parseEither parseJSON (at "code" row))
-    pure (Just wire, code)
-  busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
+    pure (Just wire, code, Just wire)
+  busCases command browse event (failureRows ++ [(Nothing, fallback, Nothing), (Just "__unknown_test_code", fallback, Nothing)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
   registryRuntimeCases fixtures
   testingCases fixtures

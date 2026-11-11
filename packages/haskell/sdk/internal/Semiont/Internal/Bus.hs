@@ -136,21 +136,19 @@ requestDelivered bus@(Bus options transport) operation input timeoutMs = do
           else do
             -- A failure is held to its channel's shape before it is read, as a result is: one with a
             -- fault is refused, naming the fault, and one without words is never given any. The
-            -- table holds the code to no list, so the typed failure, whose code is closed, is read
-            -- without it, and the code is classified on its own: one the wire does not list is a
-            -- rejection in the failure's own words.
-            let wireFrame = Transport.wireFrame frame
-                fields = busFramePayloadAdditionalProperties (busFramePayload wireFrame)
+            -- request fails with the failure as read, a code the wire does not list left out, and
+            -- one with no code is a rejection in the failure's own words.
+            let fields = busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame frame))
                 refuse issue = throwIO (TransportError Codes.TransportError
                   ("a payload on " <> channelName failure <> " is not that channel's: " <> Required.faultSaid issue) Nothing Nothing)
-                code = case KM.lookup "code" fields of Just (String value) -> Just value; _ -> Nothing
-                diagnostic = frame { Transport.wireFrame = wireFrame { busFramePayload = BusFramePayload (KM.delete "code" fields) } }
+                failed = Required.channelRead (channelName failure) fields
+                code = case KM.lookup "code" failed of Just (String value) -> Just value; _ -> Nothing
             case Required.faultChannel (channelName failure) (Object fields) of
               Just issue -> refuse issue
-              Nothing -> case decoded failure (Transport.Arrived diagnostic) of
+              Nothing -> case decoded failure (Transport.Arrived frame) of
                 Refused _ -> refuse Required.undecoded
                 Heard delivered -> throwIO (BusRequestError (busRequestCodeFromWire code)
-                  (OperationFailure.message operation (deliveredPayload delivered)) (Just fields))
+                  (OperationFailure.message operation (deliveredPayload delivered)) (Just failed))
   inheritedWork <- propagateContext work
   inheritedWait <- propagateContext (requestWaitUntil options (now + timeoutMs * 1000000))
   outcome <- race inheritedWork (race inheritedWait
