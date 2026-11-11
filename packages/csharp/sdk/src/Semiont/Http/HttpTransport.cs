@@ -86,6 +86,10 @@ public sealed partial class HttpTransport : IDisposable
     public IAsyncEnumerable<ConnectionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
     public IAsyncEnumerable<SemiontError> Errors(CancellationToken cancellation = default) => failures.Observe(cancellation);
 
+    /// <summary>Hands <paramref name="to"/> each failure as the transport meets it, a reader of <see cref="Errors"/> as any
+    /// other is, until the relay is disposed or the transport closes.</summary>
+    internal IDisposable RelayFailures(Action<SemiontError> to) => failures.Relay(to);
+
     public void SetToken(string? value)
     {
         lock (gate)
@@ -481,8 +485,10 @@ public sealed partial class HttpTransport : IDisposable
     /// the gate.</summary>
     private void Receive(BusFrame frame, string? id)
     {
-        // A scope's position is the last recorded event delivered on it: only a recorded event's id (p-…) is one.
-        if (id is not null && id.StartsWith("p-", StringComparison.Ordinal) && frame.Scope is ResourceId scope) watermarks[scope.Value] = id;
+        // A scope's position is the last persisted event delivered on it: an id with the persisted prefix that is no
+        // PersistedEventId, and an ephemeral id, leave the position before them.
+        if (id is not null && frame.Scope is ResourceId scope && Required.IsPersistedEventId(JsonSerializer.SerializeToElement(id)))
+            watermarks[scope.Value] = id;
         ActivityContext parent = default;
         if (frame.Payload.TryGetProperty(ProtocolFacts.TraceField, out var trace))
         {

@@ -12,7 +12,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
@@ -43,32 +45,48 @@ type windows struct {
 // whichever event asked.
 func (w *windows) run(key string, refetch func()) {
 	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.opening(key, refetch)
+}
+
+// opening runs refetch for key, or owes it to key's open window. Called with
+// mu held, and refetch is run under it: owing never reads a window between
+// the event it took and the refetch that event asked for.
+func (w *windows) opening(key string, refetch func()) {
 	if w.disposed {
-		w.mu.Unlock()
 		return
 	}
 	if open, ok := w.open[key]; ok {
 		open.owed = true
-		w.mu.Unlock()
 		return
 	}
 	w.open[key] = &window{refetch: refetch, closing: time.AfterFunc(w.lasting, func() { w.close(key) })}
-	w.mu.Unlock()
 	refetch()
 }
 
 func (w *windows) close(key string) {
 	w.mu.Lock()
+	defer w.mu.Unlock()
 	open, ok := w.open[key]
 	if !ok {
-		w.mu.Unlock()
 		return
 	}
 	delete(w.open, key)
-	w.mu.Unlock()
 	if open.owed {
-		w.run(key, open.refetch)
+		w.opening(key, open.refetch)
 	}
+}
+
+// owing reports whether a window holds a refetch it has not yet run.
+func (w *windows) owing() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, open := range w.open {
+		if open.owed {
+			return true
+		}
+	}
+	return false
 }
 
 // dispose closes every window, and drops what each owed.
@@ -82,11 +100,15 @@ func (w *windows) dispose() {
 	clear(w.open)
 }
 
-// refresher applies the refresh table to a client's caches.
+// refresher applies the refresh table to a client's caches, and notes the
+// place each recorded event it takes reaches.
 type refresher struct {
 	links   *links
 	live    *live
 	windows *windows
+	// places is the places coupled to what the client keeps
+	// (CoupledBookmarks.CoupleTo); nil while none is.
+	places atomic.Pointer[CoupledBookmarks]
 }
 
 var _ cacheActs = (*refresher)(nil)
@@ -95,11 +117,18 @@ func newRefresher(l *links, v *live) *refresher {
 	return &refresher{links: l, live: v, windows: &windows{lasting: l.timing.InvalidationWindow, open: map[string]*window{}}}
 }
 
-// start listens, from now on, until the client closes.
+// start listens, from now on, until the client closes: to the table's
+// channels, and to every channel a resource's scope carries, whose recorded
+// events reach a place.
 func (r *refresher) start() {
-	channels := make([]bus.Channel, 0, len(CacheRefreshChannels))
+	channels := make([]bus.Channel, 0, len(CacheRefreshChannels)+len(bus.ResourceScopedChannels))
 	for _, trigger := range CacheRefreshChannels {
 		channels = append(channels, bus.Channel(trigger))
+	}
+	for _, scoped := range bus.ResourceScopedChannels {
+		if !slices.Contains(channels, scoped) {
+			channels = append(channels, scoped)
+		}
 	}
 	// Listening before the work that reads has started: nothing said meanwhile is missed.
 	events, leave := r.links.own.listenAmong(channels...)
@@ -112,7 +141,7 @@ func (r *refresher) start() {
 			case <-events.ready:
 				arrivals, closed := events.drain()
 				for _, one := range arrivals {
-					r.heard(one)
+					r.took(one)
 				}
 				if closed {
 					return
@@ -137,6 +166,20 @@ func (r *refresher) start() {
 			}
 		}
 	})
+}
+
+// took takes one arrival: the row of its channel, when the table has one, is
+// applied first, so a refetch its event asks for is in flight or owed; only
+// then is the place its event reaches noted (B17). A refused frame's arrival
+// holds no frame, and so reaches no place.
+func (r *refresher) took(one arrival) {
+	frame, _ := one.told()
+	if _, refreshes := cacheRefreshReadings[CacheRefreshTrigger(frame.Channel)]; refreshes {
+		r.heard(one)
+	}
+	if places := r.places.Load(); places != nil && !one.frame.place.scope.IsZero() {
+		places.Save(one.frame.place.scope, one.frame.place.id)
+	}
 }
 
 // heard applies the row of a frame's channel to what its event names. A frame
@@ -277,25 +320,25 @@ func reached(reach CacheRefreshReach, subject cacheSubject, held []api.ResourceI
 
 func (r *refresher) refetchResource(reach CacheRefreshReach, subject cacheSubject) {
 	for _, resource := range reached(reach, subject, r.live.resource.Keys()) {
-		again(r, r.live.resource, resource, "resource/"+resource.String())
+		again(r, r.live.resource, resource, string(CacheQueryResource)+"/"+resource.String())
 	}
 }
 
 func (r *refresher) refetchAnnotations(reach CacheRefreshReach, subject cacheSubject) {
 	for _, resource := range reached(reach, subject, r.live.annotations.Keys()) {
-		again(r, r.live.annotations, resource, "annotations/"+resource.String())
+		again(r, r.live.annotations, resource, string(CacheQueryAnnotations)+"/"+resource.String())
 	}
 }
 
 func (r *refresher) refetchEvents(reach CacheRefreshReach, subject cacheSubject) {
 	for _, resource := range reached(reach, subject, r.live.events.Keys()) {
-		again(r, r.live.events, resource, "events/"+resource.String())
+		again(r, r.live.events, resource, string(CacheQueryEvents)+"/"+resource.String())
 	}
 }
 
 func (r *refresher) refetchReferencedBy(reach CacheRefreshReach, subject cacheSubject) {
 	for _, resource := range reached(reach, subject, r.live.referencedBy.Keys()) {
-		again(r, r.live.referencedBy, resource, "referenced-by/"+resource.String())
+		again(r, r.live.referencedBy, resource, string(CacheQueryReferencedBy)+"/"+resource.String())
 	}
 }
 
@@ -312,30 +355,30 @@ func (r *refresher) refetchAnnotation(reach CacheRefreshReach, subject cacheSubj
 		annotations = r.live.annotationsOn(subject.resource)
 	}
 	for _, annotation := range annotations {
-		again(r, r.live.annotation, annotation, "annotation/"+annotation.String())
+		again(r, r.live.annotation, annotation, string(CacheQueryAnnotation)+"/"+annotation.String())
 	}
 }
 
 // An event does not say which lists it changes, nor which searches would now find its resource.
 func (r *refresher) refetchResources(CacheRefreshReach, cacheSubject) {
-	r.windows.run("resource-lists", r.live.lists.InvalidateAll)
+	r.windows.run(string(CacheQueryResources), r.live.resources.InvalidateAll)
 }
 
 func (r *refresher) refetchMatchedResources(CacheRefreshReach, cacheSubject) {
-	r.windows.run("matched-resources", r.live.searches.InvalidateAll)
+	r.windows.run(string(CacheQueryMatchedResources), r.live.matchedResources.InvalidateAll)
 }
 
 func (r *refresher) refetchEntityTypes(CacheRefreshReach, cacheSubject) {
-	again(r, r.live.entityTypes, whole{}, "entity-types")
+	again(r, r.live.entityTypes, whole{}, string(CacheQueryEntityTypes))
 }
 
 func (r *refresher) refetchTagSchemas(CacheRefreshReach, cacheSubject) {
-	again(r, r.live.tagSchemas, whole{}, "tag-schemas")
+	again(r, r.live.tagSchemas, whole{}, string(CacheQueryTagSchemas))
 }
 
 func (r *refresher) refetchEngines(CacheRefreshReach, cacheSubject) {
 	if r.live.engines.Known(whole{}) {
-		r.windows.run("engines", r.live.invalidateEngines)
+		r.windows.run(string(CacheQueryEngines), r.live.invalidateEngines)
 	}
 }
 

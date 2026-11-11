@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -293,15 +294,36 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	})
 	store, entry := keptAt(t, s, 1)
 	token := NewVariable("")
+	// The session's client, over a wire nothing is sent on.
+	wire := newWorkerWire()
+	client := NewClient(ClientConfig{Transport: wire, Timing: quickTiming()})
 	session, err := ResumeSession(context.Background(), ResumeConfig{
-		Kb: gatewayTarget(t, "local", s.gateway.URL), Kept: entry, Token: token,
-		HTTP: &http.Client{}, Timing: quickTiming(), AskWhoTokenIs: true,
-		OnError: func(err *SessionError) { t.Errorf("the session said %s: %s", err.Code, err.Message) },
+		Kb: gatewayTarget(t, "local", s.gateway.URL), Client: client, Kept: entry, Token: token,
+		HTTP: &http.Client{}, Timing: quickTiming(),
 	})
 	if err != nil {
+		client.Close()
+		wire.Close()
 		t.Fatal(err)
 	}
-	defer session.Close()
+	errs := session.Errors()
+	var said []string
+	heard := make(chan struct{})
+	go func() {
+		defer close(heard)
+		for failure := range errs {
+			var own *SessionError
+			if errors.As(failure, &own) {
+				said = append(said, fmt.Sprintf("%s: %s", own.Code, own.Message))
+			}
+		}
+	}()
+	closed := sync.OnceFunc(func() {
+		client.Close()
+		session.Close()
+		wire.Close()
+	})
+	defer closed()
 	ready, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := session.Ready(ready); err != nil {
@@ -318,6 +340,137 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	}
 	if grants := s.grantsMade(); grants != 1 {
 		t.Errorf("%d grants, want one", grants)
+	}
+	closed()
+	select {
+	case <-heard:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the session's errors stream did not end once the session was closed")
+	}
+	if len(said) != 0 {
+		t.Errorf("the session said %v on its errors stream", said)
+	}
+}
+
+// The gateway refuses a kept token that has not expired, and its renewal gets
+// no answer: the renewal on the reconnect backoff is handed that token, so
+// the kept sign-in's renewal asks the issuer for a grant. Handed none, it
+// would give back the kept token, which the gateway has refused, and the
+// session would end as if the issuer had issued it.
+func TestARenewalOnTheBackoffIsHandedTheTokenWhoseRenewalGotNoAnswer(t *testing.T) {
+	s := newStack(t)
+	timing := quickTiming()
+	timing.Reconnect, timing.MaxReconnect = 20*time.Millisecond, 20*time.Millisecond
+	s.set(func() {
+		s.token = func(w http.ResponseWriter, r *http.Request) {
+			// Every attempt of the first renewal finds the issuer down.
+			if s.grantsMade() <= timing.RefreshRetry.Attempts {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			issuing(2)(w, r)
+		}
+		s.accepts = func(token string) bool { return token == signedToken(2) }
+	})
+	_, entry := keptAt(t, s, 1)
+	token := NewVariable("")
+	wire := newWorkerWire()
+	client := NewClient(ClientConfig{Transport: wire, Timing: timing})
+	session, err := ResumeSession(context.Background(), ResumeConfig{
+		Kb: gatewayTarget(t, "local", s.gateway.URL), Client: client, Kept: entry, Token: token,
+		HTTP: &http.Client{}, Timing: timing,
+	})
+	if err != nil {
+		client.Close()
+		wire.Close()
+		t.Fatal(err)
+	}
+	errs := session.Errors()
+	var said []SessionErrorCode
+	heard := make(chan struct{})
+	go func() {
+		defer close(heard)
+		for failure := range errs {
+			var own *SessionError
+			if errors.As(failure, &own) {
+				said = append(said, own.Code)
+			}
+		}
+	}()
+	closed := sync.OnceFunc(func() {
+		client.Close()
+		session.Close()
+		wire.Close()
+	})
+	defer closed()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for user := range session.User().Changes(ctx) {
+		if user != nil {
+			break
+		}
+	}
+	if token.Value() != signedToken(2) || session.User().Value() == nil {
+		t.Fatal("the session was not renewed on the backoff, and signed in")
+	}
+	s.mu.Lock()
+	asked := slices.Clone(s.asked)
+	s.mu.Unlock()
+	if !slices.Equal(asked, []string{signedToken(1), signedToken(2)}) {
+		t.Errorf("the gateway was asked about %d tokens, want the one it refused and then the one the issuer granted", len(asked))
+	}
+	if _, held, err := entry.Held(ctx); err != nil || !held {
+		t.Errorf("the sign-in is kept: %v (%v)", held, err)
+	}
+	closed()
+	select {
+	case <-heard:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the session's errors stream did not end once the session was closed")
+	}
+	if !slices.Equal(said, []SessionErrorCode{SessionErrorCodeRefreshExhausted}) {
+		t.Errorf("the session said %v on its errors stream, want the one %s", said, SessionErrorCodeRefreshExhausted)
+	}
+}
+
+// A session opened over a kept sign-in asks the gateway who its token is,
+// once, and so knows who is signed in, unless it is told not to.
+func TestASessionFromAKeptSignInAsksWhoItsTokenIsUnlessToldNotTo(t *testing.T) {
+	for _, row := range []struct {
+		why  string
+		skip bool
+		asks int
+	}{
+		{"left to ask", false, 1},
+		{"told not to", true, 0},
+	} {
+		t.Run(row.why, func(t *testing.T) {
+			s := newStack(t)
+			_, entry := keptAt(t, s, 1)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			session, end, err := SessionFromKept(ctx, SessionFromKeptConfig{
+				Kb: gatewayTarget(t, "local", s.gateway.URL), Kept: entry, HTTP: &http.Client{}, Timing: quickTiming(),
+				SkipAskingWhoTokenIs: row.skip,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer end()
+			s.mu.Lock()
+			asked := len(s.asked)
+			s.mu.Unlock()
+			if asked != row.asks {
+				t.Errorf("the gateway was asked %d times, want %d", asked, row.asks)
+			}
+			if knows := session.User().Value() != nil; knows != (row.asks == 1) {
+				t.Errorf("the session knows who is signed in: %v", knows)
+			}
+			if session.Token().Value() != signedToken(1) {
+				t.Error("the session does not hold the kept token")
+			}
+		})
 	}
 }
 

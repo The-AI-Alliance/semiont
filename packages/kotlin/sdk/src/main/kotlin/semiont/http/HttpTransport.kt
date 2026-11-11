@@ -224,6 +224,14 @@ public class HttpTransport @JvmOverloads constructor(
 
     override fun failures(): Events<SemiontError> = failureStream.listen()
 
+    /**
+     * Keep the stream's places in `bookmarks` from now on: what a transport
+     * made keeping none is given once the person its client is for is known.
+     * A place kept there is taken up for each scope the stream has no place
+     * for yet; one it has stands.
+     */
+    internal fun keepPlaces(bookmarks: Bookmarks): Unit = stream.keepPlaces(bookmarks)
+
     override fun bridgeInto(bus: FrameSink): Unit = hub.bridge(bus)
 
     override fun trackReply(correlationId: String, replyChannels: Collection<String>): PendingReply = router.track(correlationId, replyChannels)

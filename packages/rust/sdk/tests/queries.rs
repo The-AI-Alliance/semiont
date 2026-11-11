@@ -11,20 +11,43 @@ use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::errors::SemiontError;
 use semiont::namespaces::ResourceFilters;
-use semiont::storage::InMemorySessionStorage;
+use semiont::refresh::CacheQuery;
+use semiont::resume::CoupledBookmarks;
+use semiont::session::{cache_key, last_event_id_key};
+use semiont::storage::{
+    InMemorySessionStorage, SessionStorage, StorageChange, StorageSubscription,
+};
 use semiont::testing::as_id;
 use semiont::testing::liveness::{LivenessScenario, LivenessSpec, assert_liveness_axioms};
 use semiont::testing::{
-    ContentCall, FaultyTransport, InMemoryContent, TestClientOptions, create_test_client,
+    ContentCall, FaultAction, FaultyTransport, InMemoryContent, SharedStorage, TestClientOptions,
+    create_test_client,
 };
-use semiont::transport::{ConnectionState, Envelope, STREAM_BACKLOG};
+use semiont::timing::SAVE_DEBOUNCE;
+use semiont::transport::{ConnectionState, Envelope, Frame, STREAM_BACKLOG};
 use semiont::types::MatchResourcesResponse;
 use serde_json::{Map, Value, json};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 const WINDOW: Duration = Duration::from_millis(100);
+
+const STORED: &str = include_str!("../specs/session/stored.json");
+const REFRESH: &str = include_str!("../specs/client/refresh.json");
+
+/// The key of the person the persisting clients here keep for.
+const PERSON: &str = "a-person-key";
+
+/// Where what `member` of session/stored.json names is kept for `kb` and
+/// the person whose key is `person_key`.
+fn stored_key(member: &str, kb: &str, person_key: &str) -> String {
+    let stored: Value = serde_json::from_str(STORED).expect("stored.json is JSON");
+    let prefix = stored[member]["prefix"]
+        .as_str()
+        .unwrap_or_else(|| panic!("stored.json gives {member} no prefix"));
+    format!("{prefix}{kb}.{person_key}")
+}
 
 fn object(value: Value) -> Map<String, Value> {
     value.as_object().cloned().expect("an object")
@@ -666,6 +689,288 @@ async fn b19_one_event_refetches_at_once_and_a_storm_refetches_once_per_window_e
     assert_eq!(annotations_read(&content, None), 3);
 }
 
+/// What is kept of the stream's place waits on this: a refetch still owed
+/// has not taken in the event that asked for it (B17).
+#[tokio::test(start_paused = true)]
+async fn b17_b19_a_client_is_not_settled_while_a_window_owes_a_refetch() {
+    let (client, _, _) = world();
+    let _watching = client.browse.annotations(&as_id("res-1")).watch();
+    settle().await;
+    assert!(client.persistence_settled());
+
+    heard(
+        &client,
+        "mark:added",
+        recorded("res-1", json!({}), json!({})),
+    );
+    settle().await;
+    assert!(
+        client.persistence_settled(),
+        "a refetch that ran at once is owed nothing"
+    );
+
+    heard(
+        &client,
+        "mark:added",
+        recorded("res-1", json!({}), json!({})),
+    );
+    settle().await;
+    assert!(!client.persistence_settled(), "the window owes a refetch");
+
+    tokio::time::sleep(WINDOW * 3).await;
+    assert!(client.persistence_settled());
+}
+
+/// Where a client keeps its caches for `kb` and the person whose key is
+/// `person_key`: in `storage`, which carries the stream's places when it is
+/// the storage of places coupled to the client.
+fn kept_for(storage: Arc<dyn SessionStorage>, kb: &str, person_key: &str) -> CachePersistence {
+    CachePersistence {
+        storage,
+        kb_id: kb.to_owned(),
+        person_key: person_key.to_owned(),
+    }
+}
+
+/// The stream's places of `kb-1` and `PERSON`, kept in `storage`.
+fn places_in(storage: Arc<dyn SessionStorage>) -> CoupledBookmarks {
+    CoupledBookmarks::new(storage, &last_event_id_key("kb-1", PERSON))
+}
+
+/// A client over `transport` whose caches are kept, through `places`'
+/// storage, for `kb-1` and `PERSON`, the places coupled to it as a
+/// session's are: written with its caches only while it is at rest, and at
+/// its close, only those noted before the close read that.
+fn coupled(places: &CoupledBookmarks, transport: FaultyTransport) -> Arc<SemiontClient> {
+    let client = create_test_client(TestClientOptions {
+        transport: Some(transport),
+        content: Some(annotated()),
+        client: options(Some(kept_for(places.storage(), "kb-1", PERSON))),
+        ..TestClientOptions::default()
+    })
+    .client;
+    places.couple_to(&client);
+    client
+}
+
+/// A storage beneath which the stream reaches another place at each write,
+/// as a transport may while a closing client flushes its caches.
+#[derive(Default)]
+struct ReachedAtEachWrite {
+    beneath: InMemorySessionStorage,
+    places: OnceLock<CoupledBookmarks>,
+}
+
+impl ReachedAtEachWrite {
+    fn reached(&self) {
+        self.places
+            .get()
+            .expect("the places are coupled")
+            .save(&as_id("res-2"), "p-res-2-9");
+    }
+}
+
+impl SessionStorage for ReachedAtEachWrite {
+    fn get(&self, key: &str) -> Option<String> {
+        self.beneath.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.beneath.set(key, value)?;
+        self.reached();
+        Ok(())
+    }
+
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.beneath.delete(key)
+    }
+
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.beneath.update(key, change)?;
+        self.reached();
+        Ok(())
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.beneath.subscribe(on_change)
+    }
+}
+
+/// A client whose caches are kept in `storage` for `kb-1` and `PERSON`,
+/// with the stream's places coupled to it, as a session's are.
+fn keeping(storage: &Arc<ReachedAtEachWrite>) -> (Arc<SemiontClient>, CoupledBookmarks) {
+    let places = places_in(storage.clone());
+    storage.places.get_or_init(|| places.clone());
+    let client = coupled(&places, FaultyTransport::answering(vec![], answers(&[])));
+    (client, places)
+}
+
+/// Closing takes the places once, before it disposes of anything: a refetch
+/// a window then owes holds them back from the closing flush, and a save
+/// then owed does not, because the flush is that save. A place reached after
+/// that is of an event whose refetch closing drops, and is not kept (B17).
+#[tokio::test(start_paused = true)]
+async fn b17_b19_closing_takes_the_places_before_it_disposes_of_anything() {
+    let documents = format!(
+        "{}.{}",
+        stored_key("cacheKeyPrefix", "kb-1", PERSON),
+        CacheQuery::Annotations.name()
+    );
+    let places_key = stored_key("lastEventIdKeyPrefix", "kb-1", PERSON);
+
+    let storage = Arc::new(ReachedAtEachWrite::default());
+    let (client, places) = keeping(&storage);
+    let _watching = client.browse.annotations(&as_id("res-1")).watch();
+    settle().await;
+    for _ in 0..2 {
+        heard(
+            &client,
+            "mark:added",
+            recorded("res-1", json!({}), json!({})),
+        );
+        settle().await;
+    }
+    assert!(!client.persistence_settled(), "the window owes a refetch");
+    places.save(&as_id("res-1"), "p-res-1-7");
+    client.close().await;
+    assert!(
+        storage.get(&documents).is_some(),
+        "the documents are flushed"
+    );
+    assert_eq!(storage.get(&places_key), None, "the places are held back");
+
+    let storage = Arc::new(ReachedAtEachWrite::default());
+    let (client, places) = keeping(&storage);
+    let _watching = client.browse.annotations(&as_id("res-1")).watch();
+    settle().await;
+    assert!(!client.persistence_settled(), "a save is owed");
+    places.save(&as_id("res-1"), "p-res-1-7");
+    client.close().await;
+    assert!(
+        storage.get(&documents).is_some(),
+        "the documents are flushed"
+    );
+    assert_eq!(
+        storage
+            .get(&places_key)
+            .map(|places| serde_json::from_str::<Value>(&places).expect("the places are JSON")),
+        Some(json!({ "res-1": "p-res-1-7" })),
+        "the places noted before closing took them are written with them, and res-2's, \
+         reached as the flush wrote, is not"
+    );
+}
+
+/// A recorded event of res-1, on its scope, as the stream delivers one:
+/// res-1's description changed.
+fn updated_on_its_scope() -> Frame {
+    Frame {
+        channel: "yield:updated".to_owned(),
+        payload: recorded("res-1", json!({}), json!({})),
+        correlation_id: None,
+        scope: Some(as_id("res-1")),
+        trace: None,
+        stream_id: None,
+    }
+}
+
+/// A place is noted only once the refresher has taken its event (B17). One
+/// still queued for the refresher has started nothing: no fetch is in
+/// flight and no refetch is owed, so a write of a kept cache meanwhile
+/// passes the gate, and the place must not be in it, or a restart resumes
+/// past an event whose refetch never ran. Here that write is the closing
+/// flush of a save owed, and the close takes the places before the
+/// refresher has run.
+#[tokio::test(start_paused = true)]
+async fn b17_a_place_whose_event_the_refresher_has_not_taken_is_not_written() {
+    let documents = cache_key("kb-1", PERSON, CacheQuery::Resource);
+    let places_key = stored_key("lastEventIdKeyPrefix", "kb-1", PERSON);
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let places = places_in(storage.clone());
+    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let client = coupled(&places, transport.clone());
+    let _watching = client.browse.resource(&as_id("res-1")).watch();
+    settle().await;
+    assert!(!client.persistence_settled(), "a save is owed");
+
+    transport.deliver_recorded(updated_on_its_scope(), "p-res-1-7");
+    client.close().await;
+
+    assert!(
+        storage.get(&documents).is_some(),
+        "the closing flush wrote the resource"
+    );
+    assert_eq!(
+        storage.get(&places_key),
+        None,
+        "the place of an event the refresher never took is not written"
+    );
+}
+
+/// Once the refresher has taken an event, the place is noted, and the fetch
+/// the event started holds it back while it is in flight: a kept cache
+/// written meanwhile does not carry it. Once the fetch is in and its value
+/// saved, the place is written (B17).
+#[tokio::test(start_paused = true)]
+async fn b17_a_place_is_noted_once_the_refresher_has_taken_its_event_and_waits_for_its_fetch() {
+    let entity_types = cache_key("kb-1", PERSON, CacheQuery::EntityTypes);
+    let places_key = stored_key("lastEventIdKeyPrefix", "kb-1", PERSON);
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let places = places_in(storage.clone());
+    // The resource's first ask is answered at once and its refetch half a
+    // second later; the entity types, asked third, at once.
+    let transport = FaultyTransport::answering(
+        vec![
+            FaultAction::Deliver,
+            FaultAction::Delay(Duration::from_millis(500)),
+        ],
+        answers(&[]),
+    );
+    let client = coupled(&places, transport.clone());
+    let _resource = client.browse.resource(&as_id("res-1")).watch();
+    settle().await;
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert!(client.persistence_settled(), "the resource is in and saved");
+
+    transport.deliver_recorded(updated_on_its_scope(), "p-res-1-7");
+    settle().await;
+    assert_eq!(
+        asked_of(&transport, "browse:resource-requested", "res-1"),
+        2,
+        "the refresher took the event and asked again"
+    );
+    assert!(
+        !client.persistence_settled(),
+        "the refetch the event started is in flight"
+    );
+
+    let _entity_types = client.browse.entity_types().watch();
+    settle().await;
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert!(
+        storage.get(&entity_types).is_some(),
+        "the entity types are saved"
+    );
+    assert_eq!(
+        storage.get(&places_key),
+        None,
+        "the place waits for the fetch its event started"
+    );
+
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(client.persistence_settled(), "the refetch is in and saved");
+    assert_eq!(
+        storage
+            .get(&places_key)
+            .map(|places| serde_json::from_str::<Value>(&places).expect("the places are JSON")),
+        Some(json!({ "res-1": "p-res-1-7" })),
+        "the place is written with the save of the value its event asked for"
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_anything_of_it() {
     let (client, _, content) = world();
@@ -1042,7 +1347,9 @@ async fn b13_a_gap_asks_again_for_what_refers_to_the_resource_it_names_and_to_no
     );
     settle().await;
     let gap = |scope: &str| {
-        object(json!({ "scope": scope, "lastSeenId": "p-4", "reason": "retention-exceeded" }))
+        object(
+            json!({ "scope": scope, "lastSeenId": format!("p-{scope}-4"), "reason": "retention-exceeded" }),
+        )
     };
     heard(&client, "bus:resume-gap", gap("res-1"));
     // A resource nobody asked about: nothing is held of it (B20).
@@ -1137,12 +1444,8 @@ async fn a_stream_that_reopens_asks_for_the_engines_and_the_key_holders_again() 
 #[tokio::test(start_paused = true)]
 async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once_more() {
     let storage = Arc::new(InMemorySessionStorage::new());
-    let persistence = || {
-        Some(CachePersistence {
-            storage: storage.clone(),
-            key_prefix: "kb-1".to_owned(),
-        })
-    };
+    let kept = |kb_id: &str, person_key: &str| Some(kept_for(storage.clone(), kb_id, person_key));
+    let persistence = || kept("kb-1", PERSON);
     let transport = FaultyTransport::answering(vec![], answers(&[]));
     let first = client_over(&transport, persistence());
     let _ = first.browse.events(&as_id("res-1")).fresh().await;
@@ -1170,18 +1473,108 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
     let mut history = returning.browse.events(&as_id("res-1")).watch();
     assert_eq!(given(&mut history).await, Some(CacheState::Pending));
 
-    // And another knowledge base's client is shown none of it.
-    let elsewhere = client_over(
-        &FaultyTransport::answering(vec![], answers(&[])),
-        Some(CachePersistence {
-            storage: storage.clone(),
-            key_prefix: "kb-2".to_owned(),
-        }),
-    );
-    assert_eq!(
-        given(&mut elsewhere.browse.resource(&as_id("res-1")).watch()).await,
-        Some(CacheState::Pending)
-    );
+    // And another knowledge base's client is shown none of it, nor another
+    // person's client of the same one.
+    for (kb_id, person_key) in [("kb-2", PERSON), ("kb-1", "another-person-key")] {
+        let elsewhere = client_over(
+            &FaultyTransport::answering(vec![], answers(&[])),
+            kept(kb_id, person_key),
+        );
+        assert_eq!(
+            given(&mut elsewhere.browse.resource(&as_id("res-1")).watch()).await,
+            Some(CacheState::Pending),
+            "{kb_id} {person_key}"
+        );
+    }
+}
+
+/// The queries client/refresh.json marks persisted, read here, are the ones
+/// a client keeps, each under its own name there, and of the ten it asks
+/// for it keeps no other.
+#[tokio::test(start_paused = true)]
+async fn b17_a_client_keeps_the_queries_the_table_marks_persisted_and_no_other() {
+    let storage = Arc::new(SharedStorage::new());
+    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let client = create_test_client(TestClientOptions {
+        transport: Some(transport),
+        content: Some(annotated()),
+        client: options(Some(kept_for(storage.clone(), "kb-1", PERSON))),
+        ..TestClientOptions::default()
+    })
+    .client;
+    let resource = as_id("res-1");
+    client
+        .browse
+        .resource(&resource)
+        .fresh()
+        .await
+        .expect("a resource");
+    client
+        .browse
+        .annotations(&resource)
+        .fresh()
+        .await
+        .expect("its annotations");
+    client
+        .browse
+        .annotation(&resource, &as_id("ann-1"))
+        .fresh()
+        .await
+        .expect("an annotation");
+    client
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+    client
+        .browse
+        .tag_schemas()
+        .fresh()
+        .await
+        .expect("the tag schemas");
+    client
+        .browse
+        .resources(ResourceFilters::default())
+        .fresh()
+        .await
+        .expect("a page of resources");
+    client
+        .browse
+        .events(&resource)
+        .fresh()
+        .await
+        .expect("a history");
+    client
+        .gather
+        .referenced_by(&resource)
+        .fresh()
+        .await
+        .expect("what refers to it");
+    client
+        .match_
+        .resources("cat", ResourceFilters::default())
+        .fresh()
+        .await
+        .expect("a search");
+    client.browse.engines().fresh().await.expect("the engines");
+    client.close().await;
+
+    let refresh: Value = serde_json::from_str(REFRESH).expect("refresh.json is JSON");
+    let caches = stored_key("cacheKeyPrefix", "kb-1", PERSON);
+    let mut persisted: Vec<String> = refresh["queries"]
+        .as_array()
+        .expect("refresh.json states its queries")
+        .iter()
+        .filter(|query| query["persisted"] == json!(true))
+        .map(|query| {
+            let name = query["name"].as_str().expect("a query has a name");
+            format!("{caches}.{name}")
+        })
+        .collect();
+    assert!(!persisted.is_empty(), "refresh.json persists no query");
+    persisted.sort();
+    assert_eq!(storage.keys(), persisted);
 }
 
 // ── Liveness: under any behaviour of the wire, a watcher is told something ──

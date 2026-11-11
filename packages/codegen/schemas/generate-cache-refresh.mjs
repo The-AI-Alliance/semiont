@@ -1,6 +1,8 @@
 // Generate the client's cache-refresh table from protocol/specs/src/client/refresh.json:
 // which live queries each event on the bus, and the reopening of a dropped
-// stream, asks again for, writes, or removes.
+// stream, asks again for, writes, or removes; what each query is asked for
+// per; and what each query's cache holds, its `value`, as the component the
+// spec names and the members within it, at run time and as a type.
 //
 // The table is the authority every SDK generates from. Stated per language it
 // was three statements of one fact: a table in prose, a block of handlers,
@@ -14,6 +16,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCacheRefresh } from './cache-refresh-table.mjs';
+import { WHOLE } from './kept-queries.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
@@ -31,7 +34,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, channelTriggers, WHEN } = readCacheRefresh(ROOT, TABLE, refuse);
+const { queries, values, refresh, whens, channelTriggers, WHEN } = readCacheRefresh(ROOT, TABLE, refuse);
 
 const list = (values) => `[${values.map((v) => `'${v}'`).join(', ')}]`;
 const doc = (text) => `/** ${text.replaceAll('*/', '*\\/')} */`;
@@ -41,6 +44,16 @@ const rowOf = ({ when, reach = 'subject', names = {}, carries, refetches = [], w
   const named = Object.entries(names).map(([slot, dotted]) => `${slot}: ${way(dotted)}`);
   return `{ ${when === undefined ? '' : `when: '${when}', `}reach: '${reach}', names: {${named.length === 0 ? '' : ` ${named.join(', ')} `}}, ${carries === undefined ? '' : `carries: ${way(carries)}, `}refetches: ${list(refetches)}, writes: ${list(writes)}, removes: ${list(removes)} }`;
 };
+
+const valueRows = queries.map(({ name }) => {
+  const { component, members } = values.get(name);
+  return `  '${name}': { component: '${component}', members: ${list(members)} },`;
+});
+const valueTypes = queries.map(({ name }) => {
+  const { component, members } = values.get(name);
+  return `  '${name}': components['schemas']['${component}']${members.map((member) => `['${member}']`).join('')};`;
+});
+const perRows = queries.map(({ name, per }) => `  '${name}': '${per === undefined ? WHOLE : per}';`);
 
 const triggers = [...whens.keys()];
 const entries = triggers.map((on) => {
@@ -56,9 +69,30 @@ writeFileSync(
 // Source: protocol/specs/src/client/refresh.json → packages/codegen/schemas/generate-cache-refresh.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 
+import type { components } from '../types';
+
 /** The live queries a client's cache answers. */
 export const CACHE_QUERIES = ${list(queries.map((query) => query.name))} as const;
 export type CacheQuery = (typeof CACHE_QUERIES)[number];
+
+/** The live queries whose answers a client keeps across its lives, for the person signed in. */
+export const PERSISTED_QUERIES = ${list(queries.filter((query) => query.persisted === true).map((query) => query.name))} as const;
+export type PersistedQuery = (typeof PERSISTED_QUERIES)[number];
+
+/** What each live query is asked for per: a resource, an annotation, or the filters it is asked with; \`${WHOLE}\` for one asked for whole, whose one answer is kept under \`wholeKey\`. */
+export interface CachePer {
+${perRows.join('\n')}
+}
+
+/** What each live query's cache holds, its \`value\`: the component, and the members within it the value is, outermost first. */
+export const CACHE_VALUES = {
+${valueRows.join('\n')}
+} as const satisfies { readonly [Q in CacheQuery]: { readonly component: keyof components['schemas']; readonly members: readonly string[] } };
+
+/** The type of what each live query's cache holds: \`CACHE_VALUES\`'s component, member within member. */
+export interface CacheValues {
+${valueTypes.join('\n')}
+}
 
 /** Which of a split channel's two kinds of event a row is for. */
 export type CacheRefreshWhen = ${WHEN.map((when) => `'${when}'`).join(' | ')};

@@ -1,17 +1,32 @@
 /**
  * B17 — the SessionStorage-backed persister adapter.
  *
- * Contract under test: round-trip through a storage adapter; version
- * mismatch and parse garbage read as "nothing stored" (never throw);
- * byte cap evicts oldest-written entries first.
+ * Contract under test: round-trip through a storage adapter; parse garbage
+ * reads as "nothing stored" (never throws); byte cap evicts the oldest-stamped
+ * entries first. What a load keeps of each kept query's document, and of the
+ * stream's places, is protocol/specs/src/session/cache-cases.json's, run by
+ * cache-cases.test.ts.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { coupledLastEventId, sessionStoragePersister } from '../cache-persister';
+import { coupledLastEventId, sessionStoragePersister, type EntryDecoder } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
+import { personKey } from '../session/storage';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
-import { resourceId } from '@semiont/core';
+import { createTestClient, inMemoryContent } from '../testing';
+import { isObject, isString, resourceId, type components } from '@semiont/core';
+
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 const KEY = 'semiont.cache.kb-1.resource';
+
+/** Entries of any text key and text value. */
+const TEXT: EntryDecoder<string, string> = { key: isString, value: isString };
+
+/** Entries of any text key and a named value. */
+const NAMED: EntryDecoder<string, { name: string }> = {
+  key: isString,
+  value: (json): json is { name: string } => isObject(json) && isString(json['name']),
+};
 
 describe('sessionStoragePersister (B17)', () => {
   let storage: TestStorage;
@@ -27,10 +42,10 @@ describe('sessionStoragePersister (B17)', () => {
   });
 
   it('round-trips a map through the storage adapter', () => {
-    const writer = sessionStoragePersister<string, { name: string }>({ storage, storageKey: KEY, version: 1 });
+    const writer = sessionStoragePersister({ storage, storageKey: KEY, decode: NAMED });
     writer.save(new Map([['r1', { name: 'One' }], ['r2', { name: 'Two' }]]));
 
-    const reader = sessionStoragePersister<string, { name: string }>({ storage, storageKey: KEY, version: 1 });
+    const reader = sessionStoragePersister({ storage, storageKey: KEY, decode: NAMED });
     const loaded = reader.load();
 
     expect(loaded).not.toBeNull();
@@ -38,25 +53,17 @@ describe('sessionStoragePersister (B17)', () => {
     expect(loaded!.get('r2')).toEqual({ name: 'Two' });
   });
 
-  it('reads as empty on version mismatch', () => {
-    sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 })
-      .save(new Map([['r1', 'v']]));
-
-    const v2 = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 2 });
-    expect(v2.load()).toBeNull();
-  });
-
   it('reads as empty on parse garbage — never throws', () => {
     storage.set(KEY, '{not json');
-    const persister = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 });
+    const persister = sessionStoragePersister({ storage, storageKey: KEY, decode: TEXT });
     expect(persister.load()).toBeNull();
   });
 
-  it('evicts oldest-written entries first when over the byte cap', () => {
-    const persister = sessionStoragePersister<string, string>({
+  it('evicts the oldest-stamped entries first when over the byte cap', () => {
+    const persister = sessionStoragePersister({
       storage,
       storageKey: KEY,
-      version: 1,
+      decode: TEXT,
       // Small enough that three entries with 100-char values cannot all fit.
       maxBytes: 300,
     });
@@ -67,9 +74,9 @@ describe('sessionStoragePersister (B17)', () => {
     vi.setSystemTime(3_000_000);
     persister.save(new Map([['old', 'x'.repeat(100)], ['mid', 'y'.repeat(100)], ['new', 'z'.repeat(100)]]));
 
-    const loaded = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 }).load();
+    const loaded = sessionStoragePersister({ storage, storageKey: KEY, decode: TEXT }).load();
     expect(loaded).not.toBeNull();
-    // 'old' carries the earliest write stamp — evicted first.
+    // 'old' carries the earliest stamp — evicted first.
     expect(loaded!.has('old')).toBe(false);
     expect(loaded!.has('new')).toBe(true);
   });
@@ -77,10 +84,10 @@ describe('sessionStoragePersister (B17)', () => {
   it('measures the byte cap in bytes, not UTF-16 code units', () => {
     // '€' is 1 code unit but 3 UTF-8 bytes: 60 units ≈ 180 bytes per value.
     // A cap that passes on code-unit length must still evict on real bytes.
-    const persister = sessionStoragePersister<string, string>({
+    const persister = sessionStoragePersister({
       storage,
       storageKey: KEY,
-      version: 1,
+      decode: TEXT,
       maxBytes: 400,
     });
 
@@ -88,24 +95,10 @@ describe('sessionStoragePersister (B17)', () => {
     vi.setSystemTime(2_000_000);
     persister.save(new Map([['old', '€'.repeat(60)], ['new', '€'.repeat(60)]]));
 
-    const loaded = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 }).load();
+    const loaded = sessionStoragePersister({ storage, storageKey: KEY, decode: TEXT }).load();
     expect(loaded).not.toBeNull();
     expect(loaded!.has('old')).toBe(false);
     expect(loaded!.has('new')).toBe(true);
-  });
-
-  it('supports key transformers for non-string keys', () => {
-    const opts = {
-      storage,
-      storageKey: KEY,
-      version: 1,
-      keyToJson: (k: number) => String(k),
-      jsonToKey: (j: unknown) => Number(j),
-    };
-    sessionStoragePersister<number, string>(opts).save(new Map([[42, 'answer']]));
-
-    const loaded = sessionStoragePersister<number, string>(opts).load();
-    expect(loaded!.get(42)).toBe('answer');
   });
 });
 
@@ -150,11 +143,20 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47' });
   });
 
-  it('a cache-document update flushes the pending ids as a set does, when the flush gate allows it', () => {
+  it('a cache-document update flushes the pending ids as a set does, once the client the places are coupled to is at rest', async () => {
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
-    let quiet = false;
-    coupled.setFlushGate(() => quiet);
+    const refusals: Array<(reason: Error) => void> = [];
+    const { client } = createTestClient({
+      content: {
+        ...inMemoryContent(),
+        getAnnotations: () => new Promise<GetAnnotationsResponse>((_, reject) => { refusals.push(reject); }),
+      },
+      cachePersistence: { storage: coupled.storage, kbId: 'kb-1', personKey: personKey('did:web:example.org:users:jo') },
+    });
+    coupled.coupleTo(client);
+    // A kept cache's fetch is in flight: the client is not at rest.
+    const asked = client.browse.annotations(resourceId('res-1')).fresh();
 
     coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
     coupled.storage.update('semiont.cache.kb-1.resource', () => '{"doc":1}');
@@ -163,12 +165,15 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource']);
     expect(storage.get(ID_KEY)).toBeNull();
 
-    quiet = true;
+    // The fetch fails, and nothing is in flight or owed: the client is at rest, having written nothing.
+    refusals.forEach((refuse) => refuse(new Error('the gateway refused the read')));
+    await expect(asked).rejects.toThrow('the gateway refused the read');
     coupled.storage.update('semiont.cache.kb-1.resource', () => '{"doc":2}');
 
     // Document first, ids second.
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource', 'semiont.cache.kb-1.resource', ID_KEY]);
     expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47' });
+    client.dispose();
   });
 
   it('with no pending ids, a document write is just a document write', () => {
@@ -225,10 +230,14 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     expect(coupledLastEventId(storage, ID_KEY).loadLastEventIds()).toEqual(new Map([['res-1', 'p-res-1-47']]));
   });
 
-  it('a pre-multi-scope single-id bookmark reads as "nothing stored"', () => {
+  it('an id that is no persisted event\'s id is never kept as a place', () => {
     const { storage } = recordingStorage();
-    storage.set(ID_KEY, 'p-res-1-47'); // old format: the raw id, not JSON
+    const coupled = coupledLastEventId(storage, ID_KEY);
 
-    expect(coupledLastEventId(storage, ID_KEY).loadLastEventIds()).toBeNull();
+    coupled.saveLastEventId(resourceId('res-1'), 'e-res-1-47');
+    coupled.saveLastEventId(resourceId('res-2'), 'p-res-2-9');
+    coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
+
+    expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-2': 'p-res-2-9' });
   });
 });

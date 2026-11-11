@@ -591,7 +591,7 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
       tokenEndpoint: "http://issuer.test/realms/semiont/token"))
   let client = try await SemiontClient(transport: ScriptedTransport(clock: clock), clock: clock)
   let session = SemiontSession(
-    kb: alphaKb, client: client, kept: kept,
+    kb: alphaKb, client: client, kept: kept, forget: { await kept.forget() },
     renew: { _ in
       renewals.add()
       return try token()
@@ -712,7 +712,7 @@ private func invalidationWindow(_ given: [String: JSONValue], _ clock: TestClock
 private final class Saves: SessionStorage {
   let saved = Counter()
   func get(_ key: String) throws -> String? { nil }
-  func set(_ key: String, _ value: String) throws {}
+  func set(_ key: String, _ value: String) throws { saved.add() }
   func delete(_ key: String) throws {}
   func update(_ key: String, _ change: @Sendable (String?) throws -> String?) throws {
     _ = try change(nil)
@@ -725,7 +725,7 @@ private func saveDebounce(_ given: [String: JSONValue], _ clock: TestClock) asyn
 {
   let saves = Saves()
   let cache = Cache<String, Int>(
-    persistence: CachePersistence(storage: saves, keyPrefix: "a-cache"), clock: clock
+    persister: StoragePersister(storage: saves, storageKey: "a-cache", clock: clock), clock: clock
   ) { key in throw ClockCaseFailure("A cache that is only written fetched \(key)") }
   let changes = Counter()
   return Subject(

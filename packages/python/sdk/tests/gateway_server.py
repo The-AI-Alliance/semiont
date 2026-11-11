@@ -67,6 +67,8 @@ class Answer:
     """With `promise`: keep the connection after the body there is, and say nothing more, as `hold` does."""
     raw: bytes | None = None
     """Write these bytes as they are, and close: what is said need not be HTTP."""
+    after: asyncio.Event | None = None
+    """Say it only once this is set: the request waits for the test, and is told nothing if the gateway is left first."""
 
 
 NOT_FOUND: Final = Answer(status=404, body=b'{"error":"The gateway has no such thing"}')
@@ -210,6 +212,15 @@ class GatewayServer:
             return Answer(body=_OBJECT.dump_json(self.answers[path]))
         return NOT_FOUND
 
+    async def _released(self, released: asyncio.Event) -> bool:
+        """Wait until `released` is set, or the gateway is left: whether it was set."""
+        waits = (asyncio.ensure_future(released.wait()), asyncio.ensure_future(self._leaving.wait()))
+        await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+        for waiting in waits:
+            waiting.cancel()
+        await asyncio.gather(*waits, return_exceptions=True)
+        return released.is_set()
+
     async def _held(self, reader: asyncio.StreamReader) -> None:
         """Say nothing more. It ends when the client closes the connection, or the gateway is left."""
         closed = asyncio.ensure_future(reader.read())
@@ -243,6 +254,8 @@ class GatewayServer:
                     await reader.read()
                     return
                 answer = scripted.pop(0) if scripted else self._own(asked)
+                if answer.after is not None and not await self._released(answer.after):
+                    return
                 if answer.hang_up:
                     return
                 if answer.hold:

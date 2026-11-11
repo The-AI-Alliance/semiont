@@ -14,24 +14,24 @@
  * axioms (event-sourcing) hold server-side; this invariant is client-side.
  *
  * Everything here is the REAL machinery — InMemorySessionStorage,
- * coupledLastEventId, sessionStoragePersister, createCache — driven by a
+ * coupledLastEventId, a SemiontClient and its kept caches — driven by a
  * command interpreter: `deliver` (event arrives: bookmark stashed + cache A
  * invalidated), `complete` (A's oldest in-flight fetch answers with CURRENT
  * server truth — the V1/V2 read-your-writes guarantee), `writeB` (bystander
- * cache B mutates and its save flushes — the write that triggers a bookmark
+ * cache B changes and its save flushes — the write that triggers a bookmark
  * flush), `settleA` (A's debounce fires), `reload` (crash semantics: nothing
  * flushes, fresh rig over the same storage, replay from bookmark+1).
  *
- * The quiescence gate (B17-Q) — the bookmark may flush only when every
- * persisted cache is quiet — is justified here by counterexample rather
- * than by argument: the ungated rig violates C1 on `[deliver, writeB]`, and
- * with the gate no generated interleaving does.
+ * The places coupled to the client (B17-Q) — the bookmark may flush only
+ * when every persisted cache is quiet — are justified here by
+ * counterexample rather than by argument: the uncoupled rig violates C1 on
+ * `[deliver, writeB]`, and coupled, no generated interleaving does.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
 import { InMemorySessionStorage } from '../session/session-storage';
-import { resourceId } from '@semiont/core';
-import { BOOKMARK_KEY, DEBOUNCE_MS, KEY, bookmarkSeq, buildRig, persistedAUpTo } from './helpers/persisted-cache-rig';
+import { SAVE_DEBOUNCE_MS, resourceId } from '@semiont/core';
+import { BOOKMARK_KEY, bookmarkSeq, buildRig, persistedAUpTo } from './helpers/persisted-cache-rig';
 
 type Command = 'deliver' | 'complete' | 'writeB' | 'settleA';
 
@@ -41,38 +41,39 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
 
   /**
    * Interpret one command sequence, then reload and check both halves of C1.
-   * `gated` toggles the quiescence gate so the property doubles as its own
-   * teeth: the ungated rig must violate C1 for the counterexample sequences.
+   * `coupled` couples the places to the client, so the property doubles as
+   * its own teeth: the uncoupled rig must violate C1 for the counterexample
+   * sequences.
    */
-  async function runScenario(commands: Command[], gated: boolean): Promise<{
+  async function runScenario(commands: Command[], coupled: boolean): Promise<{
     c1Held: boolean; renderedEqualsServer: boolean;
   }> {
     const storage = new InMemorySessionStorage();
     let serverSeq = 0;
 
-    let rig = buildRig(storage, gated);
+    let rig = buildRig(storage, coupled);
     // Warm A so the persisted doc exists (mirrors "resource was open before").
-    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
+    rig.observeA();
     rig.resolvers.shift()!({ upTo: serverSeq });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
 
     for (const cmd of commands) {
       switch (cmd) {
         case 'deliver':
           serverSeq += 1;
           rig.saveLastEventId(resourceId('r1'), `p-r1-${serverSeq}`);
-          rig.cacheA.invalidate(KEY);
+          rig.invalidateA();
           break;
         case 'complete':
           rig.resolvers.shift()?.({ upTo: serverSeq });
           await vi.advanceTimersByTimeAsync(0);
           break;
         case 'writeB':
-          rig.cacheB.set('et', { upTo: serverSeq });
-          await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+          rig.changeB();
+          await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
           break;
         case 'settleA':
-          await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+          await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
           break;
       }
     }
@@ -84,8 +85,8 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     // ── Reload: abandon the rig un-disposed (dispose would flush the
     // pending save — a crash does not), kill its timers, rebuild, resume.
     vi.clearAllTimers();
-    rig = buildRig(storage, gated);
-    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
+    rig = buildRig(storage, coupled);
+    rig.observeA();
     // Replay exists ONLY when a bookmark was persisted — a connect with no
     // `Last-Event-ID` is live-only and the server replays nothing. (Modelling
     // an absent bookmark as "replay from 1" is backwards: it heals scenarios
@@ -94,45 +95,45 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     const resumeFrom = storage.get(BOOKMARK_KEY) !== null ? bookmarkSeq(storage) + 1 : null;
     if (resumeFrom !== null) {
       for (let seq = resumeFrom; seq <= serverSeq; seq++) {
-        rig.cacheA.invalidate(KEY);   // replay re-invalidates idempotently
+        rig.invalidateA();   // replay re-invalidates idempotently
       }
     }
     while (rig.resolvers.length > 0) rig.resolvers.shift()!({ upTo: serverSeq });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
 
     // ── C1, corollary: rendered state == server truth.
-    const renderedEqualsServer = (rig.cacheA.get(KEY)?.upTo ?? 0) === serverSeq;
+    const renderedEqualsServer = rig.renderedA() === serverSeq;
     rig.dispose();
     return { c1Held, renderedEqualsServer };
   }
 
-  it('K1 (quiescence-gate keystone): a bystander write while A is mid-refetch does NOT flush the bookmark; the next quiet write does', async () => {
+  it('K1 (coupling keystone): a bystander write while A is mid-refetch does NOT flush the bookmark; the next quiet write does', async () => {
     const storage = new InMemorySessionStorage();
     const rig = buildRig(storage, true);
-    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
+    rig.observeA();
     rig.resolvers.shift()!({ upTo: 0 });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
 
     // Event 1 arrives: bookmark stashed, A's refetch in flight.
     rig.saveLastEventId(resourceId('r1'), 'p-r1-1');
-    rig.cacheA.invalidate(KEY);
+    rig.invalidateA();
 
-    // Bystander B writes its document. Ungated, this flushes p-r1-1 while
-    // A's content is at 0; the gate must hold it back.
-    rig.cacheB.set('et', { upTo: 1 });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    // Bystander B writes its document. Uncoupled, this flushes p-r1-1 while
+    // A's content is at 0; coupled to the client, the places are held back.
+    rig.changeB();
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
     expect(storage.get(BOOKMARK_KEY)).toBeNull();
 
     // A completes and its own save fires — everyone quiet — THAT write
     // carries the bookmark through.
     rig.resolvers.shift()!({ upTo: 1 });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
     expect(JSON.parse(storage.get(BOOKMARK_KEY)!)).toEqual({ r1: 'p-r1-1' });
     expect(persistedAUpTo(storage)).toBe(1);
     rig.dispose();
   });
 
-  it('K2 (gated): deliver → complete → bystander write → crash-reload renders server truth', async () => {
+  it('K2 (coupled): deliver → complete → bystander write → crash-reload renders server truth', async () => {
     const { c1Held, renderedEqualsServer } = await runScenario(
       ['deliver', 'complete', 'writeB'],   // reload lands inside A's debounce window
       true,
@@ -141,17 +142,17 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     expect(renderedEqualsServer).toBe(true);
   });
 
-  it('teeth: the UNGATED rig violates C1 on deliver → bystander write', async () => {
+  it('teeth: the UNCOUPLED rig violates C1 on deliver → bystander write', async () => {
     // The mid-REFETCH window (A's reply not yet in when B's document write
     // flushes the bookmark). Note `[deliver, complete, writeB]` does NOT
-    // violate even ungated: A's own debounced save shares B's deadline and
+    // violate even uncoupled: A's own debounced save shares B's deadline and
     // fires first, landing content before the flush — the write-ordering
     // coupling covers that narrower path, and only that one.
     const { c1Held } = await runScenario(
       ['deliver', 'writeB'],
       false,
     );
-    // Ungated: B's write flushes bookmark 1 while A's refetch is in
+    // Uncoupled: B's write flushes bookmark 1 while A's refetch is in
     // flight — the persisted doc says 0, the bookmark says 1, and replay
     // from 2 redelivers nothing. That storage violation is what this pins.
     expect(c1Held).toBe(false);
@@ -161,7 +162,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     // cache-reload-fidelity.property.test.ts.
   });
 
-  it('C1 property: no interleaving of deliver/complete/writeB/settleA + crash-reload breaks the invariant (gated)', async () => {
+  it('C1 property: no interleaving of deliver/complete/writeB/settleA + crash-reload breaks the invariant (coupled)', async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.array(fc.constantFrom<Command>('deliver', 'complete', 'writeB', 'settleA'), { maxLength: 12 }),

@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for what a registry of knowledge bases keeps in a SessionStorage, and what the sessions it makes keep there: the key each thing is kept under, the shape of a knowledge base's stored session, the shape of a resource open in one, and the shape of a sign-in by a page redirect that is under way. A registry in any SDK finds what one in another wrote, over one storage, only if every SDK says these alike. WHO HOLDS IT. TypeScript states it by hand in packages/typescript/sdk/src/session/storage.ts, oauth.ts and open-resource.ts, held by packages/typescript/sdk/src/session/__tests__/stored-table.test.ts and oauth.test.ts. Rust in packages/rust/sdk/src/session/stored.rs and open_resource.rs, held by packages/rust/sdk/tests/tables.rs and stored.rs's own tests, and in packages/rust/http-transport/src/oauth.rs and session.rs, held by packages/rust/http-transport/tests/sign_in.rs and session.rs's own tests. Go in packages/go/sdk/registry/stored.go and openresource.go, held by packages/go/sdk/registry/stored_test.go, and in packages/go/sdk/authorization.go and storage.go, held by packages/go/sdk/stored_test.go. Kotlin in packages/kotlin/sdk/src/main/kotlin/semiont/registry/Stored.kt and Open.kt and semiont/http/Authorization.kt, held by packages/kotlin/sdk/src/test/kotlin/semiont/registry/StoredTest.kt and semiont/http/AuthorizationTest.kt. Swift in packages/swift/sdk/Sources/Semiont/Registry/Stored.swift, OpenResources.swift and RedirectSignIn.swift, held by packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift and IssuerTests.swift; its generator, packages/swift/sdk/Sources/SemiontCodegen/Tables.swift, makes its stored session of `storedSession`. C# reads the table, which its generator (packages/csharp/sdk/generators/Semiont.Generator/ProtocolGenerator.cs) embeds, in packages/csharp/sdk/src/Semiont/Registry/RegistryStorage.cs, where it states the open resource, and states the pending sign-in in packages/csharp/sdk/src/Semiont/Authorization/RedirectSignIn.cs, held by packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs. Python: packages/codegen/schemas/generate-stored-python.mjs writes packages/python/sdk/src/semiont/stored.py, and packages/python/sdk/tests/test_registry_http.py holds the pending sign-in of packages/python/sdk/src/semiont/http/oauth.py. Haskell: packages/haskell/sdk/codegen/Main.hs generates its keys and prefixes (packages/haskell/sdk/generated/Semiont/Internal/Generated/Stored.hs) and its stored session, pending sign-in and open resource (Models/StoredSession.hs, PendingAuthorization.hs and OpenResource.hs beside it) from the table. Swift and C# keep what a client keeps of its queries under `cacheKeyPrefix` in one document of their own (Swift's key is the prefix, the knowledge base's id and `.swift`; C#'s the prefix, `csharp.v1.` and a digest of the knowledge base's id and the person), with the stream's places inside it, and so keep nothing under `lastEventIdKeyPrefix`: their tests hold the prefix alone. READING IT. `keys` are the fixed keys, each named as protocol/specs/src/client/surface.json names its constant. A knowledge base's session is kept under `sessionKeyPrefix` followed by the knowledge base's id, and `storedSession` is what is kept there, as JSON: a flat object schema whose every member is text. `lastEventIdKeyPrefix` and `cacheKeyPrefix` begin the keys of what a session keeps of its stream and its queries, as each one's `docs` says. `pendingAuthorization` is what is kept under `pendingAuthorizationKey`, and `openResource` each entry of a list kept under `openResourcesByKbKey`, as JSON; a member either does not require is not written when there is none.",
+  "$comment": "AUTHORITY for what a registry of knowledge bases keeps in a SessionStorage, and what the sessions it makes keep there: the key each thing is kept under, the shape of a knowledge base's stored session, the shape of a resource open in one, the shape of a sign-in by a page redirect that is under way, and what a client keeps of its queries and of its stream. A registry in any SDK finds what one in another wrote, over one storage, only if every SDK says these alike. WHO HOLDS IT. TypeScript states it by hand in packages/typescript/sdk/src/session/storage.ts, oauth.ts and open-resource.ts, held by packages/typescript/sdk/src/session/__tests__/stored-table.test.ts and oauth.test.ts. Rust in packages/rust/sdk/src/session/stored.rs and open_resource.rs, held by packages/rust/sdk/tests/tables.rs, and in packages/rust/http-transport/src/oauth.rs, held by packages/rust/http-transport/tests/sign_in.rs. Go in packages/go/sdk/registry/stored.go and openresource.go, held by packages/go/sdk/registry/stored_test.go, and in packages/go/sdk/authorization.go and storage.go, held by packages/go/sdk/stored_test.go. Kotlin in packages/kotlin/sdk/src/main/kotlin/semiont/registry/Stored.kt and Open.kt and semiont/http/Authorization.kt, held by packages/kotlin/sdk/src/test/kotlin/semiont/registry/StoredTest.kt and semiont/http/AuthorizationTest.kt. Swift in packages/swift/sdk/Sources/Semiont/Registry/Stored.swift, OpenResources.swift and RedirectSignIn.swift, held by packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift and IssuerTests.swift; its generator, packages/swift/sdk/Sources/SemiontCodegen/Tables.swift, makes its stored session of `storedSession`. C# reads the table, which its generator (packages/csharp/sdk/generators/Semiont.Generator/ProtocolGenerator.cs) embeds, in packages/csharp/sdk/src/Semiont/Registry/RegistryStorage.cs, where it states the open resource, and states the pending sign-in in packages/csharp/sdk/src/Semiont/Authorization/RedirectSignIn.cs, held by packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs. Python: packages/codegen/schemas/generate-stored-python.mjs writes packages/python/sdk/src/semiont/stored.py, and packages/python/sdk/tests/test_registry_http.py holds the pending sign-in of packages/python/sdk/src/semiont/http/oauth.py. Haskell: packages/haskell/sdk/codegen/Main.hs generates its keys and prefixes (packages/haskell/sdk/generated/Semiont/Internal/Generated/Stored.hs) and its stored session, pending sign-in and open resource (Models/StoredSession.hs, PendingAuthorization.hs and OpenResource.hs beside it) from the table. What a client keeps of its queries and of its stream (`wholeKey`, `cacheDocument`, `lastEventIds`) every SDK holds by running protocol/specs/src/session/cache-cases.json against its own persister: what it writes, and what it keeps of what another wrote. READING IT. `keys` are the fixed keys, each named as protocol/specs/src/client/surface.json names its constant. A knowledge base's session is kept under `sessionKeyPrefix` followed by the knowledge base's id, and `storedSession` is what is kept there, as JSON: a flat object schema whose every member is text. `lastEventIdKeyPrefix` and `cacheKeyPrefix` begin the keys of what a session keeps of its stream and its queries for one person, as each one's `docs` says, and each one's `example` is one key worked out from a knowledge base's id, a person's did and, for a query, its name. The queries a client keeps across a restart are those protocol/specs/src/client/refresh.json marks `persisted`, each kept as a `cacheDocument` under `cacheKeyPrefix`, its entries' values what the query's `value` there says its cache holds. An entry's key is a resource's id for a query `per` resource, an annotation's id for one `per` annotation, and `wholeKey` for one per nothing; a query per filters is not kept. A load keeps nothing of a document whose structure is not `cacheDocument`'s (not JSON, not an object, of another version, its `entries` not a list, or an entry not a key, a value and a stamp), and skips an entry whose key or value is not what its query keeps. A load of `lastEventIds` skips a pair that is not a resource's id and a PersistedEventId, and keeps none of a value that is no object. `pendingAuthorization` is what is kept under `pendingAuthorizationKey`, and `openResource` each entry of a list kept under `openResourcesByKbKey`, as JSON; a member either does not require is not written when there is none.",
   "keys": [
     {
       "member": "knowledgeBasesKey",
@@ -33,11 +33,26 @@
   },
   "lastEventIdKeyPrefix": {
     "prefix": "semiont.lastEventId.",
-    "docs": "Where a knowledge base's stream was is kept under this followed by the knowledge base's id: a JSON object from a scope, a resource's id, to the id of the last recorded event delivered on it. It is written only with a write of the caches kept beside it, so it never leads them."
+    "docs": "Where a knowledge base's stream was, for one person, is kept under this followed by the knowledge base's id, a dot and the person's key: the unpadded base64url SHA-256 of the UTF-8 of the did the gateway answers for the person's token (components/schemas/UserResponse.json), never the did itself. What is kept is `lastEventIds`. It is written in the same call as a write of one of the caches kept beside it, and only while every kept cache has no fetch in flight and owes no save, and the refresher owes no refetch (a window of B19, protocol/contract/CACHE-SEMANTICS.md, that holds an invalidation it has not yet run); so it never leads them. Its own write is never a reason to write a cache. At disposal this is read once, before any kept cache or the refresher is disposed. Nothing is kept for a token whose person the gateway has not named, and forgetting the knowledge base's stored sign-in, however it is forgotten, deletes it.",
+    "example": {
+      "kbId": "kb-a",
+      "did": "did:web:kb.example.org:users:jo%40example.org",
+      "key": "semiont.lastEventId.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I"
+    }
   },
   "cacheKeyPrefix": {
     "prefix": "semiont.cache.",
-    "docs": "What a client keeps of a query is kept under this followed by its persistence's key prefix, a dot and the query's name. A registry's session takes the knowledge base's id for its key prefix."
+    "docs": "What a client keeps of a query, for one person, is kept under this followed by the knowledge base's id, a dot, the person's key as `lastEventIdKeyPrefix` makes it, a dot and the query's name: one `cacheDocument` for each query protocol/specs/src/client/refresh.json marks `persisted`. Nothing is kept for a token whose person the gateway has not named, and forgetting the knowledge base's stored sign-in, however it is forgotten, deletes the key of every kept query.",
+    "example": {
+      "kbId": "kb-a",
+      "did": "did:web:kb.example.org:users:jo%40example.org",
+      "query": "annotation",
+      "key": "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.annotation"
+    }
+  },
+  "wholeKey": {
+    "key": "_",
+    "docs": "The key a kept query that is per nothing (a `queries` row of protocol/specs/src/client/refresh.json with no `per`) keeps its one entry under."
   },
   "storedSession": {
     "title": "StoredSession",
@@ -63,6 +78,10 @@
       "revocationEndpoint": {
         "type": "string",
         "description": "The issuer's revocation endpoint (RFC 7009), where a sign-out tells it to forget the refresh token. Absent when the issuer has none."
+      },
+      "personKey": {
+        "type": "string",
+        "description": "Who the gateway said the sign-in's person is, as the key their caches and stream position are kept under (`lastEventIdKeyPrefix`), never the did itself. Written once the gateway names the person, on the sign-in whose token it was asked about; a renewal keeps it, a new sign-in starts without it, and forgetting the sign-in, however it is forgotten, reads it first to delete what is kept under it. Absent for a sign-in whose gateway has not yet named its person."
       }
     },
     "required": ["access", "refresh", "clientId", "tokenEndpoint"]
@@ -163,5 +182,42 @@
       }
     },
     "required": ["id", "name", "openedAt", "order"]
+  },
+  "cacheDocument": {
+    "title": "CacheDocument",
+    "type": "object",
+    "description": "What a client keeps of one query: each key it was asked of, the value its answer gave, and when that value was received.",
+    "properties": {
+      "version": {
+        "const": 1,
+        "description": "The form of the document. A document of another version is read as none."
+      },
+      "entries": {
+        "type": "array",
+        "description": "The query's kept keys. A document larger than `maxStoredBytesCount` (protocol/specs/src/client/timing.json) loses the entries received longest ago until it fits.",
+        "items": {
+          "type": "array",
+          "prefixItems": [
+            { "description": "The key: a resource's id for a query per resource, an annotation's id for one per annotation, `wholeKey` for one per nothing." },
+            { "description": "The value: what the query's `value` in protocol/specs/src/client/refresh.json says its cache holds." },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "When the value was received, in milliseconds since the Unix epoch. A value received again unchanged (its JSON text the text it was kept with) keeps the time it was first received."
+            }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    },
+    "required": ["version", "entries"]
+  },
+  "lastEventIds": {
+    "title": "LastEventIds",
+    "type": "object",
+    "description": "Where a knowledge base's stream was: for each scope, a resource's id, the id of the last recorded event delivered on it.",
+    "propertyNames": { "$ref": "../components/schemas/ResourceId.json" },
+    "additionalProperties": { "$ref": "../components/schemas/PersistedEventId.json" }
   }
 }

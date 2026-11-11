@@ -28,13 +28,14 @@ import type {
   ResourceId,
   components,
 } from '@semiont/core';
-import type { SessionStorage } from './session/session-storage';
+import type { CachePersistence } from './cache-persister';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { FaultyTransport, type FaultyTransportConfig } from '@semiont/core/testing';
 import { SemiontClient } from './client';
 import { SemiontSession } from './session/semiont-session';
 import type { KbTarget } from '@semiont/core';
 import { httpKb } from './session/knowledge-base';
+import { keptIn } from './session/storage';
 import { InMemorySessionStorage } from './session/session-storage';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -140,7 +141,7 @@ export interface TestClientOptions {
   /** Replace the in-memory content transport (e.g. to pre-seed bytes). */
   content?: IContentTransport;
   /** B17 persistence, for rehydration tests. Omitted = in-memory caches. */
-  cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+  cachePersistence?: CachePersistence;
 }
 
 /**
@@ -189,11 +190,12 @@ export interface TestSessionOptions extends TestClientOptions {
 
 /**
  * A real `SemiontSession` over the same scriptable stack — for testing
- * state-unit factories, which take a session.
+ * state-unit factories, which take a session. Its sign-in is kept in
+ * `storage`, as a registry's session's is (`keptIn`).
  * No token is seeded and no
  * `validate`/`refresh` callbacks are wired, so `session.ready` settles
  * immediately; tests that need an authenticated shape push into `token$`.
- * The caller ends the session and then the client: the session only uses it.
+ * The caller ends the client and then the session: the session only uses it.
  */
 export function createTestSession(options: TestSessionOptions = {}): {
   session: SemiontSession;
@@ -214,6 +216,6 @@ export function createTestSession(options: TestSessionOptions = {}): {
       port: 4000,
       protocol: 'http',
     });
-  const session = new SemiontSession({ kb, storage, client, token$ });
+  const session = new SemiontSession({ kb, kept: keptIn(storage, kb.id), client, token$ });
   return { session, client, transport, storage, token$ };
 }

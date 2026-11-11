@@ -345,6 +345,56 @@ private func form(_ data: Data) -> [String: String] {
     })
 }
 
+// A session opened over a kept sign-in asks the gateway who its token is unless it is told not
+// to: leaving `validate` out asks once, and `validate: false` asks nobody.
+@Test func aSessionOverAKeptSignInAsksWhoItsTokenIsUnlessToldNotTo() async throws {
+  let access = try jwt(
+    .object(["iss": .string("issuer"), "exp": .number(Date().timeIntervalSince1970 + 3600)]))
+  for validate in [nil, false] as [Bool?] {
+    let why = validate.map { "validate: \($0)" } ?? "validate left out"
+    let asks = Mutex(0)
+    try await issuerServer(
+      { path, _, _ in
+        guard path == "/api/users/me" else { return (200, [:]) }
+        asks.withLock { $0 += 1 }
+        return (
+          200,
+          [
+            "did": .string("did:web:kb:users:alice"), "domain": .string("kb"), "email": .null,
+            "name": .null, "image": .null,
+          ]
+        )
+      },
+      run: { origin, http in
+        let port = try #require(URLComponents(string: origin)?.port)
+        let target = KbTarget(
+          endpoint: .httpEndpoint(HttpEndpoint(host: "127.0.0.1", port: port, protocol: .http)),
+          id: "test", label: "test")
+        let kept = MemorySignIn(
+          HeldSignIn(
+            access: access, clientId: scriptClientID, refresh: "refresh",
+            tokenEndpoint: origin + "/token"))
+        let opened: OpenedSession
+        if let validate {
+          opened = try await sessionFromKept(
+            kb: target, kept: kept, httpClient: http, validate: validate)
+        } else {
+          opened = try await sessionFromKept(kb: target, kept: kept, httpClient: http)
+        }
+        defer { opened.dispose() }
+        try await withinTestDeadline { try await opened.session.ready() }
+        #expect(opened.session.token.value == access, "\(why)")
+        if validate == false {
+          #expect(asks.withLock { $0 } == 0, "\(why)")
+          #expect(opened.session.user.value == nil, "\(why)")
+        } else {
+          #expect(asks.withLock { $0 } == 1, "\(why)")
+          #expect(opened.session.user.value?.did.value == "did:web:kb:users:alice", "\(why)")
+        }
+      })
+  }
+}
+
 @Test func aSignInBegunIsKeptAsTheStoredTableStatesIt() async throws {
   let origin = Mutex("")
   try await issuerServer(

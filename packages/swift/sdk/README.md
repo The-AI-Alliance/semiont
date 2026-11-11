@@ -132,12 +132,21 @@ the resource's event subscription until iteration ends. Call `fresh()` to ask
 the service directly and share its answer with observers. Disposing the client
 ends the sequences.
 
-Pass `CachePersistence(storage:keyPrefix:)` as the client's `persistence` option
-to keep resource details, annotations, and vocabulary in application-provided
-`SessionStorage`. Use a distinct prefix for each knowledge base. The first
-observation shows the saved value while asking for a current one. The HTTP
-transport resumes saved resource scopes from bookmarks committed with the cache.
-Disposal flushes pending settled values.
+Pass `CachePersistence(storage:kbId:personKey:)` (the key from `personKey(_:)`)
+as the client's `persistence` option to keep resource details, annotations, and
+vocabulary in application-provided `SessionStorage` for one person. Each kept
+query is one document under `semiont.cache.<kbId>.<personKey>.<query>`, in the
+form every Semiont SDK reads, so a client in another language finds what this
+one kept. The first observation shows the saved value while asking for a
+current one. Where the stream was is kept under
+`semiont.lastEventId.<kbId>.<personKey>`, and the HTTP transport resumes each
+resource scope from it; it is written beside a cache's document only while
+nothing kept is still being fetched or saved. Disposal flushes pending settled
+values. A registry's session keeps for the person once its stored sign-in names
+them, and forgetting that sign-in, however it is forgotten, signing in again
+included, deletes what was kept. A session the SDK builds, `sessionFromKept`
+with a storage too, writes only while the sign-in it holds names its person; a
+client you construct with a `CachePersistence` of your own writes unchecked.
 
 ## Signing in and managing a session
 
@@ -154,11 +163,17 @@ survive. `MemorySignIn` follows the same renewal rules. `stateDir` computes the
 launcher’s directory from values the application supplies; it reads no environment.
 
 `sessionFromKept` returns an `OpenedSession`, which owns the session and its HTTP
-transport. Dispose that owner before shutting down the HTTP client. The session’s
-`ready()` raises startup task failures; `errors()` reports session, transport and
-storage failures. Pass `onError` to hear the session’s own `SessionError`s from the start of
-construction, including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
-network renewal keeps the stored sign-in for another attempt. The transport tells the session the token refused:
+transport. Dispose that owner before shutting down the HTTP client. The session asks the
+gateway who its token is unless it is opened with `validate: false`. Its `ready()` raises
+startup task failures; `errors()` is its one stream of what went wrong: its own
+`SessionError`s (a sign-in it could not check, renew, read or record, a write its storage
+refused) and its transport’s failures, each said once. What it says before anyone reads
+`errors()` is kept for the first reader. The stream ends when the session ends. Disposing the
+`OpenedSession` closes the client first and ends the session once the client’s closing flush
+has written, so what that flush meets arrives first; what the client meets once its session has
+ended is said nowhere. Startup is bounded, overlapping refusals share
+one renewal, and a renewal that gets no answer, whatever failed, keeps the stored sign-in for
+another attempt. The transport tells the session the token refused:
 a refusal of a token the session has already replaced is given the token it holds, and renews nothing. Session token and
 user state are read-only, and their sequences finish on disposal.
 
@@ -208,13 +223,21 @@ and activate it. Launcher discovery can read a document supplied by the app
 or a document over HTTP. The discovery stream reports absent launchers,
 managed knowledge bases, and changes by address.
 
+The registry is the one reader of each session's `errors()`, from the first
+thing the session said. It says each of the session's own `SessionError`s on
+its own `errors()`. A refusal for want of a valid token renews the session,
+handed the token it holds as the refusal is read. A refusal for lack of
+permission is said through the session's `SessionSignals.permissionDenied`,
+with the refusal's message. A `SessionFactory` reads none of them, so a
+session from a factory you write is read the same way.
+
 State units expose read-only `Watched` values for a viewer or application.
 Use `MarkStateUnit` to compose annotations and follow delegated work,
 `YieldStateUnit` for generation, `GatherStateUnit` for annotation and resource
 context, and `MatchStateUnit` for searches requested on the local bus.
 `BeckonStateUnit`, `HoverDwell`, and `SearchPipeline` hold attention and
 search input. `SessionSignals` carries session notices. `Cache` offers the
-same read-through queries for app data, with optional `CachePersistence`.
+same read-through queries for app data, with an optional `StoragePersister`.
 
 Call `dispose()` on a state unit to cancel its work and finish its streams.
 The app owns the client it handed the unit. Await `SemiontBrowser.close()`

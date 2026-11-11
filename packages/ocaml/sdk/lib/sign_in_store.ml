@@ -231,20 +231,22 @@ let remove t ~key =
   with_lock t (fun entries ->
       if List.mem_assoc key entries then write t (List.remove_assoc key entries))
 
+let expiry entry =
+  match entry.expires_at with
+  | Some _ as expiry -> expiry
+  | None -> Session.token_expiry entry.token
+
 let fresh t entry =
-  let expiry =
-    match entry.expires_at with
-    | Some _ as expiry -> expiry
-    | None -> Session.token_expiry entry.token
-  in
   Option.fold ~none:true
     ~some:(fun expiry -> expiry > Clock.wall_now t.clock)
-    expiry
+    (expiry entry)
 
-let renew t ~key ~http ~refused =
+let renew t ~key ~http ~holding =
   match find t ~key with
   | None -> Session.Refused
-  | Some prior when Some prior.token <> refused && fresh t prior ->
+  | Some prior
+    when Kept_renewal.renewed_elsewhere ~now:(Clock.wall_now t.clock) ~holding
+           ~expiry:(expiry prior) prior.token ->
       Session.Renewed prior.token
   | Some prior -> (
       match prior.refresh_token with
@@ -287,25 +289,15 @@ let renew t ~key ~http ~refused =
                       Session.Renewed tokens.access_token)))
 
 let session t ~sw ~key ~http =
-  let initial_token =
-    match find t ~key with
-    | Some entry when fresh t entry -> Some entry.token
-    | Some _ -> (
-        match renew t ~key ~http ~refused:None with
-        | Session.Renewed bearer -> Some bearer
-        | Session.Refused | Session.Unavailable -> None)
-    | None -> None
+  let found = find t ~key in
+  let session =
+    Session.start ~sw ~clock:t.clock
+      ~initial_token:(Option.map (fun entry -> entry.token) found)
+      ~renew:(renew t ~key ~http) ()
   in
-  let last = ref initial_token in
-  let renew ~refused =
-    let refused = match refused with Some _ -> refused | None -> !last in
-    let outcome = renew t ~key ~http ~refused in
-    (match outcome with
-    | Session.Renewed bearer -> last := Some bearer
-    | _ -> ());
-    outcome
-  in
-  Session.start ~sw ~clock:t.clock ~initial_token ~renew ()
+  if Option.exists (fun entry -> not (fresh t entry)) found then
+    ignore (Session.refresh_outcome session);
+  session
 
 let sign_out t ~key ~http =
   let held =

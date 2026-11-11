@@ -139,7 +139,7 @@ let tests env ~name ~via ~row =
   in
   let session =
     Session.start ~sw ~clock ~initial_token:(Some "test-token")
-      ~renew:(fun ~refused:_ -> Session.Refused)
+      ~renew:(fun ~holding:_ -> Session.Refused)
       ()
   in
   let frame channel correlation payload =

@@ -128,9 +128,10 @@ actor LiveDriver {
         }
       }
     }
+    let driver = try UserId("did:web:conformance.example:users:driver")
     let persistence =
       try args.optionalBool("persist") == true
-      ? CachePersistence(storage: storage, keyPrefix: "conformance") : nil
+      ? CachePersistence(storage: storage, kbId: "conformance", personKey: personKey(driver)) : nil
     let transport = HttpTransport(
       baseUrl: try args.text("baseUrl"), httpClient: http, token: try args.text("token"),
       timing: transportTiming)

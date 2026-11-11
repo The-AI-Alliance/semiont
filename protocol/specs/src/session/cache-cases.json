@@ -1,0 +1,1207 @@
+{
+  "$comment": "AUTHORITY for what a client keeps of its queries and of its stream in a SessionStorage, and what it keeps of what another client wrote there: the queries protocol/specs/src/client/refresh.json marks `persisted`, and protocol/specs/src/session/stored.json's `wholeKey`, `cacheDocument` and `lastEventIds`, case by case. Every SDK runs every case through its own persister for the case's query, under the key stored.json gives it for a knowledge base and a person of the runner's choosing (`cacheKeyPrefix`, the knowledge base's id, `.`, the person's key, `.`, the query's name; `lastEventIdKeyPrefix`, the knowledge base's id, `.` and the person's key), and fails on a difference. `cases` are loads: `stored` is kept under the query's key as its JSON text, or `storedText` as it is; `kept` is every entry the load keeps, a key as the document writes it and a value, compared as a map, as the entries' order is no part of the rule. `writes`: `held` is what the query's cache holds once its answers came; `written` is the document the save writes, its entries compared as a map, and each entry's third item, its stamp, an integer of at least 0 (which one is the clock's, no part of the rule). `refusedWrites` are writes as `writes` are, over a storage that refuses the first write of the query's document: the cache still owes its save after it, and disposal's flush, which the storage takes, writes `written`. `places` are loads of `lastEventIds`: `stored` or `storedText` as for `cases`, and `kept` the places the load keeps. Every value is a wire value its query's `value` in refresh.json holds, except where a case's name says it is not the query's.",
+  "runBy": {
+    "typescript": [
+      "packages/typescript/core/src/__tests__/cache-cases.test.ts",
+      "packages/typescript/sdk/src/__tests__/cache-cases.test.ts"
+    ],
+    "rust": [
+      "packages/rust/sdk/tests/cache_cases.rs"
+    ],
+    "python": [
+      "packages/python/sdk/tests/test_cache_cases.py"
+    ],
+    "go": [
+      "packages/go/sdk/cache_cases_test.go"
+    ],
+    "kotlin": [
+      "packages/kotlin/sdk/src/test/kotlin/semiont/storage/CacheCasesTest.kt"
+    ],
+    "swift": [
+      "packages/swift/sdk/Tests/SemiontTests/CacheCasesTests.swift"
+    ],
+    "csharp": [
+      "packages/csharp/sdk/tests/Semiont.Tests/CacheCasesTests.cs"
+    ],
+    "haskell": [
+      "packages/haskell/sdk/test/CacheDocumentCases.hs"
+    ]
+  },
+  "notYetReached": {
+    "ocaml": "OCaml's Storage_persister keeps every query's values and the stream's places in one document under one key: it is to keep one document per persisted query, as stored.json's `cacheDocument`, and the places as its `lastEventIds`, under the keys these cases name, and to run every case through it."
+  },
+  "cases": [
+    {
+      "name": "a resource's document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            2000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "res-1",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "One",
+            "representations": []
+          }
+        ],
+        [
+          "res-2",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Two",
+            "representations": []
+          }
+        ]
+      ]
+    },
+    {
+      "name": "an annotations document",
+      "query": "annotations",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "annotations": [
+                {
+                  "@context": "http://www.w3.org/ns/anno.jsonld",
+                  "type": "Annotation",
+                  "id": "ann-1",
+                  "motivation": "highlighting",
+                  "target": {
+                    "source": "res-1"
+                  },
+                  "created": "2026-01-01T00:00:00.000Z"
+                }
+              ],
+              "total": 1
+            },
+            1000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "res-1",
+          {
+            "annotations": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-1",
+                "motivation": "highlighting",
+                "target": {
+                  "source": "res-1"
+                },
+                "created": "2026-01-01T00:00:00.000Z"
+              }
+            ],
+            "total": 1
+          }
+        ]
+      ]
+    },
+    {
+      "name": "an annotation's document",
+      "query": "annotation",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "ann-1",
+            {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "highlighting",
+              "target": {
+                "source": "res-1"
+              },
+              "created": "2026-01-01T00:00:00.000Z"
+            },
+            1000
+          ],
+          [
+            "ann-2",
+            {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-2",
+              "motivation": "highlighting",
+              "target": {
+                "source": "res-1"
+              },
+              "created": "2026-01-01T00:00:00.000Z"
+            },
+            1000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "ann-1",
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "highlighting",
+            "target": {
+              "source": "res-1"
+            },
+            "created": "2026-01-01T00:00:00.000Z"
+          }
+        ],
+        [
+          "ann-2",
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-2",
+            "motivation": "highlighting",
+            "target": {
+              "source": "res-1"
+            },
+            "created": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "the entity types' document",
+      "query": "entityTypes",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "_",
+            [
+              "Person",
+              "Place"
+            ],
+            1000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "_",
+          [
+            "Person",
+            "Place"
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "the tag schemas' document",
+      "query": "tagSchemas",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "_",
+            [
+              {
+                "id": "kinds",
+                "name": "Kinds",
+                "description": "What kind of claim a passage makes.",
+                "domain": "general",
+                "tags": [
+                  {
+                    "name": "Claim",
+                    "description": "A statement put forward as true.",
+                    "examples": [
+                      "The bridge opened in spring."
+                    ]
+                  }
+                ]
+              }
+            ],
+            1000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "_",
+          [
+            {
+              "id": "kinds",
+              "name": "Kinds",
+              "description": "What kind of claim a passage makes.",
+              "domain": "general",
+              "tags": [
+                {
+                  "name": "Claim",
+                  "description": "A statement put forward as true.",
+                  "examples": [
+                    "The bridge opened in spring."
+                  ]
+                }
+              ]
+            }
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "an empty document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": []
+      },
+      "kept": []
+    },
+    {
+      "name": "a member the document does not state is no part of it",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "writtenAt": 1000,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "res-1",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "One",
+            "representations": []
+          }
+        ]
+      ]
+    },
+    {
+      "name": "text that is no JSON",
+      "query": "resource",
+      "storedText": "{\"version\":1,\"entries\":[",
+      "kept": []
+    },
+    {
+      "name": "a document that is no object",
+      "query": "resource",
+      "stored": [
+        [
+          "res-1",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "One",
+            "representations": []
+          },
+          1000
+        ]
+      ],
+      "kept": []
+    },
+    {
+      "name": "a document of another version",
+      "query": "resource",
+      "stored": {
+        "version": 2,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "a document with no version",
+      "query": "resource",
+      "stored": {
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "a version that is text",
+      "query": "resource",
+      "stored": {
+        "version": "1",
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "entries that are no list",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": {
+          "res-1": {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "One",
+            "representations": []
+          }
+        }
+      },
+      "kept": []
+    },
+    {
+      "name": "an entry that is no list drops the document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          {
+            "key": "res-2",
+            "value": {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            "at": 2000
+          }
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "an entry of two items drops the document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            }
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "an entry of four items drops the document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            2000,
+            3000
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "a stamp that is text drops the document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            "2000"
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "a negative stamp drops the document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            -1
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "a stamp that is no whole number drops the document",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            2000.5
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "a value that is not the query's is skipped",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "name": "One"
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            2000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "res-2",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Two",
+            "representations": []
+          }
+        ]
+      ]
+    },
+    {
+      "name": "a null value is skipped",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            null,
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            2000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "res-2",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Two",
+            "representations": []
+          }
+        ]
+      ]
+    },
+    {
+      "name": "a key that is no resource's id is skipped",
+      "query": "resource",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "not an id!",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            },
+            1000
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            },
+            2000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "res-2",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Two",
+            "representations": []
+          }
+        ]
+      ]
+    },
+    {
+      "name": "a key that is no annotation's id is skipped",
+      "query": "annotation",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            {
+              "resource": "res-1",
+              "annotation": "ann-1"
+            },
+            {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "highlighting",
+              "target": {
+                "source": "res-1"
+              },
+              "created": "2026-01-01T00:00:00.000Z"
+            },
+            1000
+          ],
+          [
+            "ann-2",
+            {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-2",
+              "motivation": "highlighting",
+              "target": {
+                "source": "res-1"
+              },
+              "created": "2026-01-01T00:00:00.000Z"
+            },
+            1000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "ann-2",
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-2",
+            "motivation": "highlighting",
+            "target": {
+              "source": "res-1"
+            },
+            "created": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "the annotation list alone is not what annotations keeps",
+      "query": "annotations",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-1",
+                "motivation": "highlighting",
+                "target": {
+                  "source": "res-1"
+                },
+                "created": "2026-01-01T00:00:00.000Z"
+              }
+            ],
+            1000
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "a query per nothing keeps its entry under the whole key alone",
+      "query": "entityTypes",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            {},
+            [
+              "Person",
+              "Place"
+            ],
+            1000
+          ]
+        ]
+      },
+      "kept": []
+    },
+    {
+      "name": "an entry of a query per nothing under another text is skipped",
+      "query": "entityTypes",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "_",
+            [
+              "Person",
+              "Place"
+            ],
+            1000
+          ],
+          [
+            "x",
+            [
+              "Place"
+            ],
+            1000
+          ]
+        ]
+      },
+      "kept": [
+        [
+          "_",
+          [
+            "Person",
+            "Place"
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a number is its value: a version written 1.0 and a stamp written 1e3",
+      "query": "entityTypes",
+      "storedText": "{\"version\":1.0,\"entries\":[[\"_\",[\"Person\",\"Place\"],1e3]]}",
+      "kept": [
+        [
+          "_",
+          [
+            "Person",
+            "Place"
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a stamp written with a zero fraction is a whole number",
+      "query": "resource",
+      "storedText": "{\"version\": 1, \"entries\": [[\"res-1\", {\"@context\": \"https://schema.org/\", \"@id\": \"res-1\", \"name\": \"One\", \"representations\": []}, 1000.0]]}",
+      "kept": [
+        [
+          "res-1",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "One",
+            "representations": []
+          }
+        ]
+      ]
+    },
+    {
+      "name": "tag schemas that are not the query's are skipped",
+      "query": "tagSchemas",
+      "stored": {
+        "version": 1,
+        "entries": [
+          [
+            "_",
+            [
+              {
+                "id": "kinds"
+              }
+            ],
+            1000
+          ]
+        ]
+      },
+      "kept": []
+    }
+  ],
+  "writes": [
+    {
+      "name": "a resource",
+      "query": "resource",
+      "held": [
+        [
+          "res-1",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "One",
+            "representations": []
+          }
+        ],
+        [
+          "res-2",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Two",
+            "representations": []
+          }
+        ]
+      ],
+      "written": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            }
+          ],
+          [
+            "res-2",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-2",
+              "name": "Two",
+              "representations": []
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a resource's annotations",
+      "query": "annotations",
+      "held": [
+        [
+          "res-1",
+          {
+            "annotations": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-1",
+                "motivation": "highlighting",
+                "target": {
+                  "source": "res-1"
+                },
+                "created": "2026-01-01T00:00:00.000Z"
+              }
+            ],
+            "total": 1
+          }
+        ]
+      ],
+      "written": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "annotations": [
+                {
+                  "@context": "http://www.w3.org/ns/anno.jsonld",
+                  "type": "Annotation",
+                  "id": "ann-1",
+                  "motivation": "highlighting",
+                  "target": {
+                    "source": "res-1"
+                  },
+                  "created": "2026-01-01T00:00:00.000Z"
+                }
+              ],
+              "total": 1
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "name": "an annotation",
+      "query": "annotation",
+      "held": [
+        [
+          "ann-1",
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "highlighting",
+            "target": {
+              "source": "res-1"
+            },
+            "created": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      ],
+      "written": {
+        "version": 1,
+        "entries": [
+          [
+            "ann-1",
+            {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "highlighting",
+              "target": {
+                "source": "res-1"
+              },
+              "created": "2026-01-01T00:00:00.000Z"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "name": "the entity types",
+      "query": "entityTypes",
+      "held": [
+        [
+          "_",
+          [
+            "Person",
+            "Place"
+          ]
+        ]
+      ],
+      "written": {
+        "version": 1,
+        "entries": [
+          [
+            "_",
+            [
+              "Person",
+              "Place"
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "name": "the tag schemas",
+      "query": "tagSchemas",
+      "held": [
+        [
+          "_",
+          [
+            {
+              "id": "kinds",
+              "name": "Kinds",
+              "description": "What kind of claim a passage makes.",
+              "domain": "general",
+              "tags": [
+                {
+                  "name": "Claim",
+                  "description": "A statement put forward as true.",
+                  "examples": [
+                    "The bridge opened in spring."
+                  ]
+                }
+              ]
+            }
+          ]
+        ]
+      ],
+      "written": {
+        "version": 1,
+        "entries": [
+          [
+            "_",
+            [
+              {
+                "id": "kinds",
+                "name": "Kinds",
+                "description": "What kind of claim a passage makes.",
+                "domain": "general",
+                "tags": [
+                  {
+                    "name": "Claim",
+                    "description": "A statement put forward as true.",
+                    "examples": [
+                      "The bridge opened in spring."
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "refusedWrites": [
+    {
+      "name": "the entity types, whose first write the storage refuses",
+      "query": "entityTypes",
+      "held": [
+        [
+          "_",
+          [
+            "Person",
+            "Place"
+          ]
+        ]
+      ],
+      "written": {
+        "version": 1,
+        "entries": [
+          [
+            "_",
+            [
+              "Person",
+              "Place"
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a resource, whose first write the storage refuses",
+      "query": "resource",
+      "held": [
+        [
+          "res-1",
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "One",
+            "representations": []
+          }
+        ]
+      ],
+      "written": {
+        "version": 1,
+        "entries": [
+          [
+            "res-1",
+            {
+              "@context": "https://schema.org/",
+              "@id": "res-1",
+              "name": "One",
+              "representations": []
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "places": [
+    {
+      "name": "places",
+      "stored": {
+        "res-1": "p-res-1-47",
+        "res-2": "p-res-2-3"
+      },
+      "kept": {
+        "res-1": "p-res-1-47",
+        "res-2": "p-res-2-3"
+      }
+    },
+    {
+      "name": "a place that is no persisted event's id is skipped",
+      "stored": {
+        "res-1": "e-res-1-47",
+        "res-2": "p-res-2-3"
+      },
+      "kept": {
+        "res-2": "p-res-2-3"
+      }
+    },
+    {
+      "name": "a place that is no text is skipped",
+      "stored": {
+        "res-1": 47,
+        "res-2": "p-res-2-3"
+      },
+      "kept": {
+        "res-2": "p-res-2-3"
+      }
+    },
+    {
+      "name": "a scope that is no resource's id is skipped",
+      "stored": {
+        "not an id!": "p-x-1",
+        "res-2": "p-res-2-3"
+      },
+      "kept": {
+        "res-2": "p-res-2-3"
+      }
+    },
+    {
+      "name": "places that are no object are none",
+      "stored": [
+        "res-1",
+        "p-res-1-47"
+      ],
+      "kept": {}
+    },
+    {
+      "name": "text that is no JSON is no places",
+      "storedText": "{\"res-1\":",
+      "kept": {}
+    }
+  ]
+}

@@ -33,7 +33,8 @@ import type { HttpEndpoint } from '@semiont/core';
 import { fetchOf } from '../fetch-of';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
-import { getStoredSession, isJwtExpired, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
+import type { SignInKept } from './sign-in-kept';
+import { base64url, isJwtExpired, kbGatewayUrl } from './storage';
 
 // All of `crypto` this module may use: what a browser gives every page.
 // `crypto.subtle` and `crypto.randomUUID` exist only in a secure context, and
@@ -112,12 +113,6 @@ export async function discoverIssuer(target: HttpEndpoint, fetch?: typeof global
 }
 
 // ---------- PKCE ----------
-
-function base64url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 function randomUrlSafe(bytes: number): string {
   const buffer = new Uint8Array(bytes);
@@ -349,16 +344,16 @@ export async function refreshAtIssuer(
 }
 
 /**
- * Renew a stored session at its issuer and persist the rotation.
+ * Renew the sign-in `kept` holds at its issuer, and keep the rotation there.
  *
- * **Null means only that nothing is stored** — an absence, not a failure. A
+ * **Null means only that nothing is kept** — an absence, not a failure. A
  * renewal that FAILS throws, carrying the issuer's own words, its last
  * status when it answered one, and, when the retry budget ran out, how many
  * attempts it took to give up.
  *
  * `null` is deliberately that narrow: a failure throws specifically to keep
  * the cause, which a bare `null` cannot carry, and the session reads it — at
- * its start, only the issuer's refusal forgets the stored session. Without
+ * its start, only the issuer's refusal forgets the kept sign-in. Without
  * the attempt count, an operator reading `Token refresh failed: HTTP 503`
  * cannot tell whether that was tried once or four times, and the difference
  * decides whether they look at the network or at the issuer.
@@ -375,7 +370,7 @@ export async function refreshAtIssuer(
  * visible re-login, so this only ever delays the re-login, never replaces it.
  *
  * `holding` is the access token the renewer holds: the one the gateway
- * refused, or the one due; null for none. A stored one that is another and
+ * refused, or the one due; null for none. A kept one that is another and
  * has not expired was renewed elsewhere meanwhile, by another context or
  * another program: it is given as it is, and the refresh token, which the
  * issuer may have replaced, is not spent
@@ -383,22 +378,21 @@ export async function refreshAtIssuer(
  *
  * The issuer is asked with `fetch`, or the runtime's own.
  */
-export async function refreshStoredSession(
-  storage: SessionStorage,
-  kbId: string,
+export async function renewKept(
+  kept: SignInKept,
   holding: string | null,
   fetch?: typeof globalThis.fetch,
 ): Promise<string | null> {
-  const stored = getStoredSession(storage, kbId);
-  if (!stored) return null;
-  if (stored.access !== holding && !isJwtExpired(stored.access)) return stored.access;
+  const held = kept.held();
+  if (!held) return null;
+  if (held.access !== holding && !isJwtExpired(held.access)) return held.access;
 
   let attempts = 0;
   try {
     const { access, refresh } = await retryWithBackoff(
       () => {
         attempts += 1;
-        return refreshAtIssuer(stored.tokenEndpoint, stored.clientId, stored.refresh, fetch);
+        return refreshAtIssuer(held.tokenEndpoint, held.clientId, held.refresh, fetch);
       },
       // `status` absent means `fetch` threw before a response existed, which
       // the rule reads as transient — the one place absence means "try again".
@@ -407,32 +401,18 @@ export async function refreshStoredSession(
       ),
       REFRESH_RETRY,
     );
-    // Written against what is stored NOW, as one step, not what was read
-    // before the grant: a session signed out, or ended, while it was being
-    // renewed is gone. Writing it back would undo that with a refresh token
-    // nobody revoked, and handing its token to the caller would give a
-    // session that is over a credential again. A session that no longer
-    // holds the tokens read was renewed some other way meanwhile: that
-    // stands, and its access token is the one given.
-    let given: string | null = null;
-    storage.update(sessionKey(kbId), (held) => {
-      const current = storedSessionIn(held);
-      if (!current) {
-        given = null;
-        return held;
-      }
-      if (current.access !== stored.access || current.refresh !== stored.refresh) {
-        given = current.access;
-        return held;
-      }
-      given = access;
-      return JSON.stringify({ ...current, access, refresh });
-    });
-    return given;
+    // Kept against what is kept NOW, as one step, not what was read before
+    // the grant: a sign-in signed out, or ended, while it was being renewed
+    // is gone. Writing it back would undo that with a refresh token nobody
+    // revoked, and handing its token to the caller would give a session that
+    // is over a credential again. A sign-in that no longer holds the tokens
+    // read was renewed some other way meanwhile: that stands, and its access
+    // token is the one given.
+    return kept.renewed(held, access, refresh);
   } catch (error) {
     // One attempt means the issuer answered and the answer was final; more
     // means the budget ran out. Saying which is the whole point of counting.
-    // What is not the issuer's, a storage that would not keep the renewal, is
+    // What is not the issuer's, a place that would not keep the renewal, is
     // its own error.
     if (attempts <= 1 || !(error instanceof SignInError)) throw error;
     throw new SignInError(

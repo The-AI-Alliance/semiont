@@ -1,5 +1,5 @@
 import {
-  InMemorySessionStorage,
+  MemorySignIn,
   SemiontSession,
   kbGatewayUrl,
   type KbTarget,
@@ -45,8 +45,8 @@ export interface KbConnection {
  * not fix it.
  *
  * The issuer's side is the desktop shell's (`AuthBridge`), which also keeps the tokens.
- * The session here holds an access token and asks the shell for the next one, so its own
- * storage is memory.
+ * The session here holds an access token and asks the shell for the next one, so it keeps
+ * no sign-in of its own: its `kept` is an empty `MemorySignIn`.
  *
  * `onEnded` is told when the session is over: its token could not be renewed, or the
  * knowledge base refused one its issuer had just issued.
@@ -75,7 +75,7 @@ export async function connect(
 
   const opened = SemiontSession.fromHttp({
     kb,
-    storage: new InMemorySessionStorage(),
+    kept: new MemorySignIn(),
     baseUrl: kbGatewayUrl(kb.endpoint),
     token: access,
     refresh: (holding) => bridge.refresh(kb.id, holding),

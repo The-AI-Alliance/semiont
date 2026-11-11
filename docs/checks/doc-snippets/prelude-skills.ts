@@ -6,6 +6,7 @@
 // typed against the real surface. Everything else a fence uses it imports or
 // declares itself, as the script it teaches would.
 import type {
+  KbTarget as _KbTarget,
   OpenedSession as _OpenedSession,
   SemiontSession as _SemiontSession,
   SemiontClient as _SemiontClient,
@@ -13,6 +14,8 @@ import type {
 } from '@semiont/sdk';
 
 declare global {
+  /** The knowledge base the skill's setup fence signs in to. */
+  const kb: _KbTarget;
   /** What the skill's setup fence's sign-in gave: the session and the client it was built with. */
   const opened: _OpenedSession;
   /** The session the skill's setup fence signed in. */

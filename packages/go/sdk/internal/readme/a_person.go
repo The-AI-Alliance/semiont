@@ -43,12 +43,12 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 		}
 	}
 	session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
-		Kb: kb, Kept: kept, HTTP: http.DefaultClient, Timing: timing, AskWhoTokenIs: true, Channels: bus.BridgedChannels,
+		Kb: kb, Kept: kept, HTTP: http.DefaultClient, Timing: timing, Channels: bus.BridgedChannels,
 	})
 	if err != nil {
 		return err
 	}
-	defer end() // the session, then its client and its transport
+	defer end() // the client, then the session, then its transport
 	status, err := session.Client().System.Status(ctx)
 	if err != nil {
 		return err

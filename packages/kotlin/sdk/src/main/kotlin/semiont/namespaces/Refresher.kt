@@ -1,5 +1,6 @@
 package semiont.namespaces
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -16,23 +17,32 @@ import semiont.cache.CacheRefreshChannel
 import semiont.cache.CacheRefreshReach
 import semiont.cache.CacheRefreshTrigger
 import semiont.cache.CacheRefreshWhen
+import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.errors.TransportError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.registry.WHOLE_KEY
 import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Frame
 import semiont.transport.FrameRefusal
+import semiont.transport.Place
 import semiont.types.Annotation
 import semiont.types.wireJson
 
 /**
  * B19: per key, the first refetch an event asks for runs at once and opens a
- * window. Any more inside it are owed, and run as one when it closes, which
- * opens the next. So a storm of events costs a refetch per key per window, and
- * the last event is always reflected.
+ * window, whose closing waits in `scope`. Any more inside it are owed, and run
+ * as one when it closes, which opens the next. So a storm of events costs a
+ * refetch per key per window, and the last event is always reflected.
+ *
+ * A closing window starts what it owed under the windows' lock, so whoever
+ * reads whether a refetch is owed (`owesARefetch`) waits until it has started,
+ * and is never told that nothing is owed while the refetch is neither owed
+ * nor in flight (B17). Starting a refetch only starts its fetch: it reads no
+ * window.
  */
-private class Windows(private val links: Links, private val lastingMs: Long) {
+internal class Windows(private val scope: CoroutineScope, private val lastingMs: Long) {
     private class Window(val refetch: () -> Unit, var closing: Job? = null, var owed: Boolean = false)
 
     private val open = HashMap<String, Window>()
@@ -46,20 +56,33 @@ private class Windows(private val links: Links, private val lastingMs: Long) {
                 it.owed = true
                 return
             }
-            val window = Window(refetch)
-            open[key] = window
-            window.closing = links.scope.launch {
-                delay(lastingMs)
-                close(key)
-            }
+            opening(key, refetch)
         }
         refetch()
     }
 
-    private fun close(key: String) {
-        val window = synchronized(this) { open.remove(key) } ?: return
-        if (window.owed) run(key, window.refetch)
+    /** Open `key`'s window, for `refetch`. Called under the lock. */
+    private fun opening(key: String, refetch: () -> Unit) {
+        val window = Window(refetch)
+        open[key] = window
+        window.closing = scope.launch {
+            delay(lastingMs)
+            close(key)
+        }
     }
+
+    /** `key`'s window closes: what it owed starts at once, and opens the next window, under the one lock. */
+    private fun close(key: String): Unit = synchronized(this) {
+        val window = open.remove(key) ?: return
+        if (window.owed) {
+            opening(key, window.refetch)
+            window.refetch()
+        }
+    }
+
+    /** Whether a window that is open holds a refetch it has not yet run. */
+    val owesARefetch: Boolean
+        get() = synchronized(this) { open.values.any { it.owed } }
 
     /** Every window closes, and what each owed is dropped. */
     fun dispose() {
@@ -137,27 +160,39 @@ private fun subjectOf(channel: CacheRefreshChannel, event: JsonObject): Subject?
  * acts only on a key its cache holds, and the refetches one key is asked for
  * inside a window are one refetch (protocol/contract/CACHE-SEMANTICS.md, B12 to
  * B13b, B19, B20). A client has one, listening from when the client is made
- * until it closes.
+ * until it closes. It reads every frame on a resource's scope too, a row of
+ * the table or none. Once it has read a recorded event's frame, so that the
+ * fetches its row starts are in flight and the refetches it holds back are
+ * owed, it hands the place the stream delivered the frame with to `noting`:
+ * an id noted while its event only waits for the refresher could be written
+ * by a save that comes first, ahead of the caches (B17).
  */
-internal class Refresher(private val links: Links, private val live: Live) {
-    private val windows = Windows(links, links.timing.invalidationWindowMs)
+internal class Refresher(private val links: Links, private val live: Live, private val noting: (Place) -> Unit) {
+    private val windows = Windows(links.scope, links.timing.invalidationWindowMs)
 
     /** Listen, from now on. */
     fun start() {
         // Listening before the work that reads has begun: nothing said meanwhile is missed.
-        val frames = links.own.framesAmong(CACHE_REFRESH_CHANNELS.keys)
+        val frames = links.own.framesAmong(CACHE_REFRESH_CHANNELS.keys + RESOURCE_SCOPED_CHANNELS)
         links.scope.launch { frames.collect(::heard) }
         links.scope.launch { reopenings() }
     }
 
-    /** A frame on one of the table's channels: its row, or, when its channel's reading refuses it or a member its row names is not what it names, the row of an unreadable event. */
+    /**
+     * A frame on one of the table's channels: its row, or, when its channel's
+     * reading refuses it or a member its row names is not what it names, the
+     * row of an unreadable event. A frame on a channel the table has no row
+     * for asks nothing. Then the place it was delivered with is noted.
+     */
     private fun heard(carried: Carried) {
-        val channel = CACHE_REFRESH_CHANNELS.getValue(carried.channel)
-        val subject = when (carried) {
-            is Frame -> subjectOf(channel, carried.payload)
-            is FrameRefusal -> null
+        CACHE_REFRESH_CHANNELS[carried.channel]?.let { channel ->
+            val subject = when (carried) {
+                is Frame -> subjectOf(channel, carried.payload)
+                is FrameRefusal -> null
+            }
+            if (subject == null) refresh(CacheRefreshTrigger.Unreadable, Subject()) else refresh(channel.trigger, subject)
         }
-        if (subject == null) refresh(CacheRefreshTrigger.Unreadable, Subject()) else refresh(channel.trigger, subject)
+        (carried as? Frame)?.place?.let(noting)
     }
 
     /** B13: the stream is open again having left `open`, which only a drop does. A changed subscription is handed over with the state still `open`, and misses nothing. */
@@ -208,13 +243,17 @@ internal class Refresher(private val links: Links, private val live: Live) {
                 annotations.forEach { again(live.annotation, it, "annotation/${it.value}") }
             }
             // An event does not say which lists it changes, nor which searches would now find its resource.
-            CacheQuery.Resources -> windows.run("resource-lists", live.lists::invalidateAll)
-            CacheQuery.MatchedResources -> windows.run("matched-resources", live.searches::invalidateAll)
-            CacheQuery.EntityTypes -> again(live.entityTypes, WHOLE, "entity-types")
-            CacheQuery.TagSchemas -> again(live.tagSchemas, WHOLE, "tag-schemas")
-            CacheQuery.Engines -> if (live.engines.known(WHOLE)) windows.run("engines", live::invalidateEngines)
+            CacheQuery.Resources -> windows.run("resource-lists", live.resources::invalidateAll)
+            CacheQuery.MatchedResources -> windows.run("matched-resources", live.matchedResources::invalidateAll)
+            CacheQuery.EntityTypes -> again(live.entityTypes, WHOLE_KEY, CacheQuery.EntityTypes.wire)
+            CacheQuery.TagSchemas -> again(live.tagSchemas, WHOLE_KEY, CacheQuery.TagSchemas.wire)
+            CacheQuery.Engines -> if (live.engines.known(WHOLE_KEY)) windows.run("engines", live::invalidateEngines)
         }
     }
+
+    /** Whether an event's refetch is owed: a window holds one it has not yet run (B19). */
+    val owesARefetch: Boolean
+        get() = windows.owesARefetch
 
     /** Stop: what a window owed is dropped, and no window opens after. The client's close ends the listening. */
     fun dispose(): Unit = windows.dispose()

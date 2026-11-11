@@ -4,6 +4,7 @@
  */
 
 import { InMemorySessionStorage, type SessionStorage } from '../session-storage';
+import { MemorySignIn } from '../sign-in-kept';
 import type { StoredSession } from '../storage';
 
 const PREFIX = 'semiont.session.';
@@ -44,6 +45,26 @@ export function testSession(access: string, refresh: string): StoredSession {
   };
 }
 
+/** What reading an `UnreadableSignIn` throws while it cannot be read. */
+export const UNREADABLE = 'the kept sign-in could not be read';
+
+/**
+ * A sign-in kept in memory that cannot be read while `unreadable` is set, as
+ * a store whose read fails: `held()` throws, and counts each read it failed.
+ */
+export class UnreadableSignIn extends MemorySignIn {
+  unreadable = false;
+  failedReads = 0;
+
+  override held(): StoredSession | null {
+    if (this.unreadable) {
+      this.failedReads += 1;
+      throw new Error(UNREADABLE);
+    }
+    return super.held();
+  }
+}
+
 export function seedStoredSession(
   storage: SessionStorage,
   kbId: string,
@@ -72,6 +93,21 @@ export class TestStorage extends InMemorySessionStorage {
   /** Fire all subscribed handlers. Use in tests to simulate a cross-tab write. */
   dispatch(key: string, newValue: string | null): void {
     for (const h of this.handlers) h(key, newValue);
+  }
+}
+
+/** A storage that refuses every write while `refusing` is set. */
+export class RefusingStorage extends TestStorage {
+  refusing = false;
+
+  override set(key: string, value: string): void {
+    if (this.refusing) throw new Error(`refused: ${key}`);
+    super.set(key, value);
+  }
+
+  override update(key: string, change: (stored: string | null) => string | null): void {
+    if (this.refusing) throw new Error(`refused: ${key}`);
+    super.update(key, change);
   }
 }
 
@@ -105,6 +141,11 @@ export class SharedStorage implements SessionStorage {
 
   get(key: string): string | null {
     return this.shared.stored.get(key) ?? null;
+  }
+
+  /** Every key something is stored under, from whichever context wrote it. */
+  keys(): string[] {
+    return [...this.shared.stored.keys()];
   }
 
   set(key: string, value: string): void {

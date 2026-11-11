@@ -1,13 +1,14 @@
 package semiont.storage
 
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import semiont.cache.CachePersister
 import semiont.types.wireJson
+import java.math.BigDecimal
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -67,18 +68,27 @@ public class MemoryStorage : SessionStorage {
     override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = null
 }
 
-/** Where a client keeps what its queries hold, so the next client of the same knowledge base shows it at once: documents in `storage`, under `semiont.cache.<keyPrefix>.<query>`. */
-public class CachePersistence(public val storage: SessionStorage, public val keyPrefix: String)
+/**
+ * Where a client keeps what its queries hold for one person, so the next
+ * client of the same knowledge base for them, in any SDK, shows it at once:
+ * one document for each query it keeps, in `storage`, under
+ * `semiont.cache.<kbId>.<personKey>.<query>`, the query named as
+ * client/refresh.json names it. `personKey` is `semiont.registry.personKey` of
+ * the did the gateway said the client's token is.
+ */
+public class CachePersistence(public val storage: SessionStorage, public val kbId: String, public val personKey: String)
 
 /**
- * A cache's values in `storage`, under `storageKey`, as one document:
- * `{version, writtenAt, entries}`, each entry a key, its value, and when that
- * value was last written. `key` and `value` say how each is read and written,
- * `version` which documents are this cache's to read, and `maxBytes` how large
- * the document may be. A document of another version, or one that does not
- * parse, reads as nothing kept; an entry that is not this cache's shape is one
- * it never kept. A document larger than it may be loses the entries that have
- * gone longest without a new value, until it fits.
+ * A cache's values in `storage`, under `storageKey`, as one document,
+ * session/stored.json's `cacheDocument`: `{version, entries}`, each entry a
+ * key, its value, and when that value was received, in milliseconds since the
+ * epoch. `key` and `value` say how each is read and written, `version` which
+ * documents are this cache's to read, and `maxBytes` how large the document
+ * may be. A document that is not one of this version (no JSON, no object,
+ * `entries` no list, or an entry not a key, a value and a whole number of at
+ * least 0) reads as nothing kept; an entry whose key or value is not this
+ * cache's is skipped, and the rest are kept. A document larger than it may be
+ * loses the entries received longest ago, until it fits.
  */
 public class StoragePersister<K : Any, V : Any>(
     private val storage: SessionStorage,
@@ -88,42 +98,60 @@ public class StoragePersister<K : Any, V : Any>(
     private val version: Long,
     private val maxBytes: Long,
 ) : CachePersister<K, V> {
-    /** Each key's value as last written, and when: an entry whose value has not changed keeps its time. */
-    private var written = mapOf<String, Pair<String, Long>>()
+    /** Each key's value as last written, and when it was received: a value received again unchanged keeps its time. */
+    private var written = mapOf<String, Pair<String, BigDecimal>>()
 
     override fun load(): Map<K, V>? {
-        val document = storage.get(storageKey)?.let { runCatching { wireJson.parseToJsonElement(it) }.getOrNull() } as? JsonObject ?: return null
-        val entries = document["entries"] as? JsonArray
-        if ((document["version"] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull != version || entries == null) return null
+        val entries = entriesOf(storage.get(storageKey) ?: return null) ?: return null
         val kept = LinkedHashMap<K, V>()
-        val writtenNow = LinkedHashMap<String, Pair<String, Long>>()
-        for (entry in entries) {
-            val stated = entry as? JsonArray ?: continue
-            val at = (stated.getOrNull(2) as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull
-            if (stated.size != 3 || at == null) continue
+        val received = LinkedHashMap<String, Pair<String, BigDecimal>>()
+        for ((stated, at) in entries) {
             try {
                 kept[wireJson.decodeFromJsonElement(key, stated[0])] = wireJson.decodeFromJsonElement(value, stated[1])
             } catch (_: IllegalArgumentException) {
                 continue
             }
-            writtenNow[stated[0].toString()] = stated[1].toString() to at
+            received[stated[0].toString()] = stated[1].toString() to at
         }
-        written = writtenNow
+        written = received
         return kept
     }
 
+    /**
+     * The entries of `text`, each with its stamp, when it is a document of this
+     * version; null when it is not one. A number is its value, however it is
+     * written: a whole number is one with no fractional part.
+     */
+    private fun entriesOf(text: String): List<Pair<JsonArray, BigDecimal>>? {
+        val document = try {
+            wireJson.parseToJsonElement(text)
+        } catch (_: SerializationException) {
+            return null
+        }
+        if (document !is JsonObject) return null
+        val stated = document["version"]?.let(::numberOf)
+        val entries = document["entries"] as? JsonArray
+        if (stated == null || stated.compareTo(BigDecimal.valueOf(version)) != 0 || entries == null) return null
+        return entries.map { entry ->
+            if (entry !is JsonArray || entry.size != 3) return null
+            val at = numberOf(entry[2])?.stripTrailingZeros()
+            if (at == null || at.scale() > 0 || at.signum() < 0) return null
+            entry to at
+        }
+    }
+
     override fun save(entries: Map<K, V>) {
-        val now = System.currentTimeMillis()
+        val now = BigDecimal.valueOf(System.currentTimeMillis())
         val stored = entries.map { (k, v) ->
             val keyText = wireJson.encodeToJsonElement(key, k).toString()
             val valueText = wireJson.encodeToJsonElement(value, v).toString()
             val before = written[keyText]
             Triple(keyText, valueText, if (before != null && before.first == valueText) before.second else now)
         }.toMutableList()
-        fun document() = "{\"version\":$version,\"writtenAt\":$now,\"entries\":[${stored.joinToString(",") { (k, v, at) -> "[$k,$v,$at]" }}]}"
+        fun document() = "{\"version\":$version,\"entries\":[${stored.joinToString(",") { (k, v, at) -> "[$k,$v,${at.toPlainString()}]" }}]}"
         var text = document()
         if (text.toByteArray().size > maxBytes) {
-            // The entries that have gone longest without a new value are the first to go.
+            // The entries received longest ago are the first to go.
             stored.sortBy { it.third }
             while (stored.isNotEmpty() && text.toByteArray().size > maxBytes) {
                 stored.removeAt(0)
@@ -135,4 +163,5 @@ public class StoragePersister<K : Any, V : Any>(
     }
 }
 
-private fun JsonArray.getOrNull(index: Int): JsonElement? = if (index < size) this[index] else null
+/** The number `element` is, by its value; none for a text, a boolean or null. */
+private fun numberOf(element: JsonElement): BigDecimal? = (element as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toBigDecimalOrNull()

@@ -2,8 +2,10 @@ package semiont
 
 // What a session and a sign-in by a page redirect keep in a SessionStorage,
 // held to protocol/specs/src/session/stored.json: the keys of a stream's places
-// and of the kept queries, and what is kept of a sign-in begun. The registry's
-// own keys are registry/stored_test.go's.
+// and of the kept queries, which queries are kept, the form of a kept document
+// and of the places, and what is kept of a sign-in begun. What each document
+// holds is cache_cases_test.go's. The registry's own keys are
+// registry/stored_test.go's.
 
 import (
 	"context"
@@ -12,9 +14,12 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // objectShape is an object schema of the table: the members it names, and
@@ -24,14 +29,47 @@ type objectShape struct {
 	Required   []string                   `json:"required"`
 }
 
+// keyExample is one key a prefix of the table works out: from a knowledge
+// base's id, a person's did and, for a query, its name.
+type keyExample struct {
+	KbID  string `json:"kbId"`
+	Did   string `json:"did"`
+	Query string `json:"query"`
+	Key   string `json:"key"`
+}
+
 type sessionTable struct {
 	LastEventIDKeyPrefix struct {
-		Prefix string `json:"prefix"`
+		Prefix  string     `json:"prefix"`
+		Example keyExample `json:"example"`
 	} `json:"lastEventIdKeyPrefix"`
 	CacheKeyPrefix struct {
-		Prefix string `json:"prefix"`
+		Prefix  string     `json:"prefix"`
+		Example keyExample `json:"example"`
 	} `json:"cacheKeyPrefix"`
+	WholeKey struct {
+		Key string `json:"key"`
+	} `json:"wholeKey"`
+	CacheDocument struct {
+		Properties map[string]struct {
+			Const json.RawMessage `json:"const"`
+		} `json:"properties"`
+	} `json:"cacheDocument"`
+	LastEventIds struct {
+		PropertyNames        schemaRef `json:"propertyNames"`
+		AdditionalProperties schemaRef `json:"additionalProperties"`
+	} `json:"lastEventIds"`
 	PendingAuthorization objectShape `json:"pendingAuthorization"`
+}
+
+// schemaRef is a schema that is a component schema of the spec's.
+type schemaRef struct {
+	Ref string `json:"$ref"`
+}
+
+// component is the name of the component schema ref names.
+func (ref schemaRef) component() string {
+	return strings.TrimSuffix(filepath.Base(ref.Ref), ".json")
 }
 
 // readSpec is what the spec's file at way, under protocol/specs/src, holds.
@@ -55,11 +93,72 @@ func readSessionTable(t *testing.T) sessionTable {
 
 func TestTheKeysOfAStreamsPlacesAndOfTheKeptQueriesAreTheTables(t *testing.T) {
 	table := readSessionTable(t)
-	if got, want := lastEventIDKey("kb-a"), table.LastEventIDKeyPrefix.Prefix+"kb-a"; got != want {
+	person := PersonKey("did:web:kb.example.org:users:jo%40example.org")
+	if got, want := LastEventIDKey("kb-a", person), table.LastEventIDKeyPrefix.Prefix+"kb-a."+person; got != want {
 		t.Errorf("a knowledge base's stream's places are kept under %q; the table's key is %q", got, want)
 	}
-	if got, want := cacheStorageKey("kb-a", "resource"), table.CacheKeyPrefix.Prefix+"kb-a.resource"; got != want {
+	if got, want := CacheKey("kb-a", person, CacheQueryResource), table.CacheKeyPrefix.Prefix+"kb-a."+person+".resource"; got != want {
 		t.Errorf("a kept query is kept under %q; the table's key is %q", got, want)
+	}
+
+	places := table.LastEventIDKeyPrefix.Example
+	if places.KbID == "" || places.Did == "" || places.Key == "" || places.Query != "" {
+		t.Fatalf("the stream's places' example is %+v", places)
+	}
+	if got := LastEventIDKey(places.KbID, PersonKey(places.Did)); got != places.Key {
+		t.Errorf("the stream's places of %s on %s are kept under %q; the table's example is %q", places.Did, places.KbID, got, places.Key)
+	}
+	query := table.CacheKeyPrefix.Example
+	if query.KbID == "" || query.Did == "" || query.Query == "" || query.Key == "" {
+		t.Fatalf("a kept query's example is %+v", query)
+	}
+	if got := CacheKey(query.KbID, PersonKey(query.Did), CacheQuery(query.Query)); got != query.Key {
+		t.Errorf("%s of %s on %s is kept under %q; the table's example is %q", query.Query, query.Did, query.KbID, got, query.Key)
+	}
+}
+
+// The queries a client keeps are those protocol/specs/src/client/refresh.json
+// marks persisted, in its order.
+func TestTheQueriesKeptAreThoseTheRefreshTablePersists(t *testing.T) {
+	refresh := readSpec[struct {
+		Queries []struct {
+			Name      string `json:"name"`
+			Persisted *bool  `json:"persisted"`
+		} `json:"queries"`
+	}](t, "client", "refresh.json")
+	var persisted []CacheQuery
+	for _, query := range refresh.Queries {
+		if query.Persisted != nil && *query.Persisted {
+			persisted = append(persisted, CacheQuery(query.Name))
+		}
+	}
+	if len(persisted) == 0 || !slices.Equal(PersistedCacheQueries, persisted) {
+		t.Errorf("Go keeps %v; the refresh table persists %v", PersistedCacheQueries, persisted)
+	}
+}
+
+func TestAKeptDocumentAndThePlacesAreOfTheTablesForm(t *testing.T) {
+	table := readSessionTable(t)
+	if got, want := textOf(t, whole{}), textOf(t, table.WholeKey.Key); got != want {
+		t.Errorf("the key of a query of one value is written %s; the table's is %s", got, want)
+	}
+
+	if version := string(table.CacheDocument.Properties["version"].Const); !sameJSON(t, textOf(t, keptVersion), version) {
+		t.Errorf("a kept document is of version %d; the table's is %s", keptVersion, version)
+	}
+	storage := NewMemoryStorage()
+	key := CacheKey("kb-a", PersonKey("did:web:kb.example.org:users:jo%40example.org"), CacheQueryEntityTypes)
+	NewStoragePersister[whole, []string](storage, key, DefaultTiming().MaxStoredBytesCount).Save(map[whole][]string{{}: {"Person"}})
+	written, _ := storage.Get(key)
+	if got, want := membersOf(t, []byte(written)), slices.Sorted(maps.Keys(table.CacheDocument.Properties)); !slices.Equal(got, want) {
+		t.Errorf("a kept document is written with %v; the table's members are %v", got, want)
+	}
+
+	if got, want := reflect.TypeFor[api.ResourceId]().Name(), table.LastEventIds.PropertyNames.component(); got != want {
+		t.Errorf("a place's scope is read as a %s; the table's is a %s", got, want)
+	}
+	if got, want := placeSchema, table.LastEventIds.AdditionalProperties.component(); got != want {
+		t.Errorf("a place is held to %s; the table's is a %s", got, want)
 	}
 }
 

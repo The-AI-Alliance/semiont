@@ -1,0 +1,316 @@
+{
+  "$comment": "What a client keeps of one person in a SessionStorage, and when it is read, written and deleted, as every SDK must do it. A client keeps the answers of the queries protocol/specs/src/client/refresh.json marks `persisted`, and where its stream was, under keys that name the knowledge base and the person the gateway said its token is (protocol/specs/src/session/stored.json, `lastEventIdKeyPrefix` and `cacheKeyPrefix`). The person's key is recorded in the stored sign-in (`storedSession`'s `personKey`) once the gateway names them. `people` are the people the parts name, each by a did and the key it makes. `keys`: each row is a knowledge base and a person, and the key of every persisted query, in the order refresh.json lists them, and of the stream's places; a runner fails unless its persisted queries are exactly those, in that order, and it makes every key. `forget`: what forgetting kb-a's stored sign-in deletes, whichever way it is forgotten. `by` is the way: `signOut`, the registry signing out of kb-a; `removal`, the registry removing kb-a; `signIn`, the registry signing in to kb-a again with a new sign-in, which replaces the stored one (a new sign-in names nobody until its gateway names them, so the person the old one named is forgotten even when the new one turns out to be theirs); `expiry`, kb-a's session renewing its token and the issuer refusing, which forgets the stored sign-in (protocol/specs/src/session/cases.json, `startup`), the token it found being `stored`: `expired`, renewed before the gateway is asked, or `unexpired`, renewed once the gateway refuses it; `refusal`, kb-a's session finding its `unexpired` token refused, the issuer renewing it and the gateway refusing the renewed token too, so that the session ends as `session.credential-refused`. Before each row, storage holds every key of `forgetStorage`, and `signedIn` says what kb-a's stored sign-in is: `named`, a sign-in whose personKey is jo's; `unnamed`, one with no personKey; `none`, nothing stored. `open` is whether kb-a is active when its sign-in is forgotten, its client kept for jo when the sign-in names jo; a session that expires or is refused is kb-a's active one, and for `signIn` kb-a is registered, and active when `open`. For `signOut`, `removal` and `signIn` a runner may stand in for that client a session whose closing writes a value under jo's `resource` key, as a client closing with a save pending could (protocol/contract/CACHE-SEMANTICS.md, B17), because the registry closes the client before it deletes. For `expiry` and `refusal` the client is the registry's own, over a gateway and an issuer that answer as the row says: the session ends while its client is open, and that client writes nothing more, as `crossTab` says, so its closing cannot put back what was deleted. `removes` is `person` when forgetting deletes every key of the person the stored sign-in named on kb-a, the stream's and every persisted query's, whether or not each holds anything, and `nothing` when it deletes none; every other key of `forgetStorage` holds what it held. A runner looks once kb-a's client has closed, so whatever its closing does, no key the row removes holds anything then; after a `signIn` row, kb-a's stored sign-in is the new one. `startup`: a session of kb-a made by a registry over storage that holds `startupStorage`, whose gateway answers who the token is as `gateway` says (`names`: jo, with `whoAmI`; `unreachable`: no answer). A read of a resource the gateway is asked for is answered with that resource named `fresh`. `first` is what the client gives for res-2 when it is asked before the gateway has answered who the token is, and `then` what it gives for res-1 when it is asked after, res-1's scope not having been subscribed to before: `kept`, the value `startupStorage` keeps (given at once, then revalidated as B18 says), or `fresh`, the gateway's answer (nothing kept was read). `recorded` is the personKey the stored sign-in holds once the gateway has answered, null for none. `place` is the event id the stream resumes res-1's scope from when it is subscribed to after the gateway has answered, null for none. `untouched`, where a row states it, is whether, when the client has closed, every key of `startupStorage` holds what it held and no other key under either prefix is there. `crossTab`: kb-a is active, its stored sign-in names jo, and its client, kept for jo, holds a value of res-1 it has not yet written; then another context writes kb-a's stored sign-in as `stored` says (null: deleted; otherwise a sign-in with other tokens whose personKey is the one stated, or which has none for null), and the client closes. `saved` is whether jo's `resource` key then holds the value the client held: a session that sees its stored sign-in deleted, or replaced by a sign-in that does not name its person, discards what it has not written, and writes nothing more; a renewal keeps the person, and changes nothing of what is written. `holder`: as `crossTab`, but the change is made in this process, through what holds the session's sign-in: a memory sign-in, apart from the storage the client keeps in, where the SDK builds a keeping session over one; otherwise what holds the registry's sign-in in that storage. `stored` null is the sign-in forgotten through what holds it; a `personKey` of null or another person's is a new sign-in kept in its place, through what holds it; the same person's is the sign-in renewed, with other tokens. `saved` is as for `crossTab`: whatever holds a session's sign-in, the session writes only while it names its person. `resumeFrom`: kb-a is active, its stored sign-in names jo, and its client, kept for jo, holds res-1 and so its scope; the stream delivers `frames` on res-1's scope in order, each an event with the id stated. `resumes` is the event id the stream resumes res-1's scope from when it is next subscribed to, null for none. Only a PersistedEventId (protocol/specs/src/components/schemas/PersistedEventId.json, its pattern and not its prefix alone) is a place: an id with the prefix that the pattern refuses, and an ephemeral id, never become the scope's place, and leave the place before them. Every runner runs all six parts and fails on a difference.",
+  "notYetReached": {
+    "ocaml": "OCaml keeps every query's values and the stream's places in one document under one key (Storage_persister): it is to keep them as this table says, one key per persisted query and the places beside them, for one person, with personKey on the stored session, the persisted list, forgetting that deletes every key of the person, a replaced sign-in forgetting the person it named, the check before each write of a session the SDK builds, and the scope's place taken only from a PersistedEventId."
+  },
+  "runBy": {
+    "typescript": [
+      "packages/typescript/sdk/src/session/__tests__/persisted-cases.test.ts"
+    ],
+    "rust": [
+      "packages/rust/http-transport/tests/persisted_cases.rs"
+    ],
+    "python": [
+      "packages/python/sdk/tests/test_persisted_cases.py"
+    ],
+    "kotlin": [
+      "packages/kotlin/sdk/src/test/kotlin/semiont/registry/PersistedCasesTest.kt"
+    ],
+    "swift": [
+      "packages/swift/sdk/Tests/SemiontTests/PersistedCasesTests.swift"
+    ],
+    "csharp": [
+      "packages/csharp/sdk/tests/Semiont.Tests/PersistedCasesTests.cs"
+    ],
+    "go": [
+      "packages/go/sdk/registry/persisted_cases_test.go"
+    ],
+    "haskell": [
+      "packages/haskell/sdk/test/PersistedCases.hs"
+    ]
+  },
+  "people": {
+    "jo": {
+      "did": "did:web:kb.example.org:users:jo%40example.org",
+      "personKey": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I"
+    },
+    "ann": {
+      "did": "did:web:kb.example.org:users:ann%40example.org",
+      "personKey": "oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM"
+    }
+  },
+  "keys": [
+    {
+      "why": "a key with both characters base64url puts where base64 puts + and /, and no padding",
+      "kbId": "kb-a",
+      "did": "did:web:kb.example.org:users:jo%40example.org",
+      "personKey": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I",
+      "lastEventIdKey": "semiont.lastEventId.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I",
+      "cacheKeys": {
+        "resource": "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.resource",
+        "annotations": "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.annotations",
+        "annotation": "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.annotation",
+        "entityTypes": "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.entityTypes",
+        "tagSchemas": "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.tagSchemas"
+      }
+    },
+    {
+      "why": "another person on a knowledge base whose id is a UUID: the id is spelled as it is, and the person's key is their own",
+      "kbId": "3f2c7a4e-0d1b-4c8e-9a6f-2b5d8e1c7a90",
+      "did": "did:web:kb.example.org:users:ann%40example.org",
+      "personKey": "oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM",
+      "lastEventIdKey": "semiont.lastEventId.3f2c7a4e-0d1b-4c8e-9a6f-2b5d8e1c7a90.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM",
+      "cacheKeys": {
+        "resource": "semiont.cache.3f2c7a4e-0d1b-4c8e-9a6f-2b5d8e1c7a90.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM.resource",
+        "annotations": "semiont.cache.3f2c7a4e-0d1b-4c8e-9a6f-2b5d8e1c7a90.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM.annotations",
+        "annotation": "semiont.cache.3f2c7a4e-0d1b-4c8e-9a6f-2b5d8e1c7a90.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM.annotation",
+        "entityTypes": "semiont.cache.3f2c7a4e-0d1b-4c8e-9a6f-2b5d8e1c7a90.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM.entityTypes",
+        "tagSchemas": "semiont.cache.3f2c7a4e-0d1b-4c8e-9a6f-2b5d8e1c7a90.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM.tagSchemas"
+      }
+    }
+  ],
+  "forgetStorage": {
+    "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.resource": "{\"version\":1,\"entries\":[]}",
+    "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.annotations": "{\"version\":1,\"entries\":[]}",
+    "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.annotation": "{\"version\":1,\"entries\":[]}",
+    "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.entityTypes": "{\"version\":1,\"entries\":[]}",
+    "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.tagSchemas": "{\"version\":1,\"entries\":[]}",
+    "semiont.lastEventId.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I": "{\"res-1\":\"p-res-1-3\"}",
+    "semiont.cache.kb-a.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM.resource": "{\"version\":1,\"entries\":[]}",
+    "semiont.lastEventId.kb-a.oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM": "{\"res-1\":\"p-res-1-4\"}",
+    "semiont.cache.kb-b.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.resource": "{\"version\":1,\"entries\":[]}",
+    "semiont.lastEventId.kb-b.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I": "{\"res-1\":\"p-res-1-5\"}"
+  },
+  "forget": [
+    {
+      "why": "a knowledge base with no open client: every key of the person its sign-in names goes, and no other person's, nor theirs on another knowledge base",
+      "by": "signOut",
+      "signedIn": "named",
+      "open": false,
+      "removes": "person"
+    },
+    {
+      "why": "an open client is closed before anything is deleted, so nothing of the person is left, whatever its closing writes",
+      "by": "signOut",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "a sign-in whose gateway never named its person: no key is known to be theirs, so none is deleted",
+      "by": "signOut",
+      "signedIn": "unnamed",
+      "open": false,
+      "removes": "nothing"
+    },
+    {
+      "why": "nothing stored: nothing is deleted",
+      "by": "signOut",
+      "signedIn": "none",
+      "open": false,
+      "removes": "nothing"
+    },
+    {
+      "why": "removing a knowledge base forgets its sign-in, and every key of its person there goes with it",
+      "by": "removal",
+      "signedIn": "named",
+      "open": false,
+      "removes": "person"
+    },
+    {
+      "why": "a knowledge base removed while open: its client is closed before anything is deleted",
+      "by": "removal",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "a new sign-in over one that names its person forgets it: every key of that person goes, as the new one names nobody until its gateway names them",
+      "by": "signIn",
+      "signedIn": "named",
+      "open": false,
+      "removes": "person"
+    },
+    {
+      "why": "a new sign-in while the knowledge base is open: its client is closed before anything is deleted",
+      "by": "signIn",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "a new sign-in over one whose gateway never named its person: no key is known to be theirs, so none is deleted",
+      "by": "signIn",
+      "signedIn": "unnamed",
+      "open": false,
+      "removes": "nothing"
+    },
+    {
+      "why": "a first sign-in, over nothing stored: nothing is deleted",
+      "by": "signIn",
+      "signedIn": "none",
+      "open": false,
+      "removes": "nothing"
+    },
+    {
+      "why": "an expired token the issuer will not renew is forgotten, and what was kept for its person goes with it",
+      "by": "expiry",
+      "stored": "expired",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "a token the gateway refuses and the issuer will not renew: the session has expired, and what was kept for its person goes with its sign-in",
+      "by": "expiry",
+      "stored": "unexpired",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "an expired sign-in whose gateway never named its person: no key is known to be theirs, so none is deleted",
+      "by": "expiry",
+      "stored": "expired",
+      "signedIn": "unnamed",
+      "open": true,
+      "removes": "nothing"
+    },
+    {
+      "why": "a renewed token the gateway refuses ends the session, and what was kept for its person goes with its sign-in",
+      "by": "refusal",
+      "stored": "unexpired",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    }
+  ],
+  "whoAmI": {
+    "did": "did:web:kb.example.org:users:jo%40example.org",
+    "email": "jo@example.org",
+    "name": "Jo",
+    "image": null,
+    "domain": "kb.example.org"
+  },
+  "startupStorage": {
+    "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.resource": "{\"version\":1,\"entries\":[[\"res-1\",{\"@context\":\"https://schema.org/\",\"@id\":\"res-1\",\"name\":\"kept\",\"representations\":[]},1700000000000],[\"res-2\",{\"@context\":\"https://schema.org/\",\"@id\":\"res-2\",\"name\":\"kept\",\"representations\":[]},1700000000000]]}",
+    "semiont.lastEventId.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I": "{\"res-1\":\"p-res-1-7\"}"
+  },
+  "startup": [
+    {
+      "why": "a sign-in that names its person: what was kept for them is read as the client is made, before the gateway answers",
+      "signedIn": "named",
+      "gateway": "names",
+      "first": "kept",
+      "then": "kept",
+      "recorded": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I",
+      "place": "p-res-1-7"
+    },
+    {
+      "why": "a sign-in that does not yet name its person keeps nothing until the gateway names them; then the sign-in records them, and what was kept for them is read and the stream's places restored",
+      "signedIn": "unnamed",
+      "gateway": "names",
+      "first": "fresh",
+      "then": "kept",
+      "recorded": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I",
+      "place": "p-res-1-7"
+    },
+    {
+      "why": "a gateway that names nobody: nothing is read, nothing is recorded, and nothing is written",
+      "signedIn": "unnamed",
+      "gateway": "unreachable",
+      "first": "fresh",
+      "then": "fresh",
+      "recorded": null,
+      "place": null,
+      "untouched": true
+    }
+  ],
+  "crossTab": [
+    {
+      "why": "the stored sign-in deleted by another context: what was not written is discarded",
+      "stored": null,
+      "saved": false
+    },
+    {
+      "why": "a new sign-in in another context, whose gateway has not named its person: what was not written is discarded",
+      "stored": {
+        "personKey": null
+      },
+      "saved": false
+    },
+    {
+      "why": "another person signed in in another context: what was not written is discarded",
+      "stored": {
+        "personKey": "oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM"
+      },
+      "saved": false
+    },
+    {
+      "why": "a renewal in another context keeps the person: what was not written is written as the client closes",
+      "stored": {
+        "personKey": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I"
+      },
+      "saved": true
+    }
+  ],
+  "holder": [
+    {
+      "why": "the sign-in forgotten through what holds it: what was not written is discarded",
+      "stored": null,
+      "saved": false
+    },
+    {
+      "why": "a new sign-in kept in its place, whose gateway has not named its person: what was not written is discarded",
+      "stored": {
+        "personKey": null
+      },
+      "saved": false
+    },
+    {
+      "why": "another person's sign-in kept in its place: what was not written is discarded",
+      "stored": {
+        "personKey": "oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM"
+      },
+      "saved": false
+    },
+    {
+      "why": "the sign-in renewed through what holds it keeps the person: what was not written is written as the client closes",
+      "stored": {
+        "personKey": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I"
+      },
+      "saved": true
+    }
+  ],
+  "resumeFrom": [
+    {
+      "why": "a persisted event id is the place its scope resumes from",
+      "frames": [
+        "p-res-1-3"
+      ],
+      "resumes": "p-res-1-3"
+    },
+    {
+      "why": "an id with the persisted prefix that is no PersistedEventId leaves the place before it",
+      "frames": [
+        "p-res-1-3",
+        "p-res"
+      ],
+      "resumes": "p-res-1-3"
+    },
+    {
+      "why": "an id with the persisted prefix that is no PersistedEventId is no place",
+      "frames": [
+        "p-res"
+      ],
+      "resumes": null
+    },
+    {
+      "why": "an ephemeral id is no place",
+      "frames": [
+        "e-1"
+      ],
+      "resumes": null
+    }
+  ]
+}

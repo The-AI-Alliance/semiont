@@ -21,7 +21,7 @@ from typing import Final, final, override
 import pytest
 from aio import hurried, run, soon, turns
 from pydantic import JsonValue
-from spec import JsonObject
+from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, token
 
 from semiont.errors import TransportError
@@ -43,17 +43,21 @@ from semiont.registry import (
     store_session,
     stored_session,
 )
-from semiont.session import HeldSignIn, SemiontSession
+from semiont.session import HeldSignIn, MemorySignIn, SemiontSession, SignInKept
 from semiont.session_signals import KbIdentityConflict, PermissionDenied, SessionEnded, SessionSignals
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import (
     ACTIVE_KEY,
+    KEPT_QUERIES,
     KNOWLEDGE_BASES_KEY,
     LAST_VIEWED_RESOURCE_BY_KB_KEY,
     OPEN_RESOURCES_BY_KB_KEY,
     OpenResource,
     StoredSession,
+    cache_key,
     kb_of_session_key,
+    last_event_id_key,
+    person_key,
     session_key,
 )
 from semiont.testing import FaultyTransport, ScriptedSessions, SharedStorage
@@ -65,6 +69,9 @@ KB_A: Final = "kb-a"
 KB_B: Final = "kb-b"
 DID_A: Final = "did:web:example.org:kb-a"
 DID_B: Final = "did:web:example.org:kb-b"
+
+JO: Final = person_key("did:web:example.org:users:jo")
+ANN: Final = person_key("did:web:example.org:users:ann")
 
 KB_REQUESTED: Final = "browse:kb-requested"
 RESOURCE_REQUESTED: Final = "browse:resource-requested"
@@ -174,13 +181,14 @@ def kb_of_b() -> KnowledgeBase:
     return kb(KB_B, "KB B", DID_B, endpoint("example.com", 443))
 
 
-def tokens(refresh: str) -> StoredSession:
+def tokens(refresh: str, person: str | None = None) -> StoredSession:
     return StoredSession(
         access=token(3600, 1),
         refresh=refresh,
         client_id="semiont-browser",
         token_endpoint="https://issuer.test/token",
         revocation_endpoint="https://issuer.test/revoke",
+        person_key=person,
     )
 
 
@@ -361,6 +369,30 @@ def test_a_session_key_names_its_knowledge_base() -> None:
     assert kb_of_session_key(ACTIVE_KEY) is None
 
 
+def written_session(storage: SessionStorage) -> dict[str, JsonValue]:
+    """The session stored for `KB_A`, as the storage holds it."""
+    stored = storage.get(session_key(KB_A))
+    assert stored is not None
+    written: JsonValue = json.loads(stored)
+    assert isinstance(written, dict)
+    return written
+
+
+def test_a_stored_session_names_its_person_by_their_key_and_says_nothing_of_one_it_does_not_name() -> None:
+    storage = MemoryStorage()
+    store_session(storage, KB_A, tokens("r", JO))
+    named = stored_session(storage, KB_A)
+    assert named is not None
+    assert named.person_key == JO
+    assert written_session(storage)["personKey"] == JO
+
+    store_session(storage, KB_A, tokens("r"))
+    unnamed = stored_session(storage, KB_A)
+    assert unnamed is not None
+    assert unnamed.person_key is None
+    assert "personKey" not in written_session(storage)
+
+
 def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
     async def scenario() -> None:
         storage = MemoryStorage()
@@ -372,10 +404,12 @@ def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
         assert stored_session(storage, KB_A) is None
 
         await kept.keep(read)
+        assert await kept.record_person_key("a1", JO)
         assert await kept.renewed(read, "a2", "r2") == "a2"
         held = await kept.held()
         assert held is not None
-        assert (held.access, held.refresh) == ("a2", "r2")
+        # A renewal is the same sign-in: it keeps the person it names.
+        assert (held.access, held.refresh, held.person_key) == ("a2", "r2", JO)
 
         # Renewed from what was read before: the renewal stored meanwhile stands.
         assert await kept.renewed(read, "a3", "r3") == "a2"
@@ -385,6 +419,87 @@ def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
 
         await kept.forget()
         assert await kept.held() is None
+
+    run(scenario())
+
+
+def test_a_new_sign_in_kept_in_a_registrys_storage_forgets_what_was_kept_for_the_person_the_one_it_replaces_named() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        theirs = [last_event_id_key(KB_A, JO), *(cache_key(KB_A, JO, query) for query in KEPT_QUERIES)]
+        others = [
+            last_event_id_key(KB_A, ANN),
+            cache_key(KB_A, ANN, "resource"),
+            last_event_id_key(KB_B, JO),
+            cache_key(KB_B, JO, "resource"),
+        ]
+        for key in (*theirs, *others):
+            storage.set(key, f"kept under {key}")
+        kept = kept_in(storage, KB_A)
+
+        def held_now() -> dict[str, str | None]:
+            return {key: storage.get(key) for key in (*theirs, *others)}
+
+        # Over a sign-in that names nobody, no entry is known to be anyone's: none is deleted.
+        store_session(storage, KB_A, tokens("r"))
+        await kept.keep(HeldSignIn(access="a1", refresh="r1", client_id="semiont-browser", token_endpoint="https://issuer.test/token"))
+        assert held_now() == {key: f"kept under {key}" for key in (*theirs, *others)}
+
+        # Over one that names jo, every entry of jo's on the knowledge base goes, and no other person's, nor jo's on another.
+        store_session(storage, KB_A, tokens("r", JO))
+        new = HeldSignIn(access="b1", refresh="s1", client_id="semiont-browser", token_endpoint="https://issuer.test/token")
+        await kept.keep(new)
+        assert held_now() == {**dict.fromkeys(theirs), **{key: f"kept under {key}" for key in others}}
+        # The new sign-in is the one kept, and names nobody until a gateway names its person.
+        assert await kept.held() == new
+
+    run(scenario())
+
+
+def kept_where(where: str) -> tuple[SignInKept, MemoryStorage]:
+    """A sign-in kept in a registry's storage, or in memory, and the storage beneath the first."""
+    storage = MemoryStorage()
+    return (kept_in(storage, KB_A) if where == "kept_in" else MemorySignIn()), storage
+
+
+@pytest.mark.parametrize("where", ["kept_in", "MemorySignIn"])
+def test_the_person_the_gateway_named_is_recorded_on_the_sign_in_it_was_asked_about_and_on_no_other(where: str) -> None:
+    async def scenario() -> None:
+        kept, storage = kept_where(where)
+        signed_in = HeldSignIn(access="a1", refresh="r1", client_id="semiont-browser", token_endpoint="https://issuer.test/token")
+
+        # Nothing kept: nobody is recorded.
+        assert not await kept.record_person_key("a1", JO)
+        assert await kept.held() is None
+
+        # A sign-in that holds another access token has moved on: the answer was about a token it no longer holds.
+        await kept.keep(signed_in)
+        assert not await kept.record_person_key("a0", JO)
+        held = await kept.held()
+        assert held is not None
+        assert held.person_key is None
+
+        assert await kept.record_person_key("a1", JO)
+        held = await kept.held()
+        assert held is not None
+        assert held == HeldSignIn(
+            access="a1", refresh="r1", client_id="semiont-browser", token_endpoint="https://issuer.test/token", person_key=JO
+        )
+        if where == "kept_in":
+            assert written_session(storage)["personKey"] == JO
+        # Recorded already, it is recorded: nothing changes.
+        assert await kept.record_person_key("a1", JO)
+        # Another person is never written over the one it names.
+        assert not await kept.record_person_key("a1", ANN)
+        held = await kept.held()
+        assert held is not None
+        assert held.person_key == JO
+
+        # A sign-in kept in its place is a new one: it names nobody until a gateway names its person.
+        await kept.keep(HeldSignIn(access="b1", refresh="s1", client_id="semiont-browser", token_endpoint="https://issuer.test/token"))
+        held = await kept.held()
+        assert held is not None
+        assert held.person_key is None
 
     run(scenario())
 
@@ -767,6 +882,31 @@ def test_new_tokens_for_the_active_knowledge_base_replace_its_session() -> None:
             assert first.id != second.id
             assert closed(world.factory.sessions.transports(KB_A)[0])
             assert world.stored_refresh(KB_A) == "renewed"
+
+    run(scenario())
+
+
+def test_new_tokens_name_nobody_and_forget_what_was_kept_for_whoever_the_old_ones_named() -> None:
+    async def scenario() -> None:
+        world = World().with_(kb_of_a())
+        store_session(world.storage, KB_A, tokens("r", JO))
+        kept = {
+            cache_key(KB_A, JO, "resource"): '{"version":1,"writtenAt":1700000000000,"entries":[]}',
+            last_event_id_key(KB_A, JO): '{"res-1":"p-jo"}',
+        }
+        for key, value in kept.items():
+            world.storage.set(key, value)
+        async with world.browser() as browser:
+            await live(browser)
+
+            await browser.sign_in(KB_A, tokens("renewed"))
+            await live(browser)
+
+            stored = stored_session(world.storage, KB_A)
+            assert stored is not None
+            assert (stored.refresh, stored.person_key) == ("renewed", None)
+            # A new sign-in in place of one that named jo is a forgetting of it: what was kept for jo goes.
+            assert {key: world.storage.get(key) for key in kept} == dict.fromkeys(kept)
 
     run(scenario())
 
@@ -1286,6 +1426,49 @@ def test_with_no_session_there_is_nothing_to_ask() -> None:
     async def scenario() -> None:
         async with World().browser() as browser:
             assert await browser.read_active_kb() == KbReadVerdict(kind="no-verdict")
+
+    run(scenario())
+
+
+OPEN_RESOURCE_CASES: Final = objects(read(SPEC / "session/open-resource-cases.json")["cases"], "cases")
+"""What a session's arrival does with the resources open in its knowledge base, case by case."""
+
+
+def why(case: JsonObject) -> str:
+    return text(case["why"], "why")
+
+
+@pytest.mark.parametrize("case", OPEN_RESOURCE_CASES, ids=why)
+def test_the_resources_open_as_a_session_becomes_active_are_checked_as_the_shared_table_states(case: JsonObject) -> None:
+    async def scenario() -> None:
+        world = World().with_(kb_of_a())
+        # What the knowledge base says when it is asked who it is. One that is told nothing to say does not answer.
+        match case["kb"]:
+            case "itself":
+                world.factory.says(KB_A, description("KB A", "example.org:kb-a"))
+            case "unanswered":
+                pass
+            case said:
+                raise AssertionError(f"the table's knowledge base answers {said!r}, which this runner does not know")
+        # What it says of each open resource. A read it gives no answer to fails, and is no refusal.
+        answers = case["resources"]
+        assert isinstance(answers, dict)
+        for resource, answer in answers.items():
+            match answer:
+                case "ready":
+                    pass
+                case "gone":
+                    world.factory.behind.gone.add(resource)
+                case "unanswered":
+                    world.factory.behind.failing.add(resource)
+                case said:
+                    raise AssertionError(f"the table's knowledge base answers {said!r} of {resource}, which this runner does not know")
+        world.opened(KB_A, *strings(case["open"], "open"))
+        async with world.browser() as browser:
+            await live(browser)
+
+            assert set(world.factory.asked_about(KB_A)) == set(strings(case["asked"], "asked"))
+            assert set(shown(browser)) == set(strings(case["stillOpen"], "stillOpen"))
 
     run(scenario())
 

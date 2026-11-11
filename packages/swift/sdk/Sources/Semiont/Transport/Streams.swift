@@ -1,12 +1,17 @@
 import Foundation
 import Synchronization
 
-/// Each call creates an independent unbounded queue, beginning at the call.
+/// Each call creates an independent unbounded queue, beginning at the call. One that keeps for its
+/// first listener gives that listener first what it was given before anyone listened.
 package final class Broadcast<Value: Sendable>: Sendable {
-  package init() {}
+  private let keepsForFirst: Bool
+  package init(keepingForFirst: Bool = false) { keepsForFirst = keepingForFirst }
   private struct State: Sendable {
     var listeners: [UUID: AsyncThrowingStream<Value, any Error>.Continuation] = [:]
     var closed = false
+    var listened = false
+    /// What it was given before anyone listened, kept for its first listener.
+    var kept: [Value] = []
   }
   private let state = Mutex(State())
   package func listen(onTermination: @escaping @Sendable () -> Void = {}) -> Events<Value> {
@@ -20,6 +25,11 @@ package final class Broadcast<Value: Sendable>: Sendable {
     let closed = state.withLock { state in
       if state.closed { return true }
       state.listeners[id] = continuation
+      if !state.listened {
+        state.listened = true
+        for value in state.kept { continuation.yield(value) }
+        state.kept.removeAll()
+      }
       return false
     }
     if closed { continuation.finish() }
@@ -27,7 +37,10 @@ package final class Broadcast<Value: Sendable>: Sendable {
   }
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
   package func yield(_ value: Value) {
-    let listeners = state.withLock { Array($0.listeners.values) }
+    let listeners = state.withLock { state in
+      if keepsForFirst, !state.listened, !state.closed { state.kept.append(value) }
+      return Array(state.listeners.values)
+    }
     for listener in listeners { listener.yield(value) }
   }
   package func finish() {

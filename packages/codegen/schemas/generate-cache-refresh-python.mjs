@@ -2,7 +2,8 @@
 // Generate the Python SDK's cache-refresh table from protocol/specs/src/client/refresh.json:
 // which live queries each event on the bus, the reopening of a dropped
 // stream, and an event that cannot be read, asks again for, writes, or
-// removes, and where in each event its row finds what it names.
+// removes; and where in each event its row finds what it names. Which of them
+// a client keeps for its person is generate-stored-python.mjs's KEPT_QUERIES.
 //
 //   packages/python/sdk/src/semiont/refresh.py
 //

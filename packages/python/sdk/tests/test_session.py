@@ -14,12 +14,13 @@ from collections.abc import AsyncIterable, Sequence
 from typing import Final, final, override
 
 import pytest
-from aio import pass_time, run, soon, turns
+from aio import Heard, pass_time, run, soon, turns
 from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, jwt, token
 
 from semiont.errors import BusRequestError, SemiontError, SessionError, SignInError, TransportError
-from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
+from semiont.events import Broadcast, Events
+from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate, said_in_full
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
 from semiont.timing import MAX_RECONNECT_MS, RECONNECT_MS
@@ -65,15 +66,18 @@ class World:
         self.renewed = 0
         self.renewed_at: list[float] = []
         """When each renewal was asked for, by the loop's clock."""
+        self.handed: list[str | None] = []
+        """The token each renewal was handed: the one it renews."""
         self.validations = deque(validations)
         """What the gateway says of a token, in order; Alice once it is spent."""
         self.validated: list[str] = []
         self.answered: UserResponse | None = None
         """Who the gateway last said a token is."""
         self.told: list[SessionEndReason] = []
-        self.errors: list[SessionError] = []
+        self._heard: Heard[SemiontError] | None = None
 
-    async def refresh(self) -> str | None:
+    async def refresh(self, holding: str | None) -> str | None:
+        self.handed.append(holding)
         self.renewed += 1
         self.renewed_at.append(asyncio.get_running_loop().time())
         answer = self.renewals.popleft() if self.renewals else None
@@ -89,8 +93,10 @@ class World:
         self.answered = answer
         return answer
 
-    def session(self, *, refresh: Refresh | None, validate: Validate | None) -> SemiontSession[FaultyTransport]:
-        return SemiontSession(
+    def session(
+        self, *, refresh: Refresh | None, validate: Validate | None, said: Events[SessionError] | None = None
+    ) -> SemiontSession[FaultyTransport]:
+        session = SemiontSession(
             kb=TARGET,
             client=create_test_client().client,
             token=self.token,
@@ -98,8 +104,11 @@ class World:
             refresh=refresh,
             validate=validate,
             on_auth_failed=self.told.append,
-            on_error=self.errors.append,
+            said=said,
         )
+        # Heard from before it starts, so what its start says is heard too.
+        self._heard = Heard(session.errors())
+        return session
 
     def its_session(self) -> SemiontSession[FaultyTransport]:
         """A session that renews and asks as the world scripts."""
@@ -108,8 +117,18 @@ class World:
     async def is_kept(self) -> bool:
         return await self.kept.held() is not None
 
-    def said(self) -> list[tuple[str, str]]:
-        return [(error.code, error.message) for error in self.errors]
+    async def said(self) -> list[tuple[str, str]]:
+        """What the session has said on its errors stream until now: each failure's code and message, in order."""
+        assert self._heard is not None, "the world has built no session"
+        return [(error.code, error.message) for error in await self._heard.so_far()]
+
+    async def said_in_all(self) -> list[tuple[str, str]]:
+        """Everything the session said on its errors stream, which has ended with it."""
+        assert self._heard is not None, "the world has built no session"
+        return [(error.code, error.message) for error in await self._heard.ended()]
+
+    async def codes_said(self) -> list[str]:
+        return [code for code, _ in await self.said()]
 
 
 def why(row: JsonObject) -> str:
@@ -194,15 +213,20 @@ def ends(session: SemiontSession[FaultyTransport]) -> str:
     return "unconfirmed" if session.user.value is None else "signed-in"
 
 
-async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[FaultyTransport], asked_before: int) -> None:
-    """The session ended as the row states, and one that ended signed out asks nobody anything afterwards, however long it is held."""
+async def is_as_stated(
+    row: JsonObject, world: World, session: SemiontSession[FaultyTransport], asked_before: int, renews: str | None
+) -> None:
+    """The session ended as the row states, and one that ended signed out asks nobody anything afterwards, however long it is held.
+
+    Every renewal, at any point, was handed `renews`: the token the row is about.
+    """
     asks, renewals = count(row, "asks"), count(row, "renewals")
     assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "how often the gateway and the issuer were asked"
     assert ends(session) == row["ends"]
     if row["ends"] == "signed-in":
         assert session.user.value == world.answered, "who the gateway last said the token is"
     assert world.told == ([] if row["told"] is None else [row["told"]]), "why the session ended"
-    assert [error.code for error in world.errors] == ([] if row["error"] is None else [row["error"]]), "the error reported"
+    assert await world.codes_said() == ([] if row["error"] is None else [row["error"]]), "what the session said on its errors stream"
     assert await world.is_kept() == row["kept"], "whether a sign-in is still kept"
     later = then(row)
     if later is not None:
@@ -216,6 +240,7 @@ async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Fa
     elif ends(session) == "signed-out":
         await pass_time(2 * 60 * 60, step=60)
         assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "what was asked once the session was over"
+    assert world.handed == [renews] * world.renewed, "the token each renewal was handed: the one it renews"
 
 
 @pytest.mark.parametrize("row", STARTUP, ids=why)
@@ -231,7 +256,8 @@ def test_a_session_starts_as_the_table_states(row: JsonObject) -> None:
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            await is_as_stated(row, world, session, 0)
+            # The token found stored, though it has expired.
+            await is_as_stated(row, world, session, 0, kept)
 
     run(scenario())
 
@@ -239,9 +265,10 @@ def test_a_session_starts_as_the_table_states(row: JsonObject) -> None:
 @pytest.mark.parametrize("row", REFUSAL, ids=why)
 def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) -> None:
     asks, renewals = answers(row)
+    started_on = token(3600, 0)
     # The session starts signed in: the gateway accepts the kept token. Then the row's answers.
     world = World(
-        kept=token(3600, 0),
+        kept=started_on,
         renewals=[issuer_says(row, n, token(3600, 1)) for n in range(renewals)],
         validations=[alice(), *(gateway_says(row, n) for n in range(asks)), one_too_many()],
     )
@@ -256,7 +283,8 @@ def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) 
             assert (given is not None) == row["given"], "whether `refresh` gives a token"
             if given is not None:
                 assert given == session.token.value
-            await is_as_stated(row, world, session, 1)
+            # The token its session started on, whether the gateway refused it or one it held before.
+            await is_as_stated(row, world, session, 1, started_on)
 
     run(scenario())
 
@@ -264,6 +292,29 @@ def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) 
 def test_the_table_was_read() -> None:
     assert len(STARTUP) >= 10
     assert len(REFUSAL) >= 4
+
+
+# ── What it says ────────────────────────────────────────────────────────
+
+
+def test_what_a_session_says_is_on_its_one_errors_stream_beside_its_transports_failures_each_once() -> None:
+    access = token(3600, 1)
+    world = World(kept=access, validations=[BusRequestError("bus.timeout", "nobody answered")])
+    gone = TransportError("unavailable", "the gateway went away")
+
+    async def scenario() -> None:
+        async with world.its_session() as session:
+            await soon(session.ready())
+            # Its own failure, said as it started.
+            assert await world.said() == [("session.auth-failed", "nobody answered")]
+            # And its transport's, on the same stream.
+            session.client.transport.fail(gone)
+            assert await world.said() == [("session.auth-failed", "nobody answered"), ("unavailable", "the gateway went away")]
+        # Each once, and the stream ended with the session, which its client outlives.
+        assert await world.said_in_all() == [("session.auth-failed", "nobody answered"), ("unavailable", "the gateway went away")]
+        assert not session.client.bus.destroyed
+
+    run(scenario())
 
 
 # ── At its start ────────────────────────────────────────────────────────
@@ -312,7 +363,7 @@ def test_a_gateway_that_fails_in_some_other_way_has_refused_nothing_either() -> 
         async with world.its_session() as session:
             await soon(session.ready())
             assert (session.token.value, session.user.value) == (access, None)
-            assert world.said() == [("session.auth-failed", "nobody answered")]
+            assert await world.said() == [("session.auth-failed", "nobody answered")]
             assert (world.told, world.renewed, await world.is_kept()) == ([], 0, True)
 
     async def when_refused() -> None:
@@ -320,7 +371,7 @@ def test_a_gateway_that_fails_in_some_other_way_has_refused_nothing_either() -> 
         async with world.its_session() as session:
             await soon(session.ready())
             assert await soon(session.refresh(session.token.value)) == renewed
-            assert (world.told, world.errors, await world.is_kept()) == ([], [], True)
+            assert (world.told, await world.said(), await world.is_kept()) == ([], [], True)
 
     run(at_its_start())
     run(when_refused())
@@ -362,7 +413,7 @@ def test_an_expired_token_the_issuer_will_not_renew_is_forgotten_and_the_session
             assert session.user.value is None
             assert not await world.is_kept()
             # There was no session to end: nothing is said.
-            assert (world.told, world.errors) == ([], [])
+            assert (world.told, await world.said()) == ([], [])
 
     run(scenario(None))
     run(scenario(refused_by_the_issuer()))
@@ -378,7 +429,7 @@ def test_an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a
             await soon(session.ready())
             # Kept, with no token, and nothing ended.
             assert (session.token.value, await world.is_kept(), world.told) == (None, True, [])
-            assert world.said() == [("session.auth-failed", f"Token refresh failed: {failure.message}")]
+            assert await world.said() == [("session.auth-failed", f"Token refresh failed: {failure.message}")]
             # The issuer answers again: a request refused for want of a token renews it.
             assert await soon(session.refresh(session.token.value)) == renewed
             assert session.token.value == renewed
@@ -430,7 +481,7 @@ def test_a_stream_refused_while_the_session_is_starting_costs_one_renewal_and_on
             assert gateway.asked == [access, renewed]
             assert world.renewed == 1
             assert world.told == ["refused"]
-            assert [error.code for error in world.errors] == ["session.credential-refused"]
+            assert await world.codes_said() == ["session.credential-refused"]
             assert session.token.value is None
 
     run(scenario())
@@ -454,7 +505,7 @@ def test_a_token_renewed_while_the_session_is_starting_is_taken_up_and_not_renew
             assert world.renewed == 1
             assert session.token.value == renewed
             assert session.user.value == alice()
-            assert (world.told, world.errors) == ([], [])
+            assert (world.told, await world.said()) == ([], [])
 
     run(scenario())
 
@@ -468,7 +519,7 @@ def test_refusals_that_arrive_together_cost_one_renewal_and_one_ask() -> None:
     renewals = 0
 
     # An issuer that takes a moment, as one does: the refusals overlap.
-    async def refresh() -> str | None:
+    async def refresh(_holding: str | None) -> str | None:
         nonlocal renewals
         renewals += 1
         await asyncio.sleep(0.01)
@@ -555,6 +606,29 @@ def test_an_idle_session_renews_its_token_once_per_half_life_and_no_oftener() ->
     run(scenario())
 
 
+def test_each_renewal_is_handed_the_token_it_renews() -> None:
+    first, due, renewed = token(300, 0), token(300, 1), token(3600, 2)
+    world = World(kept=first, renewals=[due, unanswered_by_the_issuer(), renewed])
+
+    async def scenario() -> None:
+        async with world.its_session() as session:
+            await soon(session.ready())
+            # Due on its own schedule: the token it holds.
+            await pass_time(152)
+            assert world.handed == [first]
+            assert session.token.value == due
+            # Refused by the gateway: the token refused, which it holds; the renewal gets no answer.
+            assert await soon(session.refresh(session.token.value)) is None
+            assert world.handed == [first, due]
+            # On the reconnect backoff it holds none, and is handed the token
+            # whose renewal got no answer: the one it renews.
+            await pass_time(FIRST_RETRY_HELD, step=0.1)
+            assert world.handed == [first, due, due]
+            assert session.token.value == renewed
+
+    run(scenario())
+
+
 def test_a_session_that_cannot_be_renewed_is_over_and_says_so_once() -> None:
     world = World(kept=token(3600, 1))
 
@@ -566,10 +640,12 @@ def test_a_session_that_cannot_be_renewed_is_over_and_says_so_once() -> None:
             # The dead credential is not kept to be used again.
             assert not await world.is_kept()
             assert world.told == ["expired"]
-            assert world.said() == [("session.refresh-exhausted", "Token refresh failed")]
+            assert await world.said() == [("session.refresh-exhausted", "Token refresh failed")]
             # What follows finds nothing kept, and is quiet.
             assert await soon(session.refresh(session.token.value)) is None
-            assert (len(world.told), len(world.errors)) == (1, 1)
+            assert (len(world.told), len(await world.said())) == (1, 1)
+        # Said once, in all: its errors stream ended with it.
+        assert await world.said_in_all() == [("session.refresh-exhausted", "Token refresh failed")]
 
     run(scenario())
 
@@ -583,7 +659,7 @@ def test_a_renewal_the_issuer_refused_ends_the_session_and_names_its_cause() -> 
             assert await soon(session.refresh(session.token.value)) is None
             assert not await world.is_kept()
             assert world.told == ["expired"]
-            assert world.said() == [("session.refresh-exhausted", f"Token refresh failed: {refused_by_the_issuer().message}")]
+            assert await world.said() == [("session.refresh-exhausted", f"Token refresh failed: {refused_by_the_issuer().message}")]
 
     run(scenario())
 
@@ -599,7 +675,7 @@ def test_a_renewal_that_got_no_answer_keeps_what_is_kept_and_the_next_refusal_re
             assert await soon(session.refresh(session.token.value)) is None
             # No usable token, what is kept stays, and the session is not over.
             assert (session.token.value, await world.is_kept(), world.told) == (None, True, [])
-            assert world.said() == [("session.refresh-exhausted", f"Token refresh failed: {failure.message}")]
+            assert await world.said() == [("session.refresh-exhausted", f"Token refresh failed: {failure.message}")]
             assert await soon(session.refresh(session.token.value)) == renewed
             assert session.token.value == renewed
 
@@ -656,7 +732,7 @@ def test_a_session_that_never_signed_in_cannot_expire() -> None:
             await soon(session.ready())
             assert await soon(session.refresh(session.token.value)) is None
             assert world.renewed == 1
-            assert (world.told, world.errors) == ([], [])
+            assert (world.told, await world.said()) == ([], [])
 
     run(scenario())
 
@@ -709,6 +785,43 @@ def test_ending_a_session_ends_what_it_holds_and_leaves_its_client_open() -> Non
     run(scenario())
 
 
+def test_a_session_ended_with_its_client_open_ends_its_errors_then_and_says_nothing_it_is_given_after() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+
+    async def scenario() -> None:
+        session = world.session(refresh=world.refresh, validate=world.validate, said=keeping.listen())
+        async with session:
+            await soon(session.ready())
+            keeping.deliver(SessionError("session.save-refused", "the storage refused a write", kb_id=KB))
+            assert await world.said() == [("session.save-refused", "the storage refused a write")]
+        # Ended alone: its client is open, and what it is given to say has not ended. Its errors end with it.
+        assert await world.said_in_all() == [("session.save-refused", "the storage refused a write")]
+        assert not session.client.bus.destroyed
+        # It hears nothing more of what it was given: what that says from now on is said nowhere.
+        assert keeping.deliver(SessionError("session.keep-failed", "the sign-in could not be read", kb_id=KB)) == 0
+
+    # Bounded: an ending that waited for what the session was given to end would wait for good.
+    run(soon(scenario()))
+
+
+def test_what_a_session_was_given_to_say_is_said_in_full_once_it_has_ended_and_the_session_was_waited_for() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+
+    async def scenario() -> None:
+        session = world.session(refresh=world.refresh, validate=world.validate, said=keeping.listen())
+        async with session:
+            await soon(session.ready())
+            # Said, and ended, with no turn of the loop for the session to say it before it ends: waiting for it is what has it said.
+            keeping.deliver(SessionError("session.save-refused", "the storage refused a write", kb_id=KB))
+            keeping.close()
+            await soon(said_in_full(session))
+        assert await world.said_in_all() == [("session.save-refused", "the storage refused a write")]
+
+    run(scenario())
+
+
 def test_a_session_ended_while_it_starts_is_ready_and_says_nothing() -> None:
     access = token(3600, 1)
     world = World(kept=access)
@@ -719,7 +832,7 @@ def test_a_session_ended_while_it_starts_is_ready_and_says_nothing() -> None:
             await turns()
             assert gateway.asked == [access]
         await soon(session.ready())
-        assert (world.renewed, world.told, world.errors) == (0, [], [])
+        assert (world.renewed, world.told, await world.said_in_all()) == (0, [], [])
 
     run(scenario())
 
@@ -738,8 +851,8 @@ class Sessions(AxiomSubject[SemiontSession[FaultyTransport]]):
 
     @override
     def surfaces(self, unit: SemiontSession[FaultyTransport]) -> Sequence[AsyncIterable[object]]:
-        # Its stream state and its errors are its client's, and end with it.
-        return (unit.token, unit.user)
+        # Its stream state is its client's, and ends with it. Its errors are its own, and end with it.
+        return (unit.token, unit.user, unit.errors())
 
 
 def test_a_session_keeps_the_state_unit_axioms_and_never_closes_its_client() -> None:

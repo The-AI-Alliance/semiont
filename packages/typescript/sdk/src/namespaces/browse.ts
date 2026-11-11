@@ -19,19 +19,10 @@ import type {
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { Bus, BusRequestError, LIMITS_OPERATIONS } from '@semiont/core';
-import type { CacheQuery, CacheRefresh } from '@semiont/core';
+import { PERSISTED_QUERIES, type CacheQuery, type CacheRefresh, type CacheValues, type PersistedQuery } from '@semiont/core';
 import { CacheRefresher, ScopedSources, type QueryActs, type RefreshSubject } from '../cache-refresh';
-import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
-import { sessionStoragePersister } from '../cache-persister';
-import type { SessionStorage } from '../session/session-storage';
-import { cacheKey } from '../session/storage';
-
-/**
- * B17 — serialized-shape version shared by every persisted browse cache.
- * Bump when any persisted value shape changes; stale documents then read
- * as empty and refetch.
- */
-const CACHE_PERSISTENCE_VERSION = 1;
+import { createCache, createPersistableCache, type CacheState, type Cache, type PersistableCache } from '../cache';
+import { WHOLE_KEY, keptPersister, refusedSaveOf, type CachePersistence, type KeptKey, type WholeKey } from '../cache-persister';
 import type {
   BrowseNamespace as IBrowseNamespace,
   AnnotationHistoryResponse,
@@ -39,16 +30,6 @@ import type {
   ResourceListFilters,
 } from './types';
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
-type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
-
-/** Sentinel key for the singleton entity-types cache. */
-const ENTITY_TYPES_KEY = '_';
-
-/** Sentinel key for the singleton tag-schemas cache. */
-const TAG_SCHEMAS_KEY = '_';
-
-/** Sentinel key for the singleton engines cache. */
-const ENGINES_KEY = '_';
 
 type EngineLimits = components['schemas']['EngineLimits'];
 
@@ -79,9 +60,9 @@ export class BrowseNamespace implements IBrowseNamespace {
   // The caches are an implementation detail of this namespace; the public
   // surface is `resource()`, `annotations()`, etc.
 
-  private readonly resourceCache: Cache<ResourceId, ResourceDescriptor>;
-  private readonly resourceListCache: Cache<string, ResourceList>;
-  private readonly annotationListCache: Cache<ResourceId, GetAnnotationsResponse>;
+  private readonly resourceCache: Cache<ResourceId, CacheValues['resource']>;
+  private readonly resourceListCache: Cache<string, CacheValues['resources']>;
+  private readonly annotationListCache: Cache<ResourceId, CacheValues['annotations']>;
   /**
    * Annotation-detail cache keyed by `annotationId` only — the resourceId
    * is a routing hint for the gateway fetch, not an identity component.
@@ -89,16 +70,16 @@ export class BrowseNamespace implements IBrowseNamespace {
    * fetch names it in its request, and an event that names only a resource
    * finds that resource's annotations through it.
    */
-  private readonly annotationDetailCache: Cache<AnnotationId, Annotation>;
+  private readonly annotationDetailCache: Cache<AnnotationId, CacheValues['annotation']>;
   private readonly annotationResources = new Map<AnnotationId, ResourceId>();
-  private readonly entityTypesCache: Cache<string, string[]>;
-  private readonly tagSchemasCache: Cache<string, TagSchema[]>;
-  private readonly enginesCache: Cache<string, EngineEntry[]>;
+  private readonly entityTypesCache: Cache<WholeKey, CacheValues['entityTypes']>;
+  private readonly tagSchemasCache: Cache<WholeKey, CacheValues['tagSchemas']>;
+  private readonly enginesCache: Cache<WholeKey, CacheValues['engines']>;
   /** Each key holder's limits report, by the operation it answers. */
   private readonly limitsCache: Cache<LimitsOperation, EngineLimits[]>;
   /** The engines, joined with the limits reports as each arrives. */
   private readonly engines$: Observable<CacheState<EngineWithLimits[]>>;
-  private readonly resourceEventsCache: Cache<ResourceId, AttributedEvent[]>;
+  private readonly resourceEventsCache: Cache<ResourceId, CacheValues['events']>;
 
   /** Filter-blob memory so `invalidateResourceLists` can replay per-key. */
   private readonly resourceListFilters = new Map<string, ResourceListFilters>();
@@ -145,11 +126,19 @@ export class BrowseNamespace implements IBrowseNamespace {
   };
 
   /**
-   * B17-Q — the persisted caches, registered at construction, for the
-   * quiescence check gating the resumption-bookmark flush. Empty when
-   * persistence is off (settled is then vacuously true).
+   * B17-Q — the kept caches, registered when persistence attaches, for the
+   * readings of whether what is kept is at rest, which the stream's places
+   * are coupled to. Empty while persistence is off (both are then vacuously
+   * true).
    */
-  private readonly persistedCaches: Array<{ persistencePending(): boolean }> = [];
+  private readonly keptCaches: Array<{ readonly cache: { persistencePending(): boolean }; fetching(): boolean }> = [];
+
+  /**
+   * B17 — what keeps each persisted query's values, by its name in
+   * protocol/specs/src/client/refresh.json: given where, it starts keeping
+   * them and hands back the kept cache.
+   */
+  private readonly keepers: { [Q in PersistedQuery]: (persistence: CachePersistence) => PersistableCache<KeptKey<Q>, CacheValues[Q]> };
 
   private readonly wire: Bus;
 
@@ -166,48 +155,28 @@ export class BrowseNamespace implements IBrowseNamespace {
        */
       invalidationWindowMs?: number;
       /**
-       * B17 — opt into cache persistence through the environment's
-       * SessionStorage adapter. keyPrefix is the KB id (cache data is
-       * KB-specific). Omitted = in-memory only.
+       * B17 — keep the persisted queries' values from construction on, for
+       * the person signed in. Omitted = in-memory only until
+       * `attachPersistence`.
        */
-      cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+      cachePersistence?: CachePersistence;
     },
   ) {
     this.wire = new Bus(transport);
     this.busTimeoutMs = options?.busTimeoutMs;
     this.scoped = new ScopedSources(this.transport);
 
-    // The opt-in table: the small, first-paint caches persist (a resource,
-    // its annotations, one annotation, the vocabulary); resource lists, event
-    // histories, referenced-by and the engines stay in-memory.
-    const persistence = options?.cachePersistence;
-    const persisted = <K, V>(name: string): { persister: CachePersister<K, V> } | undefined =>
-      persistence
-        ? {
-            persister: sessionStoragePersister<K, V>({
-              storage: persistence.storage,
-              storageKey: cacheKey(persistence.keyPrefix, name),
-              version: CACHE_PERSISTENCE_VERSION,
-            }),
-          }
-        : undefined;
-    // B17-Q: every persisted cache registers for the quiescence check that
-    // gates the resumption-bookmark flush (`persistenceSettled`).
-    const track = <C extends { persistencePending(): boolean }>(cache: C): C => {
-      if (persistence) this.persistedCaches.push(cache);
-      return cache;
-    };
-
-    this.resourceCache = track(createCache<ResourceId, ResourceDescriptor>(async (id) => {
+    const resource = createPersistableCache<ResourceId, CacheValues['resource']>(async (id) => {
       const result = await this.wire.request(
         'browse:resource-requested',
         { resourceId: id },
         this.busTimeoutMs,
       );
       return result.resource as ResourceDescriptor;
-    }, persisted<ResourceId, ResourceDescriptor>('resource')));
+    });
+    this.resourceCache = resource.cache;
 
-    this.resourceListCache = createCache<string, ResourceList>(async (key) => {
+    this.resourceListCache = createCache<string, CacheValues['resources']>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
       const result = await this.wire.request(
         'browse:resources-requested',
@@ -224,12 +193,12 @@ export class BrowseNamespace implements IBrowseNamespace {
       return { ...result, resources: result.resources as ResourceDescriptor[] };
     });
 
-    this.annotationListCache = track(createCache<ResourceId, GetAnnotationsResponse>(
+    const annotations = createPersistableCache<ResourceId, CacheValues['annotations']>(
       (resourceId) => this.content.getAnnotations(resourceId),
-      persisted<ResourceId, GetAnnotationsResponse>('annotations'),
-    ));
+    );
+    this.annotationListCache = annotations.cache;
 
-    this.annotationDetailCache = track(createCache<AnnotationId, Annotation>(async (annotationId) => {
+    const annotation = createPersistableCache<AnnotationId, CacheValues['annotation']>(async (annotationId) => {
       const resourceId = this.annotationResources.get(annotationId);
       if (!resourceId) {
         throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
@@ -240,27 +209,43 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.annotation as Annotation;
-    }, persisted<AnnotationId, Annotation>('annotation-detail')));
+    });
+    this.annotationDetailCache = annotation.cache;
 
-    this.entityTypesCache = track(createCache<string, string[]>(async () => {
+    const entityTypes = createPersistableCache<WholeKey, CacheValues['entityTypes']>(async () => {
       const result = await this.wire.request(
         'browse:entity-types-requested',
         {},
         this.busTimeoutMs,
       );
       return result.entityTypes;
-    }, persisted<string, string[]>('entity-types')));
+    });
+    this.entityTypesCache = entityTypes.cache;
 
-    this.tagSchemasCache = track(createCache<string, TagSchema[]>(async () => {
+    const tagSchemas = createPersistableCache<WholeKey, CacheValues['tagSchemas']>(async () => {
       const result = await this.wire.request(
         'browse:tag-schemas-requested',
         {},
         this.busTimeoutMs,
       );
       return result.tagSchemas;
-    }, persisted<string, TagSchema[]>('tag-schemas')));
+    });
+    this.tagSchemasCache = tagSchemas.cache;
 
-    this.enginesCache = createCache<string, EngineEntry[]>(async () => {
+    const keeping = <Q extends PersistedQuery>(query: Q, made: PersistableCache<KeptKey<Q>, CacheValues[Q]>) => (persistence: CachePersistence): PersistableCache<KeptKey<Q>, CacheValues[Q]> => {
+      made.attach(keptPersister(query, persistence), refusedSaveOf(persistence));
+      return made;
+    };
+    this.keepers = {
+      resource: keeping('resource', resource),
+      annotations: keeping('annotations', annotations),
+      annotation: keeping('annotation', annotation),
+      entityTypes: keeping('entityTypes', entityTypes),
+      tagSchemas: keeping('tagSchemas', tagSchemas),
+    };
+    if (options?.cachePersistence) this.attachPersistence(options.cachePersistence);
+
+    this.enginesCache = createCache<WholeKey, CacheValues['engines']>(async () => {
       const result = await this.wire.request(
         'browse:engines-requested',
         {},
@@ -279,14 +264,14 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.wire.request(operation, {}, this.busTimeoutMs).then((result) => result.limits, () => []));
 
     this.engines$ = combineLatest([
-      this.enginesCache.observe(ENGINES_KEY),
+      this.enginesCache.observe(WHOLE_KEY),
       ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.observe(operation)),
     ]).pipe(map(([engines, ...reports]): CacheState<EngineWithLimits[]> =>
       engines.status === 'ready'
         ? { status: 'ready', value: joinLimits(engines.value, reports.flatMap((r) => (r.status === 'ready' ? r.value : []))) }
         : engines));
 
-    this.resourceEventsCache = createCache<ResourceId, AttributedEvent[]>(async (resourceId) => {
+    this.resourceEventsCache = createCache<ResourceId, CacheValues['events']>(async (resourceId) => {
       const result = await this.wire.request(
         'browse:events-requested',
         { resourceId },
@@ -335,11 +320,11 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   entityTypes(): CacheObservable<string[]> {
-    return CacheObservable.from(this.entityTypesCache.observe(ENTITY_TYPES_KEY), () => this.entityTypesCache.fetch(ENTITY_TYPES_KEY));
+    return CacheObservable.from(this.entityTypesCache.observe(WHOLE_KEY), () => this.entityTypesCache.fetch(WHOLE_KEY));
   }
 
   tagSchemas(): CacheObservable<TagSchema[]> {
-    return CacheObservable.from(this.tagSchemasCache.observe(TAG_SCHEMAS_KEY), () => this.tagSchemasCache.fetch(TAG_SCHEMAS_KEY));
+    return CacheObservable.from(this.tagSchemasCache.observe(WHOLE_KEY), () => this.tagSchemasCache.fetch(WHOLE_KEY));
   }
 
   /**
@@ -353,7 +338,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   engines(): CacheObservable<EngineWithLimits[]> {
     return CacheObservable.from(this.engines$, async () => {
       const [engines, ...reports] = await Promise.all([
-        this.enginesCache.fetch(ENGINES_KEY),
+        this.enginesCache.fetch(WHOLE_KEY),
         ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.fetch(operation)),
       ]);
       return joinLimits(engines, reports.flat());
@@ -510,26 +495,49 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   invalidateEntityTypes(): void {
-    this.entityTypesCache.invalidate(ENTITY_TYPES_KEY);
+    this.entityTypesCache.invalidate(WHOLE_KEY);
   }
 
   invalidateTagSchemas(): void {
-    this.tagSchemasCache.invalidate(TAG_SCHEMAS_KEY);
+    this.tagSchemasCache.invalidate(WHOLE_KEY);
   }
 
   invalidateEngines(): void {
-    this.enginesCache.invalidate(ENGINES_KEY);
+    this.enginesCache.invalidate(WHOLE_KEY);
     for (const operation of LIMITS_OPERATIONS) this.limitsCache.invalidate(operation);
   }
 
   /**
-   * B17-Q (C1) — true when every persisted cache is quiet: no fetch in
-   * flight, no debounced save pending. The session factory wires this as the
-   * resumption-bookmark flush gate, making the persisted bookmark unable to
-   * lead the persisted content.
+   * B17-Q (C1) — true when every kept cache is quiet (no fetch in flight, no
+   * save owed) and the refresher owes no refetch (no B19 window holds an
+   * invalidation it has not yet run). The stream's places coupled to the
+   * client are written only while this holds, so the persisted bookmark
+   * cannot lead the persisted content.
    */
   persistenceSettled(): boolean {
-    return this.persistedCaches.every((cache) => !cache.persistencePending());
+    return !this.refresher.owesRefetch() && this.keptCaches.every((kept) => !kept.cache.persistencePending());
+  }
+
+  /**
+   * B17-Q — true when the refresher owes no refetch and no kept cache has a
+   * fetch in flight: what is kept is at rest but for the saves it owes. The
+   * client's disposal reads this once, before anything is disposed, to seal
+   * the places: disposal drops a fetch and a refetch owed, and makes every
+   * save owed.
+   */
+  fetchesSettled(): boolean {
+    return !this.refresher.owesRefetch() && this.keptCaches.every((kept) => !kept.fetching());
+  }
+
+  /**
+   * B17 — keep the persisted queries' values from now on, for the person
+   * signed in: each query's kept values fill the keys its cache does not
+   * know, as restored (B18), and every later change is saved. The session
+   * factory attaches once the gateway names the person, which may be after
+   * the client was made. Once per namespace: a second call throws.
+   */
+  attachPersistence(persistence: CachePersistence): void {
+    for (const query of PERSISTED_QUERIES) this.keptCaches.push(this.keepers[query](persistence));
   }
 
   invalidateResourceEvents(resourceId: ResourceId): void {
@@ -567,9 +575,13 @@ export class BrowseNamespace implements IBrowseNamespace {
    * subscribers detach cleanly; a fetch/retry chain straddling disposal
    * dies quietly in the cache's own disposed guard. Idempotent. Called by
    * `SemiontClient.dispose()`.
+   *
+   * A client that holds coupled places sealed them before this (B17-Q), so
+   * the flushes write the places noted then, whatever the caches report now.
+   * Once disposed, a cache is inert to anything the refresher does before
+   * it goes (B16).
    */
   dispose(): void {
-    this.refresher.dispose();
     this.resourceCache.dispose();
     this.resourceListCache.dispose();
     this.annotationListCache.dispose();
@@ -579,6 +591,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.enginesCache.dispose();
     this.limitsCache.dispose();
     this.resourceEventsCache.dispose();
+    this.refresher.dispose();
     this.annotationResources.clear();
     this.resourceListFilters.clear();
     this.annotationListObs.clear();
@@ -621,9 +634,9 @@ export class BrowseNamespace implements IBrowseNamespace {
       events: { refetch: (subject, reach) => resources(this.resourceEventsCache, subject, reach).forEach(this.refetchKey.events) },
       // Its keys are the lists the cache knows: `invalidateAll` reaches no other.
       resources: { refetch: () => this.refresher.windowed('resource-lists', () => this.invalidateResourceLists()) },
-      entityTypes: { refetch: () => this.refresher.held(this.entityTypesCache, ENTITY_TYPES_KEY, 'entity-types', () => this.invalidateEntityTypes()) },
-      tagSchemas: { refetch: () => this.refresher.held(this.tagSchemasCache, TAG_SCHEMAS_KEY, 'tag-schemas', () => this.invalidateTagSchemas()) },
-      engines: { refetch: () => this.refresher.held(this.enginesCache, ENGINES_KEY, 'engines', () => this.invalidateEngines()) },
+      entityTypes: { refetch: () => this.refresher.held(this.entityTypesCache, WHOLE_KEY, 'entityTypes', () => this.invalidateEntityTypes()) },
+      tagSchemas: { refetch: () => this.refresher.held(this.tagSchemasCache, WHOLE_KEY, 'tagSchemas', () => this.invalidateTagSchemas()) },
+      engines: { refetch: () => this.refresher.held(this.enginesCache, WHOLE_KEY, 'engines', () => this.invalidateEngines()) },
     };
   }
 

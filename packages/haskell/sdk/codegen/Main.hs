@@ -554,8 +554,8 @@ main = do
         _ -> ioError (userError "SessionFactoryOptions states no fields in surface.json")
       _ -> ioError (userError "surface.json's registry module does not list SessionFactoryOptions once")
     _ -> ioError (userError "surface.json states no modules")
-  -- Each member's type is Haskell's own: a storage, the signals unit, an error callback.
-  let factoryTypes = [("kb","KnowledgeBase"),("storage","Storage.SessionStorage"),("signals","Signals.SessionSignals"),("onError","SessionError -> IO ()")]
+  -- Each member's type is Haskell's own: a storage and the signals unit.
+  let factoryTypes = [("kb","KnowledgeBase"),("storage","Storage.SessionStorage"),("signals","Signals.SessionSignals")]
   factoryMembers <- forM factoryFields $ \field ->
     maybe (ioError (userError ("SessionFactoryOptions' " ++ T.unpack field ++ " has no Haskell type"))) (pure . (,) field) (lookup field factoryTypes)
   unless (length factoryFields == length factoryTypes && length (nub factoryFields) == length factoryFields)
@@ -640,7 +640,7 @@ main = do
       factoryFile = ("generated/Semiont/Internal/Generated/SessionFactoryOptions.hs", T.unlines
         (["-- Generated from client/surface.json; do not edit."
          ,"module Semiont.Internal.Generated.SessionFactoryOptions where"
-         ,"import Semiont.Types (KnowledgeBase)","import Semiont.Errors (SessionError)"
+         ,"import Semiont.Types (KnowledgeBase)"
          ,"import qualified Semiont.SessionStorage as Storage","import qualified Semiont.State.SessionSignals as Signals"
          ,"data SessionFactoryOptions = SessionFactoryOptions"]
          ++ [(if index == (0 :: Int) then "  { " else "  , ")<>"sessionFactoryOptions"<>identifier field<>" :: "<>typ | (index,(field,typ)) <- zip [0..] factoryMembers]

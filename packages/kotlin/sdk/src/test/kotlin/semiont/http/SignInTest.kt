@@ -76,9 +76,18 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
     @Volatile
     private var stream: OutputStream? = null
 
+    /** The requests of each held path, left unanswered until the path is released. */
+    private val held = HashMap<String, MutableList<HttpExchange>>()
+
     fun script(path: String, vararg said: Said) {
         scripted.getOrPut(path) { ConcurrentLinkedDeque() }.addAll(said)
     }
+
+    /** Leave every request of `path` unanswered until `release`: the realm goes on answering every other. */
+    fun hold(path: String): Unit = synchronized(held) { held[path] = mutableListOf() }
+
+    /** Answer each request of `path` held so far with `said`; one made after is answered as if the path had never been held. */
+    fun release(path: String, said: Said): Unit = synchronized(held) { held.remove(path) }.orEmpty().forEach { answer(it, said) }
 
     /** Write a frame on the stream the client holds, under the event id `id` when it has one. */
     fun send(frame: JsonObject, id: String? = null) {
@@ -107,6 +116,8 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
             }
             val path = exchange.requestURI.path
             asked += Asked(exchange.requestMethod, path, exchange.requestHeaders.getFirst("Authorization"), fields)
+            // A held request is answered when its path is released, from the test's thread: the handler returns, and the server's one thread goes on.
+            if (synchronized(held) { held[path]?.add(exchange) } == true) return@createContext
             // What a test scripts for a path is answered before what the realm says of itself.
             val scriptedFirst = scripted[path]?.pollFirst()
             if (scriptedFirst != null) {
@@ -271,7 +282,7 @@ class SignInTest {
         val shown = mutableListOf<String>()
         signInDevice(kb(realm), kept) { shown += it.userCode }
         assertEquals(listOf("ABCD-EFGH"), shown)
-        assertEquals(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke"), kept.held())
+        assertEquals(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke", null), kept.held())
         assertEquals(listOf("device-1", "device-1", "device-1"), realm.of("/token").map { it.form.getValue("device_code") })
     }
 
@@ -311,7 +322,7 @@ class SignInTest {
     fun signingOutRevokesAtTheIssuerAndForgets() = runBlocking {
         val realm = realm()
         realm.script("/revoke", Said(200, JsonObject(emptyMap())))
-        val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke"))
+        val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke", null))
         signOut(kept)
         assertEquals("refresh-1", realm.of("/revoke").single().form["token"])
         assertNull(kept.held())
@@ -321,7 +332,7 @@ class SignInTest {
     fun aSignOutTheIssuerRefusesStillForgets() = runBlocking {
         val realm = realm()
         realm.script("/revoke", error("server_error", 500))
-        val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke"))
+        val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke", null))
         signOut(kept)
         assertNull(kept.held())
     }
@@ -446,7 +457,7 @@ class SignInTest {
         assertTrue(failed.message.contains("no refresh token"), failed.message)
     }
 
-    private fun kept(realm: Realm, access: String) = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
+    private fun kept(realm: Realm, access: String) = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
 
     @Test
     fun aRenewalTheIssuerRefusesOutrightSaysSoInItsWords() = runBlocking {
@@ -572,7 +583,7 @@ class SignInTest {
         realm.script("/token", issued(tokenFor("access-2"), "refresh-2"))
         realm.script("/revoke", Said(200, JsonObject(emptyMap())))
         val access = tokenFor("access-1")
-        val kept = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke"))
+        val kept = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke", null))
         val http = CallersHttp()
         renewKept(kept, access, http)
         signOut(kept, http)
@@ -594,10 +605,11 @@ class SignInTest {
     @Test
     fun aKeptSignInIsReachedFromJavaThroughFutures() {
         val kept = MemorySignIn()
-        val held = HeldSignIn("access-1", "refresh-1", SCRIPT_CLIENT_ID, "https://issuer.example/token", null)
+        val held = HeldSignIn("access-1", "refresh-1", SCRIPT_CLIENT_ID, "https://issuer.example/token", null, null)
         kept.keepFuture(held).get()
         assertEquals(held, kept.heldFuture().get())
         assertEquals("access-2", kept.renewedFuture(held, "access-2", "refresh-2").get())
+        assertEquals(true, kept.recordPersonKeyFuture("access-2", "the key of jo").get())
         kept.forgetFuture().get()
         assertNull(kept.heldFuture().get())
     }

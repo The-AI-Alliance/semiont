@@ -1,11 +1,14 @@
 package semiont
 
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
@@ -21,6 +24,22 @@ internal object Spec {
     /** The JSON files under `directory`, in order. */
     fun jsonFiles(directory: Path): List<Path> =
         Files.walk(directory).use { files -> files.filter { it.extension == "json" }.sorted().toList() }
+}
+
+/** The component schema a spec table's `$ref` names. */
+internal fun schemaOf(ref: JsonObject): String = ref.getValue("\$ref").jsonPrimitive.content.substringBefore('#').substringAfterLast('/').removeSuffix(".json")
+
+/**
+ * What a spec table's `$ref` names, as Kotlin decodes it: a component schema's
+ * type, or the type of the member its pointer names within one, member by
+ * member (`#/properties/a/properties/b`).
+ */
+internal fun descriptorOf(ref: JsonObject): SerialDescriptor {
+    val pointer = ref.getValue("\$ref").jsonPrimitive.content.substringAfter('#', "")
+    val members = if (pointer.isEmpty()) emptyList() else pointer.removePrefix("/properties/").split("/properties/")
+    return members.fold(serializer(Class.forName("semiont.types.${schemaOf(ref)}")).descriptor) { within, member ->
+        within.getElementDescriptor(within.getElementIndex(member))
+    }
 }
 
 /**

@@ -62,7 +62,7 @@ func TestTheBackoffWaitsBetweenHalfItsCapAndItsCap(t *testing.T) {
 	timing := DefaultTiming()
 	timing.Reconnect = 100 * time.Millisecond
 	timing.MaxReconnect = time.Second
-	s := newStream(&transportShared{timing: timing}, NewVariable(ConnectionStateInitial))
+	s := newStream(&transportShared{timing: timing}, NewVariable(ConnectionStateInitial), nil)
 	for attempt, limit := range []time.Duration{100, 200, 400, 800, 1000, 1000} {
 		limit *= time.Millisecond
 		wait := s.backoff()
@@ -362,7 +362,7 @@ func TestNothingTheTransportStartedOutlivesClose(t *testing.T) {
 // report, and the stream goes on to the frames after it.
 func TestALineThatNamesNoChannelIsToldToTheFailureReportAndTheStreamGoesOn(t *testing.T) {
 	gateway := newRecordingGateway(t)
-	transport := gateway.transport(nil)
+	transport := gateway.transport(nil, nil)
 	defer transport.Close()
 	told := make(chan *TransportError, 3)
 	go func() {

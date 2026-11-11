@@ -11,6 +11,8 @@ use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::namespaces::{Delegation, ResourceFilters};
 use semiont::refresh::CacheQuery;
+use semiont::resume::CoupledBookmarks;
+use semiont::session::{last_event_id_key, person_key};
 use semiont::storage::InMemorySessionStorage;
 use semiont::transport::ConnectionState;
 use semiont::types::{AnnotationId, GenerationJobParams, MarkJobParams, ResourceId};
@@ -27,6 +29,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::{AbortHandle, JoinSet};
+
+/// The knowledge base and the person a persisting client keeps for: every
+/// SDK's driver keeps for these, so the suite's `persist` cases rehydrate.
+const CONFORMANCE_KB: &str = "conformance";
+const CONFORMANCE_PERSON: &str = "did:web:conformance.example:users:driver";
 
 /// The client, kept once closed: what a closed client does is part of what
 /// the suite asks.
@@ -196,6 +203,13 @@ impl Live {
             }
         }
         let (token, tokens) = watch::channel(Some(text(args, "token")?.to_owned()));
+        let person = person_key(CONFORMANCE_PERSON);
+        let places = (args.get("persist") == Some(&Value::Bool(true))).then(|| {
+            CoupledBookmarks::new(
+                self.storage.clone(),
+                &last_event_id_key(CONFORMANCE_KB, &person),
+            )
+        });
         let client = Arc::new(client(
             HttpTransportConfig {
                 base_url: text(args, "baseUrl")?.to_owned(),
@@ -204,20 +218,20 @@ impl Live {
                 channels: None,
                 http: reqwest::Client::new(),
                 timing: wire,
-
-                bookmarks: None,
                 random: None,
             },
             ClientOptions {
                 timing,
-                cache_persistence: (args.get("persist") == Some(&Value::Bool(true))).then(|| {
-                    CachePersistence {
-                        storage: self.storage.clone(),
-                        key_prefix: "conformance".to_owned(),
-                    }
+                cache_persistence: places.as_ref().map(|places| CachePersistence {
+                    storage: places.storage(),
+                    kb_id: CONFORMANCE_KB.to_owned(),
+                    person_key: person,
                 }),
             },
         ));
+        if let Some(places) = &places {
+            places.couple_to(&client);
+        }
 
         locked(&self.observers).clear();
         *locked(&self.reported) = None;

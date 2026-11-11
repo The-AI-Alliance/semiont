@@ -366,47 +366,138 @@ to starve.
 
 ### B17 — Persistence is opt-in rehydration, reconciled by resumption
 
-An optional `CachePersister` on `createCache` (and the
-`sessionStoragePersister` adapter over the `SessionStorage` seam) gives a
-cache durable, per-KB rehydration:
+A client given a `SessionStorage` keeps, for one person on one knowledge
+base, the queries
+[`protocol/specs/src/client/refresh.json`](../specs/src/client/refresh.json)
+marks `persisted` across a restart, each in one `cacheDocument` under
+[`protocol/specs/src/session/stored.json`](../specs/src/session/stored.json)'s
+`cacheKeyPrefix`, its values what the query's `value` says its cache holds,
+and where its stream was as `lastEventIds` under `lastEventIdKeyPrefix`.
+Every SDK writes and reads them alike, so a client in any SDK finds what
+one in another kept over the same storage;
+[`protocol/specs/src/session/cache-cases.json`](../specs/src/session/cache-cases.json)
+holds every SDK to it, case by case.
 
-1. **Load-on-construct.** `persister.load()` seeds the store before the
-   first observation, so a rehydrated key serves **synchronously** — no
-   `pending` flash, no waiting on the wire to paint. (It does issue one
-   revalidation request; see B18.)
+1. **Load-on-construct, or on attach.** When the client is made knowing
+   its person (its stored sign-in names them), a kept query's document
+   seeds its cache before the first observation, so a rehydrated key serves
+   **synchronously** — no `pending` flash, no waiting on the wire to
+   paint. (It does issue one revalidation request; see B18.) A client made
+   before the gateway has named its person keeps nothing (it reads, writes
+   and resumes from nothing kept) until the gateway names them; then its
+   kept caches attach: what was kept fills only the keys the cache does
+   not already hold, each marked as restored (B18), saves begin, and the
+   transport takes the kept places only for the scopes it holds none for.
+   Nothing is owed before then, and attaching writes nothing: what a cache
+   held before it is written with its next change, whose save writes the
+   whole document. A client whose session never asks who its token is
+   keeps nothing.
 2. **Rehydrated data is stale-until-reconciled**, and reconciliation is
    **two independent layers** — neither sufficient alone:
    - *Replay*, when it is available: the transport reconnects with each
-     scope's persisted watermark (`lastEventId` on that scope's
-     subscribe-matrix entry — persisted `p-*` ids only; ephemeral `e-*`
-     ids carry no replay meaning and are never saved), replayed events
-     invalidate through the normal handlers, and `bus:resume-gap` asks again
-     for what is held of its scope (B13). The persisted watermark record is
-     COUPLED to the cache flush (`coupledLastEventId`): stashed per
-     event under its scope, written only alongside a cache-document
-     write, and **only while every persisted cache is quiescent**
-     (B17-Q's flush gate) — so the bookmark may lag the persisted caches
-     (harmless: replay re-invalidates idempotently) but can never lead
-     them and silently skip a reconciling event. Note the transport
-     stashes an id only AFTER the event has been applied to subscribers,
-     so an id is never flushable before its effects are pending.
+     scope's kept place (`lastEventId` on that scope's subscribe-matrix
+     entry — a PersistedEventId only; ephemeral `e-*` ids carry no replay
+     meaning and are never kept), replayed events invalidate through the
+     normal handlers, and `bus:resume-gap` asks again for what is held of its
+     scope (B13). A place is noted per event under its scope, and written
+     only in the same call as a write of a kept cache, and **only while
+     every kept cache has no fetch in flight and owes no save, and the
+     refresher owes no refetch** (a B19 window that holds an invalidation it
+     has not yet run). So the place may lag the kept caches (harmless:
+     replay re-invalidates idempotently) but can never lead them and
+     silently skip a reconciling event. An id is noted only AFTER the event
+     has been applied: the refresher has taken it, so the fetch it starts is
+     in flight, or the refetch it holds back is owed. An id noted while its
+     event is only queued for the refresher could be written by a save that
+     comes first, and lead the caches. Likewise a refetch a closing window
+     runs is owed until its fetch is in flight. A place's own write is never
+     a reason to write a cache. At disposal the gate is read once, before
+     any kept cache or the refresher is disposed: a fetch then in flight, or a
+     refetch then owed, holds the places back from the disposal's flush,
+     since disposal drops it; a save then owed does not, since the flush is
+     that save. The places that flush may write are those noted before the
+     gate was read: a place noted after it is of an event whose refetch
+     disposal drops.
    - *Revalidation on rehydrate* (B18), which covers what replay cannot:
-     when NO watermark was persisted for a scope, that scope's entry
-     carries no `lastEventId` and the server replays **nothing** for it
-     — the state of a reload that comes while the flush gate is
-     holding the id pending.
+     when NO place was kept for a scope, that scope's entry carries no
+     `lastEventId` and the server replays **nothing** for it — the state of
+     a reload that comes while the gate is holding the place back.
 3. **Settled values only.** The store never contains B15 failure markers,
-   so neither does the persisted document; a previously-failed key
-   rehydrates as absent and refetches on first observation.
-4. **Saves are debounced** (`saveDebounceMs` in
-   [`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json)) and
-   **`dispose()` flushes a pending save synchronously before going inert** —
-   the flush is part of the disposal act, so a KB switch cannot lose the last
-   write; nothing may save after disposal (B16 extends to the persister). A
-   document larger than `maxStoredBytesCount` loses the entries that have gone
-   longest without a new value until it fits.
-5. **Version-gated.** A stored document whose version doesn't match (or
-   that fails to parse) reads as empty — never an error into the cache.
+   so neither does a kept document; a key whose refetch failed keeps the
+   value it last had, and a previously-failed key that had none rehydrates
+   as absent and refetches on first observation.
+4. **Saves are debounced**, one wait per kept cache (`saveDebounceMs` in
+   [`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json),
+   restarted by each change), and **disposal flushes a pending save before
+   going inert** — the flush is part of the disposal act, so a KB switch
+   cannot lose the last write. A client given a cache persistence directly
+   writes it before `dispose()` returns. A session that checks its sign-in
+   before each write (item 6) checks this one too: where that check waits
+   on what holds the sign-in, `dispose()` begins the flush, and whatever
+   follows the close, a registry's delete among them, waits until the
+   client has closed. Nothing may save after disposal (B16 extends to the
+   persister). A write the storage refuses leaves its save owed, so the
+   places stay held back: the cache's next change, or disposal's flush,
+   writes the document again. A session whose client keeps says each write its storage refuses once, on its errors stream, as `session.save-refused` ([`codes.json`](../specs/src/errors/codes.json)), when the storage refuses it: one disposal's flush meets among them, before that stream ends. Each entry's stamp is when its value was
+   received, in milliseconds since the epoch, kept while the value comes
+   again unchanged
+   (its JSON text the text it was kept with); a document larger than
+   `maxStoredBytesCount` loses the entries received longest ago until it
+   fits. Places are kept under their own key, and never go to make a
+   document fit.
+5. **Held to the spec on load.** A document whose structure is not
+   `cacheDocument`'s (not JSON, not an object, of another version, its
+   `entries` not a list, or an entry not a key, a value and a whole-number
+   stamp of at least 0) reads as empty — never an error into the cache. An
+   entry whose key or value is not what its query keeps is skipped, and the
+   rest are kept. A kept place that is not a resource's id and a
+   PersistedEventId is skipped; places that are no object are none.
+6. **One person's, and forgotten with their sign-in.** What is kept is
+   kept under keys that name the knowledge base and the person the gateway
+   says the token is, one key for each query
+   [`refresh.json`](../specs/src/client/refresh.json) marks `persisted`
+   and one for the places
+   ([`stored.json`](../specs/src/session/stored.json), `cacheKeyPrefix`
+   and `lastEventIdKeyPrefix`). Forgetting a saved sign-in, however it is
+   forgotten — signing out, removing the knowledge base, signing in to it
+   again, the issuer refusing a renewal, the gateway refusing a renewed
+   token — deletes every one of its person's keys on that knowledge base,
+   after the client has closed or once it writes nothing more. Signing in
+   again forgets the person even when the new sign-in turns out to be
+   theirs: a new sign-in names nobody until its gateway names them.
+
+   Every session an SDK's own builders make whose client keeps (a
+   registry's, and a script's session given a storage) checks before each
+   write that the sign-in it holds still names its person, whatever holds
+   that sign-in: the registry's stored sign-in, a memory sign-in, or a
+   host's own. One whose sign-in is forgotten, or replaced with one that
+   does not name its person, here or in another context, discards what it
+   has not written and writes nothing more; a renewal changes nothing. A
+   sign-in it cannot read counts as one that does not name its person, and
+   the session says so once, on its errors stream, as `session.keep-failed`
+   ([`codes.json`](../specs/src/errors/codes.json)); the session itself goes
+   on. A client an application builds itself, with a cache persistence it
+   makes, writes unchecked.
+
+   The check and the write are one step. A forgetting the session makes
+   itself (its renewal refused, its renewed token refused) runs its delete
+   only once no write of its client is under way, and the registry's
+   signing out, removal and signing in again delete only once the client
+   has closed: no save of that client lands after their delete.
+
+   What is not held today:
+   - **Other code in the same program.** In Kotlin, Swift, C#, Go and
+     Rust, a forgetting by other code — the public clear or store of a
+     knowledge base's stored sign-in, a script's sign-out, a second
+     registry over the same storage — is not serialized with an open
+     client's write: one save already in progress can land after that
+     delete, and what it writes is keyed to the forgotten person. The
+     client's next check stops it writing. In TypeScript and Python
+     nothing runs between a write's check and the write, and a forgetting
+     runs whole, so within one program this does not happen.
+   - **Two programs sharing one storage**, in every SDK: a save one of
+     them checked just before the other forgot the sign-in can land after
+     the other's delete.
 
 ### B18 — A restored-from-disk value is revalidated on first observation
 
@@ -725,7 +816,9 @@ The TypeScript SDK asserts each behavior by its number, in suites under
 against `BrowseNamespace`, `__tests__/cache.test.ts` against
 `createCache` alone, and, for persistence (B17, B18),
 `__tests__/cache-persistence.test.ts`, `cache-persister.test.ts` and
-`cache-rehydration.test.ts`. Adding a new behavior here must be
+`cache-rehydration.test.ts`. Every SDK runs
+[`protocol/specs/src/session/cache-cases.json`](../specs/src/session/cache-cases.json)
+against its own persister. Adding a new behavior here must be
 accompanied by a new test case referencing its number
 (`describe('B7 — invalidate is stale-while-revalidate', …)`). Removing
 or changing a behavior must update both this doc and the test.

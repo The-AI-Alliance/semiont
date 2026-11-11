@@ -72,8 +72,8 @@ final class TestingTest {
         assertNull(session.getSession().getToken().getValue());
         session.setToken("a-token");
         assertEquals("a-token", session.getSession().getToken().getValue());
-        session.getSession().close();
         session.getClient().close();
+        session.getSession().close();
         session.getTransport().close();
 
         // Each knowledge base's gateway answers a request with what it was asked.

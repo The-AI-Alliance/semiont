@@ -87,7 +87,7 @@ runActor http = do
       else do
         before <- atomically (State.current (Transport.state (transport http)))
         case live of Nothing -> unless (before == Connecting) (transition Connecting); Just _ -> pure ()
-        saved <- readTVarIO (positions http)
+        saved <- Map.union <$> readTVarIO (positions http) <*> httpLoadPositions (options http)
         let body = BusSubscribeRequest (clientId http) (Just (Set.toAscList (httpGlobalChannels (options http)))) (Just pending)
               (Just [BusSubscribeRequestScopedItem scopedChannels (Map.lookup scope saved) scope | scope <- scopes])
         connection <- connect seen token body
@@ -212,7 +212,7 @@ runActor http = do
                     if closed then pure Nothing else do
                       Transport.receiveContextSTM (Just context) (input http) frame
                       case (busFrameScope frame, identity) of
-                        (Just scope, Just value) | isPosition scope value -> do
+                        (Just scope, Just value) | isPosition value -> do
                           modifyTVar' (positions http) (Map.insert scope value)
                           pure (Just (scope, value))
                         _ -> pure Nothing)
@@ -222,5 +222,4 @@ runActor http = do
         readChunks seen next response
     trim queue = let keep = Settings.seenEventIdsCount (httpTiming (options http))
       in if toInteger (Seq.length queue) > keep then Seq.drop (Seq.length queue - fromInteger keep) queue else queue
-    isPosition scope value = Text.isPrefixOf (persistedScopePrefix scope) value
-      && case fromJSON (String value) :: Result PersistedEventId of Success _ -> True; Error _ -> False
+    isPosition value = case fromJSON (String value) :: Result PersistedEventId of Success _ -> True; Error _ -> False

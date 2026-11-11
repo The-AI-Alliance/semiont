@@ -14,7 +14,8 @@
  * Auth is parameterized via callbacks passed at construction:
  *
  *   - `refresh(holding)` — invoked on 401 / proactive re-auth, and given
- *     the token the session holds. Returns the
+ *     the token it renews: the one the session holds, or the one it gave up
+ *     last when it holds none. Returns the
  *     new access token, or null on failure. The frontend passes a
  *     closure that runs the refresh grant at the issuer; a service
  *     passes one that asks its issuer for a new grant to its account.
@@ -32,12 +33,18 @@
  *     so a modal surfaces, in the person's language; headless consumers
  *     typically just log.
  *
- * Persistence goes through a `SessionStorage` adapter provided at
- * construction — the session never touches `localStorage` or `window`
- * directly.
+ * What goes wrong, the session says on `errors$`, its one stream of it: its
+ * own errors and its transport's failures, each once. It takes no callback
+ * for them.
+ *
+ * Its sign-in is read, renewed into and forgotten through the `SignInKept`
+ * given at construction (`keptIn` for a registry's storage, `MemorySignIn`,
+ * an entry of the `SignInStore`): the session never touches `localStorage`
+ * or `window` directly, and does not follow what another context writes.
  */
 
-import { BehaviorSubject, type Observable } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
+import { currentUserOf } from '@semiont/http-transport';
 import {
   accessToken,
   baseUrl,
@@ -56,21 +63,19 @@ import { watched, type Watched } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import type { KbTarget } from '@semiont/core';
 import {
-  clearStoredSession,
-  getStoredSession,
   isJwtExpired,
   kbGatewayUrl,
   parseJwtExpiry,
   refreshDelayMs,
-  sessionKey,
-  setStoredSession,
   type StoredSession,
 } from './storage';
 import { SemiontSessionError } from './errors';
 import type { SemiontSessionErrorCode } from '@semiont/core';
+import type { SignInKept } from './sign-in-kept';
 import type { SessionStorage } from './session-storage';
+import { personKeeping } from '../cache-persister';
 import type { SessionEndReason } from './session-signals';
-import { SCRIPT_CLIENT_ID, refreshStoredSession, signInWithDeviceGrant, type DeviceCode } from './oauth';
+import { SCRIPT_CLIENT_ID, renewKept, signInWithDeviceGrant, type DeviceCode } from './oauth';
 
 export type UserInfo = components['schemas']['UserResponse'];
 
@@ -91,8 +96,8 @@ const refusedByTheIssuer = (failure: unknown): boolean =>
 
 export interface SemiontSessionConfig {
   kb: KbTarget;
-  /** Persistence adapter. Reads/writes tokens via this. */
-  storage: SessionStorage;
+  /** Where the session's sign-in is kept: read at its start, forgotten when it ends. */
+  kept: SignInKept;
   /**
    * Pre-built api client. The session does not construct it — caller
    * builds the transport stack and passes the client in. This is the
@@ -108,11 +113,13 @@ export interface SemiontSessionConfig {
    */
   token$: BehaviorSubject<AccessToken | null>;
   /**
-   * Re-authenticate after expiry / 401. `holding` is the token the
-   * session holds, the one the gateway refused or the one due; null when
-   * it holds none. Returns a new access token (no "Bearer " prefix) on
-   * success, or null if recovery is impossible. Omit for transports
-   * where tokens don't apply.
+   * Re-authenticate after expiry / 401. `holding` is the token it renews:
+   * the one the session holds, the one the gateway refused or the one due;
+   * while it holds none, the one it held last, which is the token found
+   * stored at its start though it has expired, or the one a renewal that
+   * got no answer was for. Null only when it has held none. Returns a new
+   * access token (no "Bearer " prefix) on success, or null if recovery is
+   * impossible. Omit for transports where tokens don't apply.
    */
   refresh?: (holding: string | null) => Promise<string | null>;
   /**
@@ -126,19 +133,21 @@ export interface SemiontSessionConfig {
    * this to a UI signal that surfaces the session-ended modal.
    */
   onAuthFailed?: (reason: SessionEndReason) => void;
-  /** Called for session-level failures (auth, refresh exhaustion). */
-  onError?: (err: SemiontSessionError) => void;
 }
 
 /**
  * A session and the client it was built with, which whoever holds this ends
- * together: what a script's sign-in gives (`SemiontSession.signInDevice`,
- * `fromIssuedSession`, `fromHttp`). The session only uses its client, so
- * ending the session alone would leave the client's stream open.
+ * together: what a script's session is (`SemiontSession.fromKept`,
+ * `fromHttp`). The session only uses its client, so ending the session alone
+ * would leave the client's stream open.
  */
 export interface OpenedSession {
   readonly session: SemiontSession;
-  /** End the session, then close its client. Ending twice is ending once. */
+  /**
+   * Close the client, then end the session: what the client's closing flush
+   * says reaches the session's errors before they end. Ending twice is
+   * ending once.
+   */
   dispose(): void;
 }
 
@@ -150,6 +159,23 @@ export interface OpenedSession {
  * non-localhost host).
  */
 let sessionSeq = 0;
+
+/**
+ * Each session's own voice on its errors stream, set as it is made and read
+ * by `sayOn`. Held here rather than on the session, so that what its
+ * client's keeping says reaches its errors with no part of its surface.
+ */
+const voices = new WeakMap<SemiontSession, (error: SemiontSessionError) => void>();
+
+/**
+ * Say `error` on `session`'s errors stream, as one of its own: what the
+ * keeping of a client a factory built beside it says (`personKeeping`).
+ */
+export function sayOn(session: SemiontSession, error: SemiontSessionError): void {
+  const say = voices.get(session);
+  if (say === undefined) throw new Error('A session says what its client keeps only once it is made');
+  say(error);
+}
 
 export class SemiontSession implements StateUnit {
   /**
@@ -170,15 +196,19 @@ export class SemiontSession implements StateUnit {
   readonly user$: Watched<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
   /**
-   * Stream of `SemiontError` instances surfaced by the underlying transport
-   * just before they're thrown to the caller. For `HttpTransport` this is
-   * an `APIError` (status-coded); other transports emit their own subclass.
-   * Surfaced here so a host layer (e.g. `SemiontBrowser`) can route by
-   * `err.code` to global notifications without every call site handling
-   * errors itself. Headless consumers can subscribe for logging.
-   *
-   * Re-published from `client.transport.errors$` per the `ITransport`
-   * contract — the session is purely a passthrough.
+   * The session's one stream of what went wrong, each said once: its own
+   * errors (a `SemiontSessionError`: its sign-in could not be checked or
+   * renewed, the gateway refused a token just issued, what its client keeps
+   * could not be kept, its storage refused a write of it), and its
+   * transport's failures, surfaced just before they are thrown to the
+   * caller (for `HttpTransport` an `APIError`, status-coded). A registry
+   * (`SemiontBrowser`) is the one reader of its sessions' errors, and routes
+   * them by `err.code`; headless consumers can subscribe for logging.
+   * Everything the session says before anyone reads, its own errors and its
+   * transport's failures, is kept for the first reader, in the order it was
+   * said. It ends when the session does: the client's closing flush, made
+   * first, says what it says before then, and what the client meets after
+   * is said nowhere.
    */
   readonly errors$: Observable<SemiontError>;
 
@@ -187,11 +217,25 @@ export class SemiontSession implements StateUnit {
 
   readonly #heldToken$: BehaviorSubject<AccessToken | null>;
   readonly #heldUser$: BehaviorSubject<UserInfo | null>;
-  private readonly storage: SessionStorage;
+  /** What the session says on `errors$`, to every reader it has: its own errors and its transport's failures. */
+  readonly #said = new Subject<SemiontError>();
+  /**
+   * What the session said before anyone read `errors$`, its own errors and its
+   * transport's failures in the order it said them, kept for the first
+   * reader; null once one has, or the session has ended.
+   */
+  #keptForFirstReader: SemiontError[] | null = [];
+  readonly #transportFailures: Subscription;
+  /**
+   * The token the session held last, or found stored at its start though it
+   * had expired: what a renewal is handed while it holds none. Null while it
+   * has held none.
+   */
+  #heldLast: string | null;
+  private readonly kept: SignInKept;
   private readonly doRefresh?: (holding: string | null) => Promise<string | null>;
   private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
   private readonly onAuthFailed: (reason: SessionEndReason) => void;
-  private readonly onError: (err: SemiontSessionError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   /** The next renewal owed after one that got no answer, and the step of the wait after it. */
   private unansweredTimer: ReturnType<typeof setTimeout> | null = null;
@@ -200,42 +244,48 @@ export class SemiontSession implements StateUnit {
   private starting = true;
   /** The renewal a refusal is being answered with, shared by the refusals that arrive during it. */
   private refusal: Promise<AccessToken | null> | null = null;
-  private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
 
   constructor(config: SemiontSessionConfig) {
+    // A kept sign-in that cannot be read is its maker's to hear, before
+    // anything is begun.
+    const stored = config.kept.held();
     this.id = `session-${++sessionSeq}`;
     this.kb = config.kb;
-    this.storage = config.storage;
+    this.kept = config.kept;
     this.doRefresh = config.refresh;
     this.doValidate = config.validate;
     this.onAuthFailed = config.onAuthFailed ?? (() => {});
-    this.onError = config.onError ?? (() => {});
     this.client = config.client;
     this.#heldToken$ = config.token$;
     this.token$ = watched(this.#heldToken$);
     this.#heldUser$ = new BehaviorSubject<UserInfo | null>(null);
     this.user$ = watched(this.#heldUser$);
-    this.errors$ = this.client.transport.errors$;
+    this.#transportFailures = this.client.transport.errors$.subscribe((failure) => this.#say(failure));
+    this.errors$ = new Observable<SemiontError>((reader) => {
+      const kept = this.#keptForFirstReader;
+      this.#keptForFirstReader = null;
+      if (kept !== null) for (const error of kept) reader.next(error);
+      return this.#said.subscribe(reader);
+    });
+    voices.set(this, (error) => this.#say(error));
 
-    // Reconcile stored token: if there's a fresh stored access token
-    // and `token$` hasn't been seeded yet, push the stored value so the
+    // Reconcile the kept token: if there's a fresh kept access token
+    // and `token$` hasn't been seeded yet, push the kept value so the
     // transport (which shares this token$) sees it on first auth.
-    const stored = getStoredSession(this.storage, this.kb.id);
     if (stored && !isJwtExpired(stored.access) && this.#heldToken$.getValue() === null) {
       this.#heldToken$.next(accessToken(stored.access));
     }
     const initialToken = this.#heldToken$.getValue();
+    // An expired token found stored is not sent, but it is the one the
+    // start's renewal renews.
+    this.#heldLast = initialToken ?? (stored === null ? null : stored.access);
 
     this.streamState$ = this.client.state$;
 
     if (initialToken) {
       this.scheduleProactiveRefresh(initialToken);
     }
-
-    this.unsubscribeStorage = this.storage.subscribe((key, newValue) => {
-      this.handleStorageChange(key, newValue);
-    });
 
     this.ready = this.validate(stored).finally(() => {
       this.starting = false;
@@ -246,7 +296,8 @@ export class SemiontSession implements StateUnit {
    * Run the initial mount-time validation. If a stored access token is
    * present and unexpired, call the configured `validate` with it to
    * confirm it still works and populate `user$`. If expired, try
-   * refresh first: the issuer's refusal forgets the stored session, and a
+   * refresh first: the issuer's refusal forgets the saved sign-in, with what
+   * was kept for its person, and a
    * renewal that got no answer keeps it, says why as `session.auth-failed`,
    * and leaves it to be renewed when a request is refused. When validate's
    * token is refused (a 401, or a 429
@@ -267,12 +318,12 @@ export class SemiontSession implements StateUnit {
       const { token, failure, refused } = await this.tryRefresh();
       if (!token) {
         if (failure === undefined || refused) {
-          // There was no session to end: the stored session is forgotten, and nothing is said.
-          clearStoredSession(this.storage, this.kb.id);
+          // There was no session to end: the kept sign-in is forgotten, with what was kept for its person, and nothing is said.
+          this.kept.forget();
         } else {
           // The issuer did not refuse it: the stored session is kept, and renewed on the reconnect backoff or when a request is refused.
           this.renewAgainLater();
-          this.onError(new SemiontSessionError('session.auth-failed', notRenewed(failure), this.kb.id));
+          this.#say(new SemiontSessionError('session.auth-failed', notRenewed(failure), this.kb.id));
         }
         return;
       }
@@ -280,7 +331,7 @@ export class SemiontSession implements StateUnit {
     }
 
     if (startToken !== stored.access) {
-      this.#heldToken$.next(accessToken(startToken));
+      this.hold(startToken);
       this.scheduleProactiveRefresh(startToken);
     }
 
@@ -308,7 +359,7 @@ export class SemiontSession implements StateUnit {
       } catch (err) {
         if (this.disposed) return;
         if (!(err instanceof APIError && err.code === 'unauthorized')) {
-          this.onError(
+          this.#say(
             new SemiontSessionError(
               'session.auth-failed',
               err instanceof Error ? err.message : String(err),
@@ -337,7 +388,7 @@ export class SemiontSession implements StateUnit {
           this.unrenewed(failure, refused);
           return;
         }
-        this.#heldToken$.next(accessToken(renewed));
+        this.hold(renewed);
         this.scheduleProactiveRefresh(renewed);
         token = renewed;
         justIssued = true;
@@ -346,22 +397,37 @@ export class SemiontSession implements StateUnit {
   }
 
   /**
-   * The session is over: its credential is forgotten, and the person and the
-   * application are each told why. The one teardown, whichever way the
-   * session ended.
+   * The session is over: its kept sign-in is forgotten, with what was kept
+   * for the person it named, and the person and the application are each
+   * told why. The one teardown, whichever way the session ended.
    */
   private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();
     this.clearUnanswered();
     this.#heldToken$.next(null);
-    clearStoredSession(this.storage, this.kb.id);
+    this.kept.forget();
     this.onAuthFailed(told);
-    this.onError(new SemiontSessionError(code, why, this.kb.id));
+    this.#say(new SemiontSessionError(code, why, this.kb.id));
+  }
+
+  /** Say `error`, one of the session's own or its transport's failure, on `errors$`, kept for the first reader while nobody has read. */
+  #say(error: SemiontError): void {
+    if (this.#keptForFirstReader !== null) this.#keptForFirstReader.push(error);
+    this.#said.next(error);
+  }
+
+  /** Hold `token`: the transport sends it from now on, and a renewal is handed it. */
+  private hold(token: string): AccessToken {
+    const held = accessToken(token);
+    this.#heldLast = token;
+    this.#heldToken$.next(held);
+    return held;
   }
 
   /**
-   * Call the configured refresh callback with the token the session holds,
-   * converting a THROW into a "no token" answer that says why.
+   * Call the configured refresh callback with the token it renews, the one
+   * the session holds or, holding none, the one it held last, converting a
+   * THROW into a "no token" answer that says why.
    *
    * The callback makes an HTTP call, so it can reject as easily as it can
    * resolve null — a network blip, DNS failure, or gateway 5xx. A throw that
@@ -379,7 +445,7 @@ export class SemiontSession implements StateUnit {
   private async tryRefresh(): Promise<{ token: string | null; failure?: string; refused: boolean }> {
     if (!this.doRefresh) return { token: null, refused: false };
     try {
-      return { token: await this.doRefresh(this.#heldToken$.getValue()), refused: false };
+      return { token: await this.doRefresh(this.#heldToken$.getValue() ?? this.#heldLast), refused: false };
     } catch (err) {
       return { token: null, failure: err instanceof Error ? err.message : String(err), refused: refusedByTheIssuer(err) };
     }
@@ -452,21 +518,29 @@ export class SemiontSession implements StateUnit {
     if (this.disposed) return null;
     if (newAccess) {
       this.clearUnanswered();
-      const tok = accessToken(newAccess);
-      this.#heldToken$.next(tok);
+      const tok = this.hold(newAccess);
       this.scheduleProactiveRefresh(newAccess);
       return tok;
     }
-    // You cannot expire a session that never existed. With no stored
-    // credentials there is nothing to refresh AND nothing to tear down —
+    // You cannot expire a session that never existed. With no kept
+    // sign-in there is nothing to refresh AND nothing to tear down —
     // a 401 here just means "signed out", which the shell already renders.
     // Declaring expiry anyway is a modal loop: `activeKnowledgeBaseId`
     // persists forever, every load activates the KB credential-less, the
     // actor's null-token connect 401s, and the "expired" modal re-arms on
     // a session that never signed in.
-    // (This also makes the REAL teardown below fire once: it clears the
-    // stored session, so any follow-up 401s take this quiet path.)
-    if (!getStoredSession(this.storage, this.kb.id)) {
+    // (This also makes the REAL teardown below fire once: it forgets the
+    // kept sign-in, so any follow-up 401s take this quiet path.)
+    let nothingKept: boolean;
+    try {
+      nothingKept = this.kept.held() === null;
+    } catch (cause) {
+      // A sign-in that cannot be read is a renewal with no answer: what is
+      // stored stays, and is renewed again on the backoff.
+      this.unrenewed(failure ?? (cause instanceof Error ? cause.message : String(cause)), false);
+      return null;
+    }
+    if (nothingKept) {
       this.clearUnanswered();
       this.#heldToken$.next(null);
       return null;
@@ -489,7 +563,7 @@ export class SemiontSession implements StateUnit {
     this.clearRefreshTimer();
     this.#heldToken$.next(null);
     this.renewAgainLater();
-    this.onError(new SemiontSessionError('session.refresh-exhausted', notRenewed(failure), this.kb.id));
+    this.#say(new SemiontSessionError('session.refresh-exhausted', notRenewed(failure), this.kb.id));
   }
 
   /**
@@ -544,38 +618,16 @@ export class SemiontSession implements StateUnit {
     }
   }
 
-  /**
-   * Cross-context sync: another tab/process refreshed or signed out this
-   * KB. Mirror the change into our in-memory state.
-   */
-  private handleStorageChange(key: string, newValue: string | null): void {
-    if (this.disposed) return;
-    if (key !== sessionKey(this.kb.id)) return;
-    if (!newValue) {
-      this.#heldToken$.next(null);
-      this.#heldUser$.next(null);
-      this.clearRefreshTimer();
-      return;
-    }
-    try {
-      const parsed = JSON.parse(newValue) as StoredSession;
-      if (typeof parsed.access === 'string') {
-        this.#heldToken$.next(accessToken(parsed.access));
-        this.scheduleProactiveRefresh(parsed.access);
-      }
-    } catch {
-      // Malformed payload — ignore.
-    }
-  }
-
   get expiresAt(): Date | null {
     const token = this.#heldToken$.getValue();
     return token ? parseJwtExpiry(token) : null;
   }
 
   /**
-   * End the session: its renewal stops, it stops following storage, and its
-   * token and user complete. The client is left to whoever made it.
+   * End the session: its renewal stops, and its token, its user and its
+   * errors complete. The client is left to whoever made it, who closes it
+   * first, so that what its closing flush says is said on `errors$` before
+   * they end.
    */
   dispose(): void {
     if (this.disposed) return;
@@ -583,13 +635,12 @@ export class SemiontSession implements StateUnit {
 
     this.clearRefreshTimer();
     this.clearUnanswered();
-    if (this.unsubscribeStorage) {
-      this.unsubscribeStorage();
-      this.unsubscribeStorage = null;
-    }
+    this.#transportFailures.unsubscribe();
+    this.#keptForFirstReader = null;
 
     this.#heldToken$.complete();
     this.#heldUser$.complete();
+    this.#said.complete();
   }
 
   /**
@@ -603,21 +654,35 @@ export class SemiontSession implements StateUnit {
    * Strings are accepted for `baseUrl` and `token`; they are branded
    * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.
    *
-   * The remaining options (`refresh`, `validate`, `onAuthFailed`,
-   * `onError`) match `SemiontSessionConfig` exactly. `fetch` is what every
+   * The remaining options (`refresh`, `validate`, `onAuthFailed`) match
+   * `SemiontSessionConfig` exactly. `fetch` is what every
    * request of the transport is sent with; absent, the runtime's own.
    */
   static fromHttp(opts: {
     kb: KbTarget;
-    storage: SessionStorage;
+    kept: SignInKept;
     baseUrl: BaseUrl | string;
     token?: AccessToken | string | null;
     fetch?: typeof fetch;
     refresh?: (holding: string | null) => Promise<string | null>;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
-    onError?: (err: SemiontSessionError) => void;
   }): OpenedSession {
+    return SemiontSession.overHttp(opts, undefined);
+  }
+
+  /**
+   * The session `fromHttp` builds, its client keeping in `storage` what a
+   * registry's does (B17) for the person the kept sign-in names, or nothing
+   * when it is given none: from the start, or once `validate` says who the
+   * token is, with the stream's places coupled to the client. What that
+   * keeping says, the session says on its errors.
+   */
+  private static overHttp(opts: Parameters<typeof SemiontSession.fromHttp>[0], storage: SessionStorage | undefined): OpenedSession {
+    let session!: SemiontSession;
+    const keeps = storage === undefined
+      ? null
+      : personKeeping(storage, opts.kb.id, opts.kept, (error) => session.#say(error));
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const tok = opts.token == null
       ? null
@@ -628,126 +693,133 @@ export class SemiontSession implements StateUnit {
     // renew it on a 401, just as createHttpSessionFactory does; otherwise a
     // bus request waits on a stream that keeps retrying the refused token
     // until its own deadline expires.
-    let session!: SemiontSession;
     const transport = new HttpTransport({
       baseUrl: url,
       token$,
       tokenRefresher: (refused) => session.refresh(refused),
+      ...(keeps === null ? {} : { saveLastEventId: keeps.saveLastEventId }),
+      ...(keeps === null || keeps.fromStart === null ? {} : { loadLastEventIds: keeps.fromStart.places.loadLastEventIds }),
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
     });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport);
-    const config: SemiontSessionConfig = { kb: opts.kb, storage: opts.storage, client, token$ };
+    const fromStart = keeps === null ? null : keeps.fromStart;
+    const client = new SemiontClient(transport, content, transport, fromStart === null ? {} : { cachePersistence: fromStart.persistence });
+    if (fromStart !== null) fromStart.places.coupleTo(client);
+    const config: SemiontSessionConfig = { kb: opts.kb, kept: opts.kept, client, token$ };
     if (opts.refresh) config.refresh = opts.refresh;
-    if (opts.validate) config.validate = opts.validate;
+    if (opts.validate) {
+      const validate = opts.validate;
+      // Who the token is, as validate says, starts keeping for that person
+      // before the answer is handed back, so before the session is ready.
+      config.validate = keeps === null ? validate : async (token) => {
+        const user = await validate(token);
+        if (user !== null) keeps.named(token, user.did, client, transport);
+        return user;
+      };
+    }
     if (opts.onAuthFailed) config.onAuthFailed = opts.onAuthFailed;
-    if (opts.onError) config.onError = opts.onError;
-    session = new SemiontSession(config);
+    try {
+      session = new SemiontSession(config);
+    } catch (error) {
+      // A kept sign-in that cannot be read makes no session: the client made for it is closed.
+      client.dispose();
+      throw error;
+    }
     return {
       session,
       dispose: () => {
-        session.dispose();
         client.dispose();
+        session.dispose();
       },
     };
   }
 
   /**
-   * A session over tokens an issuer already issued — a Browser's completed
-   * sign-in, a script's device grant, a test harness's minted pair. Persists
-   * the session under the KB's id and wires the refresh grant against the
-   * issuer the session names; the session's `ready` has resolved when this
-   * returns. Gives it with the client it was built with, as `fromHttp` does.
+   * A session with the knowledge base `kb`, at the gateway its endpoint
+   * names, over the sign-in `kept` holds: the sign-in `semiont login` keeps,
+   * when `kept` is an entry of a `SignInStore`; a script's device grant, kept
+   * by `signInDevice`; a test harness's minted pair, in a `MemorySignIn`. It
+   * starts with the kept access token, renewed first when it has expired, and
+   * each renewal is kept where the sign-in is; a renewal the issuer refuses
+   * forgets it there. With nothing kept, the session is signed out: its
+   * token is null, and a request made through its client is refused. It
+   * asks the gateway who its token is, and so learns who is signed in,
+   * unless `validate` is false; left out, it is true. The
+   * session's `ready` has resolved when this returns. Gives it with the
+   * client it was built with, as `fromHttp` does. The gateway and the issuer
+   * are asked with `fetch`, or the runtime's own. Throws a
+   * `SemiontSessionError` (`session.construct-failed`), before anything is
+   * asked, for a knowledge base that is not reached over HTTP, and what
+   * reading the kept sign-in threw, when it cannot be read.
    *
-   * `kb.id` is the storage key: distinct scripts sharing one
-   * `SessionStorage` must use distinct ids or they trample each other's
-   * tokens. No default is synthesized; the consumer chooses. The gateway and
-   * the issuer are asked with `fetch`, or the runtime's own.
+   * Given a `storage`, the client keeps there what a registry's does (B17)
+   * for the person the kept sign-in names, while it names them: the persisted
+   * queries' values, and the stream's places, coupled to the client. A
+   * sign-in that names nobody yet keeps nothing until the gateway says who
+   * its token is: the person's key is then recorded on the kept sign-in, and
+   * the client keeps for them from then on. Told not to ask, the session
+   * keeps only for a person the sign-in already names. A sign-in that cannot
+   * be read before a save, or cannot record the person the gateway named, is
+   * said on the session's `errors$` as `session.keep-failed`, once, and the
+   * client keeps nothing more; each write the storage refuses is said there
+   * as `session.save-refused`.
    */
-  static async fromIssuedSession(opts: {
+  static async fromKept(opts: {
     kb: KbTarget;
-    storage: SessionStorage;
-    baseUrl: BaseUrl | string;
-    session: StoredSession;
+    kept: SignInKept;
+    storage?: SessionStorage;
     fetch?: typeof fetch;
-    validate?: (token: AccessToken) => Promise<UserInfo | null>;
+    /** Whether the session asks the gateway who its token is. True when left out. */
+    validate?: boolean;
     onAuthFailed?: (reason: SessionEndReason) => void;
-    onError?: (err: SemiontSessionError) => void;
   }): Promise<OpenedSession> {
-    setStoredSession(opts.storage, opts.kb.id, opts.session);
-    return SemiontSession.overStored(opts, opts.session.access);
-  }
-
-  /**
-   * A session over the session `storage` keeps for `kb`: the sign-in
-   * `semiont login` keeps, when `storage` is a `SignInStore` and `kb.id` the
-   * stack's key. Null when nothing is kept. It starts with the kept access
-   * token, renewed first when it has expired, and each renewal is written
-   * back to `storage`; the session's `ready` has resolved when this returns.
-   * Gives it with the client it was built with, as `fromHttp` does. The
-   * gateway and the issuer are asked with `fetch`, or the runtime's own.
-   */
-  static async fromStoredSession(opts: {
-    kb: KbTarget;
-    storage: SessionStorage;
-    baseUrl: BaseUrl | string;
-    fetch?: typeof fetch;
-    validate?: (token: AccessToken) => Promise<UserInfo | null>;
-    onAuthFailed?: (reason: SessionEndReason) => void;
-    onError?: (err: SemiontSessionError) => void;
-  }): Promise<OpenedSession | null> {
-    const stored = getStoredSession(opts.storage, opts.kb.id);
-    if (stored === null) return null;
-    return SemiontSession.overStored(opts, stored.access);
-  }
-
-  /** A ready session over what `opts.storage` keeps for `opts.kb`, starting with `access`, renewed as it is kept. */
-  private static async overStored(
-    opts: Parameters<typeof SemiontSession.fromStoredSession>[0],
-    access: string,
-  ): Promise<OpenedSession> {
+    if (opts.kb.endpoint.kind !== 'http') {
+      throw new SemiontSessionError(
+        'session.construct-failed',
+        `A session over a kept sign-in needs an HTTP endpoint; this knowledge base's is "${opts.kb.endpoint.kind}"`,
+        opts.kb.id,
+      );
+    }
+    const gateway = kbGatewayUrl(opts.kb.endpoint);
+    // A session over a kept sign-in learns whose caches to keep by asking.
+    const asks = opts.validate ?? true;
     // One renewal at a time. A stream refused and a request refused at the
     // same moment each ask for one, and an issuer that rotates refresh tokens
     // refuses the second grant, which would end a session that was fine.
     let renewing: Promise<string | null> | null = null;
-    const opened = SemiontSession.fromHttp({
+    const opened = SemiontSession.overHttp({
       kb: opts.kb,
-      storage: opts.storage,
-      baseUrl: opts.baseUrl,
-      token: access,
+      kept: opts.kept,
+      baseUrl: gateway,
       refresh: (holding) => {
-        renewing ??= refreshStoredSession(opts.storage, opts.kb.id, holding, opts.fetch).finally(() => { renewing = null; });
+        renewing ??= renewKept(opts.kept, holding, opts.fetch).finally(() => { renewing = null; });
         return renewing;
       },
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
-      ...(opts.validate ? { validate: opts.validate } : {}),
+      ...(asks ? { validate: (token: AccessToken) => currentUserOf(baseUrl(gateway), token, opts.fetch) } : {}),
       ...(opts.onAuthFailed ? { onAuthFailed: opts.onAuthFailed } : {}),
-      ...(opts.onError ? { onError: opts.onError } : {}),
-    });
+    }, opts.storage);
     await opened.session.ready;
     return opened;
   }
 
   /**
    * The device authorization grant (RFC 8628): a script signs in as a
-   * person. The issuer the knowledge base trusts mints a code, `onCode`
-   * shows the person where to approve it, and the tokens come back here —
-   * no password ever passes through the process. Throws a `SignInError`
-   * when the KB trusts no issuer, the person denies, or the code expires.
-   * Gives the session with the client it was built with, as `fromHttp` does.
-   * The knowledge base and its issuer are asked with `fetch`, or the
-   * runtime's own.
+   * person, and the sign-in is kept in `kept`. The issuer the knowledge base
+   * trusts mints a code, `onCode` shows the person where to approve it, and
+   * the tokens come back here — no password ever passes through the process.
+   * A script then builds its session over `kept` with `fromKept`. Throws a
+   * `SignInError` when the KB trusts no issuer, the person denies, or the
+   * code expires. The knowledge base and its issuer are asked with `fetch`,
+   * or the runtime's own.
    */
   static async signInDevice(opts: {
     kb: KbTarget;
-    storage: SessionStorage;
+    kept: SignInKept;
     onCode: (code: DeviceCode) => void;
     signal?: AbortSignal;
     fetch?: typeof fetch;
-    validate?: (token: AccessToken) => Promise<UserInfo | null>;
-    onAuthFailed?: (reason: SessionEndReason) => void;
-    onError?: (err: SemiontSessionError) => void;
-  }): Promise<OpenedSession> {
+  }): Promise<void> {
     if (opts.kb.endpoint.kind !== 'http') {
       throw new Error(`The device grant needs an HTTP endpoint; this knowledge base's is "${opts.kb.endpoint.kind}"`);
     }
@@ -757,17 +829,12 @@ export class SemiontSession implements StateUnit {
       ...(opts.signal ? { signal: opts.signal } : {}),
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
     });
-    const { onCode: _onCode, signal: _signal, ...rest } = opts;
-    return SemiontSession.fromIssuedSession({
-      ...rest,
-      baseUrl: kbGatewayUrl(opts.kb.endpoint),
-      session: {
-        access: tokens.access,
-        refresh: tokens.refresh,
-        clientId: SCRIPT_CLIENT_ID,
-        tokenEndpoint: issuer.token,
-        ...(issuer.revocation ? { revocationEndpoint: issuer.revocation } : {}),
-      },
+    opts.kept.keep({
+      access: tokens.access,
+      refresh: tokens.refresh,
+      clientId: SCRIPT_CLIENT_ID,
+      tokenEndpoint: issuer.token,
+      ...(issuer.revocation ? { revocationEndpoint: issuer.revocation } : {}),
     });
   }
 }

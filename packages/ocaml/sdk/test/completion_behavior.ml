@@ -299,7 +299,7 @@ let testing () =
     in
     let session =
       Session.start ~sw ~clock ~initial_token:(Some "token")
-        ~renew:(fun ~refused:_ -> Session.Refused)
+        ~renew:(fun ~holding:_ -> Session.Refused)
         ()
     in
     let serial = ref 0 in
@@ -493,14 +493,11 @@ let real_delivery () =
     }
   in
   check
-    (Result.is_ok
-       (factory
-          { kb; storage = registry_storage; signals = None; on_error = ignore }))
+    (Result.is_ok (factory { kb; storage = registry_storage; signals = None }))
     "scripted factory builds a session";
   check
     (Result.is_error
-       (factory
-          { kb; storage = registry_storage; signals = None; on_error = ignore }))
+       (factory { kb; storage = registry_storage; signals = None }))
     "unscripted factory input fails";
   let test = Testing.create_test_session { client; kb; id = "kb" } in
   let bus = Client.subscription client in
@@ -591,7 +588,7 @@ let replay_persistence () =
   in
   let session =
     Session.start ~sw ~clock ~initial_token:(Some "test")
-      ~renew:(fun ~refused:_ -> Session.Refused)
+      ~renew:(fun ~holding:_ -> Session.Refused)
       ()
   in
   let client =

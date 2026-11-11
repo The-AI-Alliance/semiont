@@ -14,6 +14,7 @@ import semiont.namespaces.Links
 import semiont.namespaces.Live
 import semiont.namespaces.Refresher
 import semiont.storage.CachePersistence
+import semiont.storage.CoupledBookmarks
 import semiont.namespaces.MarkNamespace
 import semiont.namespaces.MatchNamespace
 import semiont.namespaces.SystemNamespace
@@ -57,17 +58,48 @@ public class SemiontClient @JvmOverloads constructor(
     private val live: Live
     private val refresher: Refresher
 
+    /**
+     * Where the stream's places are kept beside what the client keeps, written
+     * while it is settled and as it closes: nowhere, until places are coupled
+     * to it (`CoupledBookmarks.coupleTo`). Its refresher remembers a recorded
+     * event's place there once it has taken the event.
+     */
+    @Volatile
+    internal var places: CoupledBookmarks? = null
+
+    /**
+     * What makes the caches' writes of what the client keeps, later than they
+     * save: given by a session, whose writer makes each write in its turn and
+     * keeps a write the storage refused until it is made. None for a client
+     * whose caches write their storage themselves, and hear each refusal.
+     */
+    @Volatile
+    internal var writes: KeptWrites? = null
+
     init {
         wire = Bus(transport, context, clock)
         links = Links(transport, wire, bus, timing, context, clock)
         transport.bridgeInto(bus)
         live = Live(links, content, persistence)
-        refresher = Refresher(links, live)
+        refresher = Refresher(links, live) { taken -> places?.save(taken.scope, taken.eventId) }
         refresher.start()
     }
 
-    /** Whether every query the client keeps is at rest: none is being fetched, and none is owed to storage. A client that keeps nothing is always so. */
-    public val persistenceSettled: Boolean get() = live.persistenceSettled
+    /**
+     * Whether the stream's place may be kept beside what the client keeps: no
+     * query it keeps is being fetched or is owed to storage, no event's
+     * refetch is owed, and no write the storage refused is owed
+     * (protocol/contract/CACHE-SEMANTICS.md, B17 and B19).
+     */
+    public val persistenceSettled: Boolean
+        // What is owed a refetch is read before the caches: a refetch a closing window starts is owed until its fetch is in flight.
+        get() = !refresher.owesARefetch && live.persistenceSettled && !owesARefusedWrite
+
+    /** Whether a write the storage refused is owed still (`writes`). */
+    internal val owesARefusedWrite: Boolean get() = writes?.owesARefusedWrite == true
+
+    /** Keep what the client's queries hold in `persistence` from now on: what a client made keeping nothing is given once the person it is for is known. */
+    internal fun attach(persistence: CachePersistence): Unit = live.attach(persistence)
 
     /** The vocabulary: what kinds of things exist. */
     public val frame: FrameNamespace = FrameNamespace(links)
@@ -103,14 +135,42 @@ public class SemiontClient @JvmOverloads constructor(
     public val system: SystemNamespace = SystemNamespace(links, gateway)
 
     /**
-     * End the client: its live queries end, so every collector of one does, and
-     * its own bus, so every reader of it does, and then the work it began.
-     * Closing twice is closing once.
+     * End the client: its live queries end, so every collector of one does,
+     * each making the save it owes, and the writes the storage refused that are
+     * owed still are made: its closing flush. Then its own bus ends, so every
+     * reader of it does, and then the work it began. Closing twice is closing
+     * once.
      */
     override fun close() {
+        // Read once, before anything is closed, in one step with the places closing may write: closing drops a fetch in
+        // flight and a refetch owed, so either holds them back; a save owed does not, since closing's flush is the save. The
+        // refetch is read first, as `persistenceSettled` reads it.
+        places?.freeze { !refresher.owesARefetch && live.keptFetchesSettled }
         refresher.dispose()
         live.dispose()
+        writes?.writeRefused()
         bus.destroy()
         links.close()
     }
+
+    /** Wait until the writes the closing flush began have been made or refused: none waits, for a client whose caches write their storage themselves. */
+    internal suspend fun flushed() {
+        writes?.landed()
+    }
+}
+
+/**
+ * A writer of what a client keeps that makes each of its caches' writes in
+ * its turn, later than the cache saves: a session's, whose writes are made
+ * only while its sign-in names the person they are for.
+ */
+internal interface KeptWrites {
+    /** Whether a write the storage refused is owed still: until a write of its key is made, or the closing flush makes it. */
+    val owesARefusedWrite: Boolean
+
+    /** Make each write the storage refused that is owed still, in turn: the last of the client's closing flush. */
+    fun writeRefused()
+
+    /** Wait until every write begun so far has been made or refused. */
+    suspend fun landed()
 }

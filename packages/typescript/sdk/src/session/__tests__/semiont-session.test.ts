@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 const mockDispose = vi.fn();
@@ -36,9 +36,11 @@ vi.mock('../../client', async () => {
 
 import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
-import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, SignInError, type AccessToken } from '@semiont/core';
-import { SESSION_PREFIX_RE, freshJwt, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
-import { getStoredSession } from '../storage';
+import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, REFRESH_RETRY, SignInError, type AccessToken, type SemiontError } from '@semiont/core';
+import { SESSION_PREFIX_RE, UNREADABLE, UnreadableSignIn, freshJwt, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
+import { getStoredSession, keptIn } from '../storage';
+import { MemorySignIn } from '../sign-in-kept';
+import { renewKept } from '../oauth';
 
 const KB = {
   id: 'kb-alpha',
@@ -65,13 +67,24 @@ function newSession(overrides?: Partial<SemiontSessionConfig>): SemiontSession {
   const token$ = new BehaviorSubject<AccessToken | null>(null);
   return new SemiontSession({
     kb: KB,
-    storage,
+    kept: keptIn(storage, KB.id),
     client,
     token$,
     refresh,
     validate,
     ...overrides,
   });
+}
+
+/**
+ * What `session` says on its errors stream from now on: its one stream of
+ * what went wrong, its own errors and its transport's alike. A session takes
+ * no callback for them.
+ */
+function saidBy(session: SemiontSession): SemiontError[] {
+  const said: SemiontError[] = [];
+  session.errors$.subscribe((error) => said.push(error));
+  return said;
 }
 
 beforeEach(() => {
@@ -141,16 +154,16 @@ describe('SemiontSession — construction & initial token', () => {
     const expired = freshJwt(-3600);
     seedStoredSession(storage, KB.id, expired, 'refresh-tok');
     refresh.mockRejectedValue(new Error('ECONNREFUSED'));
-    const onError = vi.fn();
 
-    const session = newSession({ onError });
+    const session = newSession();
+    const said = saidBy(session);
     await expect(session.ready).resolves.toBeUndefined();
     expect(session.token$.getValue()).toBeNull();
     expect(session.user$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).not.toBeNull();
-    expect(onError).toHaveBeenCalledWith(
+    expect(said).toEqual([
       expect.objectContaining({ code: 'session.auth-failed', message: 'Token refresh failed: ECONNREFUSED' }),
-    );
+    ]);
 
     session.dispose();
   });
@@ -159,14 +172,14 @@ describe('SemiontSession — construction & initial token', () => {
     seedStoredSession(storage, KB.id, freshJwt(-3600), 'refresh-tok');
     refresh.mockRejectedValue(new SignInError('exchange', 'The issuer refused the token request (invalid_grant: Token is not active)', 400));
     const onAuthFailed = vi.fn();
-    const onError = vi.fn();
 
-    const session = newSession({ onAuthFailed, onError });
+    const session = newSession({ onAuthFailed });
+    const said = saidBy(session);
     await session.ready;
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).toBeNull();
     expect(onAuthFailed).not.toHaveBeenCalled();
-    expect(onError).not.toHaveBeenCalled();
+    expect(said).toEqual([]);
 
     session.dispose();
   });
@@ -179,15 +192,15 @@ describe('SemiontSession — construction & initial token', () => {
     const renewed = freshJwt();
     refresh.mockRejectedValueOnce(failure).mockResolvedValueOnce(renewed);
     const onAuthFailed = vi.fn();
-    const onError = vi.fn();
 
-    const session = newSession({ onAuthFailed, onError });
+    const session = newSession({ onAuthFailed });
+    const said = saidBy(session);
     await session.ready;
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).not.toBeNull();
     expect(onAuthFailed).not.toHaveBeenCalled();
-    expect(onError.mock.calls).toEqual([
-      [expect.objectContaining({ code: 'session.auth-failed', message: `Token refresh failed: ${failure.message}` })],
+    expect(said).toEqual([
+      expect.objectContaining({ code: 'session.auth-failed', message: `Token refresh failed: ${failure.message}` }),
     ]);
 
     // The issuer answers again: a request refused for want of a token renews it.
@@ -409,9 +422,9 @@ describe('SemiontSession — refresh', () => {
     seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
     refresh.mockRejectedValue(new SignInError('exchange', 'The issuer refused the token request (invalid_grant)', 400));
     const onAuthFailed = vi.fn();
-    const onError = vi.fn();
 
-    const session = newSession({ onAuthFailed, onError });
+    const session = newSession({ onAuthFailed });
+    const said = saidBy(session);
     await session.ready;
 
     // It must not propagate: the caller (and the proactive timer) treat this
@@ -421,9 +434,7 @@ describe('SemiontSession — refresh', () => {
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).toBeNull();
     expect(onAuthFailed).toHaveBeenCalledWith('expired');
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'session.refresh-exhausted' }),
-    );
+    expect(said).toEqual([expect.objectContaining({ code: 'session.refresh-exhausted' })]);
 
     session.dispose();
   });
@@ -437,9 +448,9 @@ describe('SemiontSession — refresh', () => {
     const renewed = freshJwt();
     refresh.mockRejectedValueOnce(failure).mockResolvedValueOnce(renewed);
     const onAuthFailed = vi.fn();
-    const onError = vi.fn();
 
-    const session = newSession({ onAuthFailed, onError });
+    const session = newSession({ onAuthFailed });
+    const said = saidBy(session);
     await session.ready;
 
     await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
@@ -447,8 +458,8 @@ describe('SemiontSession — refresh', () => {
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).not.toBeNull();
     expect(onAuthFailed).not.toHaveBeenCalled();
-    expect(onError.mock.calls).toEqual([
-      [expect.objectContaining({ code: 'session.refresh-exhausted', message: `Token refresh failed: ${failure.message}` })],
+    expect(said).toEqual([
+      expect.objectContaining({ code: 'session.refresh-exhausted', message: `Token refresh failed: ${failure.message}` }),
     ]);
 
     expect(await session.refresh(session.token$.getValue())).toBe(renewed);
@@ -461,15 +472,15 @@ describe('SemiontSession — refresh', () => {
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
     refresh.mockRejectedValue(new Error('ECONNREFUSED'));
-    const onError = vi.fn();
 
-    const session = newSession({ onError });
+    const session = newSession();
+    const said = saidBy(session);
     await session.ready;
     await session.refresh(session.token$.getValue());
 
-    expect(onError).toHaveBeenCalledWith(
+    expect(said).toEqual([
       expect.objectContaining({ message: expect.stringContaining('ECONNREFUSED') }),
-    );
+    ]);
 
     session.dispose();
   });
@@ -519,8 +530,8 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     }) as typeof validate;
     refresh = vi.fn(async () => renewed) as typeof refresh;
     const onAuthFailed = vi.fn();
-    const onError = vi.fn();
-    const session = newSession({ onAuthFailed, onError });
+    const session = newSession({ onAuthFailed });
+    const said = saidBy(session);
 
     // The stream's refusal: renewed, and nobody asked. The start does that.
     expect(await session.refresh(session.token$.getValue())).toBe(renewed);
@@ -534,7 +545,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     expect(asked).toEqual([stored, renewed]);
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(onAuthFailed).toHaveBeenCalledTimes(1);
-    expect(onError.mock.calls.map(([error]) => error.code)).toEqual(['session.credential-refused']);
+    expect(said.map((error) => error.code)).toEqual(['session.credential-refused']);
     expect(session.token$.getValue()).toBeNull();
     session.dispose();
   });
@@ -558,8 +569,8 @@ describe('SemiontSession — a refusal while the session is still starting', () 
       throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
     }) as typeof validate;
     const onAuthFailed = vi.fn();
-    const onError = vi.fn();
-    const session = newSession({ onAuthFailed, onError });
+    const session = newSession({ onAuthFailed });
+    const said = saidBy(session);
 
     // The start is refused and asks for a renewal; so does the stream.
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
@@ -573,7 +584,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     expect(await refreshing).toBe(renewed);
     expect(asked).toEqual([stored, renewed]);
     expect(onAuthFailed).toHaveBeenCalledTimes(1);
-    expect(onError.mock.calls.map(([error]) => error.code)).toEqual(['session.credential-refused']);
+    expect(said.map((error) => error.code)).toEqual(['session.credential-refused']);
     session.dispose();
   });
 
@@ -656,19 +667,149 @@ describe('SemiontSession — a refusal of a running session', () => {
     }) as typeof validate;
     refresh = vi.fn(async () => renewed) as typeof refresh;
     const onAuthFailed = vi.fn();
-    const session = newSession({ onAuthFailed });
+    const token$ = new BehaviorSubject<AccessToken | null>(null);
+    const session = newSession({ onAuthFailed, token$ });
     await session.ready;
 
     const refreshing = session.refresh(session.token$.getValue());
     await vi.waitFor(() => expect(validate).toHaveBeenCalledTimes(2));
-    // Another context signs in again while the gateway is being asked.
-    storage.dispatch(storageKey(KB.id), JSON.stringify({ ...testSession(elsewhere, 'r2') }));
+    // The session holds another token by the time the gateway answers.
+    token$.next(accessToken(elsewhere));
     release();
 
     expect(await refreshing).toBe(elsewhere);
     expect(session.token$.getValue()).toBe(elsewhere);
     expect(onAuthFailed).not.toHaveBeenCalled();
     session.dispose();
+  });
+});
+
+describe('SemiontSession — a kept sign-in that cannot be read when the session renews', () => {
+  // A sign-in whose read throws is a renewal with no answer: what is stored
+  // is kept, the session says why on its errors stream, `session.auth-failed`
+  // during its start's renewal and `session.refresh-exhausted` after, and it
+  // renews again on the reconnect backoff. The renewal callback reads the
+  // sign-in first, as `renewKept` does, so while it cannot be read the
+  // callback rejects with what the read threw.
+
+  it('a renewal after the start says session.refresh-exhausted, and the backoff goes on', async () => {
+    vi.useFakeTimers();
+    try {
+      const kept = new UnreadableSignIn(testSession(freshJwt(), 'refresh-tok'));
+      const renewed = freshJwt();
+      refresh.mockRejectedValueOnce(new Error(UNREADABLE)).mockResolvedValueOnce(renewed);
+      const onAuthFailed = vi.fn();
+      const session = newSession({ kept, onAuthFailed });
+      const said = saidBy(session);
+      await session.ready;
+
+      kept.unreadable = true;
+      await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
+      expect(said.map((error) => error.code)).toEqual(['session.refresh-exhausted']);
+      expect(session.token$.getValue()).toBeNull();
+      expect(onAuthFailed).not.toHaveBeenCalled();
+
+      // Readable again, and still kept: the renewal on the backoff is made.
+      kept.unreadable = false;
+      expect(kept.held()).not.toBeNull();
+      await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
+      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(session.token$.getValue()).toBe(renewed);
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the start's renewal says session.auth-failed, the backoff's session.refresh-exhausted, and the backoff goes on", async () => {
+    vi.useFakeTimers();
+    try {
+      const kept = new UnreadableSignIn(testSession(freshJwt(-3600), 'refresh-tok'));
+      const renewed = freshJwt();
+      refresh
+        .mockRejectedValueOnce(new Error(UNREADABLE))
+        .mockRejectedValueOnce(new Error(UNREADABLE))
+        .mockResolvedValueOnce(renewed);
+      const onAuthFailed = vi.fn();
+      const session = newSession({ kept, onAuthFailed });
+      const said = saidBy(session);
+      // Read as the session started, and not after.
+      kept.unreadable = true;
+      await session.ready;
+      expect(said.map((error) => error.code)).toEqual(['session.auth-failed']);
+      expect(session.token$.getValue()).toBeNull();
+
+      // Past the latest the renewal on the backoff falls due, and short of the earliest a second can.
+      await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
+      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(said.map((error) => error.code)).toEqual(['session.auth-failed', 'session.refresh-exhausted']);
+
+      // Readable again, and still kept: the next renewal on the backoff, its step doubled, is made.
+      kept.unreadable = false;
+      expect(kept.held()).not.toBeNull();
+      await vi.advanceTimersByTimeAsync(2 * RECONNECT_MS);
+      expect(refresh).toHaveBeenCalledTimes(3);
+      expect(session.token$.getValue()).toBe(renewed);
+      expect(onAuthFailed).not.toHaveBeenCalled();
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('SemiontSession — every renewal is handed the token it renews', () => {
+  // A kept sign-in's renewal (`renewKept`) gives back a kept token that has
+  // not expired, with no grant, when it is handed another token or none: a
+  // renewal made elsewhere meanwhile. So a session that gave up the token the
+  // gateway refused, its renewal unanswered, hands that token to the renewal
+  // on the backoff, and the issuer is asked; handed none, the session would be
+  // given back the token the gateway had just refused.
+
+  it('the renewal on the backoff, after the renewal of a token the gateway refused got no answer, is handed that token, and the kept sign-in asks the issuer', async () => {
+    vi.useFakeTimers();
+    try {
+      const refused = freshJwt();
+      const renewed = freshJwt();
+      const kept = new MemorySignIn(testSession(refused, 'refresh-tok'));
+      let reachable = false;
+      const issuer = vi.fn(async (_input: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+        if (!reachable) throw new TypeError('fetch failed');
+        return Response.json({ access_token: renewed, refresh_token: 'refresh-2' });
+      });
+      const handed: (string | null)[] = [];
+      const session = newSession({
+        kept,
+        refresh: (holding) => {
+          handed.push(holding);
+          return renewKept(kept, holding, issuer);
+        },
+      });
+      await session.ready;
+      expect(session.token$.getValue()).toBe(refused);
+
+      // The gateway refuses the token, and the issuer does not answer its renewal within the grant's retry budget.
+      const answered = session.refresh(refused);
+      await vi.advanceTimersByTimeAsync(3500);
+      expect(await answered).toBeNull();
+      expect(session.token$.getValue()).toBeNull();
+      expect(issuer).toHaveBeenCalledTimes(REFRESH_RETRY.attempts);
+
+      // The issuer answers again. Past the latest the renewal on the backoff falls due:
+      // it is handed the token the gateway refused, and a grant is made for it.
+      reachable = true;
+      await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
+      expect(handed).toEqual([refused, refused]);
+      expect(issuer).toHaveBeenCalledTimes(REFRESH_RETRY.attempts + 1);
+      expect(session.token$.getValue()).toBe(renewed);
+      expect(kept.held()).toMatchObject({ access: renewed, refresh: 'refresh-2' });
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -733,53 +874,10 @@ describe('SemiontSession — StateUnit axioms', () => {
       // No `refresh` or `validate`: a session of nobody, so nothing it is
       // driven with reaches past it.
       setup: () => newSession({ refresh: undefined, validate: undefined }),
-      // `streamState$` and `errors$` are the client's, and end with it.
-      surfaces: (u) => [u.token$, u.user$],
+      // `errors$` is the session's, and ends with it; `streamState$` is the client's, and ends with the client.
+      surfaces: (u) => [u.token$, u.user$, u.errors$],
       invocations: (u) => [() => void u.refresh(u.token$.getValue())],
     });
-  });
-});
-
-describe('SemiontSession — cross-context storage sync', () => {
-  it('responds to a storage change that updates this KB\'s session key', async () => {
-    const session = newSession();
-    await session.ready;
-
-    const newJwt = freshJwt();
-    const nextToken = firstValueFrom(session.token$.pipe(skip(1), take(1)));
-    storage.dispatch(storageKey(KB.id), JSON.stringify({ access: newJwt, refresh: 'r2' }));
-    await expect(nextToken).resolves.toBe(newJwt);
-
-    session.dispose();
-  });
-
-  it('responds to a storage change that clears this KB\'s session', async () => {
-    const jwt = freshJwt();
-    seedStoredSession(storage, KB.id, jwt, 'r');
-
-    const session = newSession();
-    await session.ready;
-    expect(session.token$.getValue()).toBe(jwt);
-
-    storage.dispatch(storageKey(KB.id), null);
-
-    expect(session.token$.getValue()).toBeNull();
-    expect(session.user$.getValue()).toBeNull();
-
-    session.dispose();
-  });
-
-  it('ignores storage changes for other keys', async () => {
-    const jwt = freshJwt();
-    seedStoredSession(storage, KB.id, jwt, 'r');
-
-    const session = newSession();
-    await session.ready;
-
-    storage.dispatch('semiont.session.OTHER_KB', JSON.stringify({ access: 'xyz', refresh: 'q' }));
-    expect(session.token$.getValue()).toBe(jwt);
-
-    session.dispose();
   });
 });
 

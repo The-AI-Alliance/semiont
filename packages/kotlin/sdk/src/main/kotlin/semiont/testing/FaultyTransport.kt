@@ -170,7 +170,7 @@ public class FaultyTransport @JvmOverloads constructor(
     /** Deliver a frame, or a frame's refusal, as if the stream had carried it. */
     public fun deliver(carried: Carried) {
         router.route(carried)
-        hub.deliver(carried)
+        hub.deliver(carried, null)
     }
 
     /** Every request sent, in order. */

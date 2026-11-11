@@ -11,6 +11,7 @@ import util from 'node:util';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY, SignInError } from '@semiont/core';
 import { APIError, HttpTransport } from '@semiont/http-transport';
+import { keptIn, renewKept } from '../../index';
 import { InMemorySessionStorage } from '../session-storage';
 import {
   BROWSER_CLIENT_ID,
@@ -21,7 +22,6 @@ import {
   completeAuthorization,
   discoverIssuer,
   refreshAtIssuer,
-  refreshStoredSession,
   revokeAtIssuer,
   signInWithDeviceGrant,
 } from '../oauth';
@@ -338,14 +338,15 @@ describe('refresh and revocation', () => {
   });
 
   // ── A refusal is terminal; an outage is retried ──────────────────────
-  // `refreshStoredSession` answered `null` for every failure, and its caller
-  // treats `null` as terminal — so a lost packet ended the session exactly
+  // A renewal that answered `null` for every failure, to a caller that
+  // treats `null` as terminal, ended the session at a lost packet exactly
   // like a revocation. The issuer's answer is the verdict; its absence is not.
   //
   // The retry lives HERE and not in the session on purpose: retry belongs in
-  // the callback, which owns the HTTP call.
+  // the callback, which owns the HTTP call. `renewKept` is the package's own,
+  // here over a registry's storage (`keptIn`).
 
-  describe('refreshStoredSession separates a refusal from an outage', () => {
+  describe('renewKept separates a refusal from an outage', () => {
     const KB = 'kb-alpha';
 
     function seeded() {
@@ -372,7 +373,7 @@ describe('refresh and revocation', () => {
       });
 
       // The issuer renewed it, and there is no session left to hold the token.
-      expect(await refreshStoredSession(storage, KB, 'acc-1')).toBeNull();
+      expect(await renewKept(keptIn(storage, KB), 'acc-1')).toBeNull();
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(stored(storage)).toBeNull();
@@ -392,8 +393,24 @@ describe('refresh and revocation', () => {
         return reply({ access_token: 'acc-2', refresh_token: 'ref-2' });
       });
 
-      expect(await refreshStoredSession(storage, KB, 'acc-1')).toBe('acc-elsewhere');
+      expect(await renewKept(keptIn(storage, KB), 'acc-1')).toBe('acc-elsewhere');
       expect(storage.get(`semiont.session.${KB}`)).toBe(renewedElsewhere);
+    });
+
+    it('a renewal keeps the person the stored session names: it is the same sign-in, with new tokens', async () => {
+      const storage = new InMemorySessionStorage();
+      const signIn = {
+        access: 'acc-1',
+        refresh: 'ref-1',
+        clientId: BROWSER_CLIENT_ID,
+        tokenEndpoint: `${ISSUER}/token`,
+        personKey: 'gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I',
+      };
+      storage.set(`semiont.session.${KB}`, JSON.stringify(signIn));
+      fetchMock.mockImplementation(async () => reply({ access_token: 'acc-2', refresh_token: 'ref-2' }));
+
+      expect(await renewKept(keptIn(storage, KB), 'acc-1')).toBe('acc-2');
+      expect(JSON.parse(storage.get(`semiont.session.${KB}`) ?? 'null')).toEqual({ ...signIn, access: 'acc-2', refresh: 'ref-2' });
     });
 
     it('rides out a 503 and returns the renewed token', async () => {
@@ -402,7 +419,7 @@ describe('refresh and revocation', () => {
         .mockImplementationOnce(async () => reply({ access_token: 'acc-2', refresh_token: 'ref-2' }));
       const storage = seeded();
 
-      expect(await refreshStoredSession(storage, KB, 'acc-1')).toBe('acc-2');
+      expect(await renewKept(keptIn(storage, KB), 'acc-1')).toBe('acc-2');
       expect(stored(storage)?.access, 'the rotation is persisted').toBe('acc-2');
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
@@ -431,7 +448,7 @@ describe('refresh and revocation', () => {
         .mockImplementationOnce(async () => { throw new TypeError('fetch failed'); })
         .mockImplementationOnce(async () => reply({ access_token: 'acc-2' }));
 
-      expect(await refreshStoredSession(seeded(), KB, 'acc-1')).toBe('acc-2');
+      expect(await renewKept(keptIn(seeded(), KB), 'acc-1')).toBe('acc-2');
     });
 
     it('does NOT retry a refused grant — null on the first answer', async () => {
@@ -439,14 +456,14 @@ describe('refresh and revocation', () => {
       // only delays a re-login the user has to do anyway.
       fetchMock.mockImplementation(async () => reply({ error: 'invalid_grant' }, 400));
 
-      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow();
+      await expect(renewKept(keptIn(seeded(), KB), 'acc-1')).rejects.toThrow();
       expect(fetchMock, 'a refusal is final on the first answer').toHaveBeenCalledTimes(1);
     });
 
     it('does not retry an unclassified fault either — terminal by default', async () => {
       fetchMock.mockImplementation(async () => reply(undefined, 404));
 
-      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow();
+      await expect(renewKept(keptIn(seeded(), KB), 'acc-1')).rejects.toThrow();
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
@@ -457,7 +474,7 @@ describe('refresh and revocation', () => {
       fetchMock.mockImplementation(async () => reply(undefined, 503));
       const storage = seeded();
 
-      await expect(refreshStoredSession(storage, KB, 'acc-1')).rejects.toThrow();
+      await expect(renewKept(keptIn(storage, KB), 'acc-1')).rejects.toThrow();
       expect(fetchMock.mock.calls.length, 'bounded').toBeLessThanOrEqual(4);
       expect(fetchMock.mock.calls.length, 'and it did retry').toBeGreaterThan(1);
       expect(stored(storage), 'the stored session is left for the caller to clear').not.toBeNull();
@@ -470,7 +487,7 @@ describe('refresh and revocation', () => {
       vi.useFakeTimers();
       fetchMock.mockImplementation(answer);
 
-      const failed = refreshStoredSession(seeded(), KB, 'acc-1').catch((e: unknown) => e);
+      const failed = renewKept(keptIn(seeded(), KB), 'acc-1').catch((e: unknown) => e);
       await vi.advanceTimersByTimeAsync(60_000);
       const failure = await failed;
 
@@ -498,7 +515,7 @@ describe('refresh and revocation', () => {
     it('throws the issuer\'s own words on a refusal', async () => {
       fetchMock.mockImplementation(async () => reply({ error: 'invalid_grant', error_description: 'revoked' }, 400));
 
-      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow(/invalid_grant: revoked/);
+      await expect(renewKept(keptIn(seeded(), KB), 'acc-1')).rejects.toThrow(/invalid_grant: revoked/);
     });
 
     it('names the exhausted budget as well as the last cause', async () => {
@@ -507,7 +524,7 @@ describe('refresh and revocation', () => {
       // whether they look at the network or at the issuer.
       fetchMock.mockImplementation(async () => reply(undefined, 503));
 
-      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow(/4 attempts.*HTTP 503/s);
+      await expect(renewKept(keptIn(seeded(), KB), 'acc-1')).rejects.toThrow(/4 attempts.*HTTP 503/s);
     });
 
     it('a storage that will not keep a renewal it took retries to make fails as itself, not as the issuer', async () => {
@@ -521,7 +538,7 @@ describe('refresh and revocation', () => {
         throw full;
       });
 
-      const failed = refreshStoredSession(storage, KB, 'acc-1').catch((e: unknown) => e);
+      const failed = renewKept(keptIn(storage, KB), 'acc-1').catch((e: unknown) => e);
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(await failed).toBe(full);
@@ -532,7 +549,7 @@ describe('refresh and revocation', () => {
     it('still answers null — not a throw — when there is simply nothing stored', async () => {
       // An absence is not a failure. The caller distinguishes "never signed in"
       // from "could not renew", and this is the only case that is the former.
-      expect(await refreshStoredSession(new InMemorySessionStorage(), KB, null)).toBeNull();
+      expect(await renewKept(keptIn(new InMemorySessionStorage(), KB), null)).toBeNull();
     });
   });
 
@@ -672,7 +689,7 @@ describe('a request to the issuer has a deadline', () => {
     // What a request rejects with when its deadline passes.
     fetchMock.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
 
-    const renewed = expect(refreshStoredSession(storage, 'kb-1', 'a1')).rejects.toThrow(
+    const renewed = expect(renewKept(keptIn(storage, 'kb-1'), 'a1')).rejects.toThrow(
       `The session could not be renewed after ${REFRESH_RETRY.attempts} attempts: The issuer did not answer: TimeoutError`,
     );
     await vi.advanceTimersByTimeAsync(60_000);

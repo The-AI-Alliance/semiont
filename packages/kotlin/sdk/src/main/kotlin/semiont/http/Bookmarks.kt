@@ -11,7 +11,4 @@ import semiont.identifiers.ResourceId
 public interface Bookmarks {
     /** The id of the last recorded event delivered on each scope, as kept. */
     public fun load(): Map<ResourceId, String>
-
-    /** A recorded event was delivered on `scope`. */
-    public fun save(scope: ResourceId, eventId: String)
 }

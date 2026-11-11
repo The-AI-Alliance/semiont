@@ -28,6 +28,7 @@ import semiont.channels.BRIDGED_CHANNELS
 import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.errors.BusRequestError
 import semiont.identifiers.AnnotationId
+import semiont.namespaces.Windows
 import semiont.transport.ConnectionState
 import semiont.transport.Frame
 import semiont.types.Annotation
@@ -172,6 +173,31 @@ class RefresherTest {
         world.close()
         delay(window + 100)
         assertEquals(7, asked())
+    }
+
+    /**
+     * B17: a refetch a closing window runs is owed until its fetch is in
+     * flight. From the window giving it up until the refetch has started,
+     * whoever reads what is owed (a kept cache's write, reading whether the
+     * client is settled; the client's closing) is told it is owed, or waits
+     * until it has started, so no place rides a write ahead of it. The refetch
+     * here reads it as it starts: while the windows are locked, a reader in
+     * any other thread waits. What asks again for one key is the same
+     * whichever event asked, so both events hand the windows the one refetch:
+     * a closing window runs the refetch it was opened with.
+     */
+    @Test
+    fun b17ARefetchAClosingWindowRunsIsOwedUntilItHasStarted() = runTest {
+        val lasting = 100L
+        val windows = Windows(backgroundScope, lasting)
+        var told: Boolean? = null
+        val refetch = { told = Thread.holdsLock(windows) || windows.owesARefetch }
+        windows.run("annotations/res-1", refetch)
+        windows.run("annotations/res-1", refetch)
+        assertTrue(windows.owesARefetch, "the open window owes the second refetch")
+        delay(lasting * 2)
+        assertEquals(true, told, "the refetch the closing window ran was not owed as it started")
+        windows.dispose()
     }
 
     @Test

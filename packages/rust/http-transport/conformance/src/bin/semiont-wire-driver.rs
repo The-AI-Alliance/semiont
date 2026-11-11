@@ -138,7 +138,6 @@ impl Wire {
             http: reqwest::Client::new(),
             timing,
 
-            bookmarks: None,
             random: None,
         });
 

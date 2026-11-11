@@ -44,11 +44,15 @@ import AnnotationCases (annotationCases)
 import IdentityCases (identityCases)
 import BusLogCases (busLogCases)
 import PersistenceCases (persistenceCases)
+import CacheDocumentCases (cacheDocumentCases)
+import PersistedCases (persistedCases)
 import StateUnitCases (stateUnitCases)
 import FlowCases (flowCases)
 import ActorCases (actorCases)
 import TestingCases (testingCases)
 import RegistryCases (registryCases)
+import OpenResourceCases (openResourceCases)
+import RegistryErrorsCases (registryErrorsCases)
 import RegistryRuntimeCases (registryRuntimeCases)
 import LifetimeCases (lifetimeCases)
 import CacheCases (cacheCases)
@@ -421,7 +425,11 @@ runCases root = do
   registryRuntimeCases fixtures
   testingCases fixtures
   registryCases root fixtures
+  openResourceCases root fixtures
+  registryErrorsCases root fixtures
   persistenceCases fixtures
+  cacheDocumentCases root
+  persistedCases root fixtures
   issuerCases fixtures
   serviceTokenCases root
   deviceClock <- deviceClockCases root

@@ -122,7 +122,7 @@ writeDocument store document = do
 asStored :: SignIn -> Maybe StoredSession
 asStored value = do
   refresh <- signInRefreshToken value
-  if Text.null refresh then Nothing else pure (StoredSession (signInToken value) OAuth.scriptClientId refresh
+  if Text.null refresh then Nothing else pure (StoredSession (signInToken value) OAuth.scriptClientId Nothing refresh
     (signInRevocationEndpoint value) (signInTokenEndpoint value) KM.empty)
 
 writtenTimes :: SignInStoreOptions -> Text -> IO (Text,Maybe Text)
@@ -165,3 +165,5 @@ entry store@(SignInStore options _ _) identity = SignIn.KeptSignIn
   (change store $ \document -> pure (if KM.member (Key.fromText identity) document
     then Just (KM.delete (Key.fromText identity) document) else Nothing,()))
   (const (pure Nothing))
+  -- The launcher's document has no place for a person.
+  (\_ _ -> pure False)

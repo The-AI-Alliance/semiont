@@ -73,6 +73,7 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
             correlation_id: correlation_id.map(str::to_owned),
             scope: Some(as_id("res-1")),
             trace: None,
+            stream_id: None,
         })
     };
     let malformed = json!({ "annotationId": 7, "resourceId": "res-1" });
@@ -293,6 +294,7 @@ async fn a_resources_channel_is_read_for_a_resource_whose_scope_the_read_holds()
         correlation_id: None,
         scope: Some(as_id(resource)),
         trace: None,
+        stream_id: None,
     };
     // A stream carries every scope it holds on the one channel, and the read
     // is given its own resource's frames and no other's.

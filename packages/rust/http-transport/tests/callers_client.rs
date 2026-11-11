@@ -73,7 +73,6 @@ async fn a_transport_makes_its_stream_its_emits_its_requests_and_its_content_wit
         channels: Some(vec!["beckon:focus".to_owned()]),
         http: callers,
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     });
 

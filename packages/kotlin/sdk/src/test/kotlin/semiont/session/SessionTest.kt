@@ -3,11 +3,16 @@
 package semiont.session
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -25,9 +30,16 @@ import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
+import semiont.errors.SessionError
 import semiont.errors.SignInError
 import semiont.errors.SignInErrorCode
+import semiont.errors.TransportError
+import semiont.signin.HeldSignIn
+import semiont.signin.MemorySignIn
+import semiont.signin.SCRIPT_CLIENT_ID
+import semiont.testing.TestClient
 import semiont.types.UserResponse
+import kotlin.random.Random
 
 /** A gateway that holds its answer about one token until it is released, and then refuses it; of any other token it says `ofOthers`. */
 private class Slowly(private val heldToken: String, private val ofOthers: Any) {
@@ -230,7 +242,7 @@ class SessionTest {
         val world = SessionWorld(kept = access)
         var renewals = 0
         // An issuer that takes a moment, as one does: the refusals overlap.
-        val takesAMoment: suspend () -> String? = {
+        val takesAMoment: suspend (String?) -> String? = {
             renewals += 1
             delay(10)
             renewed
@@ -389,6 +401,48 @@ class SessionTest {
     }
 
     @Test
+    fun aRenewalIsHandedTheTokenTheSessionHolds() = runTest {
+        val access = token(3600, 1)
+        val renewed = token(300, 2)
+        val world = SessionWorld(kept = access, renewals = listOf(renewed, token(300, 3)))
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            // The gateway refused the token the session holds: that is the token renewed.
+            assertEquals(renewed, session.refresh(session.token.value))
+            // Half the renewed token's life later, on the session's own schedule: the token it holds then.
+            advanceTimeBy(160_000)
+            runCurrent()
+            assertEquals(listOf<String?>(access, renewed), world.handed)
+        }
+    }
+
+    @Test
+    fun aSignInThatCannotBeReadAsARenewalGetsNoAnswerIsARenewalWithNoAnswerAndTheBackoffGoesOn() = runTest {
+        val renewed = token(3600, 2)
+        val world = SessionWorld(kept = token(3600, 1), renewals = listOf(unansweredByTheIssuer(), unansweredByTheIssuer(), renewed))
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            world.unreadable = true
+            // The renewal got no answer, and whether a sign-in is kept cannot be read: no usable token, and the session is not over.
+            assertNull(session.refresh(session.token.value))
+            assertNull(session.token.value)
+            assertEquals(emptyList<SessionEndReason>(), world.told)
+            assertEquals(listOf("session.refresh-exhausted"), world.errors.map { it.code })
+            // Past the first two waits of the backoff at their longest: the first renewal on it meets the same, and says
+            // so, and the next is made.
+            advanceTimeBy(Timings.RECONNECT_MS * 3 + 1_000)
+            runCurrent()
+            assertEquals(3, world.renewed)
+            assertEquals(renewed, session.token.value)
+            assertEquals(listOf("session.refresh-exhausted", "session.refresh-exhausted"), world.errors.map { it.code })
+            assertEquals(emptyList<SessionEndReason>(), world.told)
+            assertTrue(world.isKept())
+        }
+    }
+
+    @Test
     fun theIssuersRefusalEndsTheRenewalsOnTheReconnectBackoff() = runTest {
         val world = SessionWorld(kept = token(3600, 1), renewals = listOf(unansweredByTheIssuer(), refusedByTheIssuer()))
         world.session().use { session ->
@@ -429,6 +483,31 @@ class SessionTest {
             assertEquals(access, session.token.value)
             assertTrue(world.isKept())
         }
+    }
+
+    // What it says.
+
+    @Test
+    fun aSessionsErrorsAreItsOwnAndItsTransportsEachSaidOnce() = runTest {
+        val made = TestClient(currentCoroutineContext().minusKey(Job), testScheduler.timeSource)
+        val kept = MemorySignIn(HeldSignIn(token(3600, 1), "a-refresh-token", SCRIPT_CLIENT_ID, "https://issuer.test/token", null, null))
+        val session = SemiontSession(TARGET, made.client, MutableStateFlow(null), kept, { throw unansweredByTheIssuer() }, { alice }, null, Random(0))
+        val said = mutableListOf<SemiontError>()
+        val errors = session.errors()
+        backgroundScope.launch(Dispatchers.Unconfined) { errors.collect { said += it } }
+        session.start()
+        session.ready()
+        // A request the gateway refused, as the transport reports it, and a renewal that got no answer, as the session does.
+        val refused = TransportError.ofStatus("HTTP 503", 503, null)
+        made.transport.fail(refused)
+        assertNull(session.refresh(session.token.value))
+        runCurrent()
+        assertEquals(2, said.size, "$said")
+        assertEquals(1, said.count { it === refused })
+        assertEquals(listOf("session.refresh-exhausted"), said.filterIsInstance<SessionError>().map { it.code })
+        made.client.close()
+        session.close()
+        made.transport.close()
     }
 
     // How it ends.

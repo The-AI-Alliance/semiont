@@ -269,7 +269,7 @@ let run mode env =
     let session =
       Session.start ~sw ~clock
         ~initial_token:(optional J.to_string "token" input)
-        ~renew:(fun ~refused:_ ->
+        ~renew:(fun ~holding:_ ->
           match !renewals with
           | [] -> Session.Refused
           | bearer :: rest ->

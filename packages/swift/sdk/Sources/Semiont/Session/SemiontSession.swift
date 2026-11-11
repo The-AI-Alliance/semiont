@@ -10,12 +10,15 @@ public actor SemiontSession: StateUnit {
   public nonisolated let token = Watched<String?>(nil)
   public nonisolated let user = Watched<UserResponse?>(nil)
   nonisolated let lifetime = Lifetime()
-  private nonisolated let failures = Broadcast<any Error>()
+  /// Its one errors stream: what it says before anyone reads it is kept for the first reader.
+  private nonisolated let failures = Broadcast<any Error>(keepingForFirst: true)
   let kept: any SignInKept
+  /// Forgets the sign-in `kept` holds.
+  private let forget: @Sendable () async throws -> Void
   private let renew: @Sendable (String?) async throws -> String?
-  private let validate: @Sendable (String) async throws -> UserResponse
+  /// Asks the gateway who a token is: nil for a session that asks nobody.
+  private let validate: (@Sendable (String) async throws -> UserResponse)?
   private let publish: @Sendable (String?) async -> Void
-  private nonisolated let onError: (@Sendable (SessionError) -> Void)?
   private let onAuthFailed: (@Sendable (SessionEndReason) -> Void)?
   private let reconnectMs: Int
   private let random: RandomSource
@@ -23,23 +26,27 @@ public actor SemiontSession: StateUnit {
   private var starting: Task<Void, any Error>?
   private var renewal: Task<String?, any Error>?
   private var validation: (String?, Task<String?, any Error>)?
+  /// The token it last held, or found stored at its start: what a renewal is handed while it holds
+  /// none.
+  private var lastHeld: String?
   private var readyState = false
   private var unanswered = false
   private var retryCap: Int
   private var scheduled: UUID?
   package init(
     kb: KbTarget, client: SemiontClient, kept: any SignInKept,
+    forget: @escaping @Sendable () async throws -> Void,
     renew: @escaping @Sendable (String?) async throws -> String?,
-    validate: @escaping @Sendable (String) async throws -> UserResponse,
+    validate: (@Sendable (String) async throws -> UserResponse)?,
     publish: @escaping @Sendable (String?) async -> Void = { _ in },
     reconnectMs: Int = Timings.reconnectMs, random: RandomSource,
-    onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-    onError: (@Sendable (SessionError) -> Void)? = nil
+    onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil
   ) {
     self.kb = kb
     self.client = client
     self.streamState = client.state
     self.kept = kept
+    self.forget = forget
     self.renew = renew
     self.validate = validate
     self.publish = publish
@@ -53,7 +60,6 @@ public actor SemiontSession: StateUnit {
     }
     self.retryCap = reconnectMs
     self.onAuthFailed = onAuthFailed
-    self.onError = onError
     let token = token
     let user = user
     let failures = failures
@@ -64,11 +70,11 @@ public actor SemiontSession: StateUnit {
     }
   }
   deinit { lifetime.end() }
+  /// Ends the session, and its errors with it. Whoever ends its client too closes that first and
+  /// waits for its closing flush (``OpenedSession/dispose()``), so what the flush meets is said
+  /// before they end; what the client meets once the session has ended is said nowhere.
   public nonisolated func dispose() { lifetime.end() }
-  nonisolated func failed(_ error: SessionError) {
-    failures.yield(error)
-    onError?(error)
-  }
+  nonisolated func failed(_ error: SessionError) { failures.yield(error) }
   nonisolated func relay(_ error: any Error) { failures.yield(error) }
   public nonisolated func errors() -> Events<any Error> { failures.listen() }
   public nonisolated func expiresAt() -> Double? { token.value.flatMap(tokenExpiry) }
@@ -106,7 +112,7 @@ public actor SemiontSession: StateUnit {
         lifetime.forget(id)
         validation = nil
       }
-      guard let renewed = try await renewed(), readyState else { return token.value }
+      guard let renewed = try await renewed(), readyState, let validate else { return token.value }
       do {
         let named = try await validate(renewed)
         if !lifetime.ended, token.value == renewed { user.set(named) }
@@ -124,12 +130,17 @@ public actor SemiontSession: StateUnit {
   }
   private func setToken(_ value: String?) async {
     guard !lifetime.ended else { return }
+    if let value { lastHeld = value }
     token.set(value)
     await publish(value)
   }
+  /// Renews the token it holds, or, holding none, the one it last held. Only the issuer's refusal
+  /// forgets the sign-in; a renewal that gets no answer, whatever failed, leaves the session no
+  /// token, says so (`session.auth-failed` at the start, `session.refresh-exhausted` later) and
+  /// renews again on the reconnect backoff.
   private func renewed(startup: Bool = false) async throws -> String? {
     if let renewal { return try await sharedValue(renewal, lifetime: lifetime) }
-    let holding = token.value
+    let holding = token.value ?? lastHeld
     let id = UUID()
     let task = Task<String?, any Error> { [self] in
       defer {
@@ -137,47 +148,40 @@ public actor SemiontSession: StateUnit {
         renewal = nil
       }
       do {
-        let next = try await renew(holding)
-        try Task.checkCancellation()
-        if let next {
+        if let next = try await renew(holding) {
+          try Task.checkCancellation()
           unanswered = false
           retryCap = reconnectMs
           await setToken(next)
           schedule()
           return next
         }
-        if try await kept.held() != nil {
-          if startup {
-            try await kept.forget()
-            await setToken(nil)
-          } else {
-            try await signedOut(.expired, code: .sessionRefreshExhausted)
-          }
-        } else {
+        try Task.checkCancellation()
+        guard try await kept.held() != nil else {
           await setToken(nil)
+          return nil
         }
-        return nil
-      } catch let failure as SignInError {
+      } catch let failure as SignInError where refusedAtIssuer(failure) {
+        if Task.isCancelled { throw CancellationError() }
+      } catch {
         if Task.isCancelled { throw CancellationError() }
         await setToken(nil)
-        if failure.reason == .exchange, let status = failure.status,
-          !RetryContext.refresh.retryable(status: status, method: "POST", keyed: false)
-        {
-          if startup {
-            try await kept.forget()
-          } else {
-            try await signedOut(.expired, code: .sessionRefreshExhausted)
-          }
-        } else {
-          unanswered = true
-          failed(
-            SessionError(
-              startup ? .sessionAuthFailed : .sessionRefreshExhausted,
-              "The issuer did not renew the token", kbId: kb.id))
-          schedule()
-        }
+        unanswered = true
+        failed(
+          SessionError(
+            startup ? .sessionAuthFailed : .sessionRefreshExhausted,
+            "The token was not renewed: " + String(describing: error), kbId: kb.id))
+        schedule()
         return nil
       }
+      // The issuer refused it, or its renewal gave nothing while the sign-in is still kept.
+      if startup {
+        await setToken(nil)
+        try await forget()
+      } else {
+        try await signedOut(.expired, code: .sessionRefreshExhausted)
+      }
+      return nil
     }
     renewal = task
     lifetime.keep(task, id: id)
@@ -192,7 +196,7 @@ public actor SemiontSession: StateUnit {
     await setToken(nil)
     if !lifetime.ended { user.set(nil) }
     var why = "Session ended: " + reason.rawValue
-    do { try await kept.forget() } catch {
+    do { try await forget() } catch {
       why += "; and the sign-in could not be forgotten: \(error)"
     }
     guard !lifetime.ended else { return }
@@ -202,6 +206,7 @@ public actor SemiontSession: StateUnit {
   private func begin() async throws {
     guard let found = try await kept.held() else { return }
     var credential = found.access
+    lastHeld = credential
     var justIssued = isTokenExpired(credential, now: Date().timeIntervalSince1970)
     if justIssued {
       guard let next = try await renewed(startup: true) else { return }
@@ -210,6 +215,7 @@ public actor SemiontSession: StateUnit {
       await setToken(credential)
       schedule()
     }
+    guard let validate else { return }
     var asks = 0
     while !lifetime.ended && asks < 2 {
       asks += 1
@@ -288,4 +294,11 @@ public actor SemiontSession: StateUnit {
       _ = try await renewed()
     }
   }
+}
+
+/// Whether the issuer refused a renewal: an answer the `refresh` rule of
+/// protocol/specs/src/retry/cases.json does not try again.
+private func refusedAtIssuer(_ failure: SignInError) -> Bool {
+  guard failure.reason == .exchange, let status = failure.status else { return false }
+  return !RetryContext.refresh.retryable(status: status, method: "POST", keyed: false)
 }

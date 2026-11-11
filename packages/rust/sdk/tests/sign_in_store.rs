@@ -1,18 +1,20 @@
-//! The sign-ins `semiont login` keeps, as a storage
-//! (protocol/specs/src/sign-in-store): where the file is, a launcher's entry as a
-//! session and a session as an entry, and two writers that lose nothing of
-//! each other's. Where the file is, is the `cases` of
+//! The sign-ins `semiont login` keeps (protocol/specs/src/sign-in-store):
+//! where the file is, and each of its entries as a sign-in kept
+//! (`SignInStore::entry`): a launcher's entry held as a sign-in, a sign-in
+//! kept and renewed as the launcher keeps one, and two writers that lose
+//! nothing of each other's. Where the file is, is the `cases` of
 //! protocol/specs/src/sign-in-store/cases.json; its `renewals` are run where the
 //! renewal is, in semiont-http-transport's tests/sign_in.rs.
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use semiont::session::{StoredSession, session_key, store_session, stored_session};
+use semiont::errors::{SignInError, SignInErrorCode};
+use semiont::session::{SignInKept, StoredSession, person_key};
 use semiont::sign_in_store::{SignInStore, System, state_dir};
-use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use serde_json::{Value, json};
+use std::error::Error;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 // ── Where it is ─────────────────────────────────────────────────────────
 
@@ -43,8 +45,6 @@ fn the_state_home_is_where_the_shared_cases_say() {
 /// A state home of its own, removed when the test is done with it.
 struct Home {
     dir: PathBuf,
-    rest: Arc<InMemorySessionStorage>,
-    failures: Arc<Mutex<Vec<String>>>,
 }
 
 impl Drop for Home {
@@ -57,8 +57,6 @@ impl Home {
     fn new() -> Home {
         Home {
             dir: std::env::temp_dir().join(format!("semiont-sign-ins-{}", uuid::Uuid::new_v4())),
-            rest: Arc::new(InMemorySessionStorage::new()),
-            failures: Arc::default(),
         }
     }
 
@@ -75,22 +73,33 @@ impl Home {
     }
 
     fn store(&self) -> SignInStore {
-        let failures = self.failures.clone();
-        SignInStore::at(
-            self.path(),
-            self.rest.clone(),
-            Arc::new(move |why| failures.lock().expect("failures").push(why.to_owned())),
-        )
+        SignInStore::at(self.path())
+    }
+
+    /// The sign-in kept under `key`, through a store of its own.
+    fn entry(&self, key: &str) -> Arc<dyn SignInKept> {
+        self.store().entry(key)
     }
 
     fn document(&self) -> Value {
-        serde_json::from_str(&std::fs::read_to_string(self.path()).expect("the file is there"))
-            .expect("the file is JSON")
+        serde_json::from_str(&self.text()).expect("the file is JSON")
     }
 
-    fn failures(&self) -> Vec<String> {
-        self.failures.lock().expect("failures").clone()
+    fn text(&self) -> String {
+        std::fs::read_to_string(self.path()).expect("the file is there")
     }
+
+    fn written_at(&self) -> std::time::SystemTime {
+        std::fs::metadata(self.path())
+            .expect("the file is there")
+            .modified()
+            .expect("the file says when it was written")
+    }
+}
+
+/// What `kept` holds: a read that fails is no answer.
+async fn held(kept: &dyn SignInKept) -> Option<StoredSession> {
+    kept.held().await.expect("the sign-in is read")
 }
 
 fn jwt(claims: Value) -> String {
@@ -130,45 +139,38 @@ fn script(access: &str, refresh: &str) -> StoredSession {
         client_id: "semiont-cli".to_owned(),
         token_endpoint: "https://issuer.test/realms/semiont/token".to_owned(),
         revocation_endpoint: Some("https://issuer.test/realms/semiont/revoke".to_owned()),
+        person_key: None,
     }
 }
 
-/// Renew a knowledge base's session as a client does: its new tokens, written
-/// against what is stored.
-fn renew(store: &SignInStore, kb_id: &str, access: &str, refresh: &str) {
-    store
-        .update(&session_key(kb_id), &mut |current| {
-            StoredSession::read(current?).map(|current| {
-                StoredSession {
-                    access: access.to_owned(),
-                    refresh: refresh.to_owned(),
-                    ..current
-                }
-                .written()
-            })
-        })
-        .expect("stored");
+/// The sign-in error a failure is.
+fn sign_in_error(failure: Box<dyn Error + Send + Sync>) -> SignInError {
+    match failure.downcast::<SignInError>() {
+        Ok(refused) => *refused,
+        Err(other) => panic!("{other} is not a sign-in error"),
+    }
 }
 
-#[test]
-fn a_stacks_sign_in_is_the_session_of_the_knowledge_base_with_its_key() {
+#[tokio::test]
+async fn a_stacks_sign_in_is_held_by_the_entry_under_its_key() {
     let home = Home::holding(json!({
         "local": launchers("a1", "r1"),
         "codespace:owner/name": launchers("a2", "r2"),
     }));
-    let store = home.store();
 
-    assert_eq!(stored_session(&store, "local"), Some(script("a1", "r1")));
     assert_eq!(
-        stored_session(&store, "codespace:owner/name"),
+        held(home.entry("local").as_ref()).await,
+        Some(script("a1", "r1"))
+    );
+    assert_eq!(
+        held(home.entry("codespace:owner/name").as_ref()).await,
         Some(script("a2", "r2"))
     );
-    assert_eq!(stored_session(&store, "another"), None);
-    assert!(home.failures().is_empty());
+    assert_eq!(held(home.entry("another").as_ref()).await, None);
 }
 
-#[test]
-fn a_sign_in_that_cannot_be_renewed_is_no_session() {
+#[tokio::test]
+async fn a_sign_in_that_cannot_be_renewed_is_none_to_hold() {
     let mut without_refresh = launchers("a1", "r1");
     without_refresh
         .as_object_mut()
@@ -183,15 +185,14 @@ fn a_sign_in_that_cannot_be_renewed_is_no_session() {
     let home = Home::holding(json!({
         "local": without_refresh, "other": "not an entry", "from-nowhere": from_nowhere,
     }));
-    let store = home.store();
 
     for key in ["local", "other", "from-nowhere"] {
-        assert_eq!(stored_session(&store, key), None, "{key}");
+        assert_eq!(held(home.entry(key).as_ref()).await, None, "{key}");
     }
 }
 
-#[test]
-fn an_entry_that_names_no_address_is_a_session() {
+#[tokio::test]
+async fn an_entry_that_names_no_address_is_a_sign_in() {
     let mut by_an_account_with_none = launchers("a1", "r1");
     by_an_account_with_none
         .as_object_mut()
@@ -200,27 +201,26 @@ fn an_entry_that_names_no_address_is_a_session() {
     let home = Home::holding(json!({ "local": by_an_account_with_none }));
 
     assert_eq!(
-        stored_session(&home.store(), "local"),
+        held(home.entry("local").as_ref()).await,
         Some(script("a1", "r1"))
     );
 }
 
-#[test]
-fn with_no_file_there_is_no_sign_in_and_nobody_is_told_of_a_failure() {
+#[tokio::test]
+async fn with_no_file_there_is_no_sign_in_and_reading_makes_nothing() {
     let home = Home::new();
-    assert_eq!(stored_session(&home.store(), "local"), None);
-    assert!(home.failures().is_empty());
+    assert_eq!(held(home.entry("local").as_ref()).await, None);
     assert!(!home.path().exists());
 }
 
-#[test]
-fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_learned() {
+#[tokio::test]
+async fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_learned() {
     let home = Home::holding(json!({
         "local": launchers("a1", "r1"),
         "codespace:owner/name": launchers("a2", "r2"),
         "a-later-release": { "of": "something else" },
     }));
-    let store = home.store();
+    let kept = home.entry("local");
     // The renewed token names another address and another issuer.
     let renewed = jwt(json!({
         "iss": "https://elsewhere.test/realms/semiont",
@@ -228,8 +228,12 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
         "exp": 4_102_444_799u64,
     }));
 
-    renew(&store, "local", &renewed, "r1-rotated");
+    let given = kept
+        .renewed(&script("a1", "r1"), &renewed, "r1-rotated")
+        .await
+        .expect("kept");
 
+    assert_eq!(given, Some(renewed.clone()));
     let document = home.document();
     let entry = &document["local"];
     assert_eq!(entry["token"], renewed);
@@ -252,11 +256,37 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
         json!({ "of": "something else" })
     );
     assert_eq!(
-        stored_session(&store, "local"),
+        held(kept.as_ref()).await,
         Some(script(&renewed, "r1-rotated"))
     );
-    assert!(home.rest.get(&session_key("local")).is_none());
-    assert!(home.failures().is_empty());
+}
+
+/// A renewal of a sign-in that is no longer the one kept: another program
+/// renewed, or signed in again, while this one's grant was in flight. What
+/// it kept stands, its access token is the one given, and nothing is
+/// written. A renewal of an entry that holds no sign-in keeps nothing.
+#[tokio::test]
+async fn a_renewal_of_what_is_no_longer_kept_gives_what_is_kept_and_writes_nothing() {
+    let home = Home::holding(json!({ "local": launchers("a1", "r1") }));
+    let before = home.text();
+    let written = home.written_at();
+
+    let given = home
+        .entry("local")
+        .renewed(&script("a0", "r0"), "a2", "r2")
+        .await
+        .expect("kept");
+    assert_eq!(given.as_deref(), Some("a1"));
+
+    let nothing = home
+        .entry("never-signed-in")
+        .renewed(&script("a0", "r0"), "a2", "r2")
+        .await
+        .expect("kept");
+    assert_eq!(nothing, None);
+
+    assert_eq!(home.text(), before);
+    assert_eq!(home.written_at(), written);
 }
 
 /// The user this process runs as, and the access list of the file at
@@ -304,12 +334,15 @@ fn entries_of(list: &str) -> (&str, Vec<String>) {
     (flags, entries)
 }
 
-#[test]
-fn the_file_is_written_whole_for_its_owner_alone() {
+#[tokio::test]
+async fn the_file_is_written_whole_for_its_owner_alone() {
     let home = Home::new();
-    store_session(&home.store(), "local", &script(&issued("a1"), "r1")).expect("stored");
+    home.entry("local")
+        .keep(script(&issued("a1"), "r1"))
+        .await
+        .expect("kept");
 
-    let text = std::fs::read_to_string(home.path()).expect("the file is there");
+    let text = home.text();
     assert!(
         text.starts_with("{\n  \"local\": {\n") && text.ends_with("}\n"),
         "{text}"
@@ -372,14 +405,19 @@ fn the_file_is_written_whole_for_its_owner_alone() {
     assert_eq!(beside, ["tokens.json", "tokens.lock"]);
 }
 
-#[test]
-fn a_new_sign_in_states_who_signed_in_and_at_which_issuer() {
+#[tokio::test]
+async fn a_new_sign_in_states_who_signed_in_and_at_which_issuer() {
     let home = Home::new();
-    let store = home.store();
     let named = jwt(json!({ "iss": ISSUER, "email": "bob@example.org", "exp": 4_102_444_799u64 }));
 
-    store_session(&store, "local", &script(&named, "r1")).expect("stored");
-    store_session(&store, "codespace:owner/name", &script(&issued("a2"), "r2")).expect("stored");
+    home.entry("local")
+        .keep(script(&named, "r1"))
+        .await
+        .expect("kept");
+    home.entry("codespace:owner/name")
+        .keep(script(&issued("a2"), "r2"))
+        .await
+        .expect("kept");
 
     assert_eq!(
         home.document()["local"],
@@ -402,20 +440,19 @@ fn a_new_sign_in_states_who_signed_in_and_at_which_issuer() {
             .expect("an entry")
             .contains_key("expiresAt")
     );
-    assert!(home.failures().is_empty(), "{:?}", home.failures());
 }
 
-#[test]
-fn a_sign_in_over_another_persons_states_who_signed_in_now_and_at_which_issuer() {
+#[tokio::test]
+async fn a_sign_in_over_another_persons_states_who_signed_in_now_and_at_which_issuer() {
     let home = Home::new();
-    let store = home.store();
+    let kept = home.entry("local");
     let alices = jwt(json!({ "iss": ISSUER, "email": "alice@example.org" }));
-    store_session(&store, "local", &script(&alices, "r-alice")).expect("stored");
+    kept.keep(script(&alices, "r-alice")).await.expect("kept");
     assert_eq!(home.document()["local"]["email"], "alice@example.org");
 
     let elsewhere = "https://elsewhere.test/realms/semiont";
     let bobs = jwt(json!({ "iss": elsewhere, "email": "bob@example.org" }));
-    store_session(&store, "local", &script(&bobs, "r-bob")).expect("stored");
+    kept.keep(script(&bobs, "r-bob")).await.expect("kept");
 
     let document = home.document();
     let entry = &document["local"];
@@ -423,194 +460,216 @@ fn a_sign_in_over_another_persons_states_who_signed_in_now_and_at_which_issuer()
     assert_eq!(entry["refreshToken"], "r-bob");
     assert_eq!(entry["email"], "bob@example.org");
     assert_eq!(entry["issuer"], elsewhere);
-    assert!(home.failures().is_empty(), "{:?}", home.failures());
 }
 
-#[test]
-fn a_sign_in_whose_token_names_no_address_is_kept_without_one() {
+#[tokio::test]
+async fn a_sign_in_whose_token_names_no_address_is_kept_without_one() {
     let home = Home::new();
-    let store = home.store();
+    let kept = home.entry("local");
     let unaddressed = jwt(json!({ "iss": ISSUER, "sub": "an-account" }));
 
-    store_session(&store, "local", &script(&unaddressed, "r1")).expect("stored");
+    kept.keep(script(&unaddressed, "r1")).await.expect("kept");
 
     let document = home.document();
     let entry = &document["local"];
     assert_eq!(entry["issuer"], ISSUER);
     assert!(!entry.as_object().expect("an entry").contains_key("email"));
-    assert_eq!(
-        stored_session(&store, "local"),
-        Some(script(&unaddressed, "r1"))
-    );
+    assert_eq!(held(kept.as_ref()).await, Some(script(&unaddressed, "r1")));
 
     // A renewal whose token names an address keeps none: the sign-in learned none.
     let renewed = jwt(json!({ "iss": ISSUER, "email": "bob@example.org" }));
-    renew(&store, "local", &renewed, "r2");
+    let given = kept
+        .renewed(&script(&unaddressed, "r1"), &renewed, "r2")
+        .await
+        .expect("kept");
+    assert_eq!(given, Some(renewed.clone()));
     let document = home.document();
     let entry = &document["local"];
     assert_eq!(entry["token"], renewed);
     assert!(!entry.as_object().expect("an entry").contains_key("email"));
-    assert!(home.failures().is_empty(), "{:?}", home.failures());
 }
 
-#[test]
-fn a_session_whose_token_names_no_issuer_is_not_kept_and_that_is_said() {
+/// A gateway admits no token from an issuer it does not trust: a sign-in
+/// whose token names none is no sign-in, is kept nowhere, and keeping it is
+/// the error.
+#[tokio::test]
+async fn a_sign_in_whose_token_names_no_issuer_is_not_kept_and_that_is_the_error() {
     let home = Home::holding(json!({ "codespace:owner/name": launchers("a2", "r2") }));
-    let store = home.store();
+    let kept = home.entry("local");
     let from_nowhere = jwt(json!({ "email": "bob@example.org" }));
 
-    store_session(&store, "local", &script(&from_nowhere, "r1")).expect("stored");
-    store_session(&store, "local", &script("opaque", "r1")).expect("stored");
+    for access in [from_nowhere.as_str(), "opaque"] {
+        let refused = sign_in_error(
+            kept.keep(script(access, "r1"))
+                .await
+                .expect_err("no sign-in is kept"),
+        );
+        assert_eq!(refused.code, SignInErrorCode::Exchange);
+        assert_eq!(
+            refused.message,
+            "The sign-in to local was not kept: its access token names no issuer"
+        );
+    }
 
-    // Nothing is made up for it, and it is kept nowhere.
+    // Nothing is made up for it.
     assert_eq!(
         home.document(),
         json!({ "codespace:owner/name": launchers("a2", "r2") })
     );
-    assert_eq!(stored_session(&store, "local"), None);
-    assert_eq!(home.rest.get(&session_key("local")), None);
-    assert_eq!(
-        home.failures(),
-        [
-            "The sign-in to local was not kept: its access token names no issuer",
-            "The sign-in to local was not kept: its access token names no issuer",
-        ]
-    );
+    assert_eq!(held(kept.as_ref()).await, None);
 }
 
-#[test]
-fn a_session_of_another_client_is_kept_beneath_and_the_launchers_entry_is_left() {
+/// What another client was issued would be renewed here as the wrong
+/// client: the file keeps only the script client's sign-ins, and keeping
+/// another's is the error. The launcher's entry is left as it was.
+#[tokio::test]
+async fn what_another_client_was_issued_is_not_kept() {
     let home = Home::holding(json!({ "local": launchers("a1", "r1") }));
-    let store = home.store();
+    let kept = home.entry("local");
     let browsers = StoredSession {
         client_id: "semiont-browser".to_owned(),
-        ..script("b1", "rb")
+        ..script(&issued("b1"), "rb")
     };
 
-    store_session(&store, "local", &browsers).expect("stored");
+    let refused = kept.keep(browsers).await.expect_err("it is not kept");
 
-    // It is this application's session of that knowledge base now.
-    assert_eq!(stored_session(&store, "local"), Some(browsers.clone()));
-    assert_eq!(stored_session(home.rest.as_ref(), "local"), Some(browsers));
+    assert!(refused.to_string().contains("semiont-browser"), "{refused}");
     assert_eq!(home.document()["local"], launchers("a1", "r1"));
-
-    // A sign-in as the script client replaces it, in the file.
-    let signed_in = issued("a2");
-    store_session(&store, "local", &script(&signed_in, "r2")).expect("stored");
-    assert_eq!(
-        stored_session(&store, "local"),
-        Some(script(&signed_in, "r2"))
-    );
-    assert_eq!(home.rest.get(&session_key("local")), None);
-    assert_eq!(home.document()["local"]["token"], signed_in);
-    assert_eq!(home.document()["local"]["email"], "bob@example.org");
+    assert_eq!(held(kept.as_ref()).await, Some(script("a1", "r1")));
 }
 
-#[test]
-fn signing_out_removes_the_entry_and_no_other() {
+#[tokio::test]
+async fn forgetting_removes_the_entry_and_no_other() {
     let home = Home::holding(json!({
         "local": launchers("a1", "r1"),
         "codespace:owner/name": launchers("a2", "r2"),
     }));
-    let store = home.store();
 
-    store.delete(&session_key("local")).expect("stored");
-    store
-        .delete(&session_key("never-signed-in"))
-        .expect("stored");
+    home.entry("local").forget().await.expect("forgotten");
+    home.entry("never-signed-in")
+        .forget()
+        .await
+        .expect("forgotten");
 
     assert_eq!(
         home.document(),
         json!({ "codespace:owner/name": launchers("a2", "r2") })
     );
-    assert_eq!(stored_session(&store, "local"), None);
+    assert_eq!(held(home.entry("local").as_ref()).await, None);
 }
 
-#[test]
-fn a_change_is_made_against_what_the_file_holds_and_one_that_changes_nothing_writes_nothing() {
-    let home = Home::holding(json!({ "local": launchers("a1", "r1") }));
-    let store = home.store();
-    let before = std::fs::read_to_string(home.path()).expect("the file is there");
-
-    let mut seen = None;
-    store
-        .update(&session_key("local"), &mut |current| {
-            seen = current.map(str::to_owned);
-            current.map(str::to_owned)
-        })
-        .expect("stored");
-    assert_eq!(seen, Some(script("a1", "r1").written()));
-    assert_eq!(
-        std::fs::read_to_string(home.path()).expect("the file is there"),
-        before
-    );
-
-    store
-        .update(&session_key("local"), &mut |current| {
-            StoredSession::read(current?).map(|session| {
-                StoredSession {
-                    access: "a2".to_owned(),
-                    ..session
-                }
-                .written()
-            })
-        })
-        .expect("stored");
-    assert_eq!(home.document()["local"]["token"], "a2");
-    assert_eq!(home.document()["local"]["refreshToken"], "r1");
-
-    store
-        .update(&session_key("local"), &mut |_| None)
-        .expect("stored");
+#[tokio::test]
+async fn forgetting_what_is_not_kept_writes_nothing() {
+    let home = Home::new();
+    let kept = home.entry("local");
+    kept.keep(script(&issued("a1"), "r1")).await.expect("kept");
+    kept.forget().await.expect("forgotten");
     assert_eq!(home.document(), json!({}));
+    let written = home.written_at();
+
+    kept.forget().await.expect("forgotten");
+
+    assert_eq!(home.written_at(), written);
 }
 
-#[test]
-fn everything_that_is_not_a_sign_in_is_kept_beneath() {
+#[tokio::test]
+async fn what_the_file_holds_that_is_not_this_sign_in_is_written_back_as_it_was() {
     let home = Home::new();
     let store = home.store();
-
-    store.set("semiont.knowledgeBases", "[]").expect("stored");
     store
-        .update("semiont.openResourcesByKb", &mut |_| Some("{}".to_owned()))
-        .expect("stored");
-    assert_eq!(store.get("semiont.knowledgeBases").as_deref(), Some("[]"));
-    assert_eq!(
-        home.rest.get("semiont.openResourcesByKb").as_deref(),
-        Some("{}")
-    );
-    store.delete("semiont.knowledgeBases").expect("stored");
-    assert_eq!(store.get("semiont.knowledgeBases"), None);
-    // The file was never needed.
-    assert!(!home.path().exists());
+        .entry("codespace:owner/name")
+        .keep(script(&issued("a7"), "r7"))
+        .await
+        .expect("kept");
+    let others = json!({
+        "codespace:owner/name": home.document()["codespace:owner/name"],
+        // What a later release wrote, and this one does not understand.
+        "later": { "shape": ["unknown", 1, null], "nested": { "deep": true } },
+        "not-even-an-object": 3,
+    });
+    std::fs::write(home.path(), others.to_string()).expect("a file");
+
+    let first = script(&issued("a1"), "r1");
+    store
+        .entry("local")
+        .keep(first.clone())
+        .await
+        .expect("kept");
+    let renewed = issued("a2");
+    let given = store
+        .entry("local")
+        .renewed(&first, &renewed, "r2")
+        .await
+        .expect("kept");
+    assert_eq!(given, Some(renewed));
+    let mut document = home.document();
+    document
+        .as_object_mut()
+        .expect("a document")
+        .remove("local");
+    assert_eq!(document, others);
+    // What is not a sign-in is none to hold, and is not renewed into one.
+    assert_eq!(held(store.entry("later").as_ref()).await, None);
+    let nothing = store
+        .entry("later")
+        .renewed(&script(&issued("a3"), "r3"), &issued("a3"), "r3")
+        .await
+        .expect("kept");
+    assert_eq!(nothing, None);
+
+    store.entry("local").forget().await.expect("forgotten");
+    assert_eq!(home.document(), others);
 }
 
-#[test]
-fn a_file_that_cannot_be_read_is_said_and_is_never_written_over() {
+/// The file keeps no person: a sign-in kept there records nobody the
+/// gateway names, and a session over it keeps nothing for them.
+#[tokio::test]
+async fn an_entry_records_no_person() {
+    let home = Home::new();
+    let kept = home.entry("local");
+    let signed_in = script(&issued("a1"), "r1");
+    kept.keep(signed_in.clone()).await.expect("kept");
+
+    let recorded = kept
+        .record_person_key(
+            &signed_in.access,
+            &person_key("did:web:example.org:users:a"),
+        )
+        .await
+        .expect("asked");
+
+    assert!(!recorded);
+    assert_eq!(held(kept.as_ref()).await, Some(signed_in));
+    assert!(
+        !home.document()["local"]
+            .as_object()
+            .expect("an entry")
+            .contains_key("personKey")
+    );
+}
+
+#[tokio::test]
+async fn a_file_that_cannot_be_read_is_the_error_and_is_never_written_over() {
     let home = Home::new();
     std::fs::create_dir_all(&home.dir).expect("a directory");
     std::fs::write(home.path(), "{ not json").expect("a file");
-    let store = home.store();
+    let kept = home.entry("local");
 
-    assert_eq!(stored_session(&store, "local"), None);
-    store_session(&store, "local", &script("a1", "r1")).expect("stored");
-    store.delete(&session_key("local")).expect("stored");
+    let read = kept.held().await.expect_err("the file cannot be read");
+    let kept_over = kept
+        .keep(script(&issued("a1"), "r1"))
+        .await
+        .expect_err("the file cannot be changed");
+    let forgotten = kept.forget().await.expect_err("the file cannot be changed");
 
-    assert_eq!(home.failures().len(), 3);
-    assert!(
-        home.failures()[0].starts_with("Could not read"),
-        "{:?}",
-        home.failures()
-    );
-    assert!(
-        home.failures()[1].starts_with("Could not change"),
-        "{:?}",
-        home.failures()
-    );
-    assert_eq!(
-        std::fs::read_to_string(home.path()).expect("the file is there"),
-        "{ not json"
-    );
+    assert!(read.to_string().starts_with("Could not read"), "{read}");
+    for failed in [kept_over, forgotten] {
+        assert!(
+            failed.to_string().starts_with("Could not change"),
+            "{failed}"
+        );
+    }
+    assert_eq!(home.text(), "{ not json");
 }
 
 #[test]
@@ -621,12 +680,18 @@ fn two_writers_of_one_file_lose_nothing_of_each_others() {
         .into_iter()
         .map(|key| {
             // Each its own store, as two processes have.
-            let store = home.store();
+            let kept = home.entry(key);
             std::thread::spawn(move || {
-                for n in 0..rounds {
-                    store_session(&store, key, &script(&issued(&format!("{key}-{n}")), "r"))
-                        .expect("stored");
-                }
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .build()
+                    .expect("a runtime");
+                runtime.block_on(async {
+                    for n in 0..rounds {
+                        kept.keep(script(&issued(&format!("{key}-{n}")), "r"))
+                            .await
+                            .expect("kept");
+                    }
+                });
             })
         })
         .collect();
@@ -641,5 +706,4 @@ fn two_writers_of_one_file_lose_nothing_of_each_others() {
         document["codespace:owner/name"]["token"],
         issued(&format!("codespace:owner/name-{last}"))
     );
-    assert!(home.failures().is_empty(), "{:?}", home.failures());
 }

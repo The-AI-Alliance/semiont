@@ -55,7 +55,7 @@ func (n *BrowseNamespace) Resource(resourceID api.ResourceId) *Cached[api.Resour
 // resources this client holds the scope of, and by nothing else. Finding
 // resources by text is Match.Resources.
 func (n *BrowseNamespace) Resources(filters ResourceFilters) *Cached[api.ListResourcesResponse] {
-	return keyed(n.links, n.live.lists, keyOf(filters), itself[api.ListResourcesResponse], api.ResourceId{})
+	return keyed(n.links, n.live.resources, keyOf(filters), itself[api.ListResourcesResponse], api.ResourceId{})
 }
 
 // Annotations is a resource's annotations. Watching it holds the resource's

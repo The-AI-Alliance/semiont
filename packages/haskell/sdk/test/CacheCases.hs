@@ -203,7 +203,7 @@ persistenceCases = do
   loads <- newIORef (0::Int)
   let persister = Cache.CachePersister
         (modifyIORef' loads (+1) >> pure [(1,10),(2,20)])
-        (atomically . writeTQueue saves)
+        (atomically . writeTQueue saves) (pure ())
       options = Cache.CacheOptions (readTVarIO clock)
         (\deadline -> atomically (writeTQueue timers deadline) >> atomically (readTVar clock >>= check . (>=deadline)))
         5 (Just persister) (const (pure (pure ())))
@@ -253,7 +253,7 @@ failedSaveCases = do
   attempts <- newIORef (0::Int)
   let save _ = modifyIORef' attempts (+1) >> throwIO failure
       options = Cache.CacheOptions (pure 0) (const (atomically retry)) 5
-        (Just (Cache.CachePersister (pure []) save)) (const (pure (pure ())))
+        (Just (Cache.CachePersister (pure []) save (pure ()))) (const (pure (pure ())))
   cache <- Cache.newCache (pure :: Int -> IO Int) options
   Cache.set cache 1 9
   Cache.dispose cache
@@ -278,7 +278,7 @@ serialSaveCases = do
         if ordinal == 1 then atomically (takeTMVar released) else pure ()
         atomically (modifyTVar' writes (++ [entries]))
       options = Cache.CacheOptions (pure 0) (const (pure ())) 0
-        (Just (Cache.CachePersister (pure []) saving)) (const (pure (pure ())))
+        (Just (Cache.CachePersister (pure []) saving (pure ()))) (const (pure (pure ())))
   bracket (Cache.newCache (pure :: Int -> IO Int) options) Cache.dispose $ \cache -> do
     Cache.set cache 1 10
     atomically (readTQueue started) >>= require "first save did not start" . (==1)
@@ -296,7 +296,7 @@ selfCloseCases = do
   owner <- newEmptyTMVarIO
   let saving _ = atomically (readTMVar owner) >>= Cache.dispose
       options = Cache.CacheOptions (pure 0) (const (atomically retry)) 5
-        (Just (Cache.CachePersister (pure []) saving)) (const (pure (pure ())))
+        (Just (Cache.CachePersister (pure []) saving (pure ()))) (const (pure (pure ())))
   cache <- Cache.newCache (pure :: Int -> IO Int) options
   atomically (putTMVar owner cache)
   Cache.set cache 1 1

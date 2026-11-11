@@ -24,6 +24,8 @@ interface Query {
   per?: string;
   asks?: string;
   reads?: string;
+  persisted?: boolean;
+  value?: Record<string, string>;
   docs?: string;
 }
 
@@ -71,11 +73,23 @@ const row = (table: Table, on: string, when?: string): Row => {
   return found;
 };
 
+const query = (table: Table, name: string): Query => {
+  const found = table.queries.find((q) => q.name === name);
+  if (!found) throw new Error(`the committed table has no query ${name}`);
+  return found;
+};
+
 const refused = (fault: (table: Table) => void, saying: string): void => {
   const run = generate(fault);
   expect(run.status, run.stderr).toBe(1);
   expect(run.stderr).toContain(saying);
 };
+
+/** The list of persisted queries a generated module states, for `names`, in their order. */
+const persistedList = (names: readonly string[]): string =>
+  `export const PERSISTED_QUERIES = [${names.map((name) => `'${name}'`).join(', ')}] as const;`;
+
+const persistedOf = (table: Table): string[] => table.queries.filter((query) => query.persisted === true).map((query) => query.name);
 
 describe('the cache-refresh generator', () => {
   it('accepts the committed table, with a row per trigger and two for a split channel', () => {
@@ -89,6 +103,48 @@ describe('the cache-refresh generator', () => {
     expect(generated).toContain("'mark:body-updated': [{ when: 'enriched', reach: 'subject', names: { resource: ['resourceId'], annotation: ['annotation', 'id'] }, carries: ['annotation'], ");
     expect(generated).toContain("{ when: 'unenriched', reach: 'subject', names: { resource: ['resourceId'], annotation: ['payload', 'annotationId'] }, refetches: ");
     expect(generated).toContain("export const CACHE_REFRESH_CHANNELS = ['bus:resume-gap', ");
+  });
+
+  it('lists the queries the table marks persisted, in its order, and no other', () => {
+    const committed = JSON.parse(readFileSync(TABLE, 'utf8')) as Table;
+    const persisted = persistedOf(committed);
+    expect(persisted.length).toBeGreaterThan(0);
+    expect(readFileSync(generate(() => {}).out, 'utf8')).toContain(persistedList(persisted));
+
+    const unmarked = generate((t) => delete t.queries.find((q) => q.name === persisted[0])!.persisted);
+    expect(unmarked.stderr).toBe('');
+    expect(readFileSync(unmarked.out, 'utf8')).toContain(persistedList(persisted.slice(1)));
+  });
+
+  it('refuses a query persisted other than by `true`, and one that states what a query does not have', () => {
+    refused((t) => (t.queries[0]!.persisted = false), 'the query resource is persisted false: true, or absent');
+    refused((t) => Object.assign(t.queries[0]!, { kept: true }), 'the query resource states kept, which a query does not have');
+  });
+
+  it('refuses a query with no value, one that is no $ref to a component or a member within one, and one naming what is not there', () => {
+    refused((t) => delete t.queries[0]!.value, 'the query resource has no value');
+    refused((t) => (t.queries[0]!.value = { $ref: '../components/schemas/ResourceDescriptor.json', type: 'object' }), "the value of the query resource is {");
+    refused((t) => (t.queries[0]!.value = { $ref: '../components/schemas/ResourceDescriptor.json#/items' }), "the value of the query resource is {");
+    refused((t) => (t.queries[0]!.value = { $ref: '../components/schemas/Nowhere.json' }), "the value of the query resource names Nowhere, which is no component");
+    refused((t) => (query(t, 'events').value = { $ref: '../components/schemas/GetEventsResponse.json#/properties/happenings' }), "the value of the query events: GetEventsResponse has no member happenings");
+    refused(
+      (t) => (query(t, 'engines').value = { $ref: '../components/schemas/BrowseEnginesResult.json#/properties/response/properties/engineList' }),
+      "the value of the query engines: BrowseEnginesResult.response has no member engineList",
+    );
+  });
+
+  it('takes a value that is a member within a component a member refers to', () => {
+    const run = generate((t) => (query(t, 'events').value = { $ref: '../components/schemas/BrowseEventsResult.json#/properties/response/properties/events' }));
+    expect(run.stderr).toBe('');
+    expect(run.status).toBe(0);
+  });
+
+  it('refuses a persisted query per filters, and one whose value is a member that is not all its component requires', () => {
+    refused((t) => (query(t, 'resources').persisted = true), 'the query resources is persisted, and a query per filters is not kept');
+    refused(
+      (t) => (query(t, 'events').persisted = true),
+      'the query events is persisted, and GetEventsResponse requires ["events","total","resourceId"], so events alone is not one of it',
+    );
   });
 
   it('refuses a query stated twice, one with no docs, and one that asks no operation', () => {

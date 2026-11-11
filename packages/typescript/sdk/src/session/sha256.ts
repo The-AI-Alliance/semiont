@@ -1,5 +1,6 @@
 /**
- * SHA-256 (FIPS 180-4), for the PKCE challenge of a sign-in.
+ * SHA-256 (FIPS 180-4), for the PKCE challenge of a sign-in and the person
+ * key a client's kept caches are held under.
  *
  * The platform's own is `crypto.subtle.digest`, and a browser withholds
  * `crypto.subtle` from a page that is not a secure context: one served over
@@ -11,7 +12,9 @@
  *
  * Private to the session layer. A wrong digest here cannot leak anything: the
  * challenge is a public derivation of a value the client sends anyway, so the
- * issuer refuses the code exchange and the sign-in fails where it can be seen.
+ * issuer refuses the code exchange and the sign-in fails where it can be seen;
+ * a person key it got wrong fails the worked example of
+ * protocol/specs/src/session/stored.json.
  */
 
 /** The first 32 bits of the fractional parts of the cube roots of the first 64 primes. */

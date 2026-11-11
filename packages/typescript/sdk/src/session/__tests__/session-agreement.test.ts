@@ -15,10 +15,9 @@ import { APIError } from '../../client';
 import { createTestClient } from '../../testing';
 import { httpKb } from '../knowledge-base';
 import { SemiontSession, type UserInfo } from '../semiont-session';
-import type { SemiontSessionError } from '../errors';
 import type { SessionEndReason } from '../session-signals';
 import { InMemorySessionStorage } from '../session-storage';
-import { getStoredSession, parseJwtExpiry, refreshDelayMs, setStoredSession } from '../storage';
+import { getStoredSession, keptIn, parseJwtExpiry, refreshDelayMs, setStoredSession } from '../storage';
 import { userId } from '@semiont/core';
 
 interface ScheduleCase {
@@ -145,9 +144,10 @@ describe('session — the SDK agrees with the shared table', () => {
     const now = Math.floor(Date.now() / 1000);
     const issued = (n: number): string => tokenOf({ iat: now, exp: now + 3600, n });
     const storage = new InMemorySessionStorage();
-    if (c.stored !== 'none') {
+    const stored = c.stored === 'none' ? null : c.stored === 'expired' ? tokenOf({ iat: now - 600, exp: now - 300 }) : issued(0);
+    if (stored !== null) {
       setStoredSession(storage, KB.id, {
-        access: c.stored === 'expired' ? tokenOf({ iat: now - 600, exp: now - 300 }) : issued(0),
+        access: stored,
         refresh: 'a-refresh-token',
         clientId: 'semiont-browser',
         tokenEndpoint: 'https://issuer.test/token',
@@ -156,13 +156,14 @@ describe('session — the SDK agrees with the shared table', () => {
 
     let asks = 0;
     let renewals = 0;
+    /** The token each renewal is handed. */
+    const handed: (string | null)[] = [];
     let answered: UserInfo | null = null;
     const told: SessionEndReason[] = [];
-    const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
       kb: KB,
-      storage,
+      kept: keptIn(storage, KB.id),
       client: createTestClient().client,
       token$,
       validate: async () => {
@@ -180,7 +181,8 @@ describe('session — the SDK agrees with the shared table', () => {
             throw APIError.withoutResponse('GET /api/users/me got no answer', 'NetworkError');
         }
       },
-      refresh: async () => {
+      refresh: async (holding) => {
+        handed.push(holding);
         renewals += 1;
         if (renewals > (thenOf(c) ?? c).renewals) throw new Error(`the issuer was asked ${renewals} times`);
         const said = answer(c.issuer, renewals - 1);
@@ -188,8 +190,10 @@ describe('session — the SDK agrees with the shared table', () => {
         return issued(renewals);
       },
       onAuthFailed: (reason) => told.push(reason),
-      onError: (error) => errors.push(error),
     });
+    // What the session says, it says on its errors stream.
+    const errors: string[] = [];
+    session.errors$.subscribe((error) => errors.push(error.code));
     await session.ready;
 
     expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
@@ -197,7 +201,7 @@ describe('session — the SDK agrees with the shared table', () => {
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
     if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
-    expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
+    expect(errors).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
     // A session that ended signed out asks nobody anything afterwards,
@@ -214,6 +218,8 @@ describe('session — the SDK agrees with the shared table', () => {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }
+    // Every renewal is handed the token it renews: here, the one the row stored, expired or not.
+    expect(handed, 'what each renewal is handed').toEqual(handed.map(() => stored));
     session.dispose();
   });
 
@@ -232,13 +238,14 @@ describe('session — the SDK agrees with the shared table', () => {
     let started = false;
     let asks = 0;
     let renewals = 0;
+    /** The token each renewal is handed. */
+    const handed: (string | null)[] = [];
     let answered: UserInfo = ALICE;
     const told: SessionEndReason[] = [];
-    const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
       kb: KB,
-      storage,
+      kept: keptIn(storage, KB.id),
       client: createTestClient().client,
       token$,
       validate: async () => {
@@ -256,7 +263,8 @@ describe('session — the SDK agrees with the shared table', () => {
             throw APIError.withoutResponse('GET /api/users/me got no answer', 'NetworkError');
         }
       },
-      refresh: async () => {
+      refresh: async (holding) => {
+        handed.push(holding);
         renewals += 1;
         if (renewals > (thenOf(c) ?? c).renewals) throw new Error(`the issuer was asked ${renewals} times`);
         const said = answer(c.issuer, renewals - 1);
@@ -266,8 +274,10 @@ describe('session — the SDK agrees with the shared table', () => {
         return renewed;
       },
       onAuthFailed: (reason) => told.push(reason),
-      onError: (error) => errors.push(error),
     });
+    // What the session says, it says on its errors stream.
+    const errors: string[] = [];
+    session.errors$.subscribe((error) => errors.push(error.code));
     await session.ready;
     expect(session.user$.getValue()).toEqual(ALICE);
     started = true;
@@ -283,7 +293,7 @@ describe('session — the SDK agrees with the shared table', () => {
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
     if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
-    expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
+    expect(errors).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
     const later = thenOf(c);
@@ -298,6 +308,8 @@ describe('session — the SDK agrees with the shared table', () => {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }
+    // Every renewal is handed the token it renews: here, the one the session started on.
+    expect(handed, 'what each renewal is handed').toEqual(handed.map(() => issued(0)));
     session.dispose();
   });
 
@@ -316,7 +328,7 @@ describe('session — the SDK agrees with the shared table', () => {
     let renewals = 0;
     const session = new SemiontSession({
       kb: KB,
-      storage,
+      kept: keptIn(storage, KB.id),
       client: createTestClient().client,
       token$: new BehaviorSubject<AccessToken | null>(null),
       validate: async () => {

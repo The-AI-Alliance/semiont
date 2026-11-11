@@ -22,7 +22,8 @@ public final class SemiontClient: Sendable {
   let clock: any Clock<Duration>
   private let lifetime = Lifetime()
   private let disposed = Mutex(false)
-  private let book: StoragePersister<KeptQuery>?
+  let keeping: KeptQueries?
+  private let live: LiveQueries
   public init(
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
     content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming(),
@@ -30,11 +31,11 @@ public final class SemiontClient: Sendable {
     busRequestTimeoutMs: Int? = nil, clock: any Clock<Duration> = ContinuousClock()
   ) async throws {
     self.clock = clock
-    let book = persistence.map { StoragePersister<KeptQuery>($0, clock: clock) }
-    self.book = book
-    if let http = transport as? HttpTransport, let book {
-      await http.restoreBookmarks(book.bookmarks)
-    }
+    let keeping = persistence.map { KeptQueries($0, clock: clock) }
+    self.keeping = keeping
+    var places: [ResourceId: String]?
+    if let keeping, let person = persistence?.person { places = keeping.attach(person) }
+    if let http = transport as? HttpTransport, let places { await http.restoreBookmarks(places) }
     let source = try await transport.frames([])
     do { try Task.checkCancellation() } catch {
       source.dispose()
@@ -47,8 +48,9 @@ public final class SemiontClient: Sendable {
     self.wire = wire
     let content = content ?? (transport as? any ContentTransport)
     let live = LiveQueries(
-      wire: wire, transport: transport, content: content, lifetime: lifetime, book: book,
+      wire: wire, transport: transport, content: content, lifetime: lifetime, keeping: keeping,
       invalidationWindowMs: invalidationWindowMs ?? Timings.invalidationWindowMs, clock: clock)
+    self.live = live
     browse = BrowseNamespace(
       wire: wire, bus: bus, lifetime: lifetime, content: content, live: live)
     gather = GatherNamespace(wire: wire, lifetime: lifetime, live: live)
@@ -65,6 +67,7 @@ public final class SemiontClient: Sendable {
     beckon = BeckonNamespace(wire: wire, bus: bus)
     auth = gateway.map { AuthNamespace(gateway: $0) }
     system = gateway.map { SystemNamespace(gateway: $0) }
+    if places != nil { await live.rehydrate() }
     let life = lifetime
     let id = UUID()
     let task = Task {
@@ -78,7 +81,7 @@ public final class SemiontClient: Sendable {
           bus.receive(carried)
           await live.receive(carried)
           if case .frame(let frame) = carried, let id = frame.eventId, let scope = frame.scope {
-            book?.heard(id, in: scope)
+            keeping?.heard(id, in: scope)
           }
         }
       } catch {
@@ -120,6 +123,17 @@ public final class SemiontClient: Sendable {
       throw error
     }
   }
+  /// Starts keeping what the persisted queries hold for the person `person`, when this client
+  /// keeps for no one yet: each query takes what is kept for a key it holds no value for, and the
+  /// stream resumes each scope it has no place for from the place kept.
+  func attach(_ person: String) async {
+    guard let places = keeping?.attach(person) else { return }
+    if let http = transport as? HttpTransport { await http.restoreBookmarks(places) }
+    await live.rehydrate()
+  }
+  /// Waits until every write of what this client keeps that has begun has landed, or been dropped:
+  /// once it is disposed, until its closing has written what it held.
+  func closed() async { await keeping?.closed() }
   public func dispose() {
     guard
       disposed.withLock({ ended in
@@ -128,7 +142,7 @@ public final class SemiontClient: Sendable {
         return true
       })
     else { return }
-    book?.close()
+    keeping?.close()
     lifetime.end()
     transport.dispose()
     bus.dispose()

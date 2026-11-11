@@ -11,7 +11,7 @@ namespace Semiont.Testing;
 public sealed record TestSessionOptions(FaultyTransport? Transport = null, KbTarget? Kb = null,
     ISignInKept? Kept = null, TimeProvider? TimeProvider = null, Timing? Timing = null, Random? Random = null);
 
-/// <summary>An offline session over a real SDK client. Disposal closes the session and client.</summary>
+/// <summary>An offline session over a real SDK client, which keeps nothing. Disposal closes the client, then the session.</summary>
 public sealed class TestSession : IDisposable
 {
     private readonly HttpClient http;
@@ -39,12 +39,12 @@ public sealed class TestSession : IDisposable
 
     public void Dispose()
     {
-        try { Session.Dispose(); }
-        finally
+        try
         {
             try { Client.Dispose(); }
-            finally { http.Dispose(); }
+            finally { Session.Dispose(); }
         }
+        finally { http.Dispose(); }
     }
 }
 

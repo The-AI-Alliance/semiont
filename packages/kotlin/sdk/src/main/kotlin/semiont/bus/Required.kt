@@ -211,6 +211,9 @@ private fun faultOfOneOf(shape: Shape, variants: List<Shape>, value: JsonElement
 /** The first fault `value` has as a value of `descriptor`'s type, by the rules every SDK reads the table by; null when it has none. */
 internal fun faultOf(descriptor: SerialDescriptor, value: JsonElement): Fault? = faultAt(shapeOf(descriptor), value, "")
 
+/** The first fault `value` has as a value of the component schema `name`, which no type of `semiont.types` is the class of; null when it has none. */
+internal fun faultOfSchema(name: String, value: JsonElement): Fault? = faultAt(Shape(ref = name), value, "")
+
 /** The first fault of the JSON `text` as a value of `descriptor`'s type: a text that is no JSON is malformed. */
 internal fun faultIn(descriptor: SerialDescriptor, text: String): Fault? {
     val value = try {

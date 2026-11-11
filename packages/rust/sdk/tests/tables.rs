@@ -4,9 +4,10 @@
 //! protocol/specs/src/session/stored.json.
 
 use semiont::identity;
+use semiont::refresh::CacheQuery;
 use semiont::session::{
     ACTIVE_KEY, KNOWLEDGE_BASES_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY,
-    OpenResource, StoredSession, session_key,
+    OpenResource, StoredSession, cache_key, last_event_id_key, person_key, session_key,
 };
 use semiont::testing::as_id;
 use serde_json::{Map, Value};
@@ -161,7 +162,6 @@ fn what_a_registry_keeps_is_the_tables() {
         format!("{}kb-a", text(&stored["sessionKeyPrefix"], "prefix")),
         "a knowledge base's session key"
     );
-
     let schema = &stored["storedSession"];
     let members: Vec<String> = schema["properties"]
         .as_object()
@@ -182,6 +182,7 @@ fn what_a_registry_keeps_is_the_tables() {
         client_id: "semiont-browser".to_owned(),
         token_endpoint: "https://issuer.test/token".to_owned(),
         revocation_endpoint: Some("https://issuer.test/revoke".to_owned()),
+        person_key: Some("a-person-key".to_owned()),
     };
     let written: Map<String, Value> =
         serde_json::from_str(&whole.written()).expect("a session writes an object");
@@ -204,6 +205,78 @@ fn what_a_registry_keeps_is_the_tables() {
             "a stored value without {left}"
         );
     }
+}
+
+/// The query the table names, as this SDK names it.
+fn query_named(name: &str) -> CacheQuery {
+    *CacheQuery::ALL
+        .iter()
+        .find(|query| query.name() == name)
+        .unwrap_or_else(|| panic!("no query of client/refresh.json is named {name}"))
+}
+
+/// An object's members, sorted.
+fn members_of(object: &Value) -> Vec<String> {
+    let mut members: Vec<String> = object
+        .as_object()
+        .unwrap_or_else(|| panic!("not an object: {object}"))
+        .keys()
+        .cloned()
+        .collect();
+    members.sort();
+    members
+}
+
+/// What a session keeps of one person: each prefix the table states, and
+/// the key its example works out, are the ones Rust makes, and each query
+/// client/refresh.json marks `persisted` is kept under its prefix, the
+/// knowledge base's id, the person's key and the query's name.
+#[test]
+fn what_is_kept_of_a_person_is_kept_under_the_tables_keys() {
+    let stored = table(include_str!("../specs/session/stored.json"));
+    let refresh = table(include_str!("../specs/client/refresh.json"));
+
+    let places = &stored["lastEventIdKeyPrefix"];
+    assert_eq!(
+        last_event_id_key("kb-a", "a-person-key"),
+        format!("{}kb-a.a-person-key", text(places, "prefix")),
+        "a stream's places' key"
+    );
+    let example = &places["example"];
+    assert_eq!(members_of(example), ["did", "kbId", "key"]);
+    assert_eq!(
+        last_event_id_key(&text(example, "kbId"), &person_key(&text(example, "did"))),
+        text(example, "key"),
+        "lastEventIdKeyPrefix's example"
+    );
+
+    let caches = &stored["cacheKeyPrefix"];
+    let kept: Vec<&Value> = refresh["queries"]
+        .as_array()
+        .expect("client/refresh.json states its queries")
+        .iter()
+        .filter(|row| row["persisted"] == Value::Bool(true))
+        .collect();
+    assert!(!kept.is_empty(), "client/refresh.json persists no query");
+    for row in kept {
+        let name = text(row, "name");
+        assert_eq!(
+            cache_key("kb-a", "a-person-key", query_named(&name)),
+            format!("{}kb-a.a-person-key.{name}", text(caches, "prefix")),
+            "a kept query's key"
+        );
+    }
+    let example = &caches["example"];
+    assert_eq!(members_of(example), ["did", "kbId", "key", "query"]);
+    assert_eq!(
+        cache_key(
+            &text(example, "kbId"),
+            &person_key(&text(example, "did")),
+            query_named(&text(example, "query")),
+        ),
+        text(example, "key"),
+        "cacheKeyPrefix's example"
+    );
 }
 
 /// The members of what `resource` is written as, in order.

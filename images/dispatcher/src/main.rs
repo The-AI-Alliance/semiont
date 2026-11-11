@@ -153,7 +153,6 @@ async fn serve(
         http,
         timing: Timing::default(),
 
-        bookmarks: None,
         random: None,
     });
     let mut commands = Vec::new();

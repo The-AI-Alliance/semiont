@@ -13,7 +13,7 @@ public struct BrowseNamespace: Sendable {
   > {
     live.listedResources.observe(filters)
   }
-  public func engines() -> Cached<[EngineWithLimits]> { live.engines }
+  public func engines() -> Cached<[EngineWithLimits]> { live.enginesWithLimits }
 
   public func resource(_ resourceId: ResourceId) -> Cached<ResourceDescriptor> {
     live.resources.observe(resourceId)
@@ -23,7 +23,7 @@ public struct BrowseNamespace: Sendable {
   }
 
   public func annotations(_ resourceId: ResourceId) -> Cached<[Annotation]> {
-    live.annotations.observe(resourceId)
+    live.annotationList(resourceId)
   }
   public func annotation(resourceId: ResourceId, annotationId: AnnotationId) -> Cached<Annotation> {
     live.annotation(resourceId: resourceId, annotationId: annotationId)

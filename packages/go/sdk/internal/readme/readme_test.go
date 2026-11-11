@@ -196,7 +196,7 @@ func (g *gateway) stream(w http.ResponseWriter, r *http.Request) {
 	if subscription.Scoped != nil {
 		for _, scoped := range *subscription.Scoped {
 			if scoped.Scope.String() == "res-1" {
-				sent <- event("p-1", fmt.Sprintf(`{"channel":"mark:added","scope":"res-1","payload":%s}`, markAddedOn))
+				sent <- event("p-res-1-1", fmt.Sprintf(`{"channel":"mark:added","scope":"res-1","payload":%s}`, markAddedOn))
 			}
 		}
 	}

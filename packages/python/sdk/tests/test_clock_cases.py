@@ -22,14 +22,14 @@ from typing import Final, Literal, NoReturn, Self, final, override
 import httpx
 import pytest
 from aio import StillLoop, run_still, turns
-from kb import RESOURCE, asked_for, event, knowing, knowing_content
+from kb import RESOURCE, NothingRuns, asked_for, event, knowing, knowing_content, nothing_fetched
 from pydantic import JsonValue, TypeAdapter
 from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import token
 
 from semiont import retry, timing
 from semiont.bus import request
-from semiont.cache import Cache, CachePersister, Runs
+from semiont.cache import Cache, CachePersister
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.claims import ClaimRefusal
 from semiont.client import SemiontClient
@@ -475,7 +475,7 @@ async def renewal(given: JsonObject, held: AsyncExitStack) -> Subject:
     assert lifetime is not None, "a renewal's case states how long its tokens live"
     renewals = 0
 
-    async def renew() -> str | None:
+    async def renew(_holding: str | None) -> str | None:
         nonlocal renewals
         renewals += 1
         return token(lifetime, renewals)
@@ -605,20 +605,6 @@ class Saves(CachePersister[str, int]):
     @override
     def save(self, entries: Mapping[str, int]) -> None:
         self.saved.append(dict(entries))
-
-
-@final
-class NothingRuns(Runs):
-    """What runs the fetches of a cache that is only written: nothing is fetched."""
-
-    @override
-    def run[T](self, work: Coroutine[object, object, T]) -> asyncio.Task[T]:
-        work.close()
-        raise AssertionError("a cache that is only written fetched")
-
-
-async def nothing_fetched(key: str) -> int:
-    raise AssertionError(f"a cache that is only written fetched {key}")
 
 
 async def save_debounce(given: JsonObject, held: AsyncExitStack) -> Subject:

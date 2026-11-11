@@ -22,9 +22,9 @@ type ClientConfig struct {
 	// Timing is the waits the client keeps: DefaultTiming(), unless a caller
 	// that must not wait them out says otherwise.
 	Timing Timing
-	// Persistence is where the client keeps what its queries hold, so the
-	// next client of the same knowledge base shows it at once; nil for a
-	// client that keeps nothing.
+	// Persistence is where the client keeps what its queries hold for one
+	// person, so the next client of the same knowledge base, for the same
+	// person, shows it at once; nil for a client that keeps nothing.
 	Persistence *CachePersistence
 }
 
@@ -88,7 +88,14 @@ func NewClient(config ClientConfig) *Client {
 	life, end := context.WithCancel(context.Background())
 	l := &links{transport: config.Transport, wire: wire, own: own, timing: config.Timing, life: life, end: end}
 	config.Transport.BridgeInto(own)
-	queries := newLive(l, config.Content, config.Persistence)
+	queries := newLive(l, config.Content)
+	if config.Persistence != nil {
+		// No session keeps for this client: a write its storage refuses is
+		// logged.
+		persistence := *config.Persistence
+		persistence.refused = unsaved
+		queries.attach(&persistence)
+	}
 	keeping := newRefresher(l, queries)
 	keeping.start()
 	return &Client{
@@ -112,15 +119,29 @@ func NewClient(config ClientConfig) *Client {
 	}
 }
 
-// PersistenceSettled reports whether every cache the client keeps is at rest:
-// none is fetching, and none owes a save.
-func (c *Client) PersistenceSettled() bool { return c.live.persistenceSettled() }
+// PersistenceSettled reports whether what the client keeps is at rest: its
+// refresher owes no refetch (B19), no cache it keeps is fetching, and none
+// owes a save.
+func (c *Client) PersistenceSettled() bool {
+	// The refresher first: a refetch it has run is in flight by the time it
+	// owes it no more.
+	return !c.refresher.windows.owing() && c.live.persistenceSettled()
+}
 
 // Close ends the client. Its queries end first: every watcher's states end,
-// and a read asked for after is refused as closed. Then its own bus ends, so
-// every reader of it and every followed job does, and then the work it
-// started has ended. Closing twice is closing once.
+// what each owed to storage is saved, and a read asked for after is refused
+// as closed. Then its own bus ends, so every reader of it and every followed
+// job does, and then the work it started has ended. Closing twice is closing
+// once.
+//
+// The places coupled to what it keeps are sealed first, before anything is
+// disposed (B17): disposing drops a fetch in flight and a refetch owed, so
+// either holds the places back from the saves Close makes. A save owed does
+// not: Close makes it.
 func (c *Client) Close() {
+	if places := c.refresher.places.Load(); places != nil {
+		places.seal(func() bool { return !c.refresher.windows.owing() && !c.live.keptFetching() })
+	}
 	c.refresher.dispose()
 	c.live.dispose()
 	c.Bus.Close()

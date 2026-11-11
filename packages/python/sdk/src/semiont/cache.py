@@ -23,7 +23,10 @@ failed after it.
 
 A cache with a `CachePersister` begins with what was kept and saves its values
 as they change. A value that was kept is shown at once and asked for again the
-first time it is observed: nothing says it is still true.
+first time it is observed: nothing says it is still true. One given its
+persister after it began (`attach`) takes what was kept only for the keys it
+holds nothing for, alike. A save the persister refuses is still owed: the next
+change, or disposal, makes it.
 
 An observer that falls behind is given the latest state, not each one it
 missed: a state is what is true now.
@@ -76,7 +79,7 @@ class CachePersister[K, V](Protocol):
     """Where a cache keeps its values so a later one begins with them."""
 
     def load(self) -> Mapping[K, V] | None:
-        """What was kept, asked once, when the cache is built."""
+        """What was kept, asked once, when the cache is given the persister."""
         ...
 
     def save(self, entries: Mapping[K, V]) -> None:
@@ -141,7 +144,8 @@ class Cache[K: Hashable, V](StateUnit):
     `fetch` asks for a key's value, and whatever it fails with is the key's
     failure. `tasks` runs the fetches. With a `persister`, the cache begins
     with what it kept, and saves its values there once they have stopped
-    changing for `save_debounce_ms`.
+    changing for `save_debounce_ms`. One made without is given its persister
+    later with `attach`.
     """
 
     def __init__(
@@ -154,16 +158,43 @@ class Cache[K: Hashable, V](StateUnit):
     ) -> None:
         self._fetch: Final = fetch
         self._tasks: Final = tasks
-        self._persister: Final = persister
+        self._persister: CachePersister[K, V] | None = None
         self._save_debounce_ms: Final = save_debounce_ms
         self._disposed = False
         self._fetches = 0
         self._saving: asyncio.TimerHandle | None = None
-        """The wait before the next save, while one is owed."""
-        kept = None if persister is None else persister.load()
-        self._keys: Final[dict[K, _Key[V]]] = {key: _Key(Ready(value)) for key, value in (kept or {}).items()}
-        self._kept: Final[set[K]] = set(self._keys)
+        """The wait before the next save."""
+        self._owed = False
+        """Whether the values changed since the persister last took them."""
+        self._keys: Final[dict[K, _Key[V]]] = {}
+        self._kept: Final[set[K]] = set()
         """Keys whose value was kept by an earlier cache and has not been asked for by this one."""
+        if persister is not None:
+            self.attach(persister)
+
+    def attach(self, persister: CachePersister[K, V]) -> None:
+        """Keep the cache's values with `persister` from now on, beginning with what it kept.
+
+        What a client does with the caches it keeps for a person, when it
+        learns who they are only after it began. A kept value fills only a key
+        the cache holds nothing for, and is asked for anew the first time it is
+        observed. What the cache holds is saved there from its next change. A
+        cache keeps its values with one persister: a second raises
+        `RuntimeError`. A disposed cache takes none.
+        """
+        if self._disposed:
+            return
+        if self._persister is not None:
+            raise RuntimeError("a cache keeps its values with one persister")
+        self._persister = persister
+        kept = persister.load()
+        if kept is None:
+            return
+        for key, value in kept.items():
+            held = self._keys.get(key)
+            if held is None or not held.known():
+                self._held(key).state.set(Ready(value))
+                self._kept.add(key)
 
     def _held(self, key: K) -> _Key[V]:
         held = self._keys.get(key)
@@ -178,14 +209,23 @@ class Cache[K: Hashable, V](StateUnit):
         """The values changed: save them once they have stopped changing."""
         if self._persister is None:
             return
+        self._owed = True
         if self._saving is not None:
             self._saving.cancel()
         self._saving = asyncio.get_running_loop().call_later(self._save_debounce_ms / 1000, self._save)
 
     def _save(self) -> None:
+        """Give the persister the values. One it refuses is still owed, and its refusal is raised."""
         self._saving = None
-        if self._persister is not None:
+        if self._persister is None:
+            return
+        # Owed no longer while the persister writes: a place riding this write (`semiont.resume`) is held back by what else is owed.
+        self._owed = False
+        try:
             self._persister.save(self._values())
+        except BaseException:
+            self._owed = True
+            raise
 
     def _fetching(self, key: K) -> asyncio.Task[V]:
         """Start a fetch for `key`, or join the one in flight."""
@@ -288,12 +328,25 @@ class Cache[K: Hashable, V](StateUnit):
         """Every key the cache knows."""
         return [key for key, held in self._keys.items() if held.known()]
 
+    def _fetch_in_flight(self) -> bool:
+        return any(held.in_flight is not None for held in self._keys.values())
+
     @property
     def persistence_pending(self) -> bool:
-        """Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed."""
-        if self._persister is None:
-            return False
-        return self._saving is not None or any(held.in_flight is not None for held in self._keys.values())
+        """Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed.
+
+        A save the persister refused is owed until it is made.
+        """
+        return self._persister is not None and (self._owed or self._fetch_in_flight())
+
+    @property
+    def kept_fetching(self) -> bool:
+        """Whether a cache that keeps its values has a fetch in flight: what a disposal drops.
+
+        A fetch is in flight from when it is asked for, before its first turn,
+        until its answer is written, in the same turn, or it fails.
+        """
+        return self._persister is not None and self._fetch_in_flight()
 
     def invalidate(self, key: K) -> None:
         """The key's value is out of date: ask again, showing what there is meanwhile.
@@ -337,13 +390,19 @@ class Cache[K: Hashable, V](StateUnit):
     def dispose(self) -> None:
         """End the cache: a save that was owed is made now, every observer's states end, and nothing is fetched or written after.
 
-        Disposing twice is disposing once.
+        Disposing twice is disposing once. A save the persister refuses is raised, and the cache has ended all the same.
         """
+        if self._disposed:
+            return
         if self._saving is not None:
             self._saving.cancel()
-            self._save()
-        self._disposed = True
-        for held in self._keys.values():
-            held.state.end()
-        self._keys.clear()
-        self._kept.clear()
+            self._saving = None
+        try:
+            if self._owed:
+                self._save()
+        finally:
+            self._disposed = True
+            for held in self._keys.values():
+                held.state.end()
+            self._keys.clear()
+            self._kept.clear()

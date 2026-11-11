@@ -97,8 +97,9 @@ def create_test_session(**options: Unpack[TestSessionOptions]) -> TestSession:
 
     It renews nothing and asks nobody who it is, so, held with `async with`, it
     is ready as soon as it has read where its sign-in is kept, and holds a
-    token only if one was kept there. It only uses its client: the caller ends
-    the session and then the client, and whoever made the transport closes it.
+    token only if one was kept there. It only uses its client: the caller
+    closes the client first and then ends the session, and whoever made the
+    transport closes it.
     """
     given = options.get("client")
     made = create_test_client() if given is None else given

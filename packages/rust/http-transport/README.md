@@ -64,15 +64,17 @@ program, a script, a daemon or an application, as in the SDK's
 
 | Who | Signs in with | Gives |
 |---|---|---|
-| A script, after `semiont login` | `session_from_stored` | an `OpenedSession` |
-| A script on its own | `sign_in_device` | an `OpenedSession` |
+| A script, after `semiont login` | `session_from_kept`, over `SignInStore::entry` | an `OpenedSession` |
+| A script on its own | `sign_in_device`, then `session_from_kept` | an `OpenedSession` |
 | A daemon | `AgentToken::sign_in`, then `client` | a `SemiontClient` |
 | An application | `begin_sign_in`, `complete_sign_in` | a session in its `SemiontBrowser` |
 
 An `OpenedSession` is a session and the client it was built with. A session
 only uses its client, so the two end together: `session()` is the session,
-and `close().await` ends it and then closes the client. An application's
-`SemiontBrowser` does the same for the sessions it holds.
+and `close().await` closes the client, waiting for the saves it owes, and
+then ends the session, so what those saves meet is said before the
+session's errors end. An application's `SemiontBrowser` does the same for
+the sessions it holds.
 
 In the examples:
 
@@ -80,8 +82,13 @@ In the examples:
 - `gateway` is where the knowledge base's gateway is: an `HttpEndpoint`
   (host, port and protocol), or its origin as text for a daemon.
 - `kb` is a `KbTarget`: a knowledge base's id, its name and its endpoint.
-- `storage` is an `Arc<dyn SessionStorage>`: where a session's tokens are
-  kept.
+- `kept` is an `Arc<dyn SignInKept>`: where a script's sign-in is kept. An
+  entry of the file `semiont login` keeps (`SignInStore::entry`), memory
+  (`MemorySignIn`), a registry's storage (`kept_in`), or a keeper of the
+  script's own.
+- `storage` is an `Arc<dyn SessionStorage>`: where an application's
+  registry keeps its knowledge bases, their sign-ins and what its clients
+  keep.
 
 ### A script, after `semiont login`
 
@@ -90,17 +97,17 @@ person in and keeps the sign-in on disk
 ([sign-in store](../../../protocol/specs/src/sign-in-store/README.md)). A script reuses
 it. `state_home` is the directory that holds it:
 `semiont::sign_in_store::state_dir` of what the script read of its own
-environment. The crates read none themselves.
+environment. The crates read none themselves. The session renews the
+sign-in, and keeps the renewal in the file, as `semiont login` does.
 
 ```rust
 // The sign-in `semiont login` made for the knowledge base running here. Its key
 // is the knowledge base's id.
-let store = SignInStore::at(
-    state_home.join(FILE_NAME),
-    Arc::new(InMemorySessionStorage::new()),
-    Arc::new(|why| eprintln!("{why}")),
-);
-let opened = session_from_stored(StoredSignIn {
+let kept = SignInStore::at(state_home.join(FILE_NAME)).entry("local");
+if kept.held().await?.is_none() {
+    return Err("Not signed in. Run `semiont login`.".into());
+}
+let opened = session_from_kept(SessionFromKept {
     kb: KbTarget::http(
         "local",
         "Local",
@@ -108,47 +115,52 @@ let opened = session_from_stored(StoredSignIn {
         gateway.port,
         gateway.protocol,
     ),
-    storage: Arc::new(store),
-    base_url: gateway.gateway_url()?,
+    kept,
     validate: true,
+    storage: None,
     on_auth_failed: None,
-    on_error: None,
     http,
     random: None,
 })
-.await
-.ok_or("Not signed in. Run `semiont login`.")?;
+.await?;
 
 let about = opened.session().client().browse.kb().await?;
-// The session, then the client it was built with.
+// The client, the saves it owed made, then the session.
 opened.close().await;
 ```
 
 ### A script on its own
 
-Where nobody has signed in, a script signs a person in by the device grant
-and keeps the tokens in the storage it is given.
+Where nobody has signed in, a script signs a person in by the device grant,
+keeps the sign-in where it says, and builds its session from it.
+`sign_out(kept, &http)` ends a sign-in kept: the issuer is told to forget
+its refresh token, and it is kept no more.
 
 ```rust
 // The issuer mints a code, and the person approves it wherever they
-// have a browser. No password passes through this process.
-let opened = sign_in_device(
-    SignInDevice {
-        kb,
-        storage,
-        validate: true,
-        on_auth_failed: None,
-        on_error: None,
-        http,
-        random: None,
-    },
+// have a browser. No password passes through this process. The sign-in
+// is kept in `kept`, and the session is built from it.
+sign_in_device(
+    &kb,
+    kept.as_ref(),
     |code| {
         println!(
             "Open {} and enter {}",
             code.verification_uri, code.user_code
         )
     },
+    &http,
 )
+.await?;
+let opened = session_from_kept(SessionFromKept {
+    kb,
+    kept,
+    validate: true,
+    storage: None,
+    on_auth_failed: None,
+    http,
+    random: None,
+})
 .await?;
 ```
 
@@ -185,7 +197,6 @@ let client = client(
         channels: None,
         http,
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     },
     ClientOptions::default(),
@@ -210,7 +221,6 @@ while let Some(event) = completed.next().await {
 | `channels` | The global channels the stream names. `None` is every channel a client hears. A process that awaits only some operations names their reply channels, and is not sent every other client's replies. |
 | `http` | The application's `reqwest::Client`. |
 | `timing` | The deadlines. `Timing::default()` is the ones every Semiont SDK keeps. |
-| `bookmarks` | Where the stream's place is kept across restarts. With none, the stream begins each life at the present. |
 | `random` | What the jitter of the stream's reconnects and of each emit's retries is drawn from. With none, the system's source. |
 
 **A worker** is a daemon whose agent claims jobs from the knowledge base's
@@ -261,7 +271,6 @@ let client = client(
         channels: Some(channels),
         http,
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     },
     ClientOptions::default(),
@@ -472,11 +481,11 @@ credential goes by (`token`, `password`, `apiKey` and the rest of the list in
 | Module | What it holds |
 |---|---|
 | `client` | `client(config, options)`: a `SemiontClient` over this transport |
-| `transport` | `HttpTransport`, `HttpTransportConfig`, `Timing`, `Bookmarks` |
+| `transport` | `HttpTransport`, `HttpTransportConfig`, `Timing` |
 | `content` | `HttpContentTransport` |
 | `service_account`, `agent` | A service's sign-in: `Credential` (`SecretCredential` or `KeyCredential`), `private_key_from_pem`, `ServiceToken`, `AgentToken` |
 | `client_assertion` | The assertion a key's grant carries: the key's thumbprint, the header and claims, signed RS256 |
-| `session` (`sign-in`) | Sessions over a gateway: `session_from_stored`, `sign_in_device`, `begin_sign_in`, `complete_sign_in`, `HttpSessionFactory` |
+| `session` (`sign-in`) | Sessions over a gateway: `session_from_kept`, `sign_in_device`, `sign_out`, `begin_sign_in`, `complete_sign_in`, `HttpSessionFactory` |
 | `oauth` (`sign-in`) | The issuer's grants: authorization code with PKCE, device, refresh, and revocation |
 | `loopback` (`sign-in`) | `LoopbackRedirect`: the address on this machine a person is sent back to |
 | `discovery` (`sign-in`) | A launcher's list of knowledge bases, read over HTTP |

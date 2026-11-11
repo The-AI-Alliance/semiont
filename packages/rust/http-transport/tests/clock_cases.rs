@@ -41,7 +41,9 @@ use semiont::cache::{Cache, CachePersister};
 use semiont::claims::ClaimOptions;
 use semiont::discovery::{DiscoveryRead, DiscoveryState, DiscoveryTransport, subscribe_discovery};
 use semiont::errors::{BusRequestErrorCode, SemiontError};
-use semiont::session::{SemiontSession, SemiontSessionConfig, StoredSession, store_session};
+use semiont::session::{
+    SemiontSession, SemiontSessionConfig, StoredSession, kept_in, store_session,
+};
 use semiont::storage::InMemorySessionStorage;
 use semiont::testing::{FaultyTransport, TestClientOptions, as_id, create_test_client};
 use semiont::transport::{
@@ -492,7 +494,6 @@ async fn over_a_gateway(
         channels: None,
         http: http(),
         timing: Timing::default(),
-        bookmarks: None,
         random: Some(lowest()),
     }));
     (transport, network)
@@ -896,6 +897,7 @@ fn renewal(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
                 client_id: "semiont-cli".to_owned(),
                 token_endpoint: "http://issuer.test/realms/semiont/token".to_owned(),
                 revocation_endpoint: None,
+                person_key: None,
             },
         )
         .expect("the sign-in is kept");
@@ -903,7 +905,7 @@ fn renewal(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
         let renewing = renewals.clone();
         let session = SemiontSession::new(SemiontSessionConfig {
             kb: KbTarget::http(KB, "Alpha", "localhost", 4000, HttpEndpointProtocol::Http),
-            storage,
+            kept: kept_in(storage, KB),
             client: create_test_client(TestClientOptions::default()).client,
             token: watch::channel(None).0,
             refresh: Some(Arc::new(move |_holding| {
@@ -912,7 +914,6 @@ fn renewal(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
             })),
             validate: Some(Arc::new(|_token| Box::pin(async { Ok(alice()) }))),
             on_auth_failed: None,
-            on_error: None,
             random: Some(lowest()),
         });
         Subject {
@@ -1089,12 +1090,14 @@ impl CachePersister<String, usize> for Saves {
         None
     }
 
-    fn save(
-        &self,
-        _: &HashMap<String, usize>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Ok(())
+    fn save<'a>(
+        &'a self,
+        _: &'a HashMap<String, usize>,
+    ) -> BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+        Box::pin(async move {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
     }
 }
 
@@ -1173,6 +1176,7 @@ fn job_follower(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
                     correlation_id: None,
                     scope: None,
                     trace: None,
+                    stream_id: None,
                 });
                 async {}.boxed_local()
             })),

@@ -37,9 +37,13 @@ vi.mock('../../client', async () => {
     // failure — which is how a `not-found` verdict reaches the tab policy at
     // all.
     // The identity check and sign-in read what the KB says of itself.
+    // The session factory attaches persistence once the gateway names the
+    // person, and gates its stream places on the caches being quiet.
     browse = {
       resource: (id: string) => ({ fresh: () => mockResourceFresh(id) }),
       kb: () => mockKb(),
+      attachPersistence: () => {},
+      persistenceSettled: () => true,
     };
   }
   return {
@@ -53,13 +57,31 @@ import { SemiontBrowser } from '../semiont-browser';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
-import { freshJwt, storageKey, seedStoredSession, testSession, SharedStorage, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
+import { freshJwt, storageKey, seedStoredSession, testSession, RefusingStorage, SharedStorage, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
 import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
 import { mockResource } from '../../__tests__/fixtures/resource';
 import { BusRequestError, resourceId } from '@semiont/core';
 import type { SemiontError } from '@semiont/core';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+/** A case of protocol/specs/src/session/open-resource-cases.json. */
+interface OpenResourceCase {
+  why: string;
+  kb: 'itself' | 'unanswered';
+  open: string[];
+  resources: Record<string, 'ready' | 'gone' | 'unanswered'>;
+  asked: string[];
+  stillOpen: string[];
+}
+
+const openResourceCases = (
+  JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../../../../../protocol/specs/src/session/open-resource-cases.json', import.meta.url)), 'utf8'),
+  ) as { cases: OpenResourceCase[] }
+).cases;
 
 /** An issuer's JSON answer, as `fetch` would hand it back. */
 function issuerReply(json: unknown, status = 200): Response {
@@ -538,6 +560,38 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
+  /**
+   * protocol/specs/src/session/open-resource-cases.json: what the registry asks of the knowledge base, and
+   * what stays open, when a session with it becomes active. The knowledge base answers as the case says:
+   * `itself`, as its entry; `unanswered`, nothing, which a client hears as a timeout. Each open resource
+   * the same: `ready`, its description; `gone`, `bus.not-found`; `unanswered`, a timeout.
+   */
+  describe('the open-resource case table (session/open-resource-cases.json)', () => {
+    const unanswered = () => new BusRequestError('no answer in this test', 'bus.timeout');
+
+    it.each(openResourceCases)('$why', async (stated) => {
+      seedTabs(...stated.open);
+      mockKb = stated.kb === 'itself'
+        ? async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a' })
+        : async () => { throw unanswered(); };
+      mockResourceFresh.mockImplementation(async (id: string) => {
+        const answer = stated.resources[id];
+        if (answer === 'ready') return mockResource(id, { name: `name-${id}` });
+        if (answer === 'gone') throw notFound();
+        if (answer === 'unanswered') throw unanswered();
+        throw new Error(`the case says nothing of what the knowledge base answers for ${id}`);
+      });
+
+      const browser = await makeConnectedBrowser();
+      await settled();
+
+      expect(new Set(mockResourceFresh.mock.calls.map(([id]) => id)), 'asked').toEqual(new Set(stated.asked));
+      expect(new Set(browser.openResources$.getValue().map((r) => r.id)), 'still open').toEqual(new Set(stated.stillOpen));
+
+      await browser.dispose();
+    });
+  });
+
   it('a removal survives a sibling context\'s concurrent write, and the sibling tab survives too', async () => {
     // The cross-tab case. Another context writes the whole map while
     // validation is in flight; neither side may lose its change.
@@ -964,18 +1018,6 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
       await browser.dispose();
     });
-
-    it("forbidden routes to permission-denied, with the refusal's message as its detail", async () => {
-      const browser = await makeConnectedBrowser();
-      const signals = browser.activeSignals$.getValue()!;
-
-      pushError(browser, { code: 'forbidden', message: 'HTTP 403: Forbidden' });
-      await settled();
-
-      expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'HTTP 403: Forbidden' });
-
-      await browser.dispose();
-    });
   });
 
 
@@ -1131,21 +1173,6 @@ describe('SemiontBrowser — last viewed resource (KB-scoped)', () => {
 });
 
 describe('SemiontBrowser — a write the storage refuses', () => {
-  /** A storage that refuses every write while `refusing` is set. */
-  class RefusingStorage extends TestStorage {
-    refusing = false;
-
-    override set(key: string, value: string): void {
-      if (this.refusing) throw new Error(`refused: ${key}`);
-      super.set(key, value);
-    }
-
-    override update(key: string, change: (stored: string | null) => string | null): void {
-      if (this.refusing) throw new Error(`refused: ${key}`);
-      super.update(key, change);
-    }
-  }
-
   const liveSession = (browser: SemiontBrowser) =>
     firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
 
@@ -1751,24 +1778,6 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
     // And the corpse cannot survive a reload.
     expect(storage.get(storageKey(KB_A.id))).toBeNull();
-    await browser.dispose();
-  });
-
-  it('routes 403 from transport.errors$ to signals.permissionDenied$', async () => {
-    const { APIError } = await import('@semiont/http-transport');
-    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
-    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
-    storage.set(ACTIVE_KEY, KB_A.id);
-
-    const browser = makeBrowser();
-    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
-    const signals = browser.activeSignals$.getValue()!;
-    expect(signals.permissionDenied$.getValue()).toBeNull();
-
-    const subj = newestTransportErrors();
-    subj.next(APIError.refusal(403, 'Forbidden', { error: 'Archiving needs the curator role.' }, null));
-
-    expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'Archiving needs the curator role.' });
     await browser.dispose();
   });
 

@@ -7,6 +7,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
 {
     private readonly object gate = new();
     private readonly HashSet<Channel<T>> subscribers = [];
+    private readonly List<Action<T>> relays = [];
     private bool closed;
     private readonly List<T> pending = [];
     private bool hadSubscriber;
@@ -47,6 +48,36 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
         }
     }
 
+    /// <summary>
+    /// Hands <paramref name="to"/> each value as it is published, until the relay is disposed or the broadcast closes. It is
+    /// a reader as Observe's are: the first takes what the broadcast kept for its first reader.
+    /// </summary>
+    internal IDisposable Relay(Action<T> to)
+    {
+        var relaying = new Relaying(this, to);
+        lock (gate)
+        {
+            if (replayLatest && latest is { } value) to(value.Value);
+            if (closed) return relaying;
+            relays.Add(to);
+            if (keepForFirst && !hadSubscriber)
+            {
+                foreach (var queued in pending) to(queued);
+                pending.Clear();
+            }
+            hadSubscriber = true;
+        }
+        return relaying;
+    }
+
+    private sealed class Relaying(Broadcast<T> from, Action<T> to) : IDisposable
+    {
+        public void Dispose()
+        {
+            lock (from.gate) from.relays.Remove(to);
+        }
+    }
+
     private async IAsyncEnumerable<T> Read(Channel<T> channel, [EnumeratorCancellation] CancellationToken cancellation)
     {
         try
@@ -83,6 +114,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
             {
                 subscriber.Writer.TryWrite(value);
             }
+            foreach (var relay in relays) relay(value);
         }
     }
 
@@ -96,6 +128,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
                 subscriber.Writer.TryComplete();
             }
             subscribers.Clear();
+            relays.Clear();
         }
     }
 }

@@ -1,7 +1,8 @@
 //! A `SessionFactory` for tests of a registry (`SemiontBrowser`) and of what
 //! is built on one. Each session it builds is a real `SemiontSession` over a
 //! `FaultyTransport` of its own, and the factory keeps every transport it
-//! built, by knowledge base.
+//! built, by knowledge base. As every factory, it reads nothing of what
+//! its sessions say: a registry reads their errors.
 //!
 //! A test scripts three things: what each knowledge base's gateway answers,
 //! who the gateway says a token is, and what a renewal gives. Each refuses
@@ -19,6 +20,7 @@ use crate::errors::{
 use crate::locked;
 use crate::session::{
     SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions, StoredSession,
+    kept_in,
 };
 use crate::transport::BoxFuture;
 use crate::types::UserResponse;
@@ -190,7 +192,7 @@ impl SessionFactory for ScriptedSessions {
         let signals = options.signals;
         Ok(SemiontSession::new(SemiontSessionConfig {
             kb: options.kb.target(),
-            storage: options.storage,
+            kept: kept_in(options.storage, &kb_id),
             client,
             token: watch::channel(None).0,
             refresh: Some(Arc::new(move |_holding| {
@@ -229,7 +231,6 @@ impl SessionFactory for ScriptedSessions {
             on_auth_failed: Some(Arc::new(move |reason| {
                 signals.notify_session_ended(reason);
             })),
-            on_error: Some(options.on_error),
             random: self.inner.random.clone(),
         }))
     }

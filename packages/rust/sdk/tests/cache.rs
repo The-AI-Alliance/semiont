@@ -682,15 +682,17 @@ impl CachePersister<String, String> for Kept {
         self.stored.lock().expect("stored").clone()
     }
 
-    fn save(
-        &self,
-        entries: &HashMap<String, String>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.saves.lock().expect("saves").push(entries.clone());
-        if self.full.load(Ordering::SeqCst) {
-            return Err("the storage is full".into());
-        }
-        Ok(())
+    fn save<'a>(
+        &'a self,
+        entries: &'a HashMap<String, String>,
+    ) -> BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+        Box::pin(async move {
+            self.saves.lock().expect("saves").push(entries.clone());
+            if self.full.load(Ordering::SeqCst) {
+                return Err("the storage is full".into());
+            }
+            Ok(())
+        })
     }
 }
 
@@ -770,7 +772,7 @@ async fn b17_a_save_that_fails_leaves_the_cache_as_it_was_and_the_next_save_trie
     cache.set(&key("a"), key("one"));
     tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
     assert_eq!(kept.saves().len(), 1);
-    assert!(!cache.persistence_pending());
+    assert!(cache.persistence_pending(), "a refused save stays owed");
     assert_eq!(cache.get(&key("a")), Some(key("one")));
 
     kept.full.store(false, Ordering::SeqCst);
@@ -798,10 +800,9 @@ async fn b17_disposal_makes_the_save_that_was_owed_and_nothing_is_saved_after() 
 
 fn stored(
     storage: &Arc<InMemorySessionStorage>,
-    version: u64,
     max_bytes: usize,
 ) -> StoragePersister<String, String> {
-    StoragePersister::new(storage.clone(), "semiont.cache.kb.test", version, max_bytes)
+    StoragePersister::new(storage.clone(), "semiont.cache.kb.test", max_bytes)
 }
 
 fn entries(of: &[(&str, &str)]) -> HashMap<String, String> {
@@ -810,13 +811,14 @@ fn entries(of: &[(&str, &str)]) -> HashMap<String, String> {
         .collect()
 }
 
-#[test]
-fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
+#[tokio::test]
+async fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
     let storage = Arc::new(InMemorySessionStorage::new());
-    let persister = stored(&storage, 1, MAX_STORED_BYTES_COUNT);
+    let persister = stored(&storage, MAX_STORED_BYTES_COUNT);
     assert_eq!(persister.load(), None);
     persister
         .save(&entries(&[("a", "one"), ("b", "two")]))
+        .await
         .expect("stored");
 
     let document: Value =
@@ -826,7 +828,7 @@ fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
     assert_eq!(document["entries"].as_array().map(Vec::len), Some(2));
 
     assert_eq!(
-        stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(),
+        stored(&storage, MAX_STORED_BYTES_COUNT).load(),
         Some(entries(&[("a", "one"), ("b", "two")]))
     );
 }
@@ -834,32 +836,34 @@ fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
 #[test]
 fn a_document_of_another_version_or_one_that_is_not_a_document_reads_as_nothing_kept() {
     let storage = Arc::new(InMemorySessionStorage::new());
-    stored(&storage, 1, MAX_STORED_BYTES_COUNT)
-        .save(&entries(&[("a", "one")]))
-        .expect("stored");
-    assert_eq!(stored(&storage, 2, MAX_STORED_BYTES_COUNT).load(), None);
-
-    storage
-        .set("semiont.cache.kb.test", "{ not a document")
-        .expect("stored");
-    assert_eq!(stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(), None);
-    storage
-        .set("semiont.cache.kb.test", "[1, 2, 3]")
-        .expect("stored");
-    assert_eq!(stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(), None);
+    for kept in [
+        r#"{"version": 2, "entries": [["a", "one", 1000]]}"#,
+        "{ not a document",
+        "[1, 2, 3]",
+        r#"[1, [["a", "one", 1000]]]"#,
+    ] {
+        storage.set("semiont.cache.kb.test", kept).expect("stored");
+        assert_eq!(
+            stored(&storage, MAX_STORED_BYTES_COUNT).load(),
+            None,
+            "{kept}"
+        );
+    }
 }
 
-#[test]
-fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
+#[tokio::test]
+async fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let value = "x".repeat(100);
-    let persister = stored(&storage, 1, 400);
+    let persister = stored(&storage, 400);
     persister
         .save(&entries(&[("oldest", &value)]))
+        .await
         .expect("stored");
     std::thread::sleep(Duration::from_millis(5));
     persister
         .save(&entries(&[("oldest", &value), ("older", &value)]))
+        .await
         .expect("stored");
     std::thread::sleep(Duration::from_millis(5));
     // An entry whose value did not change keeps the time it was written, so
@@ -870,9 +874,10 @@ fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
             ("older", &value),
             ("newest", &value),
         ]))
+        .await
         .expect("stored");
 
-    let kept = stored(&storage, 1, 400).load().expect("a document");
+    let kept = stored(&storage, 400).load().expect("a document");
     assert!(kept.contains_key("newest"), "{kept:?}");
     assert!(!kept.contains_key("oldest"), "{kept:?}");
     assert!(

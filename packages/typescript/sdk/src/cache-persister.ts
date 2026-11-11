@@ -4,20 +4,203 @@
  * is: the browser passes its localStorage-backed adapter, a desktop host
  * passes its own, tests pass the in-memory one.
  *
- * Stored document (all-or-nothing under one key):
- *   { version, writtenAt, entries: [[keyJson, value, entryWrittenAt], …] }
+ * What is kept is the queries protocol/specs/src/client/refresh.json marks
+ * `persisted`, each its `value`; where, protocol/specs/src/session/stored.json's
+ * `wholeKey`, `cacheDocument` and `lastEventIds`. Every SDK runs
+ * protocol/specs/src/session/cache-cases.json against it. One document per
+ * kept query:
+ *   { version, entries: [[key, value, stamp], …] }
  *
- * - `version` gates load: mismatch or parse garbage reads as "nothing
- *   stored" — never throws into the cache.
- * - Per-entry `entryWrittenAt` stamps power byte-cap eviction: an entry
- *   keeps its stamp while its serialized value is unchanged, so eviction
- *   drops the entries that have gone longest without a write (not merely
+ * - A document whose structure is not `cacheDocument`'s reads as nothing
+ *   stored; an entry whose key or value is not its query's is skipped. A load
+ *   never throws into the cache.
+ * - An entry keeps its stamp while its value's JSON text is unchanged, so
+ *   byte-cap eviction drops the entries received longest ago (not merely
  *   whatever a full-map re-save touched last).
  */
 
-import { MAX_STORED_BYTES_COUNT, isObject, isResourceId, isString, type ResourceId } from '@semiont/core';
-import type { CachePersister } from './cache';
+import { CACHE_VALUES, MAX_STORED_BYTES_COUNT, faultOf, isAnnotationId, isObject, isResourceId, isString } from '@semiont/core';
+import type { AnnotationId, CachePer, CacheValues, PersistedQuery, ResourceId } from '@semiont/core';
+import { warnRefusedSave, type CachePersister } from './cache';
+import type { SemiontClient } from './client';
+import { SemiontSessionError } from './session/errors';
 import type { SessionStorage } from './session/session-storage';
+import type { SignInKept } from './session/sign-in-kept';
+import { cacheKey, lastEventIdKey, personKey, type StoredSession } from './session/storage';
+
+/**
+ * B17 — where a client keeps its persisted queries' values: a store, under
+ * the keys of one knowledge base and one person
+ * (protocol/specs/src/session/stored.json, `cacheKeyPrefix`).
+ */
+export interface CachePersistence {
+  readonly storage: SessionStorage;
+  readonly kbId: string;
+  /** The person's key, as `personKey` makes it of the did the gateway answered. */
+  readonly personKey: string;
+}
+
+/**
+ * B17 — where a save each persistence a session keeps for its person
+ * (`personKeeping`) is refused is told: the session's errors. Written by
+ * `personKeeping`, read by `refusedSaveOf`. Held here rather than on the
+ * persistence, so that a session's saying is no part of what a client is
+ * given.
+ */
+const refusalsOf = new WeakMap<CachePersistence, (cause: unknown) => void>();
+
+/**
+ * Where a save `persistence`'s storage refuses is told: the session's
+ * errors, as `session.save-refused`, for one a session keeps for its person;
+ * a console line for one a client was given directly, which has no session.
+ */
+export function refusedSaveOf(persistence: CachePersistence): (cause: unknown) => void {
+  return refusalsOf.get(persistence) ?? warnRefusedSave;
+}
+
+/**
+ * `storage`, written for one person only while the sign-in `kept` holds names
+ * them, as `kept` says before each write. Once it does not (the sign-in was
+ * forgotten, here or in another context, or another sign-in replaced it), it
+ * writes nothing more for its life: what was about to be written, a debounced
+ * save or a stream's place, belongs to a sign-in that is gone, and must not
+ * put back what forgetting it deleted. A renewal keeps the person, so writes
+ * go on through it. A sign-in that cannot be read counts as one that no
+ * longer names the person, and `unreadable` is told of it once, as it
+ * happens. Once `ended` says the keeping is over for another reason, it
+ * writes nothing more either. A write `storage` refuses is its own failure,
+ * and is let through.
+ */
+export function whileSignedIn(
+  storage: SessionStorage,
+  kept: SignInKept,
+  personKey: string,
+  unreadable: (cause: unknown) => void,
+  ended: () => boolean,
+): SessionStorage {
+  let signedOut = false;
+  const signedIn = (): boolean => {
+    if (signedOut || ended()) return false;
+    let held: StoredSession | null;
+    try {
+      held = kept.held();
+    } catch (cause) {
+      signedOut = true;
+      unreadable(cause);
+      return false;
+    }
+    if (held === null || held.personKey !== personKey) signedOut = true;
+    return !signedOut;
+  };
+  return {
+    get: (k) => storage.get(k),
+    set: (k, v) => {
+      if (signedIn()) storage.set(k, v);
+    },
+    delete: (k) => {
+      if (signedIn()) storage.delete(k);
+    },
+    update: (k, change) => {
+      if (signedIn()) storage.update(k, change);
+    },
+    subscribe: (handler) => storage.subscribe(handler),
+  };
+}
+
+/** The form of a kept query's document: `cacheDocument`'s `version`. */
+export const CACHE_DOCUMENT_VERSION = 1;
+
+/** The key a query per nothing keeps its one entry under: `wholeKey`. */
+export const WHOLE_KEY = '_';
+export type WholeKey = typeof WHOLE_KEY;
+
+/** How a document's entry is read back: its key and its value, each held to what the document keeps. */
+export interface EntryDecoder<K extends string, V> {
+  key(json: unknown): json is K;
+  value(json: unknown): json is V;
+}
+
+const isPlace = (json: unknown): json is string => faultOf('PersistedEventId', json) === undefined;
+
+/** The key of each kind of query's entries: what refresh.json says it is asked for per. */
+interface KeyPer {
+  resource: ResourceId;
+  annotation: AnnotationId;
+  whole: WholeKey;
+}
+
+/** What the kept query `Q`'s entries are keyed by. */
+export type KeptKey<Q extends PersistedQuery> = KeyPer[CachePer[Q]];
+
+/**
+ * Whether a value is what the kept query `query`'s cache holds, held as every
+ * reply is: the component its value is, holding it member within member, has
+ * no fault. Exact for a kept query, each member being all that holds it
+ * requires (the generator refuses a persisted value that is not).
+ */
+const holdsValue = <Q extends PersistedQuery>(query: Q) => {
+  const { component } = CACHE_VALUES[query];
+  const members: readonly string[] = CACHE_VALUES[query].members;
+  return (json: unknown): json is CacheValues[Q] =>
+    faultOf(component, members.reduceRight<unknown>((inner, member) => ({ [member]: inner }), json)) === undefined;
+};
+
+const resourceIdKey = (json: unknown): json is ResourceId => isString(json) && isResourceId(json);
+const annotationIdKey = (json: unknown): json is AnnotationId => isString(json) && isAnnotationId(json);
+const wholeKey = (json: unknown): json is WholeKey => json === WHOLE_KEY;
+
+/** How each kept query's entries are read back. */
+export const KEPT_QUERIES: { [Q in PersistedQuery]: EntryDecoder<KeptKey<Q>, CacheValues[Q]> } = {
+  resource: { key: resourceIdKey, value: holdsValue('resource') },
+  annotations: { key: resourceIdKey, value: holdsValue('annotations') },
+  annotation: { key: annotationIdKey, value: holdsValue('annotation') },
+  entityTypes: { key: wholeKey, value: holdsValue('entityTypes') },
+  tagSchemas: { key: wholeKey, value: holdsValue('tagSchemas') },
+};
+
+/**
+ * B17 — the stream's places, carried by the kept caches' writes
+ * (`coupledLastEventId`).
+ */
+export interface CoupledPlaces {
+  /** Hand THIS to `cachePersistence`: its writes carry the places forward. */
+  readonly storage: SessionStorage;
+  /** The place reached in `scope`, written with a later cache-document write. */
+  saveLastEventId(scope: ResourceId, id: string): void;
+  loadLastEventIds(): ReadonlyMap<ResourceId, string> | null;
+  /**
+   * B17-Q (C1) — couple the places to what `client` keeps. Write-ordering
+   * alone couples write MOMENTS, not content: doc B's save could carry a
+   * place whose event doc A has not yet absorbed (mid-refetch, mid-debounce,
+   * or owed by the refresher's window). Coupled, a cache-document write
+   * carries the places only while the client's persistence is settled
+   * (`browse.persistenceSettled()`); otherwise they stay pending, lagging,
+   * the safe direction, and ride the next quiet write. The client's
+   * `dispose()` reads that once, before it disposes anything: what is pending
+   * then is all that is written after, and none at all unless no kept cache
+   * was fetching and the refresher owed no refetch. Uncoupled, every
+   * cache-document write carries the places.
+   */
+  coupleTo(client: SemiontClient): void;
+}
+
+/**
+ * B17 — each client's coupled places, as its disposal seals them: written by
+ * `coupleTo`, read by `sealPlaces`. Held here rather than on the client, so
+ * that coupling is no part of the client's surface.
+ */
+const sealsOf = new WeakMap<SemiontClient, (atRest: boolean) => void>();
+
+/**
+ * B17 — `client`'s disposal reads once whether what it keeps is at rest,
+ * before anything is disposed: the places coupled to it, if any, are sealed
+ * with that reading. The places noted then are all that is written after,
+ * and none at all unless it was at rest.
+ */
+export function sealPlaces(client: SemiontClient, atRest: boolean): void {
+  const seal = sealsOf.get(client);
+  if (seal !== undefined) seal(atRest);
+}
 
 /**
  * B17 — couple the resumption bookmarks to the cache flush.
@@ -33,57 +216,39 @@ import type { SessionStorage } from './session/session-storage';
  * cache-document write. The persisted ids may therefore LAG the caches
  * (harmless: replay re-invalidates idempotently) but can never lead them.
  * A crash between the two writes leaves the ids lagging — the safe
- * direction.
+ * direction. A document write the storage refuses carries no place.
  *
- * One connection holds many resource scopes, so watermarks are PER SCOPE
- * (`Record<scope, p-* id>`, JSON under `lastEventIdKey`). A pre-multi-scope
- * single-id bookmark fails the JSON parse and reads as "nothing stored" —
- * safe: rehydrated caches reconcile via B18's refetch-on-rehydrate instead
- * of replay.
+ * One connection holds many resource scopes, so watermarks are PER SCOPE:
+ * `lastEventIds` under `lastEventIdKey`, each a resource's id to a
+ * PersistedEventId.
  */
-export function coupledLastEventId(
-  storage: SessionStorage,
-  lastEventIdKey: string,
-): {
-  /** Hand THIS to `cachePersistence` — its writes carry the bookmarks forward. */
-  storage: SessionStorage;
-  saveLastEventId: (scope: ResourceId, id: string) => void;
-  loadLastEventIds: () => ReadonlyMap<ResourceId, string> | null;
-  /**
-   * B17-Q (C1) — quiescence-gate the flush. Write-ordering alone couples
-   * write MOMENTS, not content: doc B's save can flush a bookmark whose
-   * event doc A has not yet absorbed (mid-refetch or mid-debounce). With a
-   * gate (wired by the session factory to
-   * `browse.persistenceSettled()`), a cache-document write carries the
-   * pending ids through only when every persisted cache is quiet; otherwise
-   * the ids stay pending — lagging, the safe direction — and ride the next
-   * quiet write.
-   */
-  setFlushGate: (gate: () => boolean) => void;
-} {
+export function coupledLastEventId(storage: SessionStorage, lastEventIdKey: string): CoupledPlaces {
   const pending = new Map<ResourceId, string>();
-  let flushGate: (() => boolean) | null = null;
+  /** Whether what the coupled client keeps is at rest; null while the places are coupled to none. */
+  let atRest: (() => boolean) | null = null;
+  /** Whether the client's disposal has read `atRest`: what is pending then is all that is written. */
+  let sealed = false;
   const readStored = (): Map<ResourceId, string> => {
     const stored = new Map<ResourceId, string>();
     const raw = storage.get(lastEventIdKey);
-    if (!raw) return stored;
+    if (raw === null) return stored;
+    let parsed: unknown;
     try {
-      const parsed: unknown = JSON.parse(raw);
-      if (!isObject(parsed)) return stored;
-      for (const [scope, id] of Object.entries(parsed)) {
-        if (isResourceId(scope) && isString(id)) stored.set(scope, id);
-      }
-      return stored;
+      parsed = JSON.parse(raw);
     } catch {
       return stored;
     }
+    if (!isObject(parsed)) return stored;
+    for (const [scope, id] of Object.entries(parsed)) {
+      if (isResourceId(scope) && isPlace(id)) stored.set(scope, id);
+    }
+    return stored;
   };
   const flush = (): void => {
-    if (pending.size > 0 && (flushGate === null || flushGate())) {
-      const merged = new Map([...readStored(), ...pending]);
-      storage.set(lastEventIdKey, JSON.stringify(Object.fromEntries(merged)));
-      pending.clear();
-    }
+    if (pending.size === 0 || (!sealed && atRest !== null && !atRest())) return;
+    const merged = new Map([...readStored(), ...pending]);
+    storage.set(lastEventIdKey, JSON.stringify(Object.fromEntries(merged)));
+    pending.clear();
   };
   const coupled: SessionStorage = {
     get: (k) => storage.get(k),
@@ -100,114 +265,227 @@ export function coupledLastEventId(
   };
   return {
     storage: coupled,
-    saveLastEventId: (scope, id) => { pending.set(scope, id); },
+    // An id that is no PersistedEventId is no place, and one reached after
+    // the client's disposal read the gate is of an event whose refetch
+    // disposal drops: neither is kept.
+    saveLastEventId: (scope, id) => {
+      if (!sealed && isPlace(id)) pending.set(scope, id);
+    },
     loadLastEventIds: () => {
       const stored = readStored();
       return stored.size > 0 ? stored : null;
     },
-    setFlushGate: (gate) => { flushGate = gate; },
+    coupleTo: (client) => {
+      if (sealsOf.has(client)) throw new Error('A client is coupled to the places of one person');
+      atRest = () => client.browse.persistenceSettled();
+      sealsOf.set(client, (settled) => {
+        if (sealed) return;
+        sealed = true;
+        if (!settled) pending.clear();
+      });
+    },
   };
 }
 
-interface StoredDocument {
-  version: number;
-  writtenAt: number;
-  entries: Array<[unknown, unknown, number]>;
+/** B17 — what a session keeps for one person: the stream's places, and the caches, whose writes carry them. */
+export interface Keeping {
+  readonly places: CoupledPlaces;
+  readonly persistence: CachePersistence;
 }
 
-function parseDocument(raw: string | null, version: number): StoredDocument | null {
-  if (!raw) return null;
+/**
+ * B17 — what a session over HTTP keeps, in a storage, for the person its kept
+ * sign-in names (`personKeeping`): from the start when the sign-in names them,
+ * otherwise from when the gateway names them, and nothing before.
+ */
+export interface PersonKeeping {
+  /**
+   * What keeps from the start, the sign-in naming the person as the session
+   * is made: the client is made with its `persistence`, the transport loads
+   * its places, and they are coupled to the client once it is made. Null when
+   * the sign-in names nobody yet.
+   */
+  readonly fromStart: Keeping | null;
+  /** The transport's places, each to what keeps once something does. */
+  saveLastEventId(scope: ResourceId, id: string): void;
+  /**
+   * The gateway said `token` is the person `did` names. Their key is recorded
+   * on the kept sign-in while it still holds `token`, and a session keeping
+   * nothing yet keeps for them from now on: the places coupled to `client`,
+   * its kept caches attached, and `transport` given the places kept for the
+   * scopes it holds none for. A sign-in that cannot record them is said as
+   * `session.keep-failed`, once, and the client keeps nothing more: what
+   * kept from the start writes nothing after it, and nothing begins.
+   */
+  named(
+    token: string,
+    did: string,
+    client: SemiontClient,
+    transport: { restoreLastEventIds(places: ReadonlyMap<ResourceId, string>): void },
+  ): void;
+}
+
+/**
+ * B17 — what a session over the sign-in `kept` keeps on the knowledge base
+ * `kbId`, in `storage`, for the person the sign-in names: written only while
+ * it names them (`whileSignedIn`), the places carried by the caches' writes.
+ * What goes wrong with it is said as the session's own error, to `say`: a
+ * sign-in that cannot be read before a save, or cannot record the person the
+ * gateway named, as `session.keep-failed`, once, and the client keeps
+ * nothing more for the rest of its life; each write the storage refuses, as
+ * `session.save-refused`, the save then owed.
+ */
+export function personKeeping(
+  storage: SessionStorage,
+  kbId: string,
+  kept: SignInKept,
+  say: (error: SemiontSessionError) => void,
+): PersonKeeping {
+  const said = (code: 'session.keep-failed' | 'session.save-refused', what: string, cause: unknown): void => {
+    say(new SemiontSessionError(code, `${what}: ${cause instanceof Error ? cause.message : String(cause)}`, kbId));
+  };
+  /** Whether the client keeps nothing more for the rest of its life, as `session.keep-failed` said once. */
+  let keepsNothingMore = false;
+  const keepFailed = (what: string, cause: unknown): void => {
+    if (keepsNothingMore) return;
+    keepsNothingMore = true;
+    said('session.keep-failed', what, cause);
+  };
+  const unreadable = (cause: unknown): void =>
+    keepFailed('The sign-in could not be read before what the client keeps was saved, so it keeps nothing more', cause);
+  const refused = (cause: unknown): void =>
+    said('session.save-refused', "The storage refused a write of what the client keeps, which is owed until the client's next change or its closing", cause);
+  const keepingFor = (person: string): Keeping => {
+    const places = coupledLastEventId(
+      whileSignedIn(storage, kept, person, unreadable, () => keepsNothingMore),
+      lastEventIdKey(kbId, person),
+    );
+    const persistence: CachePersistence = { storage: places.storage, kbId, personKey: person };
+    refusalsOf.set(persistence, refused);
+    return { places, persistence };
+  };
+  const named = kept.held()?.personKey;
+  const fromStart = named === undefined ? null : keepingFor(named);
+  let keeping = fromStart;
+  return {
+    fromStart,
+    saveLastEventId: (scope, id) => {
+      if (keeping !== null) keeping.places.saveLastEventId(scope, id);
+    },
+    named: (token, did, client, transport) => {
+      if (keepsNothingMore) return;
+      const person = personKey(did);
+      let recorded: boolean;
+      try {
+        recorded = kept.recordPersonKey(token, person);
+      } catch (cause) {
+        keepFailed('The sign-in could not record the person the gateway named, so the client keeps nothing more', cause);
+        return;
+      }
+      if (!recorded || keeping !== null) return;
+      const begun = keepingFor(person);
+      keeping = begun;
+      begun.places.coupleTo(client);
+      client.browse.attachPersistence(begun.persistence);
+      const places = begun.places.loadLastEventIds();
+      if (places !== null) transport.restoreLastEventIds(places);
+    },
+  };
+}
+
+type StoredEntry = [unknown, unknown, number];
+
+const isStoredEntry = (entry: unknown): entry is StoredEntry =>
+  Array.isArray(entry) && entry.length === 3 && Number.isInteger(entry[2]) && entry[2] >= 0;
+
+/** A document's entries, or null when its structure is not `cacheDocument`'s, which keeps none of it. */
+function storedEntries(raw: string | null): StoredEntry[] | null {
+  if (raw === null) return null;
+  let document: unknown;
   try {
-    const parsed = JSON.parse(raw) as StoredDocument;
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    if (parsed.version !== version) return null;
-    if (!Array.isArray(parsed.entries)) return null;
-    return parsed;
+    document = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (!isObject(document) || document['version'] !== CACHE_DOCUMENT_VERSION) return null;
+  const entries: unknown = document['entries'];
+  if (!Array.isArray(entries) || !entries.every(isStoredEntry)) return null;
+  return entries;
 }
 
-export function sessionStoragePersister<K, V>(opts: {
+export function sessionStoragePersister<K extends string, V>(opts: {
   /** The environment's storage adapter — the seam, and the test seam. */
   storage: SessionStorage;
-  /** Full storage key; callers scope it per KB (`semiont.cache.<kbId>.<name>`). */
+  /** Full storage key; callers scope it per KB and person (`cacheKey(kbId, personKey, query)`). */
   storageKey: string;
-  /** Schema version; mismatch discards on load. Bump when the value shape changes. */
-  version: number;
-  /** Byte cap for the serialized document; oldest-written entries evicted first. Default `MAX_STORED_BYTES_COUNT`. */
+  /** What an entry read back must be; one that is not is skipped. */
+  decode: EntryDecoder<K, V>;
+  /** Byte cap for the document's UTF-8 text; oldest-stamped entries evicted first. Absent, `MAX_STORED_BYTES_COUNT`. */
   maxBytes?: number;
-  /** Serialize a key to a JSON-safe value. Default identity (branded ids are strings). */
-  keyToJson?: (k: K) => unknown;
-  /** Deserialize a JSON value back to a key. Default identity. */
-  jsonToKey?: (j: unknown) => K;
 }): CachePersister<K, V> {
-  const { storage, storageKey, version } = opts;
+  const { storage, storageKey, decode } = opts;
   const maxBytes = opts.maxBytes ?? MAX_STORED_BYTES_COUNT;
-  const keyToJson = opts.keyToJson ?? ((k: K) => k as unknown);
-  const jsonToKey = opts.jsonToKey ?? ((j: unknown) => j as K);
 
   /**
-   * Prior write stamps, keyed by the serialized key. Seeded by load(),
-   * refreshed by save() — an unchanged value keeps its stamp so eviction
-   * order reflects real write recency.
+   * Prior stamps, by key. Seeded by load(), refreshed by save() — an
+   * unchanged value keeps its stamp so eviction order reflects when each
+   * value was received.
    */
-  let stamps = new Map<string, { valueJson: string; writtenAt: number }>();
-
-  const seedStamps = (doc: StoredDocument): void => {
-    stamps = new Map(
-      doc.entries.map(([keyJson, value, writtenAt]) => [
-        JSON.stringify(keyJson),
-        { valueJson: JSON.stringify(value), writtenAt },
-      ]),
-    );
-  };
-
-  const toMap = (doc: StoredDocument): Map<K, V> =>
-    new Map(doc.entries.map(([keyJson, value]) => [jsonToKey(keyJson), value as V]));
+  let stamps = new Map<K, { valueJson: string; at: number }>();
 
   return {
     load(): Map<K, V> | null {
-      const doc = parseDocument(storage.get(storageKey), version);
-      if (!doc) return null;
-      seedStamps(doc);
-      return toMap(doc);
+      const entries = storedEntries(storage.get(storageKey));
+      if (entries === null) return null;
+      const kept = entries.filter((entry): entry is [K, V, number] => decode.key(entry[0]) && decode.value(entry[1]));
+      stamps = new Map(kept.map(([key, value, at]) => [key, { valueJson: JSON.stringify(value), at }]));
+      return new Map(kept.map(([key, value]) => [key, value]));
     },
 
     save(entries: Map<K, V>): void {
       const now = Date.now();
-      let records: Array<[unknown, unknown, number]> = [];
-      const nextStamps = new Map<string, { valueJson: string; writtenAt: number }>();
+      let records: Array<[K, V, number]> = [];
+      const nextStamps = new Map<K, { valueJson: string; at: number }>();
 
-      for (const [k, v] of entries) {
-        const keyJson = keyToJson(k);
-        const keyId = JSON.stringify(keyJson);
-        const valueJson = JSON.stringify(v);
-        const prior = stamps.get(keyId);
-        const writtenAt = prior !== undefined && prior.valueJson === valueJson ? prior.writtenAt : now;
-        nextStamps.set(keyId, { valueJson, writtenAt });
-        records.push([keyJson, v, writtenAt]);
+      for (const [key, value] of entries) {
+        const valueJson = JSON.stringify(value);
+        const prior = stamps.get(key);
+        const at = prior !== undefined && prior.valueJson === valueJson ? prior.at : now;
+        nextStamps.set(key, { valueJson, at });
+        records.push([key, value, at]);
       }
 
-      // Byte-cap eviction: drop oldest-written entries until the document
+      // Byte-cap eviction: drop oldest-stamped entries until the document
       // fits. Measured in real UTF-8 bytes (the option's name tells the
       // truth): `.length` counts UTF-16 code units, which skews up to 3×
       // for non-ASCII values. localStorage itself accounts in code units,
       // so for that substrate the byte cap is conservative — acceptable
       // for a guard rail.
+      const text = (list: Array<[K, V, number]>): string => JSON.stringify({ version: CACHE_DOCUMENT_VERSION, entries: list });
       const encoder = new TextEncoder();
-      const documentSize = (list: Array<[unknown, unknown, number]>): number =>
-        encoder.encode(JSON.stringify({ version, writtenAt: now, entries: list })).length;
+      const documentSize = (list: Array<[K, V, number]>): number => encoder.encode(text(list)).length;
       if (documentSize(records) > maxBytes) {
         records = [...records].sort((a, b) => a[2] - b[2]);
         while (records.length > 0 && documentSize(records) > maxBytes) {
           const [evicted] = records.splice(0, 1);
-          if (evicted) nextStamps.delete(JSON.stringify(evicted[0]));
+          if (evicted) nextStamps.delete(evicted[0]);
         }
       }
 
       stamps = nextStamps;
-      storage.set(storageKey, JSON.stringify({ version, writtenAt: now, entries: records }));
+      storage.set(storageKey, text(records));
     },
   };
+}
+
+/** The persister of the kept query `query`, under its key in `persistence`: its knowledge base's, its person's and the query's (`cacheKeyPrefix`). */
+export function keptPersister<Q extends PersistedQuery>(
+  query: Q,
+  persistence: CachePersistence,
+): CachePersister<KeptKey<Q>, CacheValues[Q]> {
+  return sessionStoragePersister({
+    storage: persistence.storage,
+    storageKey: cacheKey(persistence.kbId, persistence.personKey, query),
+    decode: KEPT_QUERIES[query],
+  });
 }

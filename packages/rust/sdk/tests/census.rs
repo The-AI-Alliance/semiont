@@ -12,9 +12,12 @@
 //!   paused runtime holds still: no `std::time::Instant`, no
 //!   `thread::sleep` and no `recv_timeout`, in this crate or the HTTP
 //!   transport's (`protocol/specs/src/client/surface.json`, `clock`, reads
-//!   the same two). And every jitter is drawn from the caller's random source,
-//!   or the system's when it gives none, in one place: no random draw outside
-//!   `src/retry.rs`, and no UUID read as a number anywhere.
+//!   the same two, and leaves out what it leaves out: a module's tests kept
+//!   in a file of their own, `tests.rs`, which the module declares
+//!   `#[cfg(test)] mod tests;`). And every jitter is drawn from the caller's
+//!   random source, or the system's when it gives none, in one place: no
+//!   random draw outside `src/retry.rs`, and no UUID read as a number
+//!   anywhere.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -266,6 +269,7 @@ fn every_wait_is_on_the_runtimes_clock_and_every_jitter_drawn_from_the_callers_s
     let found: Vec<String> = sources("src")
         .into_iter()
         .chain(sources("../http-transport/src"))
+        .filter(|(file, _)| !file.ends_with("/tests.rs"))
         .flat_map(|(file, text)| {
             off_the_clock(&file, &text)
                 .into_iter()

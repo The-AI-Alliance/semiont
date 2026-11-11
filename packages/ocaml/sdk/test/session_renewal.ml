@@ -57,10 +57,11 @@ let proactive () =
   let calls = ref 0 in
   let session =
     Session.start ~sw ~clock ~initial_token:(Some initial)
-      ~renew:(fun ~refused ->
+      ~renew:(fun ~holding ->
         incr calls;
         Alcotest.(check (option string))
-          "proactive renewal has no refusal" None refused;
+          "a scheduled renewal is handed the token it renews" (Some initial)
+          holding;
         Promise.resolve enter ();
         Promise.await release;
         Session.Renewed "replacement")
@@ -85,6 +86,54 @@ let proactive () =
     "refusal joins in-flight renewal" (Some "replacement")
     (Promise.await_exn refused);
   Alcotest.(check int) "one issuer call" 1 !calls;
+  Session.close session;
+  Session.await_closed session
+
+let backoff () =
+  let open Semiont in
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono = Eio_mock.Clock.Mono.make () in
+  let wall = Eio_mock.Clock.make () in
+  let clock =
+    Clock.make ~monotonic:mono ~wall ~jitter:(Random.State.make [| 1 |])
+    |> fun clock -> Clock.with_jitter clock (fun () -> 0.)
+  in
+  let refused = token {|{"iat":0,"exp":3600}|} in
+  let handed = ref [] in
+  let answers = ref [ Session.Unavailable; Session.Renewed "replacement" ] in
+  let session =
+    Session.start ~sw ~clock ~initial_token:(Some refused)
+      ~renew:(fun ~holding ->
+        handed := holding :: !handed;
+        match !answers with
+        | answer :: rest ->
+            answers := rest;
+            answer
+        | [] -> Alcotest.fail "renewed again after a renewal was made")
+      ()
+  in
+  Session.manage session (fun ~current:_ ~refused:_ outcome -> outcome);
+  Alcotest.(check (option string))
+    "a renewal that got no answer gives no token" None
+    (Session.refresh_refused session ~refused);
+  let settle () =
+    for _ = 1 to 24 do
+      Fiber.yield ()
+    done
+  in
+  settle ();
+  Eio_mock.Clock.Mono.set_time mono
+    (Option.get
+       (Mtime.add_span (Clock.monotonic_now clock) Mtime.Span.(6000 * ms)));
+  settle ();
+  Alcotest.(check (list (option string)))
+    "the refusal's renewal and the backoff's are each handed the refused token"
+    [ Some refused; Some refused ]
+    (List.rev !handed);
+  Alcotest.(check (option string))
+    "the backoff renews it" (Some "replacement")
+    (Session.credential session);
   Session.close session;
   Session.await_closed session
 
@@ -122,7 +171,6 @@ let lifecycle phase row =
         clock;
         fresh_id = (fun () -> "kb");
         factory = (fun _ -> assert false);
-        on_error = ignore;
       }
   in
   let stored =
@@ -169,7 +217,21 @@ let lifecycle phase row =
     | "unreachable" -> (503, {|{}|})
     | _ -> assert false
   in
-  let credentials = Registry.start_kept_session browser ~sw ~http:issuer "kb" in
+  let started_on = if stored = "none" then None else Some original in
+  let handed = ref [] in
+  let credentials =
+    Session.start ~keep_on_unavailable:true
+      ~on_rejected:(Registry.forget_rejected browser "kb")
+      ~sw ~clock
+      ~initial_token:
+        (Option.map
+           (fun (session : Registry.stored_session) -> session.access)
+           (kept.held ()))
+      ~renew:(fun ~holding ->
+        handed := holding :: !handed;
+        Registry.renew_kept browser ~http:issuer "kb" ~holding)
+      ()
+  in
   let call ~sw:_ ~meth:_ ~path ~headers:_ ~body:_ ~progress:_ =
     match path with
     | "/bus/subscribe" -> Fiber.await_cancel ()
@@ -224,6 +286,10 @@ let lifecycle phase row =
     | None, Some _ -> "user without token"
   in
   let check_checkpoint expected =
+    List.iter
+      (Alcotest.(check (option string))
+         "each renewal is handed the token it renews" started_on)
+      (List.rev !handed);
     Alcotest.(check int)
       "gateway asks"
       (expected |> member "asks" |> to_int)
@@ -290,5 +356,9 @@ let () =
           Alcotest.test_case "shared expiry and schedule" `Quick table;
           Alcotest.test_case "proactive and reactive share renewal" `Quick
             proactive;
+          Alcotest.test_case
+            "the backoff after an unanswered renewal is handed the token it \
+             renews"
+            `Quick backoff;
         ] );
     ]

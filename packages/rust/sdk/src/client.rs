@@ -10,9 +10,9 @@
 //! `auth` and `system` are there when the client was given a gateway: a
 //! transport with no gateway behind it has neither.
 //!
-//! `close` is the graceful end: the queries end and save what they owed, the
-//! transport stops, every stream ends and every request still pending fails
-//! as closed. A client that is only dropped ends its queries and its own
+//! `close` is the graceful end: the queries end and save what they owed,
+//! waited for, the transport stops, every stream ends and every request
+//! still pending fails as closed. A client that is only dropped ends its queries and its own
 //! bus; its transport stops when the last holder of it lets go.
 //!
 //! A client is built inside a Tokio runtime: it listens, from the moment it
@@ -20,13 +20,15 @@
 
 use crate::bus::{Bus, payload_of};
 use crate::channels::{Channel, Request};
-use crate::errors::SemiontError;
+use crate::errors::{SemiontError, SessionErrorCode};
 use crate::event_bus::EventBus;
 use crate::namespaces::{
     AuthNamespace, BeckonNamespace, BindNamespace, BrowseNamespace, FrameNamespace,
     GatherNamespace, JobNamespace, MarkNamespace, MatchNamespace, Refresher, SystemNamespace,
     YieldNamespace,
 };
+use crate::resume::CoupledBookmarks;
+use crate::session::SignInKept;
 use crate::storage::SessionStorage;
 use crate::timing::{BUS_REQUEST_TIMEOUT, INVALIDATION_WINDOW, JOB_SILENCE, JOB_STATUS_POLL};
 use crate::transport::{ConnectionState, ContentTransport, Envelope, GatewayOperations, Transport};
@@ -59,20 +61,35 @@ impl Default for ClientTiming {
     }
 }
 
-/// Where a client keeps its small caches so the next client for the same
-/// knowledge base shows them at once: a storage, and a prefix for its keys,
-/// which is what tells one knowledge base's from another's.
+/// Where a client keeps the queries protocol/specs/src/client/refresh.json
+/// marks `persisted`, so the next client of the same person on the same
+/// knowledge base shows them at once: the storage the caches are written
+/// to, and the knowledge base's id and the person's key
+/// (`crate::session::person_key`), under which each query is kept
+/// (`crate::session::cache_key`). The storage of the stream's places coupled
+/// to the client (`CoupledBookmarks::storage`, `CoupledBookmarks::couple_to`)
+/// has the caches' writes carry the places.
 #[derive(Clone)]
 pub struct CachePersistence {
     pub storage: Arc<dyn SessionStorage>,
-    pub key_prefix: String,
+    pub kb_id: String,
+    pub person_key: String,
+}
+
+/// The session a client is owned by (`SemiontClient::owned_by`): the
+/// sign-in what the client keeps is written for, and how the session says
+/// what goes wrong with it.
+pub(crate) struct Owner {
+    pub(crate) kept: Arc<dyn SignInKept>,
+    pub(crate) says: Arc<dyn Fn(SessionErrorCode, String) + Send + Sync>,
 }
 
 /// What a client is built with, beyond what it speaks through.
 #[derive(Clone, Default)]
 pub struct ClientOptions {
     pub timing: ClientTiming,
-    /// Absent, the client's caches live as long as it does.
+    /// Absent, the client's caches live as long as it does, until it is
+    /// given one (`SemiontClient::attach_persistence`).
     pub cache_persistence: Option<CachePersistence>,
 }
 
@@ -134,7 +151,9 @@ pub struct SemiontClient {
     /// The bus over the transport.
     wire: Bus,
     own: EventBus,
-    /// What keeps the queries of `browse`, `gather` and `match_` true.
+    /// What keeps the queries of `browse`, `gather` and `match_` true, and
+    /// notes each place the stream reaches in the places coupled to the
+    /// client.
     refresher: Arc<Refresher>,
     /// The vocabulary: what kinds of things exist.
     pub frame: FrameNamespace,
@@ -239,21 +258,88 @@ impl SemiontClient {
     }
 
     /// Whether every cache the client's storage keeps is at rest: none is
-    /// fetching, and none owes a save. What is kept of the stream's place is
-    /// kept only then (`crate::resume`).
+    /// fetching, none owes a save, and the refresher owes no refetch (B19).
+    /// What is kept of the stream's place is kept only then
+    /// (`crate::resume`).
     pub fn persistence_settled(&self) -> bool {
-        self.browse.persistence_settled()
+        // The refresher first: a refetch it owed is under way in a cache by
+        // the time it is no longer owed.
+        !self.refresher.owes_a_refetch() && self.browse.persistence_settled()
+    }
+
+    /// Keep the persisted queries in `persistence` from now on, as a client
+    /// built with it would have from its start: what is kept there is taken
+    /// in for every key a cache holds no value for, shown at once and asked
+    /// for again the first time it is observed, and each later change is
+    /// saved there, carrying the stream's places as a write of a client
+    /// built with it does. A client that keeps somewhere already is left as
+    /// it is. What a session does once the gateway names the person its
+    /// token is (protocol/contract/CACHE-SEMANTICS.md, B17).
+    pub fn attach_persistence(&self, persistence: &CachePersistence) {
+        self.browse.attach_persistence(persistence);
+    }
+
+    /// Note the stream's places in `places` from now on, each once the
+    /// client has taken in the event that reached it, and have the client's
+    /// close take them (`CoupledBookmarks::couple_to`). A client coupled to
+    /// places already keeps them.
+    pub(crate) fn couple(&self, places: CoupledBookmarks) {
+        self.refresher.couple(places);
+    }
+
+    /// The client is owned by a session from now on: what it keeps is
+    /// written only while the session's sign-in names the person it is kept
+    /// for, and what goes wrong with it is said by the session. A client is
+    /// owned once.
+    pub(crate) fn owned_by(&self, owner: Owner) {
+        self.browse.owned_by(owner);
+    }
+
+    /// Record on the sign-in of the session that owns the client that the
+    /// gateway named the person whose key is `person_key` as who `access`
+    /// is (`crate::session::SignInKept::record_person_key`). Whether the
+    /// sign-in names them now: one that will not take the record does not,
+    /// and nothing is kept of them. A sign-in that cannot record them is
+    /// said by the session once, as `session.keep-failed`, and the client
+    /// keeps nothing more for the rest of its life, whoever it kept for:
+    /// nothing is written, or recorded, after it. A client no session owns
+    /// records nothing.
+    pub async fn record_person_key(&self, access: &str, person_key: &str) -> bool {
+        self.browse.record_person_key(access, person_key).await
+    }
+
+    /// Write nothing more of what the client keeps, for the rest of its
+    /// life: what its session does before it forgets its saved sign-in. It
+    /// returns once a write under way has finished, its check of the
+    /// sign-in included, so nothing the forget then deletes is written
+    /// after it.
+    pub(crate) async fn stop_persisting(&self) {
+        self.browse.stop_persisting().await;
     }
 
     /// Stop. The queries end first, so nothing they had in flight asks
-    /// again of a transport that is going; then the transport closes, so
-    /// every stream ends and every request still pending fails as closed;
-    /// then the client's own bus ends. Closing twice is closing once.
+    /// again of a transport that is going, and the save each owed is made,
+    /// and waited for: one its storage refuses is said, by a session that
+    /// owns the client, before the session ends. Then the transport closes,
+    /// so every stream ends and every request still pending fails as
+    /// closed; then the client's own bus ends. Closing twice is closing
+    /// once.
+    ///
+    /// Before anything is disposed, the places the closing flush may write
+    /// are taken: those noted so far, when no fetch is in flight and no
+    /// refetch is owed. A save then owed does not hold them back, because
+    /// the flush is that save.
     pub async fn close(&self) {
+        // Before anything is disposed: disposing the refresher clears what
+        // it owed, and disposing a cache drops its fetch in flight.
+        if let Some(places) = self.refresher.places() {
+            places.close(|| !self.refresher.owes_a_refetch() && !self.browse.kept_fetching());
+        }
         self.refresher.dispose();
         self.browse.dispose();
         self.gather.dispose();
         self.match_.dispose();
+        self.browse.flushed().await;
         self.transport.close().await;
         self.own.destroy();
     }

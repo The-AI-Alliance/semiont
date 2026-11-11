@@ -141,13 +141,13 @@ sessionCases fixtures=do
   Stored.storeSession store "consumer-kb" grant
   let kb=KnowledgeBase "did:web:consumer.test" (KbEndpointBranch2 (LocalEndpoint "consumer-kb" LocalEndpointKindLocal mempty)) "consumer-kb" "Consumer" Nothing mempty
   bracket Signals.newSessionSignals Signals.dispose $ \signals -> do
-    let inputs=Factory.SessionFactoryOptions kb store signals (const (pure ()))
+    let inputs=Factory.SessionFactoryOptions kb store signals
     bracket (Factory.openSession (Sessions.factory scripted) inputs) Session.closeOpenedSession $ \opened -> do
       Session.ready (Session.openedSession opened)
       require "scripted factory did not build a real validating session" . (==Just user) =<< atomically (State.current (Session.user (Session.openedSession opened)))
       require "scripted factory did not retain its carrier" . (==1) . length =<< Sessions.transports scripted "consumer-kb"
       let options=Session.SessionOptions "borrowed" (Session.kb (Session.openedSession opened)) (Stored.keptIn store "none") Nothing Nothing Nothing
-            (const (pure ())) (const (pure ())) (pure 1800000000)
+            (const (pure ())) (pure 1800000000)
       bracket (Testing.createTestSession (Testing.TestSessionOptions (Session.client (Session.openedSession opened)) options clock Timing.protocolSettings)) Testing.closeTestSession $ \made ->
         Session.ready (Testing.testSessionSession made)
       require "test session disposed its borrowed client" . (/=Transport.Closed) =<< atomically (State.current (Client.state (Session.client (Session.openedSession opened))))

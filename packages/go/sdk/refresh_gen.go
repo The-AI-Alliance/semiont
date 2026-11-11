@@ -4,7 +4,10 @@
 
 package semiont
 
-import "github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+import (
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+)
 
 // CacheQuery is a live query a client's cache answers.
 type CacheQuery string
@@ -52,6 +55,25 @@ const (
 
 // CacheQueries is every live query, in the table's order.
 var CacheQueries = []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents, CacheQueryReferencedBy, CacheQueryResources, CacheQueryMatchedResources, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryEngines}
+
+// PersistedCacheQueries is every live query a client keeps in its storage,
+// in the table's order: each under its name (CacheKey).
+var PersistedCacheQueries = []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEntityTypes, CacheQueryTagSchemas}
+
+// The type of the value each live query's cache holds for a key: the table's
+// `value`, a component or a member within one.
+type (
+	resourceValue         = api.ResourceDescriptor
+	annotationsValue      = api.GetAnnotationsResponse
+	annotationValue       = api.Annotation
+	eventsValue           = []api.AttributedEvent
+	referencedByValue     = []api.GetReferencedByResponseReferencedByItem
+	resourcesValue        = api.ListResourcesResponse
+	matchedResourcesValue = api.MatchResourcesResponse
+	entityTypesValue      = []string
+	tagSchemasValue       = []api.TagSchema
+	enginesValue          = []api.EngineEntry
+)
 
 // CacheRefreshTrigger is what refreshes a client's cache: a channel of the
 // bus, the stream open again after a drop, or an event on one of the table's
@@ -310,4 +332,14 @@ func applyRefresh(acts cacheActs, row CacheRefresh, subject cacheSubject) {
 			acts.refetchEngines(row.Reach, subject)
 		}
 	}
+}
+
+// attach has the caches of the queries the table persists keep their values
+// in persistence from now on, each beginning with what it kept.
+func (v *live) attach(persistence *CachePersistence) {
+	keepIn(v.resource, persistence, CacheQueryResource, v.links.timing)
+	keepIn(v.annotations, persistence, CacheQueryAnnotations, v.links.timing)
+	keepIn(v.annotation, persistence, CacheQueryAnnotation, v.links.timing)
+	keepIn(v.entityTypes, persistence, CacheQueryEntityTypes, v.links.timing)
+	keepIn(v.tagSchemas, persistence, CacheQueryTagSchemas, v.links.timing)
 }

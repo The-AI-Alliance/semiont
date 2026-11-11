@@ -152,6 +152,7 @@ class SignInStoreTest {
                     clientId = SCRIPT_CLIENT_ID,
                     tokenEndpoint = issuer.tokenEndpoint,
                     revocationEndpoint = null,
+                    personKey = null,
                 )
             }
             stores.another.keep(signIn(row.getValue("kept")))
@@ -277,7 +278,7 @@ class SignInStoreTest {
     }
 
     private fun held(access: String, refresh: String = "refresh-1", revocation: String? = "$ISSUER/revoke") =
-        HeldSignIn(access, refresh, SCRIPT_CLIENT_ID, "$ISSUER/token", revocation)
+        HeldSignIn(access, refresh, SCRIPT_CLIENT_ID, "$ISSUER/token", revocation, null)
 
     private fun entryOf(path: Path, key: String): JsonObject = SignInStore(path).read().getValue(key).jsonObject
 
@@ -383,7 +384,7 @@ class SignInStoreTest {
         val kept = SignInStore(path).entry("local")
         // What another client was issued would be renewed here as the wrong client.
         val wrongClient = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException::class.java) {
-            runBlocking { kept.keep(HeldSignIn(signedIn(1), "r", "semiont-browser", "$ISSUER/token", null)) }
+            runBlocking { kept.keep(HeldSignIn(signedIn(1), "r", "semiont-browser", "$ISSUER/token", null, null)) }
         }
         assertTrue(wrongClient.message!!.contains("semiont-browser"))
         // A gateway admits no token from an issuer it does not trust.
@@ -469,4 +470,62 @@ class SignInStoreTest {
         store.entry("local").forget()
         assertEquals(others, store.read())
     }
+
+    // ── Who the gateway named ────────────────────────────────────────────
+
+    @Test
+    fun aSignInKeptInMemoryRecordsWhoTheGatewayNamedOnTheSignInItWasAskedAbout() = runBlocking {
+        namingIsRecordedOnTheSignInAskedAbout(MemorySignIn())
+    }
+
+    @Test
+    fun theStoreHasNoPlaceForWhoTheGatewayNamedAndRecordsNothing(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        val kept = SignInStore(path).entry("local")
+        val first = held(signedIn(1))
+        kept.keep(first)
+        val before = SignInStore(path).read()
+        assertFalse(kept.recordPersonKey(first.access, "the key of jo"))
+        assertEquals(before, SignInStore(path).read())
+        assertEquals(first, kept.held())
+    }
+}
+
+/**
+ * What keeps a sign-in records who the gateway named on the sign-in whose
+ * token it was asked about, and on no other: not on one that holds another
+ * token, nor over another person it names already. Naming again the person it
+ * names is recorded. A renewal keeps the person; a new sign-in kept in its
+ * place names nobody. `kept` begins with nothing kept.
+ */
+internal suspend fun namingIsRecordedOnTheSignInAskedAbout(kept: SignInKept) {
+    val jo = "the key of jo"
+    val ann = "the key of ann"
+    fun signIn(access: String, refresh: String, personKey: String?) = HeldSignIn(access, refresh, "semiont-browser", "https://issuer.test/token", null, personKey)
+
+    // Nothing kept: nothing is recorded, and nothing is written.
+    assertFalse(kept.recordPersonKey("a1", jo))
+    assertEquals(null, kept.held())
+
+    kept.keep(signIn("a1", "r1", null))
+    // The gateway was asked about a token this sign-in does not hold.
+    assertFalse(kept.recordPersonKey("a0", jo))
+    assertEquals(signIn("a1", "r1", null), kept.held())
+    assertTrue(kept.recordPersonKey("a1", jo))
+    assertEquals(signIn("a1", "r1", jo), kept.held())
+    // Named again, they are recorded already; another person is not written over them.
+    assertTrue(kept.recordPersonKey("a1", jo))
+    assertFalse(kept.recordPersonKey("a1", ann))
+    assertEquals(signIn("a1", "r1", jo), kept.held())
+
+    // A renewal keeps the person.
+    assertEquals("a2", kept.renewed(signIn("a1", "r1", jo), "a2", "r2"))
+    assertEquals(signIn("a2", "r2", jo), kept.held())
+    assertTrue(kept.recordPersonKey("a2", jo))
+
+    // A new sign-in in its place names nobody, until the gateway names its person.
+    kept.keep(signIn("a3", "r3", null))
+    assertEquals(signIn("a3", "r3", null), kept.held())
+    assertTrue(kept.recordPersonKey("a3", ann))
+    assertEquals(signIn("a3", "r3", ann), kept.held())
 }

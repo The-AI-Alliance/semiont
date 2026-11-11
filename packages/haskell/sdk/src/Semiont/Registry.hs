@@ -14,12 +14,12 @@ module Semiont.Registry
   ) where
 
 import Control.Concurrent (myThreadId)
-import Control.Concurrent.Async (Async, asyncThreadId, cancel, wait, mapConcurrently)
+import Control.Concurrent.Async (Async, asyncThreadId, wait, waitCatch, waitCatchSTM, mapConcurrently)
 import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 import Control.Concurrent.QSem (newQSem, waitQSem, signalQSem)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Exception (SomeException, SomeAsyncException, bracket, bracket_, finally, fromException, mask, onException, throwIO, try)
+import Control.Exception (SomeException, SomeAsyncException, bracket, bracket_, catch, finally, fromException, mask, onException, throwIO, try)
 import Control.Monad (forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (FromJSON, ToJSON, Value(..), eitherDecodeStrict', encode, fromJSON, toJSON, Result(..))
@@ -48,8 +48,6 @@ import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.Stored as Kept
 import qualified Semiont.Timing as Timing
-import qualified Semiont.Internal.Generated.CachePersistence as Persistent
-import qualified Semiont.Internal.Generated.Stored as StoredKeys
 import qualified Semiont.Tokens as Tokens
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Issuer as Issuer
@@ -83,7 +81,7 @@ data SemiontBrowser = SemiontBrowser
   , identity :: State.StateValue (Maybe Text), failures :: Broadcast.Broadcast SessionError
   , openByKb :: TVar (KM.KeyMap Value), viewedByKb :: TVar (KM.KeyMap Value)
   , detach :: TVar (IO ()), backgroundFailures :: TVar [SomeException]
-  , registryBus :: Local.EventBus, retired :: TQueue Live, closing :: MVar (Maybe (Async ()))
+  , registryBus :: Local.EventBus, retired :: TQueue Live, closing :: MVar (Maybe (Async ())), disposing :: TVar Bool
   }
 
 storage :: SemiontBrowser -> Storage.SessionStorage
@@ -143,7 +141,7 @@ newSemiontBrowser config = mask $ \restore -> do
     <*> State.newStateValue initial <*> State.newStateValue chosen <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> State.newStateValue False <*> State.newStateValue [] <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> Broadcast.newEvents <*> newTVar (fromMaybe KM.empty (document rawOpened)) <*> newTVar (fromMaybe KM.empty (document rawViewed))
-    <*> newTVar (pure ()) <*> newTVar [] <*> pure applicationBus <*> newTQueue <*> pure closer
+    <*> newTVar (pure ()) <*> newTVar [] <*> pure applicationBus <*> newTQueue <*> pure closer <*> newTVar False
   let initialize=do
         saveKnowledgeBases store initial
         maybe (Storage.delete store activeKey) (Storage.set store activeKey) chosen
@@ -176,7 +174,7 @@ project owner=do
       State.update (viewed owner) (KM.lookup key lastSeen >>= readValue)
 
 closeLive :: Live -> IO ()
-closeLive (Live _ openedSession signals routing)=Session.closeOpenedSession openedSession `finally` (cancel routing `finally` Signals.dispose signals)
+closeLive (Live _ openedSession signals routing)=Session.closeOpenedSession openedSession `finally` (void (waitCatch routing) `finally` Signals.dispose signals)
 takeLive :: SemiontBrowser -> STM (Maybe Live)
 takeLive owner=do
   previous <- readTVar (live owner)
@@ -195,9 +193,11 @@ drainRetired owner=do
 setActiveKb :: SemiontBrowser -> Maybe Text -> IO ()
 setActiveKb owner requested=Lifetime.run (lifetime owner) $ mask $ \restore -> do
   selectedVersion <- atomically $ do
+    ending <- readTVar (disposing owner)
     existing <- readTVar (live owner)
     current <- State.current (selected owner)
     case existing of
+      _ | ending -> pure Nothing
       Just _ | current==requested -> pure Nothing
       _ -> do
         modifyTVar' (revision owner) (+1)
@@ -227,7 +227,7 @@ activate owner version key=do
       held <- readTVarIO (live owner)
       case held of Just (Live actual _ _ _) | actual==version -> pure (); _->Signals.dispose signals) $ \signals -> do
       let failed failure=atomically (Broadcast.publish (failures owner) failure)
-          options=SessionFactoryOptions entry (storage owner) signals failed
+          options=SessionFactoryOptions entry (storage owner) signals
       acquired <- try (openSession (registryFactory (configuration owner)) options)
       case acquired of
         Left (problem::SomeException) | Just (_::SomeAsyncException)<-fromException problem -> throwIO problem
@@ -239,12 +239,24 @@ activate owner version key=do
           Nothing -> throwIO problem
         Right openedSession -> do
           let session=Session.openedSession openedSession
-              route failure=atomically $ do
-                case transportErrorCode failure of
-                  Code.TransportForbidden -> Signals.notifyPermissionDenied signals (Just (transportErrorMessage failure))
-                  _ -> pure ()
-          routing <- Lifetime.start (lifetime owner) (Session.errors session (Stream.mapM_ route))
+              route (Left failure)=failed failure
+              route (Right failure)=case transportErrorCode failure of
+                -- A failure does not say which token was refused: the one the
+                -- session holds as it is read is. Refusals read together are
+                -- answered by one renewal, which the session says the outcome of.
+                Code.TransportUnauthorized -> do
+                  held <- atomically (State.current (Session.token session))
+                  spawn owner (void (Session.refresh session held `catch` \(problem::BusRequestError) ->
+                    if busRequestErrorCode problem==Code.BusRequestClosed then pure Nothing else throwIO problem))
+                Code.TransportForbidden -> atomically (Signals.notifyPermissionDenied signals (Just (transportErrorMessage failure)))
+                _ -> pure ()
+          -- The registry reads first: what the session said before anyone
+          -- read is kept for its first reader.
+          subscribed <- newEmptyTMVarIO
+          routing <- Lifetime.start (lifetime owner)
+            (Session.errors session (\failures -> atomically (putTMVar subscribed ()) >> Stream.mapM_ route failures))
             `onException` Session.closeOpenedSession openedSession
+          atomically (readTMVar subscribed `orElse` void (waitCatchSTM routing))
           let owned=Live version openedSession signals routing
           ready <- try (Session.ready session)
           case ready of
@@ -252,8 +264,7 @@ activate owner version key=do
             Right () -> do
               accepted <- atomically $ do
                 current <- readTVar (revision owner)
-                stopped <- Lifetime.isClosed (lifetime owner)
-                if current/=version || stopped then pure False else do
+                if current/=version then pure False else do
                   writeTVar (live owner) (Just owned)
                   State.update (connected owner) (Just session)
                   State.update (notices owner) (Just signals)
@@ -287,12 +298,17 @@ updateKb owner key label reading=Lifetime.run (lifetime owner) $ void $ writeKbs
   if knowledgeBaseId entry/=key then entry else entry
     {knowledgeBaseLabel=fromMaybe (knowledgeBaseLabel entry) label,knowledgeBaseLastRead=case reading of Nothing->knowledgeBaseLastRead entry; Just value->Just value}
 
+-- | The replaced sign-in's session is closed before what was kept of the
+-- person it named is forgotten: a write it was making lands first, and it
+-- writes nothing after.
 signIn :: SemiontBrowser -> Text -> StoredSession -> IO ()
 signIn owner key grant=Lifetime.run (lifetime owner) $ do
-  storeSession (storage owner) key grant
+  previous <- Kept.swapStoredSession (storage owner) key grant
   atomically $ do
     current <- State.current (selected owner)
     when (current==Just key) (modifyTVar' (revision owner) (+1) >> void (takeLive owner))
+  withMVar (activation owner) (const (drainRetired owner))
+  Kept.forgetNamed (storage owner) key previous
   setActiveKb owner (Just key)
 
 kbSessionStatus :: SemiontBrowser -> Text -> IO KbSessionStatus
@@ -331,14 +347,14 @@ signedIn owner completed=Lifetime.run (lifetime owner) $ do
 
 signOut :: SemiontBrowser -> Text -> IO ()
 signOut owner key=Lifetime.run (lifetime owner) $ do
-  grant <- storedSession (storage owner) key
-  clearStoredSession (storage owner) key
+  grant <- Kept.takeStoredSession (storage owner) key
   forM_ grant (spawn owner . revokeSession (registryFactory (configuration owner)))
   atomically $ do
     current <- State.current (selected owner)
     State.current (registered owner) >>= State.update (registered owner)
     when (current==Just key) (modifyTVar' (revision owner) (+1) >> void (takeLive owner))
   withMVar (activation owner) (const (drainRetired owner))
+  Kept.forgetNamed (storage owner) key grant
 
 changeDocument :: SemiontBrowser -> Text -> (KM.KeyMap Value -> KM.KeyMap Value) -> IO (KM.KeyMap Value)
 changeDocument owner key transform=do
@@ -349,19 +365,15 @@ changeDocument owner key transform=do
 
 removeKb :: SemiontBrowser -> Text -> IO ()
 removeKb owner key=Lifetime.run (lifetime owner) $ do
-  clearStoredSession (storage owner) key
+  grant <- Kept.takeStoredSession (storage owner) key
   opens <- changeDocument owner openResourcesByKbKey (KM.delete (Key.fromText key))
   lastSeen <- changeDocument owner lastViewedResourceByKbKey (KM.delete (Key.fromText key))
   entries <- writeKbs owner (filter ((/=key) . knowledgeBaseId))
   atomically (writeTVar (openByKb owner) opens >> writeTVar (viewedByKb owner) lastSeen >> project owner)
   current <- atomically (State.current (selected owner))
   when (current==Just key) (setActiveKb owner (case entries of first:_->Just (knowledgeBaseId first); []->Nothing))
-  -- Close its client before deleting documents: the final cache flush must
-  -- not recreate data belonging to a registry entry that was removed.
   withMVar (activation owner) (const (drainRetired owner))
-  forM_ [minBound..maxBound] $ \query -> Storage.delete (storage owner)
-    (StoredKeys.cacheKeyPrefix<>key<>"."<>Persistent.persistedQueryName query)
-  Storage.delete (storage owner) (StoredKeys.lastEventIdKeyPrefix<>key)
+  Kept.forgetNamed (storage owner) key grant
 
 currentKey :: SemiontBrowser -> STM (Maybe Text)
 currentKey owner=do current<-readTVar (live owner); pure (case current of Nothing->Nothing; Just (Live _ openedSession _ _)->Just (Session.id (Session.openedSession openedSession)))
@@ -478,7 +490,7 @@ completeSignIn owner callback=Lifetime.run (lifetime owner) $ do
   (pending,tokens) <- Issuer.completeAuthorization (issuer owner) callback (storage owner)
   identityProof <- Connection.describeConnection (registryHttp (configuration owner)) (pendingAuthorizationTarget pending) (issuedTokensAccess tokens)
   let endpoints=pendingAuthorizationIssuer pending
-      grant=StoredSession (issuedTokensAccess tokens) Issuer.browserClientId (issuedTokensRefresh tokens) (issuerEndpointsRevocation endpoints) (issuerEndpointsToken endpoints) mempty
+      grant=StoredSession (issuedTokensAccess tokens) Issuer.browserClientId Nothing (issuedTokensRefresh tokens) (issuerEndpointsRevocation endpoints) (issuerEndpointsToken endpoints) mempty
       completed=SignedIn (connectionIdentityDescription identityProof) (KbEndpointBranch1 (pendingAuthorizationTarget pending))
         (pendingAuthorizationExpectedDid pending) (pendingAuthorizationExpectedName pending) (pendingAuthorizationKbId pending) grant
   signedIn owner completed
@@ -488,19 +500,16 @@ dispose owner=mask $ \restore -> do
   closer <- modifyMVar (closing owner) $ \prior -> case prior of
     Just worker -> pure (prior,worker)
     Nothing -> do
-      atomically (modifyTVar' (revision owner) (+1))
+      atomically (modifyTVar' (revision owner) (+1) >> writeTVar (disposing owner) True)
       worker <- tracedAsync $ do
-        Lifetime.close (lifetime owner) `finally` do
+        let closeViews=atomically $ do
+              State.complete (registered owner); State.complete (selected owner); State.complete (connected owner); State.complete (notices owner)
+              State.complete (activating owner); State.complete (opened owner); State.complete (viewed owner); State.complete (identity owner)
+              Broadcast.close (failures owner)
+        -- Sessions close while the registry's work still runs, so each one's errors are read to their end.
+        (atomically (void (takeLive owner)) >> drainRetired owner) `finally` (Lifetime.close (lifetime owner) `finally` do
           unsubscribe <- atomically $ do action<-readTVar (detach owner); writeTVar (detach owner) (pure ()); pure action
-          unsubscribe `finally` do
-            let closeConnections=withMVar (activation owner) $ \() -> do
-                  atomically (void (takeLive owner))
-                  drainRetired owner
-                closeViews=atomically $ do
-                  State.complete (registered owner); State.complete (selected owner); State.complete (connected owner); State.complete (notices owner)
-                  State.complete (activating owner); State.complete (opened owner); State.complete (viewed owner); State.complete (identity owner)
-                  Broadcast.close (failures owner)
-            closeConnections `finally` (Local.closeEventBus (registryBus owner) `finally` closeViews)
+          unsubscribe `finally` (Local.closeEventBus (registryBus owner) `finally` closeViews))
         problems <- readTVarIO (backgroundFailures owner)
         case problems of first:_->throwIO first; []->pure ()
       pure (Just worker,worker)

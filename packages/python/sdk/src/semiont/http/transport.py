@@ -212,6 +212,15 @@ class HttpTransport(Transport, GatewayOperations):
     def bridge_into(self, bus: FrameSink) -> None:
         self._hub.bridge(bus)
 
+    def attach_bookmarks(self, bookmarks: Bookmarks) -> None:
+        """Keep each scope's place in `bookmarks` from now on, as one given them when it was made would.
+
+        A scope the stream holds a place for keeps it; any other begins where
+        they say the next time the stream asks for it. A session made before
+        it knew who its person is gives it this once the gateway says.
+        """
+        self._stream.attach_bookmarks(bookmarks)
+
     @override
     def subscribe_to_resource(self, resource_id: ResourceId) -> ResourceHold:
         held = self._holds.get(resource_id, 0)

@@ -270,3 +270,16 @@ func TestReadingGeneratedSchemasPreservesRequiredMembers(t *testing.T) {
 		t.Fatalf("generated required members were not read: %#v", table)
 	}
 }
+
+// A value is held to a component schema by its name, as a value of no type of
+// package api's is.
+func TestAValueIsHeldToTheSchemaItsNameNames(t *testing.T) {
+	for value, want := range map[string]bool{"p-res-1-47": true, "p-a-b-1": true, "e-res-1-47": false, "p-7": false, "p-res-1-": false, "p-a\n-1": false} {
+		if got := Holds("PersistedEventId", value); got != want {
+			t.Errorf("%q is held to PersistedEventId: %v, want %v", value, got, want)
+		}
+	}
+	if Holds("PersistedEventId", 47.0) {
+		t.Error("a number is held to PersistedEventId")
+	}
+}

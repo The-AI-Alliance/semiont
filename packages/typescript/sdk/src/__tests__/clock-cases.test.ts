@@ -37,7 +37,7 @@ import { httpKb } from '../session/knowledge-base';
 import { signInWithDeviceGrant } from '../session/oauth';
 import { SemiontSession, type UserInfo } from '../session/semiont-session';
 import { InMemorySessionStorage } from '../session/session-storage';
-import { setStoredSession } from '../session/storage';
+import { keptIn, setStoredSession } from '../session/storage';
 import { createTestClient, refuseUnscriptedOperation, type FaultyTransport } from '../testing';
 import { mockAnnotation } from './fixtures/annotation';
 
@@ -461,7 +461,7 @@ async function renewal(given: JsonObject | undefined, held: Held): Promise<Subje
   const { client } = createTestClient();
   const session = new SemiontSession({
     kb: KB,
-    storage,
+    kept: keptIn(storage, KB.id),
     client,
     token$: new BehaviorSubject<AccessToken | null>(null),
     refresh: async () => {

@@ -14,7 +14,7 @@
 
 import type { BaseUrl, AccessToken, CacheQuery } from '@semiont/core';
 import { Bus, EventBus, accessToken, baseUrl } from '@semiont/core';
-import type { SessionStorage } from './session/session-storage';
+import { sealPlaces, type CachePersistence } from './cache-persister';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace, type BROWSE_QUERIES } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
@@ -141,10 +141,11 @@ export class SemiontClient {
     gateway?: IGatewayOperations,
     options?: {
       /**
-       * B17 — cache persistence through the environment's SessionStorage
-       * adapter (keyPrefix = KB id). Omitted = in-memory-only caches.
+       * B17 — keep the persisted queries' values, for one knowledge base and
+       * one person, from construction on. Omitted = in-memory-only caches,
+       * until `browse.attachPersistence`.
        */
-      cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+      cachePersistence?: CachePersistence;
       /**
        * `Bus.request` timeout for the browse caches — threads through to
        * `BrowseNamespace`'s deterministic-time knob, there so the liveness
@@ -207,6 +208,11 @@ export class SemiontClient {
   }
 
   dispose(): void {
+    // B17: the places coupled to this client are sealed before anything is
+    // disposed. Disposing drops a kept cache's fetch in flight and a refetch
+    // the refresher owes, so either holds the places back from the saves
+    // disposal makes; a save owed does not, since disposal makes it.
+    sealPlaces(this, this.browse.fetchesSettled());
     // The live queries first: completing their caches stops any SWR
     // fetch/retry chain from issuing new requests into a transport that's
     // about to go away (B16 — a chain straddling teardown must die quietly,
@@ -236,12 +242,13 @@ export class SemiontClient {
    * `SemiontClient`.
    *
    * Use this for one-shot scripts, CLI commands, or any consumer that
-   * doesn't need to drive the token from outside (no manual refresh,
-   * no cross-tab sync). For long-running scripts that need refresh,
-   * use `SemiontSession.fromHttp(...)` (with a token already on hand)
-   * or `SemiontSession.signInDevice(...)` (sign in at the issuer) instead —
-   * either owns the same transport/client wiring plus the
-   * proactive-refresh + storage machinery.
+   * doesn't need to drive the token from outside (no manual refresh).
+   * For long-running scripts that need refresh, use
+   * `SemiontSession.fromKept(...)` over a kept sign-in (one
+   * `SemiontSession.signInDevice(...)` kept, or `semiont login`'s) or
+   * `SemiontSession.fromHttp(...)` (with a token already on hand) instead —
+   * either owns the same transport/client wiring plus the proactive
+   * refresh and the kept sign-in.
    *
    * Strings are accepted for `baseUrl` and `token`; they are branded
    * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.

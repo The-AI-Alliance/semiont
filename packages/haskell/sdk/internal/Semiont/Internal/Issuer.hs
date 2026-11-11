@@ -7,13 +7,12 @@ module Semiont.Internal.Issuer
   , Answer(..), requestJson, requiredText, configuration, number
   , browserClientId, scriptClientId, signInScope
   , discoverIssuer, codeChallenge, beginAuthorization, completeAuthorization
-  , refreshAtIssuer, refreshSession, revokeAtIssuer, signInWithDeviceGrant
+  , refreshAtIssuer, refreshSession, revokeAtIssuer, revokeStored, signInWithDeviceGrant
   ) where
 
 import Control.Concurrent.Async (race)
-import Control.Exception (throwIO, try)
+import Control.Exception (catch, throwIO, try)
 import Control.Monad (unless, when)
-import Crypto.Hash (Digest, SHA256, hash)
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (FromJSON, Value(..), encode, eitherDecodeStrict', fromJSON, Result(..))
 import qualified Data.Aeson.Key as Key
@@ -35,6 +34,7 @@ import Network.URI (parseURI, uriAuthority, uriUserInfo, uriScheme, uriFragment,
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors (SignInError(..))
 import qualified Semiont.Gateway as Gateway
+import Semiont.Internal.Digest (sha256Base64Url)
 import Semiont.Internal.Http (HttpClient(..))
 import qualified Semiont.Http.Routes as Route
 import Semiont.Internal.Generated.OAuth
@@ -127,7 +127,7 @@ configuration options identity = do
   pure doc
 
 codeChallenge :: Text -> Text
-codeChallenge verifier = decodeUtf8 (Base64.encodeUnpadded (Memory.convert (hash (encodeUtf8 verifier) :: Digest SHA256)))
+codeChallenge = sha256Base64Url
 randomUrlSafe :: Int -> IO Text
 randomUrlSafe count = decodeUtf8 . Base64.encodeUnpadded <$> (getRandomBytes count :: IO Bytes.ByteString)
 
@@ -203,6 +203,14 @@ revokeAtIssuer options endpoint identity refresh = do
   Answer status _ <- requestJson options Code.SignInExchange endpoint
     (Just [("token",refresh),("token_type_hint","refresh_token"),("client_id",identity)])
   unless (status==200) (failWith Code.SignInExchange "The issuer refused revocation" (Just status))
+
+-- | A stored sign-in's refresh token revoked at the issuer, where the sign-in names a revocation endpoint: whether the
+-- issuer revoked it.
+revokeStored :: IssuerOptions -> StoredSession -> IO Bool
+revokeStored options held = case storedSessionRevocationEndpoint held of
+  Nothing -> pure False
+  Just endpoint -> (True <$ revokeAtIssuer options endpoint (storedSessionClientId held) (storedSessionRefresh held))
+    `catch` \(_ :: SignInError) -> pure False
 
 signInWithDeviceGrant :: IssuerOptions -> HttpEndpoint -> (DeviceCode -> IO ()) -> IO (IssuerEndpoints, IssuedTokens)
 signInWithDeviceGrant options target onCode = do

@@ -10,6 +10,7 @@ package registry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -50,6 +51,12 @@ type StoredSession struct {
 	TokenEndpoint string `json:"tokenEndpoint"`
 	// RevocationEndpoint is "" when the issuer has none.
 	RevocationEndpoint string `json:"revocationEndpoint,omitempty"`
+	// PersonKey is who the gateway said the sign-in's person is, as the key
+	// what is kept of them is kept under (semiont.PersonKey): nil until it
+	// has said. A renewal keeps it; a new sign-in has none; forgetting the
+	// saved sign-in, however it is forgotten, a new sign-in kept in its place
+	// among the ways, deletes what is kept under it.
+	PersonKey *string `json:"personKey,omitempty"`
 }
 
 // readStoredSession is a stored value as a session; false for one that is
@@ -68,11 +75,11 @@ func (s StoredSession) written() string {
 }
 
 func (s StoredSession) held() semiont.HeldSignIn {
-	return semiont.HeldSignIn{Access: s.Access, Refresh: s.Refresh, ClientID: s.ClientID, TokenEndpoint: s.TokenEndpoint, RevocationEndpoint: s.RevocationEndpoint}
+	return semiont.HeldSignIn{Access: s.Access, Refresh: s.Refresh, ClientID: s.ClientID, TokenEndpoint: s.TokenEndpoint, RevocationEndpoint: s.RevocationEndpoint, PersonKey: s.PersonKey}
 }
 
 func storedOf(held semiont.HeldSignIn) StoredSession {
-	return StoredSession{Access: held.Access, Refresh: held.Refresh, ClientID: held.ClientID, TokenEndpoint: held.TokenEndpoint, RevocationEndpoint: held.RevocationEndpoint}
+	return StoredSession{Access: held.Access, Refresh: held.Refresh, ClientID: held.ClientID, TokenEndpoint: held.TokenEndpoint, RevocationEndpoint: held.RevocationEndpoint, PersonKey: held.PersonKey}
 }
 
 // StoredSessionOf is the session stored for a knowledge base; false when
@@ -85,16 +92,31 @@ func StoredSessionOf(storage semiont.SessionStorage, kbID string) (StoredSession
 	return readStoredSession(stored)
 }
 
-// StoreSession stores a knowledge base's session, in place of what was
-// stored; the error when the storage could not.
+// StoreSession stores a new sign-in for a knowledge base in place of the one
+// stored, then forgets what its sessions kept of the person the replaced one
+// named (forgetKept): a new sign-in names nobody until its gateway names
+// them, whoever they turn out to be, so keeping one forgets the saved sign-in
+// it replaces. The error when the storage could not.
 func StoreSession(storage semiont.SessionStorage, kbID string, session StoredSession) error {
-	return storage.Set(SessionKey(kbID), session.written())
+	return replaceStoredSession(storage, kbID, &session)
 }
 
-// ClearStoredSession forgets a knowledge base's session; the error when the
-// storage could not.
+// ClearStoredSession forgets a knowledge base's stored session, then what its
+// sessions kept of the person it named (forgetKept): forgetting a saved
+// sign-in deletes its person's entries. The error when the storage could not.
 func ClearStoredSession(storage semiont.SessionStorage, kbID string) error {
-	return storage.Delete(SessionKey(kbID))
+	return replaceStoredSession(storage, kbID, nil)
+}
+
+// replaceStoredSession puts next in place of a knowledge base's stored
+// session, or nothing for nil, then forgets what was kept of the person the
+// one it replaced named (forgetKept).
+func replaceStoredSession(storage semiont.SessionStorage, kbID string, next *StoredSession) error {
+	replaced, _, err := swapStoredSession(storage, kbID, next)
+	if err != nil {
+		return err
+	}
+	return forgetKept(storage, kbID, replaced.PersonKey)
 }
 
 // LoadKnowledgeBases is the registered knowledge bases. Each entry is read on
@@ -155,7 +177,9 @@ func SaveKnowledgeBases(storage semiont.SessionStorage, kbs []api.KnowledgeBase)
 // KeptIn is a knowledge base's sign-in as a session keeps it, in a registry's
 // storage, under SessionKey(kbID). A renewal is written as one step against
 // what is stored then, so one made meanwhile by another session or context
-// stands.
+// stands, and keeps the person the sign-in names. Keeping a new sign-in, and
+// forgetting the sign-in, forget what was kept of the person the one stored
+// named (StoreSession, ClearStoredSession).
 func KeptIn(storage semiont.SessionStorage, kbID string) semiont.SignInKept {
 	return keptIn{storage: storage, kbID: kbID}
 }
@@ -194,8 +218,65 @@ func (k keptIn) Renewed(_ context.Context, read semiont.HeldSignIn, access, refr
 	return current, kept, err
 }
 
+// RecordPersonKey records personKey on the stored session, as
+// semiont.SignInKept says, in one update of the storage: only while it holds
+// access and names no person.
+func (k keptIn) RecordPersonKey(_ context.Context, access, personKey string) (bool, error) {
+	var names bool
+	err := k.storage.Update(SessionKey(k.kbID), func(stored string, has bool) (string, bool) {
+		session, ok := readStoredSession(stored)
+		if !has || !ok || session.Access != access {
+			return stored, has
+		}
+		if session.PersonKey != nil {
+			names = *session.PersonKey == personKey
+			return stored, true
+		}
+		session.PersonKey, names = &personKey, true
+		return session.written(), true
+	})
+	return names, err
+}
+
+// Forget forgets the stored session, and what was kept of the person it named
+// (ClearStoredSession). A session whose sign-in is forgotten while its client
+// is open writes nothing more there (semiont.SessionFromKeptConfig's Storage).
 func (k keptIn) Forget(context.Context) error {
 	return ClearStoredSession(k.storage, k.kbID)
+}
+
+// swapStoredSession puts next in place of a knowledge base's stored session,
+// or nothing for nil, as one step with reading what was stored: the session
+// it replaced, and false when nothing was.
+func swapStoredSession(storage semiont.SessionStorage, kbID string, next *StoredSession) (StoredSession, bool, error) {
+	var replaced StoredSession
+	var was bool
+	err := storage.Update(SessionKey(kbID), func(stored string, has bool) (string, bool) {
+		if has {
+			replaced, was = readStoredSession(stored)
+		}
+		if next == nil {
+			return "", false
+		}
+		return next.written(), true
+	})
+	return replaced, was, err
+}
+
+// forgetKept deletes what a session's client kept, in a knowledge base's
+// storage, of the person a forgotten sign-in named, whose key is personKey:
+// the key of each persisted query and the stream's places', whether or not
+// each holds anything. A sign-in that named nobody (nil) deletes nothing.
+// Every delete of what forgetting a saved sign-in deletes goes through it.
+func forgetKept(storage semiont.SessionStorage, kbID string, personKey *string) error {
+	if personKey == nil {
+		return nil
+	}
+	failed := []error{storage.Delete(semiont.LastEventIDKey(kbID, *personKey))}
+	for _, query := range semiont.PersistedCacheQueries {
+		failed = append(failed, storage.Delete(semiont.CacheKey(kbID, *personKey, query)))
+	}
+	return errors.Join(failed...)
 }
 
 // KbSessionStatus is what the credential stored for a knowledge base says,

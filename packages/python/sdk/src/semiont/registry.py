@@ -32,9 +32,14 @@ who it is and each open resource is checked against it:
   as it was written;
 - no answer is no verdict, and changes nothing.
 
-A request the gateway refuses for want of a valid token renews the session,
-and only a session whose issuer refuses to renew it is said to have expired. A request
-refused for lack of permission is said at once.
+**The registry is the one reader of each session's errors,** from the first
+thing the session said until they end, as the session does. Each of the
+session's own errors is said on the registry's `errors`. A request the gateway
+refuses for want of a valid token renews the session, handed the token it
+holds as the refusal is read, and only a session whose issuer refuses to renew
+it is said to have expired. A request refused for lack of permission is said
+at once, through the session's signals. A factory reads none of them, so a
+session a factory of the host's builds is read the same way.
 
 Every change to what is open is made against what the storage holds, as one
 step, so two contexts that each open a resource both keep theirs, and what
@@ -48,8 +53,8 @@ brought up, and on the way out the registry is closed, as `close` does.
 import asyncio
 import time
 import uuid
-from collections.abc import Callable, Coroutine, Iterable, Mapping, Sequence
-from contextlib import AbstractAsyncContextManager, AsyncExitStack
+from collections.abc import Callable, Coroutine, Generator, Iterable, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import TracebackType
@@ -71,11 +76,14 @@ from semiont.session_signals import KbIdentityConflict, SessionSignals
 from semiont.storage import SessionStorage
 from semiont.stored import (
     ACTIVE_KEY,
+    KEPT_QUERIES,
     KNOWLEDGE_BASES_KEY,
     LAST_VIEWED_RESOURCE_BY_KB_KEY,
     OPEN_RESOURCES_BY_KB_KEY,
     OpenResource,
     StoredSession,
+    cache_key,
+    last_event_id_key,
     session_key,
 )
 from semiont.timing import CHECKS_AT_ONCE_COUNT
@@ -124,13 +132,51 @@ def stored_session(storage: SessionStorage, kb_id: str) -> StoredSession | None:
 
 
 def store_session(storage: SessionStorage, kb_id: str, session: StoredSession) -> None:
-    """Store a knowledge base's session, in place of what was stored."""
-    storage.set(session_key(kb_id), session.model_dump_json(by_alias=True, exclude_none=True))
+    """Store a new sign-in for a knowledge base, in place of what was stored.
+
+    The sign-in it replaces is forgotten, and with it what a client kept for
+    the person it named (`_replacing`): a new sign-in names nobody until a
+    gateway names its person, even one who turns out to be the same.
+    """
+    with _replacing(storage, kb_id, session):
+        pass
 
 
 def clear_stored_session(storage: SessionStorage, kb_id: str) -> None:
-    """Forget a knowledge base's session."""
-    storage.delete(session_key(kb_id))
+    """Forget a knowledge base's saved sign-in, and with it what a client kept for the person it named (`_replacing`)."""
+    with _replacing(storage, kb_id, None):
+        pass
+
+
+def _forget_kept(storage: SessionStorage, kb_id: str, person_key: str) -> None:
+    """Delete what a client kept for one person on one knowledge base: every kept query's document, and the stream's places."""
+    for query in KEPT_QUERIES:
+        storage.delete(cache_key(kb_id, person_key, query))
+    storage.delete(last_event_id_key(kb_id, person_key))
+
+
+@contextmanager
+def _replacing(storage: SessionStorage, kb_id: str, replacement: StoredSession | None) -> Generator[StoredSession | None]:
+    """Forget a knowledge base's saved sign-in, however it is forgotten: one step puts `replacement`, or nothing, in its place.
+
+    The block is given the sign-in forgotten. Once the block is done, what a
+    client kept for the person it named is deleted, so a client the block
+    closed has had its last write deleted too. A sign-in that named nobody, or
+    nothing saved, deletes nothing. A client still open writes nothing once
+    its sign-in no longer names its person (`semiont.http.session`), so a
+    block may be empty.
+    """
+    read: list[StoredSession | None] = []
+
+    def swap(stored: str | None) -> str | None:
+        read.append(None if stored is None else _session_in(stored))
+        return None if replacement is None else replacement.model_dump_json(by_alias=True, exclude_none=True)
+
+    storage.update(session_key(kb_id), swap)
+    (forgotten,) = read
+    yield forgotten
+    if forgotten is not None and forgotten.person_key is not None:
+        _forget_kept(storage, kb_id, forgotten.person_key)
 
 
 def load_knowledge_bases(storage: SessionStorage) -> list[KnowledgeBase]:
@@ -196,6 +242,21 @@ class _KeptIn(SignInKept):
         return current[0] if current else None
 
     @override
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        recorded = False
+
+        def record(stored: str | None) -> str | None:
+            nonlocal recorded
+            session = None if stored is None else _session_in(stored)
+            if session is None or session.access != access or session.person_key not in (None, person_key):
+                return stored
+            recorded = True
+            return session.model_copy(update={"person_key": person_key}).model_dump_json(by_alias=True, exclude_none=True)
+
+        self._storage.update(session_key(self._kb_id), record)
+        return recorded
+
+    @override
     async def forget(self) -> None:
         clear_stored_session(self._storage, self._kb_id)
 
@@ -214,6 +275,7 @@ def _held(stored: StoredSession) -> HeldSignIn:
         client_id=stored.client_id,
         token_endpoint=stored.token_endpoint,
         revocation_endpoint=stored.revocation_endpoint,
+        person_key=stored.person_key,
     )
 
 
@@ -224,6 +286,7 @@ def _stored(held: HeldSignIn) -> StoredSession:
         client_id=held.client_id,
         token_endpoint=held.token_endpoint,
         revocation_endpoint=held.revocation_endpoint,
+        person_key=held.person_key,
     )
 
 
@@ -231,7 +294,13 @@ def kept_in(storage: SessionStorage, kb_id: str) -> SignInKept:
     """A knowledge base's sign-in as a session keeps it, in a registry's storage, under `session_key(kb_id)`.
 
     A renewal is written as one step against what is stored then, so one made
-    meanwhile by another session or context stands.
+    meanwhile by another session or context stands, and keeps the person it
+    names. Forgetting it, as a session whose sign-in expired or was refused
+    does, and keeping a new sign-in in its place, are forgetting a saved
+    sign-in (`clear_stored_session`, `store_session`): what was kept for the
+    person it named is deleted too. A session over it
+    (`semiont.http.session`) writes nothing once it no longer names that
+    person, so what was deleted stays deleted.
     """
     return _KeptIn(storage, kb_id)
 
@@ -332,9 +401,7 @@ class SessionFactoryOptions:
     storage: SessionStorage
     """Where its tokens are kept: the registry's own storage."""
     signals: SessionSignals
-    """Where the session says it is over, for a host to show."""
-    on_error: Callable[[SessionError], None]
-    """Told each failure that makes the session unusable."""
+    """Where the session says it is over, and where the registry says a request was refused for lack of permission, for a host to show."""
 
 
 class SessionFactory(Protocol):
@@ -347,9 +414,13 @@ class SessionFactory(Protocol):
         """The session of a knowledge base, over a client of its own.
 
         Held with `async with`: inside, the session has started, and the
-        registry waits for it to be ready. On the way out the session is
-        ended, then its client. A knowledge base this factory cannot reach is
-        refused on the way in with a `SessionError` (`session.construct-failed`).
+        registry waits for it to be ready. The factory reads none of its
+        errors: the registry is their one reader, from the moment it is
+        held. On the way out the client is closed first, and its closing
+        flush made, and then the session ends, and its errors with it, so
+        what that flush met is said on them; then what the session was built
+        on is closed. A knowledge base this factory cannot reach is refused
+        on the way in with a `SessionError` (`session.construct-failed`).
         """
         ...
 
@@ -463,7 +534,13 @@ class _Live:
         self.signals: Final = signals
 
     async def close(self) -> None:
-        """End the session, then the client it was built with, then what a host was shown of it."""
+        """End the session and the client it was built with, as its factory does, then what a host was shown of it.
+
+        What the closing met is said on the session's errors, which the
+        registry reads until they end. What the holder failed with is not
+        this caller's: the registry raises it from its `close`, as it does
+        every failure of what it runs (`SemiontBrowser._done`).
+        """
         self._stop.set()
         await asyncio.gather(self._holder, return_exceptions=True)
         self.signals.dispose()
@@ -563,7 +640,7 @@ class SemiontBrowser:
         return Reading(self._last_viewed)
 
     def errors(self) -> Events[SessionError]:
-        """The failures that made a session unusable, from now on, until the registry is closed."""
+        """Each of its sessions' own errors, and each session it could not build, from now on, until the registry is closed."""
         return self._failures.listen()
 
     @property
@@ -602,16 +679,19 @@ class SemiontBrowser:
         return added
 
     async def remove_kb(self, kb_id: str) -> None:
-        """Forget a knowledge base: its entry, its tokens, what was open in it and where the person was.
+        """Forget a knowledge base: its entry, its saved sign-in, what was open in it and where the person was.
 
-        If it was active, the first of the others becomes active.
+        If it was active, its session is closed and the first of the others
+        becomes active. Then, as forgetting a saved sign-in does, what its
+        client kept for the person the sign-in named is deleted: after the
+        close, so what the client wrote as it closed goes too.
         """
-        clear_stored_session(self._storage, kb_id)
-        self._forget_kept_of(kb_id)
-        rest = tuple(kb for kb in self._kbs.value if kb.id != kb_id)
-        self._put_kbs(rest)
-        if self._active_kb_id.value == kb_id:
-            await self._set_active_kb(rest[0].id if rest else None)
+        with _replacing(self._storage, kb_id, None):
+            self._forget_open_of(kb_id)
+            rest = tuple(kb for kb in self._kbs.value if kb.id != kb_id)
+            self._put_kbs(rest)
+            if self._active_kb_id.value == kb_id:
+                await self._set_active_kb(rest[0].id if rest else None)
 
     def update_kb(self, kb_id: str, *, label: str | None = None, last_read: KbRead | None = None) -> None:
         """Write what a knowledge base last said of itself onto its entry: a label, and a last read, each unless it is none.
@@ -647,17 +727,21 @@ class SemiontBrowser:
     async def sign_in(self, kb_id: str, session: StoredSession) -> None:
         """Keep new tokens for a registered knowledge base and bring its session up on them.
 
-        A session it already had is closed and replaced.
+        A session it already had is closed and replaced. The new sign-in
+        replaces the saved one, and, as forgetting a saved sign-in does, what
+        its client kept for the person the old one named is deleted: after the
+        close, so what the client wrote as it closed goes too, and before the
+        new session is built.
         """
         if self._closing.is_set():
             return
-        store_session(self._storage, kb_id, session)
-        # A session it already has is on the old tokens: it is closed, and the
-        # one built next reads the new ones.
-        if self._active_kb_id.value == kb_id:
-            taken = self._take_session()
-            if taken is not None:
-                await taken.close()
+        with _replacing(self._storage, kb_id, session):
+            # A session it already has is on the old tokens: it is closed, and the
+            # one built next reads the new ones.
+            if self._active_kb_id.value == kb_id:
+                taken = self._take_session()
+                if taken is not None:
+                    await taken.close()
         await self._set_active_kb(kb_id)
 
     async def signed_in(self, signed_in: SignedIn) -> SignInOutcome:
@@ -694,24 +778,26 @@ class SemiontBrowser:
         return SignInOutcome(kb=added, expected=expected)
 
     async def sign_out(self, kb_id: str) -> None:
-        """Sign out of a knowledge base: its tokens are forgotten, and the issuer is told so its refresh token is good for nothing.
+        """Sign out of a knowledge base: its saved sign-in is forgotten, and the issuer is told so its refresh token is good for nothing.
 
-        If it is active, its session is closed.
+        If it is active, its session is closed. Then, as forgetting a saved
+        sign-in does, what its client kept for the person the sign-in named is
+        deleted: after the close, so what the client wrote as it closed goes
+        too.
         """
         if self._closing.is_set():
             return
-        stored = stored_session(self._storage, kb_id)
-        clear_stored_session(self._storage, kb_id)
-        if stored is not None:
-            # The sign-out is the local act: an issuer that cannot be reached
-            # does not keep anyone in a session they asked to end.
-            self._spawn(self._factory.revoke(stored))
-        # Said again, so whoever shows each knowledge base's status reads it anew.
-        self._kbs.raise_(self._kbs.value)
-        if self._active_kb_id.value == kb_id:
-            taken = self._take_session()
-            if taken is not None:
-                await taken.close()
+        with _replacing(self._storage, kb_id, None) as stored:
+            if stored is not None:
+                # The sign-out is the local act: an issuer that cannot be reached
+                # does not keep anyone in a session they asked to end.
+                self._spawn(self._factory.revoke(stored))
+            # Said again, so whoever shows each knowledge base's status reads it anew.
+            self._kbs.raise_(self._kbs.value)
+            if self._active_kb_id.value == kb_id:
+                taken = self._take_session()
+                if taken is not None:
+                    await taken.close()
 
     # ── What is open ────────────────────────────────────────────────────
 
@@ -943,8 +1029,9 @@ class SemiontBrowser:
         came_up: asyncio.Future[SemiontSession[Transport] | None],
         stop: asyncio.Event,
     ) -> None:
-        """Hold one session, from its factory's building it until it is to stop."""
-        options = SessionFactoryOptions(kb=kb, storage=self._storage, signals=signals, on_error=self._failed)
+        """Hold one session, from its factory's building it until it is to stop, and read its errors until they end with it."""
+        options = SessionFactoryOptions(kb=kb, storage=self._storage, signals=signals)
+        reading: asyncio.Task[None] | None = None
         try:
             async with AsyncExitStack() as holding:
                 try:
@@ -953,39 +1040,48 @@ class SemiontBrowser:
                     if not self._closing.is_set():
                         self._failed(_construct_failed(refused, kb.id))
                     return
-                # Heard from the moment it is held: a refusal while it starts is routed too.
-                failures = session.errors()
-                routing = asyncio.create_task(self._route(session, failures, signals))
+                # Their first reader, as the factory hands the session back: what it said before is read too.
+                reading = asyncio.create_task(self._read(session, session.errors(), signals))
                 came_up.set_result(session)
-                try:
-                    await stop.wait()
-                finally:
-                    routing.cancel()
-                    await asyncio.gather(routing, return_exceptions=True)
+                await stop.wait()
         finally:
             if not came_up.done():
                 came_up.set_result(None)
+            if reading is not None:
+                await reading
 
-    async def _route(self, session: SemiontSession[Transport], failures: Events[SemiontError], signals: SessionSignals) -> None:
-        """Route what the session's transport fails at.
+    async def _read(self, session: SemiontSession[Transport], errors: Events[SemiontError], signals: SessionSignals) -> None:
+        """Read what `session` says on `errors`, its errors as their first reader, until they end.
 
-        A refusal for want of a valid token renews the session: it heals
-        quietly, or the session ends itself and says so once. A refusal for
-        lack of permission has no remedy, and is said.
+        Each of its own errors is said on the registry's. A refusal for want
+        of a valid token renews the session: it heals quietly, or the session
+        ends itself and says so once. A refusal for lack of permission has no
+        remedy, and is said through `signals`. A renewal still under way when
+        the errors end ends with them, and one that failed is raised then.
         """
-        async with failures:
-            async for failure in failures:
-                if not isinstance(failure, TransportError):
-                    continue
-                match failure.code:
-                    case "unauthorized":
-                        # Refusals that arrive together are answered by one renewal: the session holds them while it renews.
-                        # A failure does not say which token was refused: the one the session holds as it is read is.
-                        self._spawn(session.refresh(session.token.value))
-                    case "forbidden":
-                        signals.notify_permission_denied(failure.message)
-                    case _:
-                        pass
+        renewals: list[asyncio.Task[str | None]] = []
+        try:
+            async with errors:
+                async for error in errors:
+                    if isinstance(error, SessionError):
+                        self._failed(error)
+                    elif isinstance(error, TransportError):
+                        match error.code:
+                            case "unauthorized":
+                                # Refusals that arrive together are answered by one renewal: the session holds them while it renews.
+                                # A failure does not say which token was refused: the one the session holds as it is read is.
+                                renewals.append(asyncio.create_task(session.refresh(session.token.value)))
+                            case "forbidden":
+                                signals.notify_permission_denied(error.message)
+                            case _:
+                                pass
+        finally:
+            for renewal in renewals:
+                renewal.cancel()
+            ended = await asyncio.gather(*renewals, return_exceptions=True)
+        for outcome in ended:
+            if isinstance(outcome, Exception):
+                raise outcome
 
     # ── What is shown ───────────────────────────────────────────────────
 
@@ -1033,7 +1129,7 @@ class SemiontBrowser:
         self._viewed_by_kb = committed[0]
         self._project()
 
-    def _forget_kept_of(self, kb_id: str) -> None:
+    def _forget_open_of(self, kb_id: str) -> None:
         """Forget what was open in a knowledge base, and where the person was."""
         committed: list[dict[str, list[OpenResource]]] = []
 

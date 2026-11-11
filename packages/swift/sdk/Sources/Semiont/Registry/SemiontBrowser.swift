@@ -98,8 +98,17 @@ public actor SemiontBrowser {
   private var activation: UUID?
   private var sessionWatch: UUID?
   private var firstFailure: (any Error)?
+  /// The task reading each session's errors, by the session's id, while it reads them.
+  private var readers: [String: UUID] = [:]
+  /// Its errors' end, once it is closing: after its live session has closed, and that session's
+  /// errors have been read to their end.
+  private var errorsEnd: Task<Void, Never>?
+  private var errorsEnded = false
   private var closed = false
   private var started = false
+  /// The knowledge bases whose replaced or cleared sign-in's person is being forgotten: none gets a
+  /// session until that is done.
+  private var forgetting: Set<String> = []
 
   init(_ config: SemiontBrowserConfig) throws {
     storage = config.storage
@@ -116,7 +125,8 @@ public actor SemiontBrowser {
     for task in tasks.values { task.cancel() }
     activeSession.value?.dispose()
     activeSignals.value?.dispose()
-    finish()
+    finishShown()
+    failures.finish()
   }
 
   func start() throws {
@@ -154,6 +164,7 @@ public actor SemiontBrowser {
   private func forget(_ id: UUID) {
     abandonable.remove(id)
     tasks.removeValue(forKey: id)
+    readers = readers.filter { $0.value != id }
   }
 
   @discardableResult
@@ -237,10 +248,15 @@ public actor SemiontBrowser {
 
   public func removeKb(_ id: String) async throws {
     try requireOpen()
-    try clearStoredSession(storage, kbId: id)
+    let old = try swapStoredSession(storage, kbId: id, with: nil)
     try forgetResources(id)
     try changeKnowledgeBases { $0.removeAll { $0.id == id } }
-    if activeKbId.value == id { try await setActiveKb(knowledgeBases.value.first?.id) }
+    let active = activeKbId.value == id
+    try await forgetAfterClosing(old, kbId: id)
+    if active {
+      try chooseActiveKb(knowledgeBases.value.first?.id)
+      try await waitForActivation()
+    }
   }
 
   public func updateKb(_ id: String, label: String? = nil, lastRead: KbRead? = nil) throws {
@@ -280,13 +296,24 @@ public actor SemiontBrowser {
     guard knowledgeBases.value.contains(where: { $0.id == id }) else {
       throw BusRequestError(.busNotFound, "The knowledge base is not registered")
     }
-    try storeSession(storage, kbId: id, session: session)
+    let old = try swapStoredSession(storage, kbId: id, with: session)
+    try await forgetAfterClosing(old, kbId: id)
     if activeKbId.value == id {
       activate()
     } else {
       try chooseActiveKb(id)
     }
     try await waitForActivation()
+  }
+
+  /// Forgets what was kept on the knowledge base `kbId` for the person `old`, the saved sign-in it
+  /// just replaced or cleared, named: once kbId's session, when it is the active one, has closed,
+  /// its client and then itself, so that nothing it was writing, or writes as it closes, is left.
+  private func forgetAfterClosing(_ old: HeldSignIn?, kbId: String) async throws {
+    forgetting.insert(kbId)
+    defer { forgetting.remove(kbId) }
+    if activeKbId.value == kbId { await deactivate()?.closed() }
+    try forgetKept(storage, kbId: kbId, of: old)
   }
 
   private func waitForActivation() async throws {
@@ -298,16 +325,16 @@ public actor SemiontBrowser {
     try Task.checkCancellation()
   }
 
-  public func signOut(_ id: String) throws {
+  public func signOut(_ id: String) async throws {
     try requireOpen()
-    let old = try storedSession(storage, kbId: id)
-    try clearStoredSession(storage, kbId: id)
+    let old = try swapStoredSession(storage, kbId: id, with: nil)
     knowledgeBases.set(knowledgeBases.value)
-    if activeKbId.value == id { activate() }
     if let old {
       let factory = factory
       _ = spawn(abandonOnClose: true) { await factory.revoke(old) }
     }
+    try await forgetAfterClosing(old, kbId: id)
+    if activeKbId.value == id { activate() }
   }
 
   public func signedIn(_ signed: SignedIn) async throws -> SignInOutcome {
@@ -346,20 +373,27 @@ public actor SemiontBrowser {
     return outcome
   }
 
-  private func activate() {
+  /// Closes the active knowledge base's session, and gives it.
+  @discardableResult
+  private func deactivate() -> OpenedSession? {
     if let activation { tasks[activation]?.cancel() }
     if let sessionWatch { tasks[sessionWatch]?.cancel() }
     sessionWatch = nil
     activation = nil
-    activeSession.value?.dispose()
+    let closing = activeSession.value
+    closing?.dispose()
     activeSignals.value?.dispose()
     activeSession.set(nil)
     activeSignals.set(nil)
     openResources.set([])
     lastViewedResource.set(nil)
     sessionActivating.set(false)
+    return closing
+  }
 
-    guard !closed, let id = activeKbId.value,
+  private func activate() {
+    deactivate()
+    guard !closed, let id = activeKbId.value, !forgetting.contains(id),
       let kb = knowledgeBases.value.first(where: { $0.id == id })
     else { return }
     sessionWatch = watch(sessionKey(id))
@@ -372,15 +406,12 @@ public actor SemiontBrowser {
 
     sessionActivating.set(true)
     let signals = SessionSignals()
-    let options = SessionFactoryOptions(
-      kb: kb, storage: storage, signals: signals,
-      onError: { [weak self] error in
-        Task { await self?.sessionFailed(error) }
-      })
+    let options = SessionFactoryOptions(kb: kb, storage: storage, signals: signals)
     let factory = factory
     let idOfTask = spawn(abandonOnClose: true) { [weak self] in
       do {
         let opened = try await factory.session(options)
+        await self?.read(opened.session, signals: signals)
         if !Task.isCancelled { _ = try? await opened.session.ready() }
         if let self {
           await self.install(opened, signals: signals)
@@ -396,8 +427,51 @@ public actor SemiontBrowser {
     activation = idOfTask
   }
 
-  private func sessionFailed(_ error: SessionError) {
+  /// Reads `session`'s errors as their one reader, and so from the first thing it said, until they
+  /// end: each of its own it says on the registry's errors. A refusal for want of a valid token
+  /// renews the session; a refusal for lack of permission has no remedy, and is said through
+  /// `signals`.
+  private func read(_ session: SemiontSession, signals: SessionSignals) {
+    let errors = session.errors()
+    readers[session.id] = spawn { [weak self] in
+      do {
+        for try await error in errors {
+          if let own = error as? SessionError {
+            await self?.said(own)
+            continue
+          }
+          guard let failure = error as? TransportError else { continue }
+          switch failure.reason {
+          case .unauthorized:
+            // A failure does not say which token was refused: the one the session holds as it is
+            // read is.
+            let refused = session.token.value
+            await self?.renew(session, refused: refused)
+          case .forbidden: signals.notifyPermissionDenied(failure.description)
+          default: break
+          }
+        }
+      } catch {
+        preconditionFailure("A session's errors end without failing: \(error)")
+      }
+    }
+  }
+
+  /// Renews `session`, handed `refused`, on a task of its own, so that its errors' reader goes on
+  /// reading. Refusals read together are answered by one renewal: the session holds them while it
+  /// renews.
+  private func renew(_ session: SemiontSession, refused: String?) {
     guard !closed else { return }
+    _ = spawn(abandonOnClose: true) { [weak self] in
+      do { _ = try await session.refresh(refused) } catch is CancellationError {} catch {
+        await self?.said(error)
+      }
+    }
+  }
+
+  /// Says `error`, which a session or its renewal met, on the registry's errors until they end.
+  private func said(_ error: any Error) {
+    guard !errorsEnded else { return }
     record(error)
   }
 
@@ -564,7 +638,8 @@ public actor SemiontBrowser {
     }
   }
 
-  private nonisolated func finish() {
+  /// Ends what it shows, and its bus: all but its errors.
+  private nonisolated func finishShown() {
     knowledgeBases.finish()
     activeKbId.finish()
     activeSession.finish(with: nil)
@@ -573,21 +648,41 @@ public actor SemiontBrowser {
     openResources.finish()
     lastViewedResource.finish()
     identityToken.finish()
-    failures.finish()
     bus.dispose()
   }
 
+  /// Ends its errors, and stops reading every session's still read.
+  private func endErrors() {
+    errorsEnded = true
+    failures.finish()
+    for id in readers.values { tasks[id]?.cancel() }
+  }
+
+  /// Ends its live session, its client first, and reads that session's errors to their end before
+  /// it ends its own: what the client's closing flush meets is said on them. Every other session's
+  /// errors are read until then.
   public func close() async throws {
     if !closed {
       closed = true
-      for (id, task) in tasks where id != RegistryTask.id { task.cancel() }
-      activeSession.value?.dispose()
+      let reading = Set(readers.values)
+      for (id, task) in tasks where id != RegistryTask.id && !reading.contains(id) { task.cancel() }
+      let live = activeSession.value
+      live?.dispose()
       activeSignals.value?.dispose()
-      finish()
+      finishShown()
+      let reader = live.flatMap { readers[$0.session.id] }.flatMap { tasks[$0] }
+      errorsEnd = Task { [weak self] in
+        await live?.closed()
+        await reader?.value
+        await self?.endErrors()
+      }
     }
     if RegistryTask.id == nil {
-      for (id, task) in tasks where !abandonable.contains(id) { await task.value }
+      for (id, task) in tasks where !abandonable.contains(id) && !readers.values.contains(id) {
+        await task.value
+      }
     }
+    await errorsEnd?.value
     if let firstFailure { throw firstFailure }
   }
 }
