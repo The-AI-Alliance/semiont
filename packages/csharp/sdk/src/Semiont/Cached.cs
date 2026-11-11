@@ -58,7 +58,9 @@ internal sealed class CacheEntry<T> : Cached<T>
     private readonly HashSet<ChannelWriter<CacheState<T>>> readers = [];
     private CacheState<T> state = new CacheState<T>.Pending();
     private Task<T>? flight;
-    private object? validation;
+    // The flight a validation waits on, and whether it is the validation's second ask.
+    private Task<T>? validation;
+    private bool revalidated;
     private long writeEpoch;
     private int activeLoads;
     private bool rehydrated;
@@ -258,57 +260,42 @@ internal sealed class CacheEntry<T> : Cached<T>
                     if (epoch == writeEpoch) Ready(value);
                     result.TrySetResult(value);
                 }
-            });
+            }, null);
         }
-        catch (OperationCanceledException error) { Finish(() => result.TrySetCanceled(error.CancellationToken)); }
-        catch (Exception error) { Finish(() => result.TrySetException(error)); }
+        catch (OperationCanceledException error) { Finish(() => result.TrySetCanceled(error.CancellationToken), null); }
+        catch (Exception error) { Finish(() => result.TrySetException(error), error); }
 
-        void Finish(Action settle)
+        void Finish(Action settle, Exception? failure)
         {
             lock (gate)
             {
                 activeLoads--;
                 if (flight == result.Task) flight = null;
                 settle();
+                if (validation == result.Task) Validated(failure);
             }
         }
     }
 
     private void Validate()
     {
-        var chain = new object();
-        validation = chain;
-        _ = ValidateAsync(Fetch(), chain);
+        revalidated = false;
+        validation = Fetch();
     }
 
-    private async Task ValidateAsync(Task<T> work, object chain)
+    /// <summary>Ends a validation in the step that settles the flight it waits on, so a key whose fetch has settled is
+    /// not fetching. A first ask that fails is asked once more; a second that fails fails a key that holds no value.</summary>
+    private void Validated(Exception? failure)
     {
-        try
+        validation = null;
+        if (failure is null || closed) return;
+        if (!revalidated)
         {
-            for (var attempt = 0; ; attempt++)
-            {
-                try { await work.ConfigureAwait(Spawning.Captures); return; }
-                catch (OperationCanceledException) { return; }
-                catch (Exception error)
-                {
-                    lock (gate)
-                    {
-                        if (closed || validation != chain) return;
-                        if (attempt > 0)
-                        {
-                            if (state is CacheState<T>.Pending) Publish(new CacheState<T>.Failed(error));
-                            return;
-                        }
-                        if (flight == work) flight = null;
-                        work = Fetch();
-                    }
-                }
-            }
+            revalidated = true;
+            validation = Fetch();
+            return;
         }
-        finally
-        {
-            lock (gate) if (validation == chain) validation = null;
-        }
+        if (state is CacheState<T>.Pending) Publish(new CacheState<T>.Failed(failure));
     }
 
     private void InvalidateLocked()
