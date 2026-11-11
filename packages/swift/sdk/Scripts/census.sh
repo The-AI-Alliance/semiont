@@ -13,7 +13,12 @@ while IFS= read -r file; do
     if sed -E 's/: any Clock<Duration> = ContinuousClock\(\)//g; s/: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator\(\)//g; s/var secret = SystemRandomNumberGenerator\(\)//g' "$file" | grep -nE 'ContinuousClock|SuspendingClock|SystemRandomNumberGenerator|Task\.sleep|asyncAfter|DispatchTime|Thread\.sleep'; then exit 1; fi
     if grep -nE '\.random\(|\.randomElement\(|\.shuffled?\(' "$file" | grep -v 'using:'; then exit 1; fi
     # AsyncHTTPClient keeps no deadline: each is the SDK's own wait, on the caller's clock.
-    if grep -nE '\.execute\(' "$file" | grep -v 'deadline: \.distantFuture'; then exit 1; fi;;
+    if grep -nE '\.execute\(' "$file" | grep -v 'deadline: \.distantFuture'; then exit 1; fi
+    # Every task starts at the one spawn point, which keeps the executor a test binds; a function
+    # that returns a task is not one starting.
+    case "$file" in ./Sources/Semiont/Transport/Spawn.swift) ;; *)
+      if sed -E 's/-> Task<[^{]*\{//g' "$file" | grep -nE '(^|[^[:alnum:]_])Task(\.detached|\.immediate)?[[:space:]]*(<[^>]*>)?[[:space:]]*[({]'; then exit 1; fi;;
+    esac;;
   # A test's wait is bounded by testDeadlineMs alone, which withinTestDeadline keeps.
   ./Tests/SemiontTests/TestDeadline.swift) ;;
   ./Tests/*)
