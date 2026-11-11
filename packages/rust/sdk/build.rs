@@ -264,7 +264,10 @@ fn main() {
     .expect("cannot write channels.rs");
     fs::write(
         out.join("error_codes.rs"),
-        error_codes(&read_json(&specs.join("errors/codes.json"))),
+        error_codes(
+            &read_json(&specs.join("errors/codes.json")),
+            &definitions["definitions"]["CommandError"],
+        ),
     )
     .expect("cannot write error_codes.rs");
     fs::write(
@@ -1125,7 +1128,10 @@ fn code_enum(code: &mut String, name: &str, vocabulary: &Value) -> Vec<(String, 
     entries
 }
 
-fn error_codes(table: &Value) -> String {
+/// errors/codes.json's vocabularies, and the `busRequest` code each of
+/// `CommandError`'s codes becomes: every code `command_error` lists is
+/// restated by exactly one, and none restates a code it does not list.
+fn error_codes(table: &Value, command_error: &Value) -> String {
     let mut code =
         String::from("// Generated from protocol/specs/src/errors/codes.json; do not edit.\n");
 
@@ -1136,21 +1142,50 @@ fn error_codes(table: &Value) -> String {
             "busRequest.unrecognizedFailure names {unrecognized}, which is not one of its codes"
         );
     }
-    code.push_str(
-        "impl BusRequestErrorCode {\n    /// The code a failure's own code (`CommandError.code`) becomes; one it states none of, or one this vocabulary does not name, is the table's `unrecognizedFailure`.\n    pub fn of_wire(code: Option<&str>) -> BusRequestErrorCode {\n        match code {\n",
-    );
+    let stated: Vec<&str> = list(
+        &command_error["properties"]["code"]["enum"],
+        "CommandError.code",
+    )
+    .iter()
+    .map(|wire| {
+        wire.as_str()
+            .unwrap_or_else(|| panic!("CommandError.code lists {wire}, which is no code"))
+    })
+    .collect();
     for (value, entry) in &bus {
-        if let Some(wire) = entry["wire"].as_str() {
-            let _ = writeln!(
-                code,
-                "            Some({wire:?}) => BusRequestErrorCode::{},",
-                variant(value)
+        if let Some(wire) = entry["wire"].as_str()
+            && !stated.contains(&wire)
+        {
+            panic!(
+                "busRequest code {value} restates {wire}, which CommandError.code does not list"
             );
         }
     }
+    code.push_str(
+        "impl BusRequestErrorCode {\n    /// The code a failure's own code (`CommandError.code`) becomes; one that states none is the table's `unrecognizedFailure`.\n    pub fn of_wire(code: Option<crate::types::CommandErrorCode>) -> BusRequestErrorCode {\n        match code {\n",
+    );
+    for wire in &stated {
+        let restating: Vec<&String> = bus
+            .iter()
+            .filter(|(_, entry)| entry["wire"].as_str() == Some(*wire))
+            .map(|(value, _)| value)
+            .collect();
+        let [value] = restating.as_slice() else {
+            panic!(
+                "CommandError.code {wire} is restated by {} busRequest codes, not exactly one: {restating:?}",
+                restating.len()
+            );
+        };
+        let _ = writeln!(
+            code,
+            "            Some(crate::types::CommandErrorCode::{}) => BusRequestErrorCode::{},",
+            pascal(wire),
+            variant(value)
+        );
+    }
     let _ = writeln!(
         code,
-        "            _ => BusRequestErrorCode::{},\n        }}\n    }}\n",
+        "            None => BusRequestErrorCode::{},\n        }}\n    }}\n",
         variant(unrecognized)
     );
     code.push_str(

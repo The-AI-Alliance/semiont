@@ -48,7 +48,7 @@ use crate::transport::{
     ConnectionState, Envelope, Frame, FrameRefusal, Frames, Lagged, ResourceHold, TraceCarrier,
     Transport,
 };
-use crate::types::{CommandError, CommandErrorCode, ResourceId};
+use crate::types::{CommandError, ResourceId};
 use futures_core::Stream;
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -279,9 +279,7 @@ fn answered(channel: &str, failure: Map<String, Value>) -> SemiontError {
         Ok(read) => match serde_json::from_value::<CommandError>(read.clone()) {
             Ok(failed) => {
                 return BusRequestError {
-                    code: BusRequestErrorCode::of_wire(
-                        failed.code.as_ref().map(CommandErrorCode::as_str),
-                    ),
+                    code: BusRequestErrorCode::of_wire(failed.code),
                     message: failed.message,
                     failure: read.as_object().cloned(),
                 }
