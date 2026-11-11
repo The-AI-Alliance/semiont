@@ -46,7 +46,7 @@ public class BusRequestError(
     /** Why, as a code of the bus request's vocabulary. */
     public val reason: BusRequestErrorCode,
     message: String,
-    /** The payload of the failure frame the request was answered with, when it was answered with one. */
+    /** The payload of the failure frame the request was answered with, as its channel's reader reads it, when it was answered with one. */
     public val failure: JsonObject? = null,
 ) : SemiontError(message) {
     override val code: String get() = reason.code

@@ -25,7 +25,9 @@ import java.util.concurrent.ConcurrentHashMap
  * packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
  * names the first fault it finds the same way: a member the value lacks, or
  * one that is not what its schema allows. What the decoder refuses that the
- * table does not state is a fault of the value itself.
+ * table does not state is a fault of the value itself. A member that holds a
+ * text none of those its shape recognizes (a failure's code a later peer may
+ * send) is no fault: a reader leaves it out before it decodes the value.
  */
 
 /** What a value must be: packages/codegen/schemas/required-shapes.mjs states what each part means. */
@@ -33,6 +35,8 @@ import java.util.concurrent.ConcurrentHashMap
 internal data class Shape(
     val ref: String? = null,
     val kinds: List<String>? = null,
+    /** Of an object's member, the texts it is read as: one that holds a text none of these is read as absent. */
+    val recognized: List<String>? = null,
     val enum: List<JsonPrimitive>? = null,
     val pattern: List<Step>? = null,
     val minLength: Int? = null,
@@ -206,6 +210,27 @@ private fun faultOfOneOf(shape: Shape, variants: List<Shape>, value: JsonElement
         if (first == null) first = fault
     }
     return first
+}
+
+/**
+ * `value` as a reader reads it as a value of `descriptor`'s type: without each
+ * of its members, its own and those of the components it is (`allOf`), that
+ * holds a text none of the texts its shape recognizes names. Such a member is
+ * no fault, and no part of what is read.
+ */
+internal fun readOf(descriptor: SerialDescriptor, value: JsonObject): JsonObject = readAs(shapeOf(descriptor), value)
+
+private fun readAs(shape: Shape, value: JsonObject): JsonObject {
+    val own = resolved(shape)
+    val members = own.members.orEmpty()
+    val read = JsonObject(value.filter { (name, held) -> !isUnrecognized(members[name], held) })
+    return own.allOf.orEmpty().fold(read) { kept, part -> readAs(part, kept) }
+}
+
+/** Whether `held` is a text none of the texts `member`'s shape recognizes names. */
+private fun isUnrecognized(member: Shape?, held: JsonElement): Boolean {
+    val recognized = member?.let { resolved(it).recognized } ?: return false
+    return held is JsonPrimitive && held.isString && held.content !in recognized
 }
 
 /** The first fault `value` has as a value of `descriptor`'s type, by the rules every SDK reads the table by; null when it has none. */
