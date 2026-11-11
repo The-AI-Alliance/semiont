@@ -301,18 +301,19 @@ function WorkloadOverview({
       </div>
       <div className="service-group__workload-grid">
         <article className={`service-group__metric-card service-group__metric-card--${ledgerTone}`}>
-          <div className="service-group__metric-label">Gateway ledger <span>Live</span></div>
+          <div className="service-group__metric-label">Request tracking <span>Gateway</span></div>
           {ledger === undefined ? (
-            <p className="service-group__metric-unavailable">{gatewayHealthy ? 'Waiting for a ledger reading' : 'Unavailable while Gateway is unhealthy'}</p>
+            <p className="service-group__metric-unavailable">{gatewayHealthy ? 'Waiting for request-tracking data' : 'Unavailable while Gateway is unhealthy'}</p>
           ) : (
             <>
-              <strong>{ledger.claims}<span> / {ledger.capacity} claims</span></strong>
-              <div className="service-group__capacity" role="meter" aria-label="Gateway ledger capacity" aria-valuemin={0} aria-valuemax={ledger.capacity} aria-valuenow={Math.min(ledger.capacity, ledger.claims)}>
+              <strong>{ledger.claims.toLocaleString()}<span> / {ledger.capacity.toLocaleString()} tracked request IDs</span></strong>
+              <div className="service-group__capacity" role="meter" aria-label="Request tracking capacity" aria-valuemin={0} aria-valuemax={ledger.capacity} aria-valuenow={Math.min(ledger.capacity, ledger.claims)}>
                 <span style={{ width: `${ledgerPercent}%` }} />
               </div>
-              <small>{ledgerPercent}% of reported capacity</small>
+              <small>{ledgerPercent}% of tracking capacity</small>
             </>
           )}
+          <p className="service-group__metric-detail">Tracks app requests so each reply returns to its caller. Entries can remain for up to 15 minutes after a request is sent.</p>
         </article>
         <article className="service-group__metric-card">
           <div className="service-group__metric-label">Job queue <span>Current depth</span></div>

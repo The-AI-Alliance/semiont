@@ -1,21 +1,21 @@
 {
   "title": "WorkloadStatus",
   "type": "object",
-  "description": "A knowledge base's operational readings from Collector metrics. Ledger occupancy and queue depth are current gauges; completed and failed are worker counters since that worker process started. Missing readings are unknown, never zero.",
+  "description": "A knowledge base's operational readings from Collector metrics. Request-tracking occupancy and queue depth are current gauges; completed and failed are worker counters since that worker process started. Missing readings are unknown, never zero.",
   "properties": {
     "ledger": {
       "type": "object",
-      "description": "Live claims held in the Gateway's correlation ledger and its configured capacity.",
+      "description": "The Gateway's request tracking: correlation IDs it currently holds so replies can be routed to the app client that sent each request, and the tracking capacity.",
       "properties": {
         "claims": {
           "type": "integer",
           "minimum": 0,
-          "description": "Current live correlation claims."
+          "description": "Number of request IDs currently held to route replies to their requesting app clients. Includes requests still waiting for a reply and recently answered requests still within the tracking window."
         },
         "capacity": {
           "type": "integer",
           "minimum": 1,
-          "description": "The Gateway's reported maximum number of live claims."
+          "description": "The maximum number of IDs held in this Gateway's local tracking projection."
         }
       },
       "required": ["claims", "capacity"],

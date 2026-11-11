@@ -423,12 +423,13 @@ type ControlServiceStatus struct {
 }
 
 // ControlWorkloadStatus: A knowledge base's operational readings from
-// Collector metrics. Ledger occupancy and queue depth are current gauges;
-// completed and failed are worker counters since that worker process started.
-// Missing readings are unknown, never zero.
+// Collector metrics. Request-tracking occupancy and queue depth are current
+// gauges; completed and failed are worker counters since that worker process
+// started. Missing readings are unknown, never zero.
 type ControlWorkloadStatus struct {
-	// Live claims held in the Gateway's correlation ledger and its configured
-	// capacity.
+	// The Gateway's request tracking: correlation IDs it currently holds so
+	// replies can be routed to the app client that sent each request, and the
+	// tracking capacity.
 	Ledger *ControlWorkloadStatusLedger `json:"ledger,omitempty"`
 
 	// Current Dispatcher depth and, when the worker has emitted counters,
@@ -437,13 +438,17 @@ type ControlWorkloadStatus struct {
 	Queue *ControlWorkloadStatusQueue `json:"queue,omitempty"`
 }
 
-// ControlWorkloadStatusLedger: Live claims held in the Gateway's correlation
-// ledger and its configured capacity.
+// ControlWorkloadStatusLedger: The Gateway's request tracking: correlation
+// IDs it currently holds so replies can be routed to the app client that sent
+// each request, and the tracking capacity.
 type ControlWorkloadStatusLedger struct {
-	// Current live correlation claims.
+	// Number of request IDs currently held to route replies to their requesting
+	// app clients. Includes requests still waiting for a reply and recently
+	// answered requests still within the tracking window.
 	Claims int `json:"claims"`
 
-	// The Gateway's reported maximum number of live claims.
+	// The maximum number of IDs held in this Gateway's local tracking
+	// projection.
 	Capacity int `json:"capacity"`
 }
 

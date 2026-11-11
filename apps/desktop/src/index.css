@@ -807,6 +807,12 @@ button.kb-location-picker__entry:hover {
   color: var(--muted);
   font-size: 0.7rem;
 }
+.service-group__metric-detail {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
 .service-group__metric-unavailable {
   margin: 0.8rem 0;
   color: var(--muted);
