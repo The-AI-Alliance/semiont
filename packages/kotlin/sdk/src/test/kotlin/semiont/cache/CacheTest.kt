@@ -708,6 +708,21 @@ class CacheTest {
     }
 
     @Test
+    fun b17AnObserversFetchIsInFlightFromItsFirstAskUntilItsRetrySettles() = runTest {
+        val world = World(this, Kept())
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        world.service.fail(0)
+        // Made ready after the first ask's failure, so it runs once that ask has settled, as a save may: its retry is in flight.
+        val read = world.tasks.async { world.cache.persistencePending to world.service.asked.size }
+        runCurrent()
+        assertEquals(true to 2, read.await())
+        world.service.answer(1, 7)
+        assertEquals(ready(7), now(observer))
+        world.close()
+    }
+
+    @Test
     fun aCacheThatKeepsNothingOwesNothing() = runTest {
         val world = World(this)
         world.observe()

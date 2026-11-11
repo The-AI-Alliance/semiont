@@ -51,6 +51,15 @@ private class Key<V : Any>(state: CacheState<V>) {
     /** The fetch in flight, by its number. An `invalidate` lets go of it without waiting: its answer may never come. */
     var inFlight: Pair<Int, Deferred<Result<V>>>? = null
 
+    /** The number of the fetch the live view waits on, and whether it is the view's second ask. */
+    var validation: Int? = null
+    var revalidated = false
+
+    /** Let go of fetch `number` when it is the one in flight: an `invalidate` may have put a newer fetch in its place. */
+    fun letGo(number: Int) {
+        if (inFlight?.first == number) inFlight = null
+    }
+
     /** Whether anything asked for the key and has not let go of it. */
     fun known(): Boolean = inFlight != null || state.value !is CacheState.Pending
 }
@@ -169,17 +178,23 @@ public class Cache<K : Any, V : Any> internal constructor(
      * it begins, so one that ends at once has let go of the key when it ends.
      * Its failure is handed on as a value, so each waiter is given the very
      * failure the fetch met, not the copy an awaited failure is rethrown as
-     * when the coroutine library recovers its stack trace.
+     * when the coroutine library recovers its stack trace. A fetch the live
+     * view is `validating` is the one its validation waits on, named before
+     * the fetch begins, as one that ends at once settles before this returns.
      */
-    private fun fetching(key: K): Deferred<Result<V>> {
+    private fun fetching(key: K, validating: Boolean): Deferred<Result<V>> {
         // Asked for by this cache now, whichever path asked.
         kept -= key
         val held = held(key)
-        held.inFlight?.let { return it.second }
+        held.inFlight?.let {
+            if (validating) held.validation = it.first
+            return it.second
+        }
         fetches += 1
         val number = fetches
         val answer = CompletableDeferred<Result<V>>()
         held.inFlight = number to answer
+        if (validating) held.validation = number
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 answer.complete(Result.success(fetched(key, number)))
@@ -197,12 +212,9 @@ public class Cache<K : Any, V : Any> internal constructor(
     private suspend fun fetched(key: K, number: Int): V {
         val value = try {
             ask(key)
-        } finally {
-            // Only its own, and on every way out: an `invalidate` may have put a newer fetch in its place.
-            synchronized(lock) {
-                val held = keys[key]
-                if (held != null && held.inFlight?.first == number) held.inFlight = null
-            }
+        } catch (failure: Throwable) {
+            synchronized(lock) { keys[key]?.let { settled(key, it, number, failure) } }
+            throw failure
         }
         // A value from any fetch is written, the newest last: each is at least as new as what was there. A failure writes
         // nothing. One answered after the cache was closed has no key to write to.
@@ -210,9 +222,33 @@ public class Cache<K : Any, V : Any> internal constructor(
             keys[key]?.let {
                 it.state.value = CacheState.Ready(value)
                 oweASave()
+                settled(key, it, number, null)
             }
         }
         return value
+    }
+
+    /**
+     * Fetch `number` of `key` has settled, with `failure` or with its value
+     * written and its save owed: the key lets go of it, and the live view's
+     * validation waiting on it ends, in this one step. So a key whose fetch
+     * has settled is not fetching, and one whose fetch is not settled is
+     * (protocol/contract/CACHE-SEMANTICS.md B17's "in flight"); and the retry
+     * a first failure owes is in flight in the step that failure settles in. A
+     * second ask that fails fails a key that holds no value. Called under the
+     * lock, by a key the cache still holds.
+     */
+    private fun settled(key: K, held: Key<V>, number: Int, failure: Throwable?) {
+        held.letGo(number)
+        if (held.validation != number) return
+        held.validation = null
+        if (failure !is Exception || failure is CancellationException) return
+        if (!held.revalidated) {
+            held.revalidated = true
+            fetching(key, validating = true)
+        } else if (held.state.value !is CacheState.Ready) {
+            held.state.value = CacheState.Failed(failure)
+        }
     }
 
     /** What a fetch gives, to one of those waiting on it: whoever stops waiting does not stop the fetch. */
@@ -228,32 +264,12 @@ public class Cache<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed.
-     * Whatever a fetch failed with is a failure; a cancellation is not one. Called under the lock.
+     * Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed
+     * (`settled`). Whatever a fetch failed with is a failure; a cancellation is not one. Called under the lock.
      */
     private fun revalidate(key: K) {
-        val first = fetching(key)
-        scope.launch {
-            try {
-                joined(first)
-                return@launch
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // Tried once more, below.
-            }
-            val again = synchronized(lock) { if (disposed) null else fetching(key) } ?: return@launch
-            try {
-                joined(again)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                synchronized(lock) {
-                    val held = keys[key]
-                    if (held != null && held.state.value !is CacheState.Ready) held.state.value = CacheState.Failed(failure)
-                }
-            }
-        }
+        held(key).revalidated = false
+        fetching(key, validating = true)
     }
 
     /**
@@ -297,7 +313,7 @@ public class Cache<K : Any, V : Any> internal constructor(
                 caller.ensureActive()
                 throw closed()
             }
-            fetching(key)
+            fetching(key, validating = false)
         }
         return joined(fetch)
     }

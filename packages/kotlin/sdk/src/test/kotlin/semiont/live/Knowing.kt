@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -223,13 +222,19 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     }
 }
 
-/** A content transport whose only read a live query makes, a resource's annotations, is answered with `RESOURCE`'s one annotation, or, `answered` false, never. */
+/** A content transport whose only read a live query makes, a resource's annotations, is answered with `RESOURCE`'s one annotation, or, `answered` false, once the test `answer`s. */
 internal class KbContent(private val answered: Boolean = true) : ContentTransport {
     val reads = CopyOnWriteArrayList<ResourceId>()
+    private val released = CompletableDeferred<Unit>()
+
+    /** Answer every read, those waiting and those to come. */
+    fun answer() {
+        released.complete(Unit)
+    }
 
     override suspend fun getAnnotations(resourceId: ResourceId): GetAnnotationsResponse {
         reads += resourceId
-        if (!answered) awaitCancellation()
+        if (!answered) released.await()
         return wireJson.decodeFromJsonElement(
             GetAnnotationsResponse.serializer(),
             JsonObject(mapOf("annotations" to kotlinx.serialization.json.JsonArray(listOf(annotation(ANNOTATION, RESOURCE))), "total" to JsonPrimitive(1))),

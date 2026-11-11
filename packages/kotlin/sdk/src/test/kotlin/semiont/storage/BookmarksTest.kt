@@ -2,6 +2,7 @@
 
 package semiont.storage
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.ClientTiming
 import semiont.SemiontClient
@@ -155,6 +157,16 @@ class BookmarksTest {
                     assertFalse(client.persistenceSettled)
                     places.storage.set(CACHE, "{}")
                     assertNull(storage.get(KEY), "the place of an event whose refetch is in flight was written")
+
+                    // Answered, and seen through a read: the save its value owes, fired once, writes the place.
+                    val refetched = async(start = CoroutineStart.UNDISPATCHED) { client.browse.annotations(RESOURCE).fresh() }
+                    content.answer()
+                    held.runCurrent()
+                    assertEquals(1, refetched.await().size)
+                    held.advanceTimeBy(Timings.SAVE_DEBOUNCE_MS)
+                    held.runCurrent()
+                    assertTrue(checkNotNull(storage.get(ANNOTATIONS)).contains("ann-1"), "the refetched annotations were not saved")
+                    assertEquals(mapOf(RESOURCE to "p-res-1-9"), places.load())
                 }
                 client.close()
             }
