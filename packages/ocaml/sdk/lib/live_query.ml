@@ -195,16 +195,6 @@ let operations =
       (query, operation))
     Live_facts.queries
 
-let channels =
-  List.filter
-    (fun (Bus_registry.Channel channel) ->
-      Bus_registry.audience channel = Some Bus_registry.Everyone
-      && List.exists
-           (fun (trigger, _, _, _, _, _, _, _, _) ->
-             trigger = Bus_registry.name channel)
-           Live_facts.refresh)
-    Bus_registry.channels
-
 let rec at path value =
   match (path, value) with
   | [], value -> value

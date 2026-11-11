@@ -54,6 +54,10 @@ const operations = registry.operations.map(({ request, result, failure }) => {
   if (!byChannel.get(request).validate) refuse(`${request} cannot be emitted`);
   return { name: nameOf(request), request, result, failure, type: `(${types.join(', ')}) operation` };
 });
+// A full client's global channels, BRIDGED_CHANNELS in TypeScript: every operation's reply channels, then the
+// channels every client hears.
+const bridged = [...registry.operations.flatMap(({ result, failure }) => [result, failure]), ...registry.audience.everyone];
+if (new Set(bridged).size !== bridged.length) refuse('A full client\'s channels name one twice');
 const header = `(* Generated from ${source} and its OpenAPI components. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n`;
 const types = [
   "type 'schema component", "type 'schema envelope", "type 'schemas recorded", "type empty", "type void",
@@ -82,6 +86,7 @@ const api = [
   "val failure : ('request, 'result, 'failure) operation -> 'failure channel",
   "val reply_names : ('request, 'result, 'failure) operation -> string list",
   'val trace_field : string', 'val stream_event : string', 'val channels : packed_channel list', 'val operations : packed_operation list',
+  'val bridged_channels : packed_channel list',
 ];
 const impl = [
   "type 'a channel = { name : string; payload : payload; delivery : delivery option; emittable : bool; audience : audience option; in_process : bool }",
@@ -125,7 +130,8 @@ const files = [
   ['bus_registry.ml', [...types, ...impl, 'module Channels = struct', ...channels, 'end',
     'module Operations = struct', ...operationValues, 'end',
     `let channels = [${rows.map(({ name }) => `Channel Channels.${name}`).join('; ')}]`,
-    `let operations = [${operations.map(({ name }) => `Operation Operations.${name}`).join('; ')}]`]],
+    `let operations = [${operations.map(({ name }) => `Operation Operations.${name}`).join('; ')}]`,
+    `let bridged_channels = [${bridged.map((channel) => `Channel Channels.${nameOf(channel)}`).join('; ')}]`]],
   ['bus_registry.mli', [...types, ...api, 'module Channels : sig',
     ...rows.map(({ name, type }) => `  val ${name} : ${type} channel`), 'end',
     'module Operations : sig', ...operations.map(({ name, type }) => `  val ${name} : ${type}`), 'end']],

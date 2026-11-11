@@ -17,10 +17,9 @@ type t = {
     ((Wire_stream.frame, Wire_stream.refusal) result -> unit) ref list ref;
 }
 
-let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
-    ?delegation_silence_ms ?delegation_poll_ms ?invalidation_window_ms ?restore
-    ?save ?persister ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event
-    ~on_error () =
+let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
+    ?delegation_poll_ms ?invalidation_window_ms ?restore ?save ?persister ~sw
+    ~clock ~session ~client_id ~key ~call ~global ~on_event ~on_error () =
   let restore, save =
     match (persister, restore, save) with
     | Some store, None, None -> (Some (Storage_persister.restore store), None)
@@ -46,23 +45,6 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
     | _ -> ());
     List.iter (fun handler -> !handler frame) (List.rev !listeners);
     on_event frame
-  in
-  let global =
-    if not subscribe_defaults then global
-    else
-      List.sort_uniq
-        (fun (Bus_registry.Channel a) (Bus_registry.Channel b) ->
-          String.compare (Bus_registry.name a) (Bus_registry.name b))
-        (Bus_registry.Channel Bus_registry.Channels.job_queued
-         :: Delegation.channels
-        @ Live_query.channels @ global
-        @ List.concat_map
-            (fun (Bus_registry.Operation operation) ->
-              [
-                Bus_registry.Channel (Bus_registry.result operation);
-                Bus_registry.Channel (Bus_registry.failure operation);
-              ])
-            Bus_registry.operations)
   in
   let connect =
     Subscription.authenticated

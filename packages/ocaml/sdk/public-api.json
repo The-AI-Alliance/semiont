@@ -123,23 +123,23 @@
     "lib/browse.mli": "c57e5ff1c98e598cb6c438e781d135c0ff0c76498e1b93455f2c5e870f3b2858",
     "lib/bus.ml": "6515e162ee1e96208327aed95690c73fbf6b50626c39dfb6aa930e2b308f69ab",
     "lib/bus_log.ml": "1f9824f508b55593336fe854f12be7f202a8bab58393607bb7f77b43abc552ce",
-    "lib/bus_registry.ml": "2390b6d387efad1ce7e219c6f88c3a7380bcb00fac8da67c34e6157655e4270c",
-    "lib/bus_registry.mli": "e75fd6ce95deeda1d3364659c1ac01c0c507fe226cf18ff97f903a321663d1ff",
+    "lib/bus_registry.ml": "06ba21493e91fe1985a48cbc7416d6dc5318faa55872552e48701d01dfb5a79f",
+    "lib/bus_registry.mli": "a43ea86d26004cdbb0f68d47a419f92da7fdaea69aff840b30d6b0d0e161a3eb",
     "lib/cache_state.ml": "a7dd3b38f2eaccd71566cd680fe78ccb9601e6ee384200b91b07f2afdfa27dfb",
     "lib/cache_state.mli": "1a0dc6090874daf5a0df80f2f6a50c72f717a0b6bd599c8136180fae5e4ef173",
     "lib/claims.ml": "52ff135d1c111beeceec0ddf0895231aefaf3dbc2a9bd29cf5f3b6b7bc0e350f",
     "lib/claims.mli": "f7bebec3f61f8b39c4cb884a49f1e5703ece2c60d2f6d87b8822411aea9bd3ea",
     "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
     "lib/client.mli": "6e08b6b7851820acced98ca320e6ec093455f2d0340828149b2f43e255d30e39",
-    "lib/client_core.ml": "db35b915e387824e29a4edd401ece7cb80ccc6087fe4fbc7d178ac7cec90210c",
-    "lib/client_core.mli": "576da826ea5014c127cb04cc2209f6f72ef12a50bcb7c62dfd2e875ae3715bf8",
+    "lib/client_core.ml": "499578f209bce59f105498b0ebd8f8c10f4049e2a93f6f8c5988f8e0f644d597",
+    "lib/client_core.mli": "31413f79f3c72f9525b8fb588a9f89d90574101553e39710699d67459169a750",
     "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
     "lib/client_timing.ml": "652e8e4ff7f890a990bcbdb59fc3a8675403c7273a321c76029e86ec105e1729",
     "lib/client_timing.mli": "ff4e18df8cea887b1432e77169672c421178b76723cedd65e57fe62e2df70cf5",
     "lib/clock.ml": "71063b036aa3069ad2ed649ba8a73505b4eb4a00631c48af43a01f732c6623ab",
     "lib/clock.mli": "5333b1d2447f81415c54bfc99d87ae98362a4ce249695d7783c35df41cdab364",
-    "lib/delegation.ml": "630367eab38d307798e7be35ab0c338b83ccd743d36d6a0ad129472a48353185",
-    "lib/delegation.mli": "76f4e7e055c6a9dbb288443bf4d7548aabaa307f2fa354e8e165dd453b4f09d5",
+    "lib/delegation.ml": "09c55853d2dd7798e6637eb7b29aff23c13bc3db70786a52d4965eb1f058059d",
+    "lib/delegation.mli": "577b0158488a8f1dd3cd5aaef32b816c4c5324a38af03289b762e63d33ae5afe",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
     "lib/dune": "1ea7a2c3212158c41333ad8a7b049ba9e05c30c5a2d5a9245323038756262b91",
@@ -165,8 +165,8 @@
     "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
     "lib/kept_renewal.ml": "3c69043d8304fa35dcbe80e5322ea71bb0f39d7ee57e4d772cc789b1de36ddee",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
-    "lib/live_query.ml": "8e7d46fc011ea3cfe6861791110f8857452347ae9a536ea7d969a15f91236bd2",
-    "lib/live_query.mli": "3c62d8ab44d082eb359a24a8b0159f1ebf117e99da80e772feb12899adce2312",
+    "lib/live_query.ml": "b5ef8eb763aba73b9711e2f05dc833c0e0a030ce15d4dc111699fa7837fb61d5",
+    "lib/live_query.mli": "a8cfca36c3a042a1e71cbc7232160376f1a93945eb3e64740e806ac48c209d8c",
     "lib/log_facts.ml": "7fbe278d5eb452d36445aa0cd571ce86ef65e0c69d9fab65b6bc3b4a6a5a45cf",
     "lib/mark.ml": "d539b4cea644c035198f7b22d9384e1e19c7815e806e240a2309e9e1e17a7072",
     "lib/mark.mli": "daa70a35284997cf8b5796bda5f3262c19e8690a40090dc415729c4e3dddbbb3",
@@ -1590,6 +1590,11 @@
       "kind": "value",
       "path": "Semiont.Bus_registry.operations",
       "declaration": "val operations : packed_operation list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.bridged_channels",
+      "declaration": "val bridged_channels : packed_channel list"
     },
     {
       "kind": "module",
@@ -12601,11 +12606,6 @@
     },
     {
       "kind": "value",
-      "path": "Semiont.Live_query.channels",
-      "declaration": "val channels : Semiont__.Bus_registry.packed_channel list"
-    },
-    {
-      "kind": "value",
       "path": "Semiont.Live_query.operations",
       "declaration": "val operations : (string * Semiont__.Bus_registry.packed_operation) list"
     },
@@ -12950,11 +12950,6 @@
     },
     {
       "kind": "value",
-      "path": "Semiont.Delegation.channels",
-      "declaration": "val channels : Semiont__.Bus_registry.packed_channel list"
-    },
-    {
-      "kind": "value",
       "path": "Semiont.Delegation.make",
       "declaration": "val make :\n  ?silence_ms:int ->\n  ?poll_ms:int ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  subscription:Semiont__.Subscription.t ->\n  http:Semiont__.Http_wire.t ->\n  client_id:string -> correlation_id:(unit -> string) -> unit -> t"
     },
@@ -13075,7 +13070,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.connect",
-      "declaration": "val connect :\n  ?subscribe_defaults:bool ->\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  ?persister:Semiont__.Storage_persister.storage_persister ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  on_error:(Semiont__.Http_wire.failure -> unit) -> unit -> t"
+      "declaration": "val connect :\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  ?persister:Semiont__.Storage_persister.storage_persister ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  on_error:(Semiont__.Http_wire.failure -> unit) -> unit -> t"
     },
     {
       "kind": "value",
@@ -13899,6 +13894,11 @@
       "kind": "value",
       "path": "Semiont.Client.Job.B.operations",
       "declaration": "val operations : packed_operation list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Client.Job.B.bridged_channels",
+      "declaration": "val bridged_channels : packed_channel list"
     },
     {
       "kind": "module",
@@ -16097,6 +16097,11 @@
       "kind": "value",
       "path": "Semiont.Job.B.operations",
       "declaration": "val operations : packed_operation list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Job.B.bridged_channels",
+      "declaration": "val bridged_channels : packed_channel list"
     },
     {
       "kind": "module",

@@ -206,8 +206,7 @@ let controlled () =
             | _ -> (200, [], source)
           in
           let client =
-            Client.connect ~subscribe_defaults:false ~sw ~clock ~session
-              ~client_id:"clock-test"
+            Client.connect ~sw ~clock ~session ~client_id:"clock-test"
               ~key:(fun () -> "clock-key")
               ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
           in
@@ -325,7 +324,8 @@ let controlled () =
               ~key:(fun () ->
                 incr serial;
                 "clock-" ^ string_of_int !serial)
-              ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+              ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
+              ~on_error:ignore ()
           in
           (cleanup := fun () -> Client.close client);
           let resource =
@@ -421,7 +421,8 @@ let controlled () =
           let client =
             Client.connect ~sw ~clock ~session ~client_id:"clock-test"
               ~key:(fun () -> "clock-request")
-              ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+              ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
+              ~on_error:ignore ()
           in
           (cleanup :=
              fun () ->
@@ -806,7 +807,8 @@ let session_unit startup () =
   let client =
     Client.connect ~sw ~clock ~session:credentials ~client_id:"test"
       ~key:(fun () -> "test")
-      ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+      ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
+      ~on_error:ignore ()
   in
   let module S = State_units.Session in
   let unit = S.make ~id:"kb" ~kb:registered.kb client in

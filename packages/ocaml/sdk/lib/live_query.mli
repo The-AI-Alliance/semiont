@@ -27,7 +27,6 @@ val invalidate : ('key, 'value) t -> 'key -> unit
 
 type key = string * string option * string option
 
-val channels : Bus_registry.packed_channel list
 val operations : (string * Bus_registry.packed_operation) list
 
 val refetch :

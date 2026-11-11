@@ -37,6 +37,7 @@ val trace_field : string
 val stream_event : string
 val channels : packed_channel list
 val operations : packed_operation list
+val bridged_channels : packed_channel list
 module Channels : sig
   val yield_created : ([ `StoredEventResponse ] * [ `ResourceCreatedPayload ]) recorded channel
   val yield_cloned : ([ `StoredEventResponse ] * [ `ResourceClonedPayload ]) recorded channel

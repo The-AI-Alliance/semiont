@@ -57,18 +57,6 @@ let job_signals =
   let open B.Channels in
   [ B.Channel job_report_progress; B.Channel job_complete; B.Channel job_fail ]
 
-let channels =
-  let replies (B.Operation op) =
-    [ B.Channel (B.result op); B.Channel (B.failure op) ]
-  in
-  job_signals
-  @ List.concat_map replies
-      [
-        B.Operation B.Operations.job_create;
-        B.Operation B.Operations.job_status_requested;
-        B.Operation B.Operations.job_cancel_requested;
-      ]
-
 let job_channel channel =
   List.exists (fun (B.Channel value) -> B.name value = channel) job_signals
 

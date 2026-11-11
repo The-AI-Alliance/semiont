@@ -252,7 +252,8 @@ let lifecycle phase row =
   let client =
     Client.connect ~sw ~clock ~session:credentials ~client_id:"test"
       ~key:(fun () -> "test")
-      ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+      ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
+      ~on_error:ignore ()
   in
   let module S = State_units.Session in
   let told = ref None in

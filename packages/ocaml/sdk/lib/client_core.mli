@@ -3,7 +3,6 @@
 type t
 
 val connect :
-  ?subscribe_defaults:bool ->
   ?timing:Subscription.timing ->
   ?http_timing:Http_wire.timing ->
   ?telemetry:Telemetry.t ->
@@ -31,7 +30,9 @@ val connect :
   on_error:(Http_wire.failure -> unit) ->
   unit ->
   t
-(** Starts the bus on [sw]. The caller owns [session] and its lifetime. *)
+(** Starts the bus on [sw]. The caller owns [session] and its lifetime. [global]
+    is every channel the bus subscribes to: a full client passes
+    [Bus_registry.bridged_channels]. *)
 
 val switch : t -> Eio.Switch.t
 val client_id : t -> string

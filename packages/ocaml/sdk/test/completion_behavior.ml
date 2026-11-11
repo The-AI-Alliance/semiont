@@ -308,8 +308,8 @@ let testing () =
         ~key:(fun () ->
           incr serial;
           string_of_int !serial)
-        ~call:(Testing.call transport) ~global:[] ~on_event:ignore
-        ~on_error:ignore ()
+        ~call:(Testing.call transport) ~global:Bus_registry.bridged_channels
+        ~on_event:ignore ~on_error:ignore ()
     in
     let outcome, resolve = Promise.create () in
     let request () =
@@ -469,8 +469,7 @@ let real_delivery () =
         incr serial;
         string_of_int !serial)
       ~call:(Testing.call ~content transport)
-      ~global:[ Bus_registry.Channel Bus_registry.Channels.beckon_focus ]
-      ~on_event ~on_error:ignore ()
+      ~global:Bus_registry.bridged_channels ~on_event ~on_error:ignore ()
   in
   let kb =
     Models.decode Models.knowledge_base
@@ -596,7 +595,9 @@ let replay_persistence () =
       ~key:(fun () -> "key")
       ~call:(Testing.call ~content transport)
       ~persister:store
-      ~global:[ Bus_registry.Channel Bus_registry.Channels.mark_added ]
+      ~global:
+        (Bus_registry.bridged_channels
+        @ [ Bus_registry.Channel Bus_registry.Channels.mark_added ])
       ~on_event:ignore ~on_error:ignore ()
   in
   let id = Identifiers.Resource_id.of_string "res-1" |> Result.get_ok in

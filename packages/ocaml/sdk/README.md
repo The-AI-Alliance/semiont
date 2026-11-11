@@ -22,7 +22,7 @@ Add `semiont` to your application's Dune `libraries` stanza and make the install
 - **Interactive application.** Use `Registry.begin_sign_in` to store the pending PKCE exchange and get the authorization URL. After the redirect, use `Registry.complete_sign_in` to consume the callback and verify the knowledge base. Supply a `Storage.t` with an atomic update when multiple application contexts share the store.
 - **Agent.** Use `Agent.sign_in` with a client secret or RSA key. For RSA assertions, initialize Mirage's secure random generator and supply a fresh assertion ID. Use `Service_token` when you need the issuer bearer or authorization header independently of a client.
 
-Pass the credential session, Eio switch, clock, and gateway HTTP adapter to `Client.connect`. The application owns the HTTP adapter, the client, and the lifetime of its Eio switch. The [sign-in guide](../../../docs/builder/SIGN-IN.md) describes the grants.
+Pass the credential session, Eio switch, clock, and gateway HTTP adapter to `Client.connect`, with the channels its bus subscribes to as `~global`: `Bus_registry.bridged_channels` for a full client. The application owns the HTTP adapter, the client, and the lifetime of its Eio switch. The [sign-in guide](../../../docs/builder/SIGN-IN.md) describes the grants.
 
 ## Live queries
 
