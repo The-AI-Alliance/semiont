@@ -254,8 +254,13 @@ internal fun timingFile(table: JsonObject): String = buildString {
     append("}\n")
 }
 
-/** The codes a client's failures carry: an enum per vocabulary of errors/codes.json, each value as the wire spells it. */
-internal fun errorCodesFile(table: JsonObject): String = buildString {
+/**
+ * The codes a client's failures carry: an enum per vocabulary of errors/codes.json, each value as the wire spells it, and the
+ * client code each of CommandError's codes becomes, as an exhaustive `when` over its closed code (`definitions`, typed as
+ * `generation` types it). Refused where CommandError's codes, the codes the required table (`required`) recognizes and the
+ * wire codes codes.json maps are not the same codes, each mapped once.
+ */
+internal fun errorCodesFile(table: JsonObject, definitions: JsonObject, generation: Generation, required: JsonObject): String = buildString {
     fun vocabulary(key: String, name: String, doc: String) {
         val codes = table[key].obj(key)["codes"].list("$key's codes").map { it.obj("a code of $key") }
         append("/** $doc */\n@Generated\npublic enum class $name(\n    /** The code as the wire and every SDK spell it. */\n    public val code: String,\n) {\n")
@@ -290,15 +295,28 @@ internal fun errorCodesFile(table: JsonObject): String = buildString {
     val unclassified = table["transport"].obj("transport")["unclassified"].text("transport's unclassified")
     append("    else -> TransportErrorCode.${variantOf(unclassified)}\n}\n\n")
     val bus = table["busRequest"].obj("busRequest")
-    append("/** The client code a failure's own wire code becomes. */\n")
-    append("internal val BUS_REQUEST_CODE_BY_WIRE_CODE: Map<String, BusRequestErrorCode> = mapOf(\n")
+    val listed = definitions["CommandError"].obj("CommandError")["properties"].obj("CommandError's properties")["code"].obj("CommandError's code")["enum"]
+        .list("CommandError's codes").map { it.text("a code of CommandError") }
+    val recognized = required["schemas"].obj("the required table's schemas")["CommandError"].obj("the required table's CommandError")["members"]
+        .obj("the required table's CommandError members")["code"].obj("the required table's CommandError code")["recognized"]
+        .list("the codes the required table recognizes").map { it.text("a recognized code") }
+    if (recognized.toSet() != listed.toSet() || recognized.size != listed.size) refuse("the required table recognizes the codes $recognized, and CommandError lists $listed")
+    val mapped = mutableMapOf<String, String>()
     for (entry in bus["codes"].list("busRequest's codes").map { it.obj("a code") }) {
         val wire = (entry["wire"] as? JsonPrimitive)?.content ?: continue
-        append("    ${literal(wire)} to BusRequestErrorCode.${variantOf(entry["code"].text("a code").substringAfter('.'))},\n")
+        if (wire !in listed) refuse("codes.json maps the wire code $wire, which CommandError does not list")
+        if (mapped.put(wire, entry["code"].text("a code")) != null) refuse("codes.json maps the wire code $wire twice")
     }
-    append(")\n\n")
+    val codeType = valueTypeOf(definitions, generation, "../components/schemas/CommandError.json#/properties/code")
+    append("/** The client code each of CommandError's codes, a failure's own code, becomes. */\n")
+    append("internal fun busRequestCodeOf(code: $codeType): BusRequestErrorCode = when (code) {\n")
+    for (code in listed) {
+        val becomes = mapped[code] ?: refuse("CommandError's code $code becomes no bus request code in codes.json")
+        append("    $codeType.${variantOf(code)} -> BusRequestErrorCode.${variantOf(becomes.substringAfter('.'))}\n")
+    }
+    append("}\n\n")
     val unrecognized = bus["unrecognizedFailure"].text("busRequest's unrecognizedFailure")
-    append("/** The client code of a failure whose own code is none it knows. */\n")
+    append("/** The client code of a failure that states no code: one whose code the required table does not recognize is read as stating none. */\n")
     append("internal val UNRECOGNIZED_FAILURE: BusRequestErrorCode = BusRequestErrorCode.${variantOf(unrecognized.substringAfter('.'))}\n")
 }
 

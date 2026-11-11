@@ -70,8 +70,14 @@ public fun main(args: Array<String>) {
             ),
             cacheRefreshFile(readJson(specs.resolve("client/refresh.json")) as? JsonObject ?: refuse("client/refresh.json is no object"), registry, definitions, generation),
         )
-        table("semiont.errors", "ErrorCodes.kt", listOf("semiont.Generated"), errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object")))
-        table("semiont.bus", "RequiredTable.kt", emptyList(), requiredFile(readJson(required) as? JsonObject ?: refuse("$required is no object")))
+        val requiredTable = readJson(required) as? JsonObject ?: refuse("$required is no object")
+        table(
+            "semiont.errors",
+            "ErrorCodes.kt",
+            listOf("semiont.Generated", "semiont.types.*"),
+            errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object"), definitions, generation, requiredTable),
+        )
+        table("semiont.bus", "RequiredTable.kt", emptyList(), requiredFile(requiredTable))
         table("semiont.annotations", "UnicodeCase.kt", emptyList(), unicodeCaseFile(readJson(unicodeCase) as? JsonObject ?: refuse("$unicodeCase is no object")))
         println("generated ${generated.types.size} types and ${kinds.size} kinds of id")
     } catch (refused: Refused) {

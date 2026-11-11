@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.jdk9.asPublisher
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -74,23 +73,20 @@ public fun <P> decoded(channel: Channel<P>, payload: JsonObject): P = decode(cha
 /** `decoded`, for a channel a resource's scope carries. */
 public fun <P> decoded(channel: ScopedChannel<P>, payload: JsonObject): P = decode(channel.name, channel.payload, channel.stamps, payload)
 
-/**
- * `payload` as a reader of `descriptor`'s type reads it: without what the
- * gateway stamped on it that `stamps` does not declare, and without a member
- * that holds a text none of those its shape recognizes.
- */
-private fun asRead(descriptor: SerialDescriptor, stamps: Set<String>, payload: JsonObject): JsonObject =
-    readOf(descriptor, JsonObject(payload.filterKeys { !it.startsWith("_") || it in stamps }))
+/** `payload` without what the gateway stamped on it that `stamps` does not declare. */
+private fun declared(stamps: Set<String>, payload: JsonObject): JsonObject = JsonObject(payload.filterKeys { !it.startsWith("_") || it in stamps })
 
 /**
- * `payload` read as a value of `serializer`'s type, held to the table before
- * it is decoded: what `read` makes of the value, or what `refused` makes of
- * its first fault.
+ * `payload` read as a value of `serializer`'s type: without what the gateway
+ * stamped on it that `stamps` does not declare, read by the table (a member
+ * that holds a text none of those its shape recognizes left out), and decoded
+ * when the table finds no fault. What `read` makes of the value, or what
+ * `refused` makes of its first fault.
  */
 private inline fun <P, R> reading(serializer: KSerializer<P>, stamps: Set<String>, payload: JsonObject, read: (P) -> R, refused: (Fault) -> R): R {
-    val asRead = asRead(serializer.descriptor, stamps, payload)
-    val fault = faultOf(serializer.descriptor, asRead) ?: try {
-        return read(wireJson.decodeFromJsonElement(serializer, asRead))
+    val asRead = readOf(serializer.descriptor, declared(stamps, payload))
+    val fault = asRead.fault ?: try {
+        return read(wireJson.decodeFromJsonElement(serializer, asRead.value))
     } catch (_: IllegalArgumentException) {
         UNDECODED
     }
@@ -193,9 +189,8 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
  * failure is the unrecognized one.
  */
 private fun answered(channel: Channel<*>, failure: JsonObject): SemiontError {
-    val read = asRead(channel.payload.descriptor, channel.stamps, failure)
-    val fault = faultOf(channel.payload.descriptor, read)
-        ?: return BusRequestError.answered(read.getValue("message").jsonPrimitive.content, read)
+    val asRead = readOf(channel.payload.descriptor, declared(channel.stamps, failure))
+    val fault = asRead.fault ?: return asRead.value.jsonObject.let { read -> BusRequestError.answered(read.getValue("message").jsonPrimitive.content, read) }
     return TransportError(TransportErrorCode.Error, notTheChannels(channel.name, fault))
 }
 
