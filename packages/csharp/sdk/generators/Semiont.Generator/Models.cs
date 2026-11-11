@@ -25,6 +25,17 @@ internal sealed class Models
 
     internal IReadOnlyDictionary<string, JsonElement> Schemas => definitions;
 
+    /// <summary>The type of its own a component's member is made as, once the models are emitted.</summary>
+    internal string MemberType(string owner, string property) => inlined.TryGetValue(owner + "." + FieldName(owner, property), out var name)
+        ? name : throw new InvalidOperationException(owner + "." + property + " is made as no type of its own.");
+
+    /// <summary>The C# name of the member <paramref name="property"/> of the model <paramref name="owner"/>.</summary>
+    private static string FieldName(string owner, string property)
+    {
+        var field = Pascal(property);
+        return field == owner ? field + "Value" : field;
+    }
+
     internal IReadOnlyDictionary<string, string> Emit()
     {
         foreach (var name in definitions.Keys.OrderBy(name => name, StringComparer.Ordinal).ToArray())
@@ -41,7 +52,7 @@ internal sealed class Models
 
     private static bool Flag(JsonElement schema, string name) => schema.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
-    private static string Pascal(string text)
+    internal static string Pascal(string text)
     {
         text = text.Replace("+", " Plus ");
         var name = string.Concat(Regex.Matches(text, "[A-Za-z0-9]+").Cast<Match>().Select(match => char.ToUpperInvariant(match.Value[0]) + match.Value.Substring(1)));
@@ -270,11 +281,7 @@ internal sealed class Models
         }
         var fields = properties.OrderBy(property => property.Key, StringComparer.Ordinal).Select(property =>
         {
-            var field = Pascal(property.Key);
-            if (field == name)
-            {
-                field += "Value";
-            }
+            var field = FieldName(name, property.Key);
             var isRequired = required.Contains(property.Key);
             var nullable = Flag(property.Value, "nullable");
             var constant = isRequired && !nullable && property.Value.TryGetProperty("enum", out var values) && values.GetArrayLength() == 1 && values[0].ValueKind == JsonValueKind.String

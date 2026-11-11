@@ -320,8 +320,9 @@ public sealed partial class HttpTransport : IDisposable
     {
         if (Required.FaultOf(failureSchemas[channel], failure, out var read) is { } fault)
             return new TransportError(ProtocolFacts.Error(0), $"a payload on {channel} is not that channel's: {fault}");
-        var code = read.TryGetProperty("code", out var field) ? field.GetString() : null;
-        return new BusRequestError(ProtocolFacts.Failure(code), read.GetProperty("message").GetString()
+        var code = read.TryGetProperty("code", out var field) && field.ValueKind != JsonValueKind.Null
+            ? field.Deserialize<CommandErrorCode>() : (CommandErrorCode?)null;
+        return new BusRequestError(FailureCodes.Of(code), read.GetProperty("message").GetString()
             ?? throw new InvalidOperationException($"The schema of {channel} let a failure's message be null."));
     }
 

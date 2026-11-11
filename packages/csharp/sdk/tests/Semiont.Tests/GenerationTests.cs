@@ -115,6 +115,27 @@ public sealed class GenerationTests
         Assert.Empty(result.GeneratedTrees);
     }
 
+    [Fact]
+    public void GenerationFailsForACodeOfCommandErrorThatCodesJsonMapsToNoFailure()
+    {
+        var files = SpecFiles().Select(file => file.Path.EndsWith("/errors/codes.json", StringComparison.Ordinal)
+            ? new SpecFile(file.Path, WithoutWire(file.GetText().ToString(), "none-pending")) : file);
+        var result = Generated([.. files, RequiredTable(), UnicodeCaseTable()]);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "SEMGEN001"
+            && diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("code none-pending to no bus request's failure", StringComparison.Ordinal));
+    }
+
+    /// <summary><paramref name="errors"/>, errors/codes.json, with no bus request's failure mapped from <paramref name="wire"/>.</summary>
+    private static string WithoutWire(string errors, string wire)
+    {
+        var table = System.Text.Json.Nodes.JsonNode.Parse(errors) ?? throw new InvalidOperationException("errors/codes.json is null.");
+        var codes = table["busRequest"]?["codes"]?.AsArray() ?? throw new InvalidOperationException("errors/codes.json has no bus request's codes.");
+        var mapped = codes.Select(code => code?.AsObject()).Single(code => code?["wire"]?.GetValue<string>() == wire)
+            ?? throw new InvalidOperationException("errors/codes.json maps nothing from " + wire + ".");
+        mapped.Remove("wire");
+        return table.ToJsonString();
+    }
+
     private static SpecFile[] SpecFiles() =>
         Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "specs"), "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith("README.md", StringComparison.Ordinal))
             .Select(path => new SpecFile("/specs/src/" + Path.GetRelativePath(Path.Combine(AppContext.BaseDirectory, "specs"), path).Replace('\\', '/'), File.ReadAllText(path))).ToArray();

@@ -44,19 +44,6 @@ internal static class ProtocolFacts
         .Where(row => row.TryGetProperty("event", out _))
         .Select(row => row.GetProperty("channel").GetString() ?? throw new InvalidOperationException("A channel is null"));
 
-    internal static string Failure(string? wire)
-    {
-        var family = Errors.RootElement.GetProperty("busRequest");
-        foreach (var code in family.GetProperty("codes").EnumerateArray())
-        {
-            if (code.TryGetProperty("wire", out var named) && named.GetString() == wire)
-            {
-                return code.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code");
-            }
-        }
-        return family.GetProperty("unrecognizedFailure").GetString() ?? throw new InvalidOperationException("No unrecognized failure code");
-    }
-
     internal static string BusError(string name) => Errors.RootElement.GetProperty("busRequest").GetProperty("codes").EnumerateArray()
         .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
         .Single(code => code == "bus." + name);
