@@ -4,6 +4,14 @@ let check = Alcotest.(check bool)
 let read_body body = Eio.Buf_read.(take_all (of_flow ~max_size:65536 body))
 let pem file = In_channel.with_open_bin file In_channel.input_all
 
+(* The probes' certificate is made by a rule whose output CI caches with the
+   build, so it may have expired by the time a probe runs. A probe judges trust
+   and hostname an hour into the certificate's validity. *)
+let while_valid certificate () =
+  Ptime.add_span
+    (fst (X509.Certificate.validity certificate))
+    (Ptime.Span.of_int_s 3600)
+
 let value = function
   | Ok value -> value
   | Error (`Msg message) -> failwith message
@@ -182,9 +190,9 @@ let controlled_deadline stall () =
         let certificate =
           value (X509.Certificate.decode_pem (pem "peer-cert.pem"))
         in
-        let time () = Ptime.of_float_s (Eio.Time.now (Eio.Stdenv.clock env)) in
         let authenticator =
-          X509.Authenticator.chain_of_trust ~time [ certificate ]
+          X509.Authenticator.chain_of_trust ~time:(while_valid certificate)
+            [ certificate ]
         in
         let config = value (Tls.Config.client ~authenticator ()) in
         Cohttp_eio.Client.make_generic (fun ~sw _ ->
@@ -321,9 +329,8 @@ let tls ~trusted ~host () =
   let server_config =
     value (Tls.Config.server ~certificates:(`Single ([ certificate ], key)) ())
   in
-  let time () = Ptime.of_float_s (Eio.Time.now (Eio.Stdenv.clock env)) in
   let authenticator =
-    X509.Authenticator.chain_of_trust ~time
+    X509.Authenticator.chain_of_trust ~time:(while_valid certificate)
       (if trusted then [ certificate ] else [])
   in
   let config = value (Tls.Config.client ~authenticator ()) in
