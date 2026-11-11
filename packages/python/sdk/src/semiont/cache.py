@@ -108,10 +108,18 @@ class _Key[V]:
         """The fetch in flight for the key: its number, and its task. An
         `invalidate` lets go of it without waiting, so a fetch whose answer
         will never come cannot hold the key."""
+        self.validation: tuple[int, bool] | None = None
+        """The live view's ask: the number of the fetch it waits on, and whether that fetch is its second."""
 
     def known(self) -> bool:
         """Whether anything asked for the key and has not let go of it."""
         return self.in_flight is not None or not isinstance(self.state.value, Pending)
+
+
+def _heard(fetch: asyncio.Task[object]) -> None:
+    """Retrieve a fetch's failure, which its key (`Cache._settled`) and each awaiter are told: asyncio logs one nobody retrieved."""
+    if not fetch.cancelled():
+        fetch.exception()
 
 
 async def _joined[V](fetch: asyncio.Task[V]) -> V:
@@ -227,26 +235,30 @@ class Cache[K: Hashable, V](StateUnit):
             self._owed = True
             raise
 
-    def _fetching(self, key: K) -> asyncio.Task[V]:
-        """Start a fetch for `key`, or join the one in flight."""
+    def _fetching(self, key: K) -> tuple[int, asyncio.Task[V]]:
+        """Start a fetch for `key`, or join the one in flight: its number, and its task."""
         # Asked for by this cache now, whichever path asked.
         self._kept.discard(key)
         held = self._held(key)
         if held.in_flight is not None:
-            return held.in_flight[1]
+            return held.in_flight
         self._fetches += 1
         fetch = self._tasks.run(self._fetched(key, self._fetches))
+        fetch.add_done_callback(_heard)
         held.in_flight = (self._fetches, fetch)
-        return fetch
+        return held.in_flight
 
     async def _fetched(self, key: K, number: int) -> V:
         try:
             value = await self._fetch(key)
-        finally:
-            # Only its own, and on every way out: an `invalidate` may have put a newer fetch in its place.
-            held = self._keys.get(key)
-            if held is not None and held.in_flight is not None and held.in_flight[0] == number:
-                held.in_flight = None
+        except Exception as failure:
+            self._settled(key, number, failure)
+            raise
+        except BaseException:
+            # A cancellation is no failure: nothing is asked again after it.
+            self._settled(key, number, None)
+            raise
+        self._settled(key, number, None)
         # A value from any fetch is written, the newest last: each is at least
         # as new as what was there. A failure writes nothing. One answered
         # after the cache was disposed has no key to write to.
@@ -256,26 +268,34 @@ class Cache[K: Hashable, V](StateUnit):
             self._owe_a_save()
         return value
 
+    def _settled(self, key: K, number: int, failure: Exception | None) -> None:
+        """In the step a fetch settles it is in flight no more, and the live view's ask waiting on it ends.
+
+        A first ask that failed is asked once more, at once, so the key is
+        fetching from its first failure until its retry settles; a second that
+        failed fails a key with no value.
+        """
+        held = self._keys.get(key)
+        if held is None:
+            return
+        # Only its own: an `invalidate` may have put a newer fetch, and a newer ask, in its place.
+        if held.in_flight is not None and held.in_flight[0] == number:
+            held.in_flight = None
+        validation = held.validation
+        if validation is None or validation[0] != number:
+            return
+        held.validation = None
+        if failure is None:
+            return
+        if not validation[1]:
+            held.validation = (self._fetching(key)[0], True)
+        elif not isinstance(held.state.value, Ready):
+            held.state.set(Failed(failure))
+
     def _revalidate(self, key: K) -> None:
         """Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes `Failed`."""
-        self._tasks.run(self._chain(key, self._fetching(key)))
-
-    async def _chain(self, key: K, first: asyncio.Task[V]) -> None:
-        # Whatever a fetch failed with is a failure; a cancellation is not one.
-        try:
-            await _joined(first)
-        except Exception:
-            pass
-        else:
-            return
-        if self._disposed:
-            return
-        try:
-            await _joined(self._fetching(key))
-        except Exception as failure:
-            held = self._keys.get(key)
-            if held is not None and not isinstance(held.state.value, Ready):
-                held.state.set(Failed(failure))
+        number, _ = self._fetching(key)
+        self._held(key).validation = (number, False)
 
     def observe(self, key: K) -> AsyncIterator[CacheState[V]]:
         """The key's state, now and as it changes, until the cache is disposed.
@@ -311,7 +331,7 @@ class Cache[K: Hashable, V](StateUnit):
         """
         if self._disposed:
             raise closed()
-        return await _joined(self._fetching(key))
+        return await _joined(self._fetching(key)[1])
 
     def get(self, key: K) -> V | None:
         """The key's value now, asking for nothing."""

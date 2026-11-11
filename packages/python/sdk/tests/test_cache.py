@@ -96,6 +96,11 @@ def owing(cache: Cache[str, int]) -> bool:
     return cache.persistence_pending
 
 
+def fetching(cache: Cache[str, int]) -> bool:
+    """Whether the cache has a fetch in flight of what it keeps, read now."""
+    return cache.kept_fetching
+
+
 async def now(observing: AsyncIterator[CacheState[int]]) -> CacheState[int]:
     """The state an observer is given next, which is to be there already or soon."""
     state = await soon(anext(observing))
@@ -306,6 +311,22 @@ def test_b14_a_fetch_for_an_observer_that_fails_is_made_once_more_and_no_more() 
         assert await soon(waiting) == Ready(7)
         await turns()
         assert service.asked == [KEY, KEY]
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b14_a_failed_first_ask_of_the_live_view_is_asked_again_in_the_step_it_fails() -> None:
+    """B17: no turn falls between a first failure and its retry, in which a save would find the key at rest."""
+
+    async def scenario() -> None:
+        cache, service, tasks = world(Kept())
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        service.fail(0)
+        while len(service.asked) < 2:
+            assert fetching(cache), "the key was at rest between its first failure and its retry"
+            await asyncio.sleep(0)
         await tasks.close()
 
     run(scenario())
@@ -704,6 +725,23 @@ def test_b17_values_are_saved_once_they_have_stopped_changing_and_only_values() 
         assert await now(fetched) == Ready(3)
         await pass_time(0.1, step=0.01)
         assert persister.saves[2:] == [{"b": 2, "c": 3}]
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b17_a_fetch_is_in_flight_no_more_by_the_time_its_caller_has_its_value() -> None:
+    """In flight is a fetch whose promise has not settled: the caller given the value finds the key fetching no more, and its save owed."""
+
+    async def scenario() -> None:
+        cache, service, tasks = world(Kept())
+        read = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        assert fetching(cache)
+        service.answer(0, 1)
+        assert await soon(read) == 1
+        assert not fetching(cache)
+        assert owing(cache)
         await tasks.close()
 
     run(scenario())

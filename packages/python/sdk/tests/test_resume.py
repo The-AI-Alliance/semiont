@@ -266,10 +266,13 @@ def test_a_place_is_noted_only_once_the_refresher_has_taken_its_event() -> None:
                 places.storage.set(CACHE, document)
                 assert storage.get(KEY) is None
 
-                # The answer comes, and the resource's cache keeps it: every kept cache is at rest, and the place rides that write.
+                # The answer comes, and the resource's cache keeps it. Its save, fired the moment a read joined to that
+                # fetch has the value, finds every kept cache at rest, and the place rides that write.
+                refetched = asyncio.ensure_future(client.browse.resource(RESOURCE).fresh())
+                await turns()
                 describe(asked[1], "A resource, archived")
-                await settle()
-                await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+                assert (await soon(refetched)).name == "A resource, archived"
+                await pass_time(SAVE_DEBOUNCE_MS / 1000)
                 assert places.load() == {RESOURCE: "p-res-1-7"}
 
     run(scenario())
