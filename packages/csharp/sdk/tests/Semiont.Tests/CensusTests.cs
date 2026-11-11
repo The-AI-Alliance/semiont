@@ -93,4 +93,40 @@ public sealed class CensusTests
             .GetAnalyzerDiagnosticsAsync();
         Assert.Empty(diagnostics);
     }
+
+    /// <summary>The SDK's seam as it stands; a compilation that declares it is held to SEM008.</summary>
+    private static readonly SyntaxTree Seam =
+        CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "seam", "Spawning.cs")));
+
+    private static async Task<ImmutableArray<Diagnostic>> BesideTheSeamAsync(string member)
+    {
+        var tree = CSharpSyntaxTree.ParseText("public static class Example { " + member + " }");
+        var compilation = CSharpCompilation.Create("Example", [tree, Seam], Framework,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        Assert.Empty(compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        return await compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new CensusAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+    }
+
+    [Theory]
+    [InlineData("public static async System.Threading.Tasks.Task Wait(System.Threading.Tasks.Task work) => await work.ConfigureAwait(Semiont.Spawning.Captures);")]
+    [InlineData("public static async System.Threading.Tasks.Task Wait(System.Threading.Tasks.Task work) => await work.ConfigureAwait(Semiont.Spawning.Options(System.Threading.Tasks.ConfigureAwaitOptions.SuppressThrowing));")]
+    [InlineData("public static async System.Threading.Tasks.Task Read(System.Collections.Generic.IAsyncEnumerable<int> items) { await foreach (var item in items.ConfigureAwait(Semiont.Spawning.Captures)) { } }")]
+    [InlineData("public static async System.Threading.Tasks.Task Close(System.IAsyncDisposable resource) { await using var closing = resource.ConfigureAwait(Semiont.Spawning.Captures); }")]
+    [InlineData("public static System.Threading.Tasks.Task Start(System.Func<System.Threading.Tasks.Task> work) => Semiont.Spawning.Run(work);")]
+    [InlineData("public static System.Threading.Tasks.Task Each(int[] items, System.Func<int, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask> body) => Semiont.Spawning.ForEachAsync(items, new System.Threading.Tasks.ParallelOptions(), body);")]
+    [InlineData("public static System.Threading.Tasks.Task Cancel(System.Threading.CancellationTokenSource source) => Semiont.Spawning.CancelAsync(source);")]
+    [InlineData("public static System.Collections.Generic.IAsyncEnumerable<int> Read(System.Threading.Channels.ChannelReader<int> reader) => Semiont.Spawning.ReadAll(reader, System.Threading.CancellationToken.None);")]
+    [InlineData("public static System.Threading.Tasks.Task<int> Read(System.Threading.Tasks.ValueTask<int> pending) => Semiont.Spawning.AsTask(pending);")]
+    [InlineData("public static System.Threading.Tasks.Task<System.Threading.Tasks.Task> First(System.Threading.Tasks.Task one, System.Threading.Tasks.Task other) => Semiont.Spawning.WhenAny(one, other);")]
+    [InlineData("public static System.Threading.Tasks.Task Both(System.Threading.Tasks.Task one, System.Threading.Tasks.Task other) => Semiont.Spawning.WhenAll(one, other);")]
+    [InlineData("public static System.Threading.Tasks.Task Wait(System.Threading.Tasks.Task work, System.Threading.CancellationToken cancellation) => Semiont.Spawning.WaitAsync(work, cancellation);")]
+    [InlineData("public static System.Threading.Tasks.TaskCompletionSource Completion() => new(Semiont.Spawning.CompletionOptions);")]
+    [InlineData("public static System.Threading.Tasks.Task Turn(System.Threading.SemaphoreSlim turn, System.Threading.CancellationToken cancellation) => turn.WaitAsync(cancellation);")]
+    public async Task SpawningFormsHaveNoCensusDiagnostic(string member) => Assert.Empty(await BesideTheSeamAsync(member));
+
+    [Fact]
+    public async Task ARawFormBesideTheSeamIsRefused() =>
+        Assert.Equal("SEM008", Assert.Single(await BesideTheSeamAsync(
+            "public static System.Threading.Tasks.Task Start(System.Func<System.Threading.Tasks.Task> work) => System.Threading.Tasks.Task.Run(work);")).Id);
 }

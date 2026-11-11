@@ -19,9 +19,10 @@ public sealed class CensusAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor EnvironmentRead = Rule("SEM005", "Only SEMIONT_BUS_LOG may be read from the environment");
     private static readonly DiagnosticDescriptor SkippedTest = Rule("SEM006", "Tests must run instead of being skipped");
     private static readonly DiagnosticDescriptor ClockEscape = Rule("SEM007", "Wait, measure and draw on the TimeProvider and Random the caller gives");
+    private static readonly DiagnosticDescriptor SpawningEscape = Rule("SEM008", "Start, resume and wait on work through Spawning");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(NullForgiveness, Blocking, Dynamic, Suppression, EnvironmentRead, SkippedTest, ClockEscape);
+        ImmutableArray.Create(NullForgiveness, Blocking, Dynamic, Suppression, EnvironmentRead, SkippedTest, ClockEscape, SpawningEscape);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -34,6 +35,7 @@ public sealed class CensusAnalyzer : DiagnosticAnalyzer
         context.RegisterSyntaxNodeAction(CheckAttribute, SyntaxKind.Attribute);
         context.RegisterSyntaxTreeAction(CheckDirectives);
         context.RegisterCompilationStartAction(CheckClock);
+        context.RegisterCompilationStartAction(CheckSpawning);
     }
 
     private static DiagnosticDescriptor Rule(string id, string message) =>
@@ -242,6 +244,134 @@ public sealed class CensusAnalyzer : DiagnosticAnalyzer
         if (IsType(((IFieldReferenceOperation)context.Operation).Field.ContainingType, "System.Diagnostics", "Stopwatch"))
         {
             ReportClock(context);
+        }
+    }
+
+    /// <summary>
+    /// A compilation that declares Semiont.Spawning, the SDK's, starts, resumes and waits on its work only through it,
+    /// so a test that plays a case on a context of its own keeps all of the case's work there: every await is configured
+    /// by Spawning.Captures or Spawning.Options, and none of the forms that would send work to the thread pool is called
+    /// outside Spawning. A compilation without it, a test's or a tool's, is not held to it.
+    /// </summary>
+    private static void CheckSpawning(CompilationStartAnalysisContext context)
+    {
+        if (context.Compilation.GetTypeByMetadataName("Semiont.Spawning") is not { } spawning ||
+            !SymbolEqualityComparer.Default.Equals(spawning.ContainingAssembly, context.Compilation.Assembly))
+        {
+            return;
+        }
+        context.RegisterOperationAction(c => CheckSpawningCall(c, spawning), OperationKind.Invocation);
+        context.RegisterOperationAction(c => CheckSpawningAwait(c, spawning), OperationKind.Await);
+        context.RegisterOperationAction(c => CheckSpawningLoop(c, spawning), OperationKind.Loop);
+        context.RegisterOperationAction(c => CheckSpawningUsing(c, spawning), OperationKind.Using, OperationKind.UsingDeclaration);
+        context.RegisterOperationAction(c => CheckSpawningCreation(c, spawning), OperationKind.ObjectCreation);
+        context.RegisterOperationAction(c => CheckSpawningField(c, spawning), OperationKind.FieldReference);
+    }
+
+    private static void ReportSpawning(OperationAnalysisContext context, INamedTypeSymbol spawning)
+    {
+        for (ISymbol? within = context.ContainingSymbol; within is not null; within = within.ContainingSymbol)
+        {
+            if (SymbolEqualityComparer.Default.Equals(within, spawning))
+            {
+                return;
+            }
+        }
+        context.ReportDiagnostic(Diagnostic.Create(SpawningEscape, context.Operation.Syntax.GetLocation()));
+    }
+
+    private static bool IsSpawning(ISymbol member, INamedTypeSymbol spawning, string name) =>
+        member.Name == name && SymbolEqualityComparer.Default.Equals(member.ContainingType, spawning);
+
+    private static IOperation Unconverted(IOperation operation)
+    {
+        while (operation is IConversionOperation conversion)
+        {
+            operation = conversion.Operand;
+        }
+        return operation;
+    }
+
+    /// <summary>Whether <paramref name="operation"/> is a ConfigureAwait call: what an await, an await foreach and an
+    /// await using are each given, its setting held to the seam's by <see cref="CheckSpawningCall"/>.</summary>
+    private static bool IsConfigured(IOperation operation) =>
+        Unconverted(operation) is IInvocationOperation { TargetMethod.Name: "ConfigureAwait" };
+
+    private static void CheckSpawningCall(OperationAnalysisContext context, INamedTypeSymbol spawning)
+    {
+        var call = (IInvocationOperation)context.Operation;
+        var method = call.TargetMethod;
+        var owner = method.ContainingType;
+        if (method.Name == "ConfigureAwait")
+        {
+            var setting = Unconverted(call.Arguments[call.Arguments.Length - 1].Value);
+            if (!(setting is IPropertyReferenceOperation captures && IsSpawning(captures.Property, spawning, "Captures") ||
+                  setting is IInvocationOperation options && IsSpawning(options.TargetMethod, spawning, "Options")))
+            {
+                ReportSpawning(context, spawning);
+            }
+            return;
+        }
+        if (IsType(owner, "System.Threading.Tasks", "Task") && method.Name is "Run" or "WhenAny" or "WhenAll" or "WaitAsync" or "ContinueWith" ||
+            IsType(owner, "System.Threading.Tasks", "TaskFactory") && method.Name == "StartNew" ||
+            IsType(owner, "System.Threading", "ThreadPool") ||
+            IsType(owner, "System.Threading.Tasks", "Parallel") ||
+            IsType(owner, "System.Threading", "CancellationTokenSource") && method.Name == "CancelAsync" ||
+            IsType(owner, "System.Threading.Channels", "ChannelReader") && method.Name == "ReadAllAsync" ||
+            IsType(owner, "System.Threading.Tasks", "ValueTask") && method.Name == "AsTask")
+        {
+            ReportSpawning(context, spawning);
+        }
+    }
+
+    private static void CheckSpawningAwait(OperationAnalysisContext context, INamedTypeSymbol spawning)
+    {
+        if (IsTask(Unconverted(((IAwaitOperation)context.Operation).Operation).Type))
+        {
+            ReportSpawning(context, spawning);
+        }
+    }
+
+    private static void CheckSpawningLoop(OperationAnalysisContext context, INamedTypeSymbol spawning)
+    {
+        if (context.Operation is IForEachLoopOperation { IsAsynchronous: true } loop && !IsConfigured(loop.Collection))
+        {
+            ReportSpawning(context, spawning);
+        }
+    }
+
+    private static void CheckSpawningUsing(OperationAnalysisContext context, INamedTypeSymbol spawning)
+    {
+        var configured = context.Operation switch
+        {
+            IUsingOperation { IsAsynchronous: true } block => block.Resources is IVariableDeclarationGroupOperation group ? AllConfigured(group) : IsConfigured(block.Resources),
+            IUsingDeclarationOperation { IsAsynchronous: true } declaration => AllConfigured(declaration.DeclarationGroup),
+            _ => true,
+        };
+        if (!configured)
+        {
+            ReportSpawning(context, spawning);
+        }
+    }
+
+    private static bool AllConfigured(IVariableDeclarationGroupOperation group) =>
+        group.Declarations.SelectMany(declaration => declaration.Declarators)
+            .All(declarator => declarator.Initializer is { } initializer && IsConfigured(initializer.Value));
+
+    private static void CheckSpawningCreation(OperationAnalysisContext context, INamedTypeSymbol spawning)
+    {
+        if (IsType(((IObjectCreationOperation)context.Operation).Type, "System.Threading", "Thread"))
+        {
+            ReportSpawning(context, spawning);
+        }
+    }
+
+    private static void CheckSpawningField(OperationAnalysisContext context, INamedTypeSymbol spawning)
+    {
+        var field = ((IFieldReferenceOperation)context.Operation).Field;
+        if (field.Name == "RunContinuationsAsynchronously" && IsType(field.ContainingType, "System.Threading.Tasks", "TaskCreationOptions"))
+        {
+            ReportSpawning(context, spawning);
         }
     }
 
