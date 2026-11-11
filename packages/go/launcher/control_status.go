@@ -86,7 +86,7 @@ func knowledgeBaseStatus(v stackView, ss *StackSet, cwd kbRoot, published []publ
 	kb.Services = append(kb.Services, signsIn)
 	kb.Healthy = healthy
 	if st != nil && st.KBDid != "" {
-		kb.Workload = workloadStatus(v, st.KBDid, kb.Services)
+		kb.Workload = workloadStatus(v, st.KBDid, kb.Services, collectorReadout(v.at))
 	}
 	return kb
 }
@@ -94,24 +94,24 @@ func knowledgeBaseStatus(v stackView, ss *StackSet, cwd kbRoot, published []publ
 // workloadStatus: the same knowledge-base-scoped Collector readings
 // semiont status prints under Gateway and Dispatcher. Missing Prometheus
 // series stay absent; a scrape that has not reported is not a zero.
-func workloadStatus(v stackView, did string, services []ControlServiceStatus) *ControlWorkloadStatus {
+func workloadStatus(v stackView, did string, services []ControlServiceStatus, readout *lazyBody) *ControlWorkloadStatus {
 	hasGateway := serviceHealthy(services, "gateway")
 	hasDispatcher := serviceHealthy(services, "dispatcher")
 	if !hasGateway && !hasDispatcher {
 		return nil
 	}
-	readout := collectorReadout(v.at).get()
+	body := readout.get()
 	var out ControlWorkloadStatus
 	if hasGateway {
-		if claims, capacity, ok := ledgerOccupancy(readout, did); ok {
+		if claims, capacity, ok := ledgerOccupancy(body, did); ok {
 			out.Ledger = &ControlWorkloadStatusLedger{Claims: claims, Capacity: capacity}
 		}
 	}
 	if hasDispatcher {
-		pending, running, ok := queueDepth(readout, did)
+		pending, running, ok := queueDepth(body, did)
 		if ok {
 			queue := &ControlWorkloadStatusQueue{Pending: pending, Running: running}
-			if completed, failed, found := jobsConcluded(readout, did); found {
+			if completed, failed, found := jobsConcluded(body, did); found {
 				queue.Completed = &completed
 				queue.Failed = &failed
 			}
