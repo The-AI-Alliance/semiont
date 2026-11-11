@@ -1257,8 +1257,15 @@ public final class semiont/namespaces/JobNamespace {
 	public final fun fail ()Lsemiont/bus/Typed;
 	public final fun pollUntilComplete-U24uh8E (Ljava/lang/String;JJLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun pollUntilComplete-U24uh8E$default (Lsemiont/namespaces/JobNamespace;Ljava/lang/String;JJLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;J)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;JJ)Ljava/util/concurrent/CompletableFuture;
 	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;JJLjava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture--cCJ8JM (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture-PSXEM9Q (Ljava/lang/String;J)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture-UbuRbP8 (Ljava/lang/String;JJ)Ljava/util/concurrent/CompletableFuture;
 	public final fun pollUntilCompleteFuture-VMfirKA (Ljava/lang/String;JJLjava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun pollUntilCompleteFuture-VMfirKA$default (Lsemiont/namespaces/JobNamespace;Ljava/lang/String;JJLjava/util/function/Consumer;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public final fun progress ()Lsemiont/bus/Typed;
 	public final fun queued ()Lsemiont/bus/Typed;
 	public final fun status-PSXEM9Q (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;

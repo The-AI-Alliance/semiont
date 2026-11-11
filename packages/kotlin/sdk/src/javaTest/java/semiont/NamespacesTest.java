@@ -295,6 +295,7 @@ final class NamespacesTest {
     void jobAsksOfAJob() throws Exception {
         assertEquals("job:status-requested", asked(client.getJob().statusFuture(JOB)));
         List<Object> statuses = new ArrayList<>();
+        assertEquals("job:status-requested", asked(client.getJob().pollUntilCompleteFuture(JOB)));
         assertEquals("job:status-requested", asked(client.getJob().pollUntilCompleteFuture(JOB, 10, 1_000, statuses::add)));
         // The first ask was refused, so no status was told.
         assertEquals(List.of(), statuses);

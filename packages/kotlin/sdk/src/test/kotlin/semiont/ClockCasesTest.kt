@@ -50,6 +50,7 @@ import semiont.errors.BusRequestErrorCode
 import semiont.errors.TransportError
 import semiont.http.HttpTransport
 import semiont.http.signInDevice
+import semiont.identifiers.JobId
 import semiont.jobs.running
 import semiont.live.KbWorld
 import semiont.live.RESOURCE
@@ -72,6 +73,7 @@ import semiont.types.DiscoveredKB
 import semiont.types.HighlightingJobParams
 import semiont.types.JobFilter
 import semiont.types.JobProgress
+import semiont.types.JobStatusResponse
 import semiont.types.wireJson
 import java.net.Authenticator
 import java.net.CookieHandler
@@ -575,6 +577,36 @@ private suspend fun jobFollower(given: JsonObject, bench: Bench): Subject {
     return Subject({ transport.requestLog.count { it.channel == "job:status-requested" } }, { transport.deliver(Frame("job:report-progress", PROGRESSED)) })
 }
 
+/** A client's poll of `job-1`, naming no interval and no limit, over a job queue that says the job is running whenever it is asked. */
+private fun jobPolled(bench: Bench): Pair<FaultyTransport, Deferred<JobStatusResponse>> {
+    val queue = Respond { operation, payload -> if (operation == "job:status-requested") JOB_RUNNING else REFUSE_UNSCRIPTED.respond(operation, payload) }
+    val transport = bench.held(FaultyTransport(emptyList(), queue, null, bench.context))
+    val gateway = Recording()
+    val client = bench.held(SemiontClient(transport, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
+    return transport to bench.work.async { client.job.pollUntilComplete(JobId("job-1")) }
+}
+
+private suspend fun jobPoll(given: JsonObject, bench: Bench): Subject {
+    val (transport, _) = jobPolled(bench)
+    return Subject({ transport.requestLog.count { it.channel == "job:status-requested" } }, null)
+}
+
+private suspend fun jobPollTimeout(given: JsonObject, bench: Bench): Subject {
+    val (_, polling) = jobPolled(bench)
+    return Subject(
+        {
+            if (!polling.isCompleted) {
+                0
+            } else {
+                val failure = polling.getCompletionExceptionOrNull()
+                assertTrue(failure is BusRequestError && failure.reason == BusRequestErrorCode.Timeout, "the poll ended otherwise: $failure")
+                1
+            }
+        },
+        null,
+    )
+}
+
 /** How this SDK builds each subject the table names. */
 private val SUBJECTS: Map<String, suspend (JsonObject, Bench) -> Subject> = mapOf(
     "refusedStream" to ::refusedStream,
@@ -594,6 +626,8 @@ private val SUBJECTS: Map<String, suspend (JsonObject, Bench) -> Subject> = mapO
     "unansweredEmit" to ::unansweredEmit,
     "refusedBusRequest" to ::refusedBusRequest,
     "timedOutBusRequest" to ::timedOutBusRequest,
+    "jobPoll" to ::jobPoll,
+    "jobPollTimeout" to ::jobPollTimeout,
 )
 
 // ── A case, played ──────────────────────────────────────────────────────

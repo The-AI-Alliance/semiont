@@ -230,7 +230,7 @@ private val calls: Map<String, Call> = mapOf(
     "job.complete" to { c, _ -> c.job.complete() },
     "job.fail" to { c, _ -> c.job.fail() },
     "job.status" to { c, a -> c.job.status(a.job()) },
-    "job.pollUntilComplete" to { c, a -> c.job.pollUntilComplete(a.job(), everyMs = 1_000, withinMs = 60_000) },
+    "job.pollUntilComplete" to { c, a -> c.job.pollUntilComplete(a.job()) },
     "job.cancel" to { c, a -> c.job.cancel(a.job()) },
     // Read, the claims claim: the first claim is what the row holds.
     "job.claim" to { c, a -> c.job.claim(wireJson.decodeFromJsonElement(ListSerializer(serializer<JobFilter>()), a.getValue("options").jsonObject.getValue("accepts"))).next() },
