@@ -17,8 +17,8 @@ type BusRequestErrorCode string
 const (
 	// No reply arrived within the time the request allowed.
 	BusRequestErrorCodeTimeout BusRequestErrorCode = "bus.timeout"
-	// The peer answered with a failure whose code this vocabulary does not name,
-	// or that states none.
+	// The peer answered with a failure that states no code, or one CommandError
+	// does not list, which is read as none.
 	BusRequestErrorCodeRejected BusRequestErrorCode = "bus.rejected"
 	// The bus stopped before a reply came: its client was disposed, or its
 	// transport closed.
