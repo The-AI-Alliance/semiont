@@ -117,14 +117,14 @@ public sealed class Bus
         where TRequest : class where TResult : class where TFailure : class
     {
         var response = await transport.RequestFrameAsync(operation.Request.Name, JsonSerializer.SerializeToElement(payload),
-            timeoutMs, cancellation).ConfigureAwait(false);
+            timeoutMs, cancellation).ConfigureAwait(Spawning.Captures);
         return Decoded<TResult>(response.Frame.Channel, response.Frame.Payload);
     }
 
     internal static async IAsyncEnumerable<Heard<T>> DecodeFrames<T>(IAsyncEnumerable<Carried> frames,
         ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation) where T : class
     {
-        await foreach (var carried in frames.WithCancellation(cancellation).ConfigureAwait(false))
+        await foreach (var carried in frames.WithCancellation(cancellation).ConfigureAwait(Spawning.Captures))
         {
             // A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
             if (resource is not null && ScopeOf(carried) != resource) continue;

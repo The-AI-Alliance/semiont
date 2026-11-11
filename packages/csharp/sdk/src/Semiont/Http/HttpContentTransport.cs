@@ -56,7 +56,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
     }
 
     public async Task<ResourceId> PutBinaryAsync(ResourceUpload request, IProgress<UploadProgress>? progress = null, CancellationToken cancellation = default) =>
-        (await UploadAsync(request, progress, cancellation).ConfigureAwait(false)).ResourceId;
+        (await UploadAsync(request, progress, cancellation).ConfigureAwait(Spawning.Captures)).ResourceId;
 
     internal async Task<CreateResourceResponse> UploadAsync(ResourceUpload request, IProgress<UploadProgress>? progress, CancellationToken cancellation)
     {
@@ -76,8 +76,8 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
             file.Headers.ContentType = new MediaTypeHeaderValue(request.Format);
             form.Add(file, "file", request.Name);
             return form;
-        }, upload: true, cancellation: cancellation).ConfigureAwait(false);
-        return await response.Content.ReadFromJsonAsync<CreateResourceResponse>(cancellation).ConfigureAwait(false)
+        }, upload: true, cancellation: cancellation).ConfigureAwait(Spawning.Captures);
+        return await response.Content.ReadFromJsonAsync<CreateResourceResponse>(cancellation).ConfigureAwait(Spawning.Captures)
             ?? throw new TransportError(ProtocolFacts.Error(0), "Upload returned null");
     }
 
@@ -86,8 +86,8 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         using var linked = Link(cancellation);
         cancellation = linked.Token;
         using var activity = SdkTelemetry.Start("content.get", new ActivityTagsCollection { { "resource.id", resource.Value } });
-        using var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(false);
-        return new BinaryContent(ContentType(response.Content), await response.Content.ReadAsByteArrayAsync(cancellation).ConfigureAwait(false));
+        using var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(Spawning.Captures);
+        return new BinaryContent(ContentType(response.Content), await response.Content.ReadAsByteArrayAsync(cancellation).ConfigureAwait(Spawning.Captures));
     }
 
     public async Task<BinaryStream> GetBinaryStreamAsync(ResourceId resource, CancellationToken cancellation = default)
@@ -95,11 +95,11 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         using var linked = Link(cancellation);
         cancellation = linked.Token;
         var activity = SdkTelemetry.Start("content.get", new ActivityTagsCollection { { "resource.id", resource.Value }, { "content.stream", true } });
-        var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(false);
+        var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(Spawning.Captures);
         try
         {
             var mediaType = ContentType(response.Content);
-            var stream = new ResponseStream(await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(false), response, activity, lifetime.Token, Released);
+            var stream = new ResponseStream(await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(Spawning.Captures), response, activity, lifetime.Token, Released);
             lock (gate)
             {
                 ObjectDisposedException.ThrowIf(closed, this);
@@ -115,21 +115,21 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         using var linked = Link(cancellation);
         cancellation = linked.Token;
         using var activity = SdkTelemetry.Start("content.get_graph", new ActivityTagsCollection { { "resource.id", resource.Value } });
-        return await transport.AnswerAsync<GetResourceResponse>(HttpMethod.Get, Path(resource) + "/jsonld", cancellation: cancellation).ConfigureAwait(false);
+        return await transport.AnswerAsync<GetResourceResponse>(HttpMethod.Get, Path(resource) + "/jsonld", cancellation: cancellation).ConfigureAwait(Spawning.Captures);
     }
     public async Task<GetAnnotationsResponse> GetAnnotationsAsync(ResourceId resource, CancellationToken cancellation = default)
     {
         using var linked = Link(cancellation);
         cancellation = linked.Token;
         using var activity = SdkTelemetry.Start("content.get_annotations", new ActivityTagsCollection { { "resource.id", resource.Value } });
-        return await transport.AnswerAsync<GetAnnotationsResponse>(HttpMethod.Get, Path(resource) + "/annotations", cancellation: cancellation).ConfigureAwait(false);
+        return await transport.AnswerAsync<GetAnnotationsResponse>(HttpMethod.Get, Path(resource) + "/annotations", cancellation: cancellation).ConfigureAwait(Spawning.Captures);
     }
     public async Task<AnchoredTextAnswer> GetAnchoredTextAsync(ResourceId resource, CancellationToken cancellation = default)
     {
         using var linked = Link(cancellation);
         cancellation = linked.Token;
         using var activity = SdkTelemetry.Start("content.get_anchored_text", new ActivityTagsCollection { { "resource.id", resource.Value } });
-        return await transport.AnswerAsync<AnchoredTextAnswer>(HttpMethod.Get, Path(resource) + "/anchored-text", cancellation: cancellation).ConfigureAwait(false);
+        return await transport.AnswerAsync<AnchoredTextAnswer>(HttpMethod.Get, Path(resource) + "/anchored-text", cancellation: cancellation).ConfigureAwait(Spawning.Captures);
     }
     private static string ContentType(HttpContent content) =>
         (content.Headers.NonValidated.TryGetValues("Content-Type", out var values) ? values.FirstOrDefault() : null)
@@ -147,7 +147,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
             for (var offset = 0; offset < bytes.Length;)
             {
                 var count = Math.Min(65536, bytes.Length - offset);
-                await stream.WriteAsync(bytes.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
+                await stream.WriteAsync(bytes.AsMemory(offset, count), cancellationToken).ConfigureAwait(Spawning.Captures);
                 offset += count;
                 progress?.Report(new UploadProgress(offset, bytes.LongLength));
             }
@@ -166,7 +166,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(lifetime, cancellationToken);
-            return await stream.ReadAsync(buffer, linked.Token).ConfigureAwait(false);
+            return await stream.ReadAsync(buffer, linked.Token).ConfigureAwait(Spawning.Captures);
         }
         public override void Flush() => throw new NotSupportedException();
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();

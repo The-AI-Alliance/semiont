@@ -42,7 +42,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
                 hadSubscriber = true;
             }
         }
-        await foreach (var value in Read(channel, cancellation).ConfigureAwait(false))
+        await foreach (var value in Read(channel, cancellation).ConfigureAwait(Spawning.Captures))
         {
             yield return value;
         }
@@ -82,7 +82,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
     {
         try
         {
-            await foreach (var value in channel.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+            await foreach (var value in Spawning.ReadAll(channel.Reader, cancellation).ConfigureAwait(Spawning.Captures))
             {
                 yield return value;
             }

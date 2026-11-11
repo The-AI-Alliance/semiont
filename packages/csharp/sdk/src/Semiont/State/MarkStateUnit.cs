@@ -77,7 +77,7 @@ public sealed class MarkStateUnit : IStateUnit
 
     private async Task ReadAsync(CancellationToken cancellation)
     {
-        await foreach (var carried in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+        await foreach (var carried in Spawning.ReadAll(events.Reader, cancellation).ConfigureAwait(Spawning.Captures))
         {
             lock (work.Gate)
             {
@@ -107,7 +107,7 @@ public sealed class MarkStateUnit : IStateUnit
                 Target = target,
                 Motivation = submission.Motivation,
                 Body = submission.Body,
-            }, cancellation).ConfigureAwait(false);
+            }, cancellation).ConfigureAwait(Spawning.Captures);
             lock (work.Gate)
                 if (work.Active && ReferenceEquals(PendingAnnotation.Value, composed)) PendingAnnotation.Set(null);
         }
@@ -123,19 +123,20 @@ public sealed class MarkStateUnit : IStateUnit
     {
         try
         {
-            await using var reader = run.GetAsyncEnumerator(token);
+            var reader = run.GetAsyncEnumerator(token);
+            await using var disposing = reader.ConfigureAwait(Spawning.Captures);
             // The silence is counted from the follower's last word of the job, and said once until the next.
             var heardAt = clock.GetTimestamp();
             var said = false;
             while (true)
             {
-                var next = reader.MoveNextAsync().AsTask();
+                var next = Spawning.AsTask(reader.MoveNextAsync());
                 if (!said)
                 {
                     using var waiting = CancellationTokenSource.CreateLinkedTokenSource(token);
                     var left = Silence - clock.GetElapsedTime(heardAt);
                     var quiet = Task.Delay(left > TimeSpan.Zero ? left : TimeSpan.Zero, clock, waiting.Token);
-                    if (await Task.WhenAny(next, quiet).ConfigureAwait(false) == quiet && !token.IsCancellationRequested && !next.IsCompleted)
+                    if (await Spawning.WhenAny(next, quiet).ConfigureAwait(Spawning.Captures) == quiet && !token.IsCancellationRequested && !next.IsCompleted)
                     {
                         said = true;
                         lock (work.Gate)
@@ -150,7 +151,7 @@ public sealed class MarkStateUnit : IStateUnit
                     }
                     waiting.Cancel();
                 }
-                if (!await next.ConfigureAwait(false)) return;
+                if (!await next.ConfigureAwait(Spawning.Captures)) return;
                 lock (work.Gate)
                 {
                     if (!work.Active || revision != selected) return;

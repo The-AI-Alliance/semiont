@@ -50,7 +50,7 @@ public sealed class HoverDwell : IStateUnit
     {
         try
         {
-            await Task.Delay(delay, clock, rest.Token).ConfigureAwait(false);
+            await Task.Delay(delay, clock, rest.Token).ConfigureAwait(Spawning.Captures);
             lock (work.Gate)
             {
                 if (!work.Active || resting != rest) return;
@@ -106,7 +106,7 @@ public sealed class BeckonStateUnit : IStateUnit
 
     private async Task ReadAsync(CancellationToken cancellation)
     {
-        await foreach (var carried in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+        await foreach (var carried in Spawning.ReadAll(events.Reader, cancellation).ConfigureAwait(Spawning.Captures))
         {
             lock (work.Gate)
             {

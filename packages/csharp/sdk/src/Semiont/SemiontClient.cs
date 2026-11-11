@@ -64,7 +64,7 @@ public sealed class SemiontClient : IDisposable
 
     private async Task CloseWithTransportAsync()
     {
-        await foreach (var state in Transport.States().ConfigureAwait(false))
+        await foreach (var state in Transport.States().ConfigureAwait(Spawning.Captures))
             if (state == ConnectionState.Closed) break;
         try { live.Dispose(); }
         finally { Bus.Dispose(); }

@@ -40,7 +40,7 @@ public sealed class BrowseNamespace
 
     public async Task<string> ResourceContentAsync(ResourceId resourceId, CancellationToken cancellation = default)
     {
-        var representation = await content.GetBinaryAsync(resourceId, cancellation).ConfigureAwait(false);
+        var representation = await content.GetBinaryAsync(resourceId, cancellation).ConfigureAwait(Spawning.Captures);
         return RepresentationText.Decode(representation.Bytes, representation.ContentType);
     }
 
@@ -58,22 +58,22 @@ public sealed class BrowseNamespace
 
     public async Task<IReadOnlyList<AttributedEvent>> ResourceEventsAsync(ResourceId resourceId, CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.BrowseEventsRequested, new BrowseEventsRequest { ResourceId = resourceId },
-            cancellation: cancellation).ConfigureAwait(false)).Response.Events;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response.Events;
 
     public async Task<GetAnnotationHistoryResponse> AnnotationHistoryAsync(ResourceId resourceId, AnnotationId annotationId,
         CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.BrowseAnnotationHistoryRequested,
             new BrowseAnnotationHistoryRequest { ResourceId = resourceId, AnnotationId = annotationId },
-            cancellation: cancellation).ConfigureAwait(false)).Response;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response;
 
     public async Task<BrowseDirectoryResultResponse> FilesAsync(string dirPath = ".", BrowseDirectoryRequestSort sort = BrowseDirectoryRequestSort.Name,
         CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.BrowseDirectoryRequested, new BrowseDirectoryRequest { Path = dirPath, Sort = sort },
-            cancellation: cancellation).ConfigureAwait(false)).Response;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response;
 
     public async Task<KbDescription> KbAsync(CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.BrowseKbRequested, new BrowseKbRequest(), cancellation: cancellation)
-            .ConfigureAwait(false)).Response;
+            .ConfigureAwait(Spawning.Captures)).Response;
 
     public void Click(AnnotationId annotationId) =>
         bus.Emit(BusChannels.BrowseClick, new BrowseClickEvent { AnnotationId = annotationId });
@@ -89,7 +89,7 @@ public sealed class BrowseNamespace
         try
         {
             await wire.EmitAsync(BusChannels.BrowseResourceViewed, new BrowseResourceViewedEvent { ResourceId = resourceId },
-                cancellation: closed).ConfigureAwait(false);
+                cancellation: closed).ConfigureAwait(Spawning.Captures);
         }
         catch (TransportError) { /* The transport reports the refusal on its error stream. */ }
         catch (OperationCanceledException) when (closed.IsCancellationRequested) { /* Closing abandons pending navigation reports. */ }

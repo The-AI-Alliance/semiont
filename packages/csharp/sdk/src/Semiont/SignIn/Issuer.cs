@@ -37,7 +37,7 @@ public sealed partial class Issuer : IDisposable
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token);
         return await Retry.RetryWithBackoffAsync(RefreshRetry, grant, error => error is SignInError && ProtocolFacts.RetryRefresh(error.Status),
-            _ => null, clock, random, linked.Token).ConfigureAwait(false);
+            _ => null, clock, random, linked.Token).ConfigureAwait(Spawning.Captures);
     }
 
     private async Task<(string Access, string? Refresh)> GrantAsync(StoredSession held, CancellationToken cancellation)
@@ -47,7 +47,7 @@ public sealed partial class Issuer : IDisposable
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = held.Refresh,
             ["client_id"] = held.ClientId,
-        }, cancellation: cancellation).ConfigureAwait(false);
+        }, cancellation: cancellation).ConfigureAwait(Spawning.Captures);
         if (answer.Status != 200) throw Failure("The issuer refused the refresh grant", answer.Status);
         return Issued(answer);
     }
@@ -84,10 +84,10 @@ public sealed partial class Issuer : IDisposable
         try
         {
             using var response = client is not null
-                ? await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false)
-                : await (owned ?? throw new InvalidOperationException("No issuer HTTP handler")).SendAsync(request, linked.Token).ConfigureAwait(false);
+                ? await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(Spawning.Captures)
+                : await (owned ?? throw new InvalidOperationException("No issuer HTTP handler")).SendAsync(request, linked.Token).ConfigureAwait(Spawning.Captures);
             status = (int)response.StatusCode;
-            var bytes = await response.Content.ReadAsByteArrayAsync(linked.Token).ConfigureAwait(false);
+            var bytes = await response.Content.ReadAsByteArrayAsync(linked.Token).ConfigureAwait(Spawning.Captures);
             if (bytes.Length == 0) return new IssuerAnswer(status.Value, null);
             try
             {

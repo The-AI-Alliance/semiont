@@ -51,7 +51,7 @@ public sealed class SearchPipeline<T> : IStateUnit
     {
         try
         {
-            await Task.Delay(debounce, clock, next.Token).ConfigureAwait(false);
+            await Task.Delay(debounce, clock, next.Token).ConfigureAwait(Spawning.Captures);
             lock (work.Gate)
             {
                 if (!work.Active || settling != next || searched == value) return;
@@ -80,7 +80,7 @@ public sealed class SearchPipeline<T> : IStateUnit
     {
         try
         {
-            await foreach (var results in search(query, reading.Token).WithCancellation(reading.Token).ConfigureAwait(false))
+            await foreach (var results in search(query, reading.Token).WithCancellation(reading.Token).ConfigureAwait(Spawning.Captures))
             {
                 lock (work.Gate)
                 {

@@ -75,7 +75,7 @@ public static class TestSessions
         SemiontClient? client = null;
         try
         {
-            await credentials.ReadyAsync(cancellation).ConfigureAwait(false);
+            await credentials.ReadyAsync(cancellation).ConfigureAwait(Spawning.Captures);
             var bus = new HttpTransport(origin, credentials.State.Token,
                 BusRegistry.BridgedChannels,
                 timing: options.Timing, refresher: credentials.RefreshAsync, httpClient: http, timeProvider: clock, random: random);

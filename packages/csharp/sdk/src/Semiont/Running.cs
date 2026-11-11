@@ -16,7 +16,7 @@ public sealed class Running<T> : IAsyncEnumerable<T>
     {
         Take();
         cancellation.ThrowIfCancellationRequested();
-        return await finish(null, cancellation).ConfigureAwait(false);
+        return await finish(null, cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     public TaskAwaiter<T> GetAwaiter() => CompleteAsync().GetAwaiter();
@@ -35,20 +35,20 @@ public sealed class Running<T> : IAsyncEnumerable<T>
         var result = RunAsync();
         try
         {
-            await foreach (var report in reports.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+            await foreach (var report in Spawning.ReadAll(reports.Reader, cancellation).ConfigureAwait(Spawning.Captures))
                 yield return report;
-            yield return await result.ConfigureAwait(false);
+            yield return await result.ConfigureAwait(Spawning.Captures);
         }
         finally
         {
             reading.Cancel();
             // The reader may have left before seeing the result. Settle its work either way.
-            await ((Task)result).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await ((Task)result).ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
         }
 
         async Task<T> RunAsync()
         {
-            try { return await finish(value => reports.Writer.TryWrite(value), reading.Token).ConfigureAwait(false); }
+            try { return await finish(value => reports.Writer.TryWrite(value), reading.Token).ConfigureAwait(Spawning.Captures); }
             finally { reports.Writer.TryComplete(); }
         }
     }

@@ -115,7 +115,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
             ChangeKbs(items => [.. items, added]);
             activate = Select(added.Id, replace: false, background: false, cancellation);
         }
-        await activate.ConfigureAwait(false);
+        await activate.ConfigureAwait(Spawning.Captures);
         return added;
     }
 
@@ -180,7 +180,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
             var outcome = result ?? throw new InvalidOperationException("Storage did not apply the knowledge-base update.");
             activate = SignInReplacing(outcome.Kb.Id, signedIn.Session, cancellation);
         }
-        await activate.ConfigureAwait(false);
+        await activate.ConfigureAwait(Spawning.Captures);
         return result ?? throw new InvalidOperationException("The sign-in was not stored.");
     }
 
@@ -194,7 +194,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
             if (removed is { } stored)
                 _ = RunOwned(async () =>
                 {
-                    try { await factory.RevokeAsync(stored, lifetime.Token).ConfigureAwait(false); }
+                    try { await factory.RevokeAsync(stored, lifetime.Token).ConfigureAwait(Spawning.Captures); }
                     catch (SignInError) { /* Revocation is best effort after local sign-out. */ }
                 }, background: true);
             Publish(state);
@@ -262,7 +262,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         LiveSession? current;
         lock (gate) { RequireOpen(); current = live; }
         if (current is null) return Unavailable;
-        return await ReadKbAsync(current, cancellation).ConfigureAwait(false);
+        return await ReadKbAsync(current, cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     /// <summary>
@@ -277,7 +277,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
             if (id is not null) RequireKb(id);
             if (!replace && state.ActiveKbId == id)
             {
-                if (requested is not null) return transition.WaitAsync(cancellation);
+                if (requested is not null) return Spawning.WaitAsync(transition, cancellation);
                 if (live is not null) return Task.CompletedTask;
             }
             if (id is null) Storage.Delete(ActiveKey);
@@ -301,8 +301,8 @@ public sealed class SemiontBrowser : IAsyncDisposable
             var earlier = transition;
             transition = RunOwned(async () =>
             {
-                await earlier.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-                await ActivateAsync(selection, previous, cancellation).ConfigureAwait(false);
+                await earlier.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
+                await ActivateAsync(selection, previous, cancellation).ConfigureAwait(Spawning.Captures);
             }, background);
             return transition;
         }
@@ -316,7 +316,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         try
         {
             // Even a superseded transition owns the session it removed, and what is forgotten once that has closed.
-            try { if (previous is not null) await previous.DisposeAsync().ConfigureAwait(false); }
+            try { if (previous is not null) await previous.DisposeAsync().ConfigureAwait(Spawning.Captures); }
             finally { selection.Forget?.Invoke(); }
             token.ThrowIfCancellationRequested();
             if (!selection.OpenSession || selection.KbId is not { } id) return;
@@ -329,7 +329,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
             OpenedSession opened;
             try
             {
-                opened = await factory.OpenAsync(new SessionFactoryOptions(kb, Storage, notices), token).ConfigureAwait(false);
+                opened = await factory.OpenAsync(new SessionFactoryOptions(kb, Storage, notices), token).ConfigureAwait(Spawning.Captures);
             }
             catch (SemiontError error)
             {
@@ -355,7 +355,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         catch (OperationCanceledException) when (!caller.IsCancellationRequested && token.IsCancellationRequested) { }
         finally
         {
-            try { if (held is not null) await held.DisposeAsync().ConfigureAwait(false); }
+            try { if (held is not null) await held.DisposeAsync().ConfigureAwait(Spawning.Captures); }
             finally
             {
                 signals?.Dispose();
@@ -383,7 +383,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
     private async Task ReadAsync(SemiontSession session, SessionSignals signals)
     {
         var told = false;
-        await foreach (var error in session.Errors().ConfigureAwait(false))
+        await foreach (var error in session.Errors().ConfigureAwait(Spawning.Captures))
         {
             if (error is SessionError own)
             {
@@ -410,7 +410,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
     private async Task CheckOpenResourcesAsync(LiveSession current)
     {
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, current.Closed);
-        var verdict = await ReadKbAsync(current, stop.Token).ConfigureAwait(false);
+        var verdict = await ReadKbAsync(current, stop.Token).ConfigureAwait(Spawning.Captures);
         ResourceId[] waiting;
         lock (gate)
         {
@@ -427,18 +427,18 @@ public sealed class SemiontBrowser : IAsyncDisposable
         }
 
         var checks = new System.Collections.Concurrent.ConcurrentDictionary<ResourceId, TabCheck>();
-        await Parallel.ForEachAsync(waiting, new ParallelOptions { MaxDegreeOfParallelism = ChecksAtOnce, CancellationToken = stop.Token },
+        await Spawning.ForEachAsync(waiting, new ParallelOptions { MaxDegreeOfParallelism = ChecksAtOnce, CancellationToken = stop.Token },
             async (resource, token) =>
             {
                 try
                 {
-                    var descriptor = await current.Opened.Client.Browse.Resource(resource).FreshAsync(token).ConfigureAwait(false);
+                    var descriptor = await current.Opened.Client.Browse.Resource(resource).FreshAsync(token).ConfigureAwait(Spawning.Captures);
                     checks[resource] = new TabCheck(TabVerdict.Ready, descriptor.Name, PrimaryMediaType(descriptor));
                 }
                 catch (BusRequestError error) when (error.Code == ProtocolFacts.BusError("not-found"))
                 { checks[resource] = new TabCheck(TabVerdict.Gone); }
                 catch (SemiontError) { checks[resource] = new TabCheck(TabVerdict.Unknown); }
-            }).ConfigureAwait(false);
+            }).ConfigureAwait(Spawning.Captures);
         lock (gate)
         {
             if (live != current || closing || checks.IsEmpty) return;
@@ -456,7 +456,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         string did;
         try
         {
-            description = await current.Opened.Client.Browse.KbAsync(cancellation).ConfigureAwait(false);
+            description = await current.Opened.Client.Browse.KbAsync(cancellation).ConfigureAwait(Spawning.Captures);
             did = Identity.KbDid(description.Domain).Value;
         }
         catch (Exception error) when (error is SemiontError or FormatException) { return Unavailable; }
@@ -509,7 +509,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
 
     private async Task WatchStorageAsync()
     {
-        await foreach (var key in storageChanges.Reader.ReadAllAsync(lifetime.Token).ConfigureAwait(false))
+        await foreach (var key in Spawning.ReadAll(storageChanges.Reader, lifetime.Token).ConfigureAwait(Spawning.Captures))
         {
             try
             {
@@ -574,10 +574,10 @@ public sealed class SemiontBrowser : IAsyncDisposable
 
     private Task RunOwned(Func<Task> action, bool background)
     {
-        var task = Task.Run(async () =>
+        var task = Spawning.Run(async () =>
         {
             ownedWork.Value = true;
-            try { await action().ConfigureAwait(false); }
+            try { await action().ConfigureAwait(Spawning.Captures); }
             catch (OperationCanceledException error) when (background &&
                 (lifetime.IsCancellationRequested || error.CancellationToken.IsCancellationRequested))
             { }
@@ -594,7 +594,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
 
     private async Task RemoveCompletedAsync(Task task)
     {
-        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        await task.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
         lock (gate) tasks.Remove(task);
     }
 
@@ -609,7 +609,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
                 live = null;
                 Publish(state with { ActiveSession = null, ActiveSignals = null, SessionActivating = false, OpenResources = [], LastViewedResource = null });
                 var work = tasks.ToArray();
-                disposal = Task.Run(() => DrainAsync(current, work));
+                disposal = Spawning.Run(() => DrainAsync(current, work));
             }
             return ownedWork.Value ? ValueTask.CompletedTask : new ValueTask(disposal);
         }
@@ -621,10 +621,10 @@ public sealed class SemiontBrowser : IAsyncDisposable
         try
         {
             storageChanges.Writer.TryComplete();
-            await ClosePartAsync(() => new ValueTask(lifetime.CancelAsync())).ConfigureAwait(false);
-            await ClosePartAsync(() => { subscription?.Dispose(); return ValueTask.CompletedTask; }).ConfigureAwait(false);
-            if (active is not null) await ClosePartAsync(active.DisposeAsync).ConfigureAwait(false);
-            await Task.WhenAll(work).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await ClosePartAsync(() => new ValueTask(Spawning.CancelAsync(lifetime))).ConfigureAwait(Spawning.Captures);
+            await ClosePartAsync(() => { subscription?.Dispose(); return ValueTask.CompletedTask; }).ConfigureAwait(Spawning.Captures);
+            if (active is not null) await ClosePartAsync(active.DisposeAsync).ConfigureAwait(Spawning.Captures);
+            await Spawning.WhenAll(work).ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
         }
         finally
         {
@@ -639,7 +639,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
 
     private async Task ClosePartAsync(Func<ValueTask> close)
     {
-        try { await close().ConfigureAwait(false); }
+        try { await close().ConfigureAwait(Spawning.Captures); }
         catch (Exception error) { lock (gate) taskFailure ??= error; }
     }
 
@@ -665,7 +665,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
 
     private sealed record Activation(string? KbId, bool OpenSession, CancellationTokenSource Source, Action? Forget)
     {
-        internal void Cancel() => _ = Source.CancelAsync();
+        internal void Cancel() => _ = Spawning.CancelAsync(Source);
     }
 
     /// <summary>A session the registry holds, with its signals and the reader of its errors, which one the factory handed
@@ -692,13 +692,13 @@ public sealed class SemiontBrowser : IAsyncDisposable
         // so the reader has heard what that save said, and is done, before the signals it speaks through close.
         public async ValueTask DisposeAsync()
         {
-            try { await closing.CancelAsync().ConfigureAwait(false); }
+            try { await Spawning.CancelAsync(closing).ConfigureAwait(Spawning.Captures); }
             finally
             {
                 try
                 {
-                    try { await Opened.DisposeAsync().ConfigureAwait(false); }
-                    finally { if (reading is not null) await reading.ConfigureAwait(false); }
+                    try { await Opened.DisposeAsync().ConfigureAwait(Spawning.Captures); }
+                    finally { if (reading is not null) await reading.ConfigureAwait(Spawning.Captures); }
                 }
                 finally { Signals.Dispose(); closing.Dispose(); }
             }
@@ -716,10 +716,10 @@ public static class BrowserSignIn
         HttpClient? httpClient = null, CancellationToken cancellation = default)
     {
         var (pending, session) = await RedirectSignIn.CompleteAuthorizationAsync(callbackUrl, browser.Storage, httpClient,
-            browser.Clock, browser.Random, cancellation).ConfigureAwait(false);
+            browser.Clock, browser.Random, cancellation).ConfigureAwait(Spawning.Captures);
         var identity = await RedirectSignIn.DescribeConnectionAsync(pending.Target, session.Access, httpClient,
-            browser.Clock, browser.Random, cancellation).ConfigureAwait(false);
+            browser.Clock, browser.Random, cancellation).ConfigureAwait(Spawning.Captures);
         return await browser.SignedInAsync(new SignedIn(new KbEndpoint.HttpEndpointCase(pending.Target), identity.Description, session,
-            pending.KbId, pending.ExpectedDid, pending.ExpectedName), cancellation).ConfigureAwait(false);
+            pending.KbId, pending.ExpectedDid, pending.ExpectedName), cancellation).ConfigureAwait(Spawning.Captures);
     }
 }

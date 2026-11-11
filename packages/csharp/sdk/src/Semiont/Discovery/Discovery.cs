@@ -79,12 +79,12 @@ public static class LauncherDiscovery
         while (true)
         {
             cancellation.ThrowIfCancellationRequested();
-            if (await transport.ReadAsync(cancellation).ConfigureAwait(false) is DiscoveryState state && Difference(previous, state) is { } change)
+            if (await transport.ReadAsync(cancellation).ConfigureAwait(Spawning.Captures) is DiscoveryState state && Difference(previous, state) is { } change)
             {
                 previous = state;
                 yield return change;
             }
-            await Task.Delay(delay, clock, cancellation).ConfigureAwait(false);
+            await Task.Delay(delay, clock, cancellation).ConfigureAwait(Spawning.Captures);
         }
     }
 
@@ -115,7 +115,7 @@ public static class LauncherDiscovery
     {
         public async Task<DiscoveryRead> ReadAsync(CancellationToken cancellation = default)
         {
-            try { return ParseDiscoveryDocument(await read(cancellation).ConfigureAwait(false)); }
+            try { return ParseDiscoveryDocument(await read(cancellation).ConfigureAwait(Spawning.Captures)); }
             catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { return new Absent(DiscoveryAbsentReason.NotFound); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException)
             { return new Absent(DiscoveryAbsentReason.Unreadable, error.Message); }
@@ -129,20 +129,20 @@ public static class LauncherDiscovery
 
         public async Task<DiscoveryRead> ReadAsync(CancellationToken cancellation = default)
         {
-            await turn.WaitAsync(cancellation).ConfigureAwait(false);
+            await turn.WaitAsync(cancellation).ConfigureAwait(Spawning.Captures);
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 if (tag is not null) request.Headers.IfNoneMatch.Add(tag);
                 using var deadline = new CancellationTokenSource(RequestDeadline, clock);
                 using var waiting = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cancellation);
-                using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, waiting.Token).ConfigureAwait(false);
+                using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, waiting.Token).ConfigureAwait(Spawning.Captures);
                 if (response.StatusCode == HttpStatusCode.NotModified && tag is not null) return new Unchanged();
                 tag = null;
                 var media = response.Content.Headers.ContentType?.MediaType;
                 if (!response.IsSuccessStatusCode || media?.Contains("json", StringComparison.OrdinalIgnoreCase) != true)
                     return new Absent(DiscoveryAbsentReason.NotFound, $"HTTP {(int)response.StatusCode}, content type {media}");
-                var state = ParseDiscoveryDocument(await response.Content.ReadAsStringAsync(waiting.Token).ConfigureAwait(false));
+                var state = ParseDiscoveryDocument(await response.Content.ReadAsStringAsync(waiting.Token).ConfigureAwait(Spawning.Captures));
                 if (state is Managed) tag = response.Headers.ETag;
                 return state;
             }

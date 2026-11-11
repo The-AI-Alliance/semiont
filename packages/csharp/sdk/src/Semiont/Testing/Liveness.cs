@@ -48,7 +48,7 @@ public static class Liveness
             var bound = TimeSpan.FromTicks(checked((spec.Timeout.Ticks * (1L + spec.RetryBudget) + delays) * 4));
             using var transport = new FaultyTransport(schedule, spec.Respond, clock);
             using var scenario = spec.Setup(transport);
-            await Task.Delay(bound, clock, cancellation).ConfigureAwait(false);
+            await Task.Delay(bound, clock, cancellation).ConfigureAwait(Spawning.Captures);
             var under = $"under [{string.Join(", ", schedule)}] within {bound.TotalMilliseconds}ms";
             var outputs = scenario.Outputs.Select(Observe).ToArray();
             var settlements = scenario.Settlements.Select(Observe).ToArray();
@@ -108,7 +108,7 @@ public static class Liveness
                         throw new ArgumentOutOfRangeException(nameof(interleavings), steps[step], "Unknown delivery operation");
                 }
             }
-            var counts = (await subject.DeliveredAsync(cancellation).ConfigureAwait(false)).CountBy(id => id)
+            var counts = (await subject.DeliveredAsync(cancellation).ConfigureAwait(Spawning.Captures)).CountBy(id => id)
                 .ToDictionary(entry => entry.Key, entry => entry.Value);
             foreach (var id in written)
                 if (counts.GetValueOrDefault(id) is var times && times != 1)

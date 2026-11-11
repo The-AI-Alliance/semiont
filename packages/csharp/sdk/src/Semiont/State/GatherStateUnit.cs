@@ -34,7 +34,7 @@ public sealed class GatherStateUnit : IStateUnit
             if (!work.Active) return;
             AnnotationId.Set(annotationId);
             Start(annotation, async token => (await client.Gather.Annotation(annotationResource, annotationId, options)
-                .CompleteAsync(token).ConfigureAwait(false)).Response);
+                .CompleteAsync(token).ConfigureAwait(Spawning.Captures)).Response);
         }
     }
 
@@ -61,7 +61,7 @@ public sealed class GatherStateUnit : IStateUnit
     {
         GatheredContext? context = null;
         SemiontError? failure = null;
-        try { context = await gather(token).ConfigureAwait(false); }
+        try { context = await gather(token).ConfigureAwait(Spawning.Captures); }
         catch (SemiontError error) { failure = error; }
         lock (work.Gate)
         {

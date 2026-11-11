@@ -14,12 +14,12 @@ public static class Retry
         var maximum = TimeSpan.FromMilliseconds(policy.MaxDelayMs);
         for (var made = 1; ; made++)
         {
-            try { return await attempt(cancellation).ConfigureAwait(false); }
+            try { return await attempt(cancellation).ConfigureAwait(Spawning.Captures); }
             catch (SemiontError error) when (made < policy.Attempts && retryable(error))
             {
                 var wait = EqualJitter(cap, source);
                 if (statedWait(error) is TimeSpan stated && stated > wait) wait = stated;
-                await Task.Delay(wait, clock, cancellation).ConfigureAwait(false);
+                await Task.Delay(wait, clock, cancellation).ConfigureAwait(Spawning.Captures);
             }
             cap = cap * 2 < maximum ? cap * 2 : maximum;
         }

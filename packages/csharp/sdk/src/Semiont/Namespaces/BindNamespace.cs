@@ -22,7 +22,7 @@ public sealed class BindNamespace
             ResourceId = resourceId,
             AnnotationId = annotationId,
             Operations = operations,
-        }, cancellation: cancellation).ConfigureAwait(false);
+        }, cancellation: cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     public void Initiate(BindInitiateCommand input) => bus.Emit(BusChannels.BindInitiate, input);

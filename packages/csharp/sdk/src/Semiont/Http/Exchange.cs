@@ -17,12 +17,12 @@ public sealed partial class HttpTransport
 
     internal async Task<T> AnswerAsync<T>(HttpMethod method, string path, Func<HttpContent>? content = null, bool authenticated = true, CancellationToken cancellation = default, bool retry = true)
     {
-        using var response = await ExchangeAsync(method, path, content, authenticated, cancellation: cancellation, retry: retry).ConfigureAwait(false);
+        using var response = await ExchangeAsync(method, path, content, authenticated, cancellation: cancellation, retry: retry).ConfigureAwait(Spawning.Captures);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timing.HttpRequestMs), clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, lifetime.Token, cancellation);
         try
         {
-            return await response.Content.ReadFromJsonAsync<T>(linked.Token).ConfigureAwait(false)
+            return await response.Content.ReadFromJsonAsync<T>(linked.Token).ConfigureAwait(Spawning.Captures)
                 ?? throw new TransportError(ProtocolFacts.Error(0), path + ": null response");
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
@@ -51,7 +51,7 @@ public sealed partial class HttpTransport
             HttpResponseMessage response;
             try
             {
-                response = await SendAsync(request, linked.Token).ConfigureAwait(false);
+                response = await SendAsync(request, linked.Token).ConfigureAwait(Spawning.Captures);
             }
             catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
             {
@@ -59,7 +59,7 @@ public sealed partial class HttpTransport
             }
             catch (HttpRequestException) when (repeatable && attempt == 0 && !lifetime.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("requestRetryPauseMs").GetInt32()), clock, cancellation).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("requestRetryPauseMs").GetInt32()), clock, cancellation).ConfigureAwait(Spawning.Captures);
                 continue;
             }
             catch (HttpRequestException error)
@@ -67,11 +67,11 @@ public sealed partial class HttpTransport
                 throw Report(new TransportError(ProtocolFacts.Error(503), error.Message, inner: error));
             }
             if (response.IsSuccessStatusCode) return response;
-            var failure = await RefusalAsync(response, cancellation).ConfigureAwait(false);
+            var failure = await RefusalAsync(response, cancellation).ConfigureAwait(Spawning.Captures);
             if (failure.Code == ProtocolFacts.Error(401) && !renewed && sent is not null)
             {
                 renewed = true;
-                if (await RenewAsync(sent, cancellation).ConfigureAwait(false) is not null)
+                if (await RenewAsync(sent, cancellation).ConfigureAwait(Spawning.Captures) is not null)
                 {
                     response.Dispose();
                     attempt--;
@@ -85,7 +85,7 @@ public sealed partial class HttpTransport
                 using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token);
                 try
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(delay), clock, waiting.Token).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromMilliseconds(delay), clock, waiting.Token).ConfigureAwait(Spawning.Captures);
                 }
                 catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
                 {

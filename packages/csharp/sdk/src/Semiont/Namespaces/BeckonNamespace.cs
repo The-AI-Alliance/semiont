@@ -34,5 +34,5 @@ public sealed class BeckonNamespace
         bus.Emit(BusChannels.BeckonSparkle, new BeckonSparkleEvent { AnnotationId = annotationId });
 
     private async Task<int?> CountAsync<T>(BusChannel<T> channel, T payload, CancellationToken cancellation) where T : class =>
-        checked((int?)await wire.EmitAsync(channel, payload, cancellation: cancellation).ConfigureAwait(false));
+        checked((int?)await wire.EmitAsync(channel, payload, cancellation: cancellation).ConfigureAwait(Spawning.Captures));
 }

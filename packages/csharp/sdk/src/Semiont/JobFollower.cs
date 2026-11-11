@@ -38,7 +38,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
         try
         {
             stop.ThrowIfCancellationRequested();
-            var created = await CreateAsync(command, stallMs, stop).ConfigureAwait(false);
+            var created = await CreateAsync(command, stallMs, stop).ConfigureAwait(Spawning.Captures);
             report?.Invoke(new JobEvent<T>.Created(created));
             var job = created.JobId;
             double? askAt = Now() + timing.JobSilenceMs;
@@ -92,7 +92,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
                 if (polling is { IsCompleted: true })
                 {
-                    var status = await polling.ConfigureAwait(false);
+                    var status = await polling.ConfigureAwait(Spawning.Captures);
                     StopPoll();
                     if (status is not null)
                     {
@@ -119,13 +119,13 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
                 if (ready is { IsCompleted: true })
                 {
-                    if (!await ready.ConfigureAwait(false)) throw Closed();
+                    if (!await ready.ConfigureAwait(Spawning.Captures)) throw Closed();
                     ready = null;
                 }
-                ready ??= events.Reader.WaitToReadAsync(stop).AsTask();
+                ready ??= Spawning.AsTask(events.Reader.WaitToReadAsync(stop));
                 if (ready.IsCompletedSuccessfully)
                 {
-                    if (!await ready.ConfigureAwait(false)) throw Closed();
+                    if (!await ready.ConfigureAwait(Spawning.Captures)) throw Closed();
                     ready = null;
                     continue;
                 }
@@ -140,7 +140,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
                     var delay = TimeSpan.FromMilliseconds(Math.Ceiling(Math.Max(0, next - Now())));
                     waits.Add(Task.Delay(delay, clock, timer.Token));
                 }
-                await Task.WhenAny(waits).ConfigureAwait(false);
+                await Spawning.WhenAny(waits).ConfigureAwait(Spawning.Captures);
                 timer.Cancel();
             }
         }
@@ -163,7 +163,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
         try
         {
             return (await wire.RequestAsync(BusOperations.JobCreate, command, cancellation: creating.Token)
-                .ConfigureAwait(false)).Response;
+                .ConfigureAwait(Spawning.Captures)).Response;
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested && !cancellation.IsCancellationRequested)
         {
@@ -173,7 +173,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
     private async Task<JobStatusResponse?> PollAsync(JobId job, CancellationToken cancellation)
     {
-        try { return await jobs.StatusAsync(job, cancellation).ConfigureAwait(false); }
+        try { return await jobs.StatusAsync(job, cancellation).ConfigureAwait(Spawning.Captures); }
         catch (Exception error) when (error is BusRequestError or TransportError or OperationCanceledException)
         {
             return null;
@@ -182,7 +182,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
     private async Task CancelStalledAsync(JobId job)
     {
-        try { await jobs.CancelAsync(job, closed).ConfigureAwait(false); }
+        try { await jobs.CancelAsync(job, closed).ConfigureAwait(Spawning.Captures); }
         catch (Exception error) when (error is BusRequestError or TransportError or OperationCanceledException)
         {
             // The local stall is terminal even when the cancellation request cannot be delivered.
@@ -213,7 +213,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
     private static BusRequestError Closed() => new(ProtocolFacts.BusError("closed"), "The client closed while following a job.");
 
-    private static async Task ObserveDroppedPollAsync(Task poll) => await poll.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    private static async Task ObserveDroppedPollAsync(Task poll) => await poll.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
 
     private abstract record Lifecycle(JobId Id)
     {

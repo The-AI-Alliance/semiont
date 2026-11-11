@@ -51,20 +51,20 @@ internal sealed class LiveQueries : IDisposable
         persistence = storage is null ? null : new LiveCacheStorage(storage, clock, RefetchOwed);
         var window = TimeSpan.FromMilliseconds(transport.Settings.InvalidationWindowMs);
         ResourcesById = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseResourceRequested,
-            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Resource, transport.SubscribeToResource, clock, window,
+            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(Spawning.Captures)).Response.Resource, transport.SubscribeToResource, clock, window,
             persistence?.Changed("resource"));
         Resources = new(async (filters, token) => (await wire.RequestAsync(BusOperations.BrowseResourcesRequested,
             new BrowseResourcesRequest { Limit = filters.Limit, Offset = filters.Offset, Archived = filters.Archived, EntityType = filters.EntityType },
-            cancellation: token).ConfigureAwait(false)).Response, null, clock, window);
+            cancellation: token).ConfigureAwait(Spawning.Captures)).Response, null, clock, window);
         Annotations = new(content.GetAnnotationsAsync, transport.SubscribeToResource, clock, window, persistence?.Changed("annotations"));
         Annotation = new(async (key, token) => (await wire.RequestAsync(BusOperations.BrowseAnnotationRequested,
             new BrowseAnnotationRequest { ResourceId = key.Resource, AnnotationId = key.Annotation }, cancellation: token)
-            .ConfigureAwait(false)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window,
+            .ConfigureAwait(Spawning.Captures)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window,
             persistence?.Changed("annotation"));
         Events = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseEventsRequested,
-            new BrowseEventsRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Events, transport.SubscribeToResource, clock, window);
+            new BrowseEventsRequest { ResourceId = id }, cancellation: token).ConfigureAwait(Spawning.Captures)).Response.Events, transport.SubscribeToResource, clock, window);
         ReferencedBy = new(async (id, token) => (await wire.RequestAsync(BusOperations.GatherReferencedByRequested,
-            new GatherReferencedByRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.ReferencedBy, transport.SubscribeToResource, clock, window);
+            new GatherReferencedByRequest { ResourceId = id }, cancellation: token).ConfigureAwait(Spawning.Captures)).Response.ReferencedBy, transport.SubscribeToResource, clock, window);
         MatchedResources = new(async (search, token) => (await wire.RequestAsync(BusOperations.MatchResourcesRequested, new MatchResourcesRequest
         {
             Search = search.Text,
@@ -72,13 +72,13 @@ internal sealed class LiveQueries : IDisposable
             Offset = search.Filters.Offset,
             Archived = search.Filters.Archived,
             EntityType = search.Filters.EntityType,
-        }, cancellation: token).ConfigureAwait(false)).Response, null, clock, window);
+        }, cancellation: token).ConfigureAwait(Spawning.Captures)).Response, null, clock, window);
 
         var entityTypes = Singleton<IReadOnlyList<string>>(async token => (await wire.RequestAsync(BusOperations.BrowseEntityTypesRequested,
-            new BrowseEntityTypesRequest(), cancellation: token).ConfigureAwait(false)).Response.EntityTypes, out var types, persistence?.Changed("entityTypes"));
+            new BrowseEntityTypesRequest(), cancellation: token).ConfigureAwait(Spawning.Captures)).Response.EntityTypes, out var types, persistence?.Changed("entityTypes"));
         EntityTypes = types;
         var tagSchemas = Singleton<IReadOnlyList<TagSchema>>(async token => (await wire.RequestAsync(BusOperations.BrowseTagSchemasRequested,
-            new BrowseTagSchemasRequest(), cancellation: token).ConfigureAwait(false)).Response.TagSchemas, out var tags, persistence?.Changed("tagSchemas"));
+            new BrowseTagSchemasRequest(), cancellation: token).ConfigureAwait(Spawning.Captures)).Response.TagSchemas, out var tags, persistence?.Changed("tagSchemas"));
         TagSchemas = tags;
         var engines = Singleton(token => LoadEnginesAsync(wire, token), out var listed);
         Engines = listed;
@@ -140,10 +140,10 @@ internal sealed class LiveQueries : IDisposable
     private async Task<IReadOnlyList<EngineEntry>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
     {
         var inventory = wire.RequestAsync(BusOperations.BrowseEnginesRequested, new BrowseEnginesRequest(), cancellation: cancellation);
-        var reportsTask = Task.WhenAll(BusOperations.Limits.Select(ReadLimitsAsync));
-        await Task.WhenAll(inventory, reportsTask).ConfigureAwait(false);
-        var result = await inventory.ConfigureAwait(false);
-        Volatile.Write(ref reportedLimits, (await reportsTask.ConfigureAwait(false)).SelectMany(report => report).ToArray());
+        var reportsTask = Spawning.WhenAll(BusOperations.Limits.Select(ReadLimitsAsync));
+        await Spawning.WhenAll(inventory, reportsTask).ConfigureAwait(Spawning.Captures);
+        var result = await inventory.ConfigureAwait(Spawning.Captures);
+        Volatile.Write(ref reportedLimits, (await reportsTask.ConfigureAwait(Spawning.Captures)).SelectMany(report => report).ToArray());
         return result.Response.Engines;
 
         async Task<IReadOnlyList<EngineLimits>> ReadLimitsAsync(BusOperation<InferenceLimitsRequest, InferenceLimitsResult, CommandError> operation)
@@ -151,7 +151,7 @@ internal sealed class LiveQueries : IDisposable
             try
             {
                 return (await wire.RequestAsync(operation, new InferenceLimitsRequest(), cancellation: cancellation)
-                    .ConfigureAwait(false)).Response.Limits;
+                    .ConfigureAwait(Spawning.Captures)).Response.Limits;
             }
             catch (SemiontError) { return []; }
         }
@@ -235,7 +235,7 @@ internal sealed class LiveQueries : IDisposable
 
     private async Task ReadEventsAsync()
     {
-        await foreach (var carried in events.Reader.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var carried in Spawning.ReadAll(events.Reader, CancellationToken.None).ConfigureAwait(Spawning.Captures))
         {
             if (persistence is null) Apply(carried);
             else persistence.Apply(carried, () => Apply(carried));
@@ -306,7 +306,7 @@ internal sealed class LiveQueries : IDisposable
     {
         var opened = false;
         var left = false;
-        await foreach (var state in transport.States().ConfigureAwait(false))
+        await foreach (var state in transport.States().ConfigureAwait(Spawning.Captures))
         {
             if (state != ConnectionState.Open) { left = opened; continue; }
             if (left) Refresh(Reopened, new Subject());

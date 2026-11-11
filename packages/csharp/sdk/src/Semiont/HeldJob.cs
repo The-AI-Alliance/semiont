@@ -86,7 +86,7 @@ public abstract class HeldJob : IHeldJob
             ResourceId = ResourceId,
             Attempt = Attempt,
             AnnotationId = AnnotationId,
-        }, cancellation: cancellation).ConfigureAwait(false);
+        }, cancellation: cancellation).ConfigureAwait(Spawning.Captures);
     }, cancellation);
 
     public Task ProgressAsync(JobProgress progress, CancellationToken cancellation = default) => WhileHeldAsync(async () =>
@@ -101,7 +101,7 @@ public abstract class HeldJob : IHeldJob
             AnnotationId = AnnotationId,
             Percentage = progress.Percentage,
             Progress = AnnotationId is { } anchor ? progress with { AnnotationId = anchor } : progress,
-        }, cancellation: cancellation).ConfigureAwait(false);
+        }, cancellation: cancellation).ConfigureAwait(Spawning.Captures);
     }, cancellation);
 
     public Task CheckpointAsync(IReadOnlyList<string> completedUnits, IReadOnlyDictionary<string, UnitCursor>? unitCursors = null,
@@ -113,7 +113,7 @@ public abstract class HeldJob : IHeldJob
             JobId = JobId,
             CompletedUnits = completedUnits,
             UnitCursors = unitCursors,
-        }, cancellation: cancellation).ConfigureAwait(false);
+        }, cancellation: cancellation).ConfigureAwait(Spawning.Captures);
     }, cancellation);
 
     public Task CommitAsync(ResourceId resourceId, IReadOnlyList<Annotation> annotations, CancellationToken cancellation = default) =>
@@ -128,11 +128,11 @@ public abstract class HeldJob : IHeldJob
                     JobId = JobId,
                     ResourceId = resourceId,
                     Annotations = annotations,
-                }, holder.CommitTimeoutMs, cancellation).ConfigureAwait(false);
+                }, holder.CommitTimeoutMs, cancellation).ConfigureAwait(Spawning.Captures);
             }
             catch (BusRequestError error) when (error.Code == ProtocolFacts.BusError("timeout"))
             {
-                var observed = await ProbeAsync(resourceId, last, cancellation).ConfigureAwait(false);
+                var observed = await ProbeAsync(resourceId, last, cancellation).ConfigureAwait(Spawning.Captures);
                 Observe(observed);
                 if (observed != DurabilityEvidence.ProbeConfirmed) throw;
                 return;
@@ -146,7 +146,7 @@ public abstract class HeldJob : IHeldJob
         {
             var answer = await wire.RequestAsync(BusOperations.BrowseAnnotationRequested,
                 new BrowseAnnotationRequest { ResourceId = resourceId, AnnotationId = annotationId },
-                holder.CommitTimeoutMs, cancellation).ConfigureAwait(false);
+                holder.CommitTimeoutMs, cancellation).ConfigureAwait(Spawning.Captures);
             return answer.Response.Annotation.Id == annotationId ? DurabilityEvidence.ProbeConfirmed : DurabilityEvidence.ProbeRefused;
         }
         catch (BusRequestError error) when (error.Code != ProtocolFacts.BusError("timeout") &&
@@ -207,7 +207,7 @@ public abstract class HeldJob : IHeldJob
 
     internal async Task FailOnStopAsync()
     {
-        await turn.WaitAsync().ConfigureAwait(false);
+        await turn.WaitAsync().ConfigureAwait(Spawning.Captures);
         try
         {
             if (settled) return;
@@ -218,7 +218,7 @@ public abstract class HeldJob : IHeldJob
                 context.TraceStateString = Trace.TraceState;
                 context.Start();
             }
-            await FinishAsync(() => SayFailureAsync("The worker stopped while it held the job", null, null, null, default), false).ConfigureAwait(false);
+            await FinishAsync(() => SayFailureAsync("The worker stopped while it held the job", null, null, null, default), false).ConfigureAwait(Spawning.Captures);
         }
         catch (SemiontError) { /* The dispatcher's sweep handles a failure the worker could not deliver. */ }
         finally { turn.Release(); }
@@ -226,12 +226,12 @@ public abstract class HeldJob : IHeldJob
 
     internal void SignalCancellation()
     {
-        if (!settled && signalling is null) signalling = cancelled.CancelAsync();
+        if (!settled && signalling is null) signalling = Spawning.CancelAsync(cancelled);
     }
 
     private async Task EndCancellationAsync()
     {
-        if (signalling is not null) await signalling.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        if (signalling is not null) await signalling.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
         cancelled.Dispose();
     }
 
@@ -243,11 +243,11 @@ public abstract class HeldJob : IHeldJob
 
     private async Task WhileHeldAsync(Func<Task> action, CancellationToken cancellation)
     {
-        await turn.WaitAsync(cancellation).ConfigureAwait(false);
+        await turn.WaitAsync(cancellation).ConfigureAwait(Spawning.Captures);
         try
         {
             RequireHeld();
-            await action().ConfigureAwait(false);
+            await action().ConfigureAwait(Spawning.Captures);
         }
         finally { turn.Release(); }
     }
@@ -261,7 +261,7 @@ public abstract class HeldJob : IHeldJob
         var delivered = false;
         try
         {
-            await action().ConfigureAwait(false);
+            await action().ConfigureAwait(Spawning.Captures);
             delivered = true;
         }
         finally

@@ -44,8 +44,8 @@ public sealed class AgentToken : IDisposable
             started = true;
         }
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token);
-        var access = await service.TokenAsync(null, false, linked.Token).ConfigureAwait(false);
-        var user = await Session.Gateway.GetCurrentUserAsync(Gateway, access, client, clock, linked.Token).ConfigureAwait(false);
+        var access = await service.TokenAsync(null, false, linked.Token).ConfigureAwait(Spawning.Captures);
+        var user = await Session.Gateway.GetCurrentUserAsync(Gateway, access, client, clock, linked.Token).ConfigureAwait(Spawning.Captures);
         lock (gate)
         {
             linked.Token.ThrowIfCancellationRequested();
@@ -58,7 +58,7 @@ public sealed class AgentToken : IDisposable
     public async Task<string?> RefreshAsync(string? refused, CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
-        try { return await Renewal(refused, false).WaitAsync(cancellation).ConfigureAwait(false); }
+        try { return await Spawning.WaitAsync(Renewal(refused, false), cancellation).ConfigureAwait(Spawning.Captures); }
         catch (SignInError) { return null; }
     }
 
@@ -69,14 +69,14 @@ public sealed class AgentToken : IDisposable
             ObjectDisposedException.ThrowIf(disposed, this);
             if (token != refused) return Task.FromResult(token);
             if (renewing is { IsCompleted: false }) return renewing;
-            renewing = Task.Run(() => RenewAsync(refused, retry, lifetime.Token));
+            renewing = Spawning.Run(() => RenewAsync(refused, retry, lifetime.Token));
             return renewing;
         }
     }
 
     private async Task<string?> RenewAsync(string? refused, bool retry, CancellationToken cancellation)
     {
-        var access = await service.TokenAsync(refused, retry, cancellation).ConfigureAwait(false);
+        var access = await service.TokenAsync(refused, retry, cancellation).ConfigureAwait(Spawning.Captures);
         lock (gate)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -110,13 +110,13 @@ public sealed class AgentToken : IDisposable
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(Math.Min(delay, (uint.MaxValue - 1d) / 1000)), clock, timer.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(Math.Min(delay, (uint.MaxValue - 1d) / 1000)), clock, timer.Token).ConfigureAwait(Spawning.Captures);
             lock (gate)
             {
                 if (scheduled != timer || disposed) return;
                 scheduled = null;
             }
-            await Renewal(access, true).ConfigureAwait(false);
+            await Renewal(access, true).ConfigureAwait(Spawning.Captures);
         }
         catch (ObjectDisposedException) when (disposed)
         {

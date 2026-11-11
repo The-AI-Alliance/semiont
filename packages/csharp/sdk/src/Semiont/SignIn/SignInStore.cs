@@ -30,7 +30,7 @@ public sealed partial class SignInStore
         try
         {
             using var file = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous);
-            return (await JsonNode.ParseAsync(file, cancellationToken: cancellation).ConfigureAwait(false))?.AsObject() ?? throw new JsonException("The sign-in store holds no JSON object");
+            return (await JsonNode.ParseAsync(file, cancellationToken: cancellation).ConfigureAwait(Spawning.Captures))?.AsObject() ?? throw new JsonException("The sign-in store holds no JSON object");
         }
         catch (FileNotFoundException) { return new JsonObject(); }
         catch (DirectoryNotFoundException) { return new JsonObject(); }
@@ -39,9 +39,9 @@ public sealed partial class SignInStore
     public async Task ChangeAsync(Func<JsonObject, bool> change, CancellationToken cancellation = default)
     {
         StorePermissions.CreateDirectory(directory);
-        using var held = await NativeStoreLock.HoldAsync(Path.Combine(directory, ProtocolTables.StoreLockName), StorePermissions.FileMode, clock, random, cancellation).ConfigureAwait(false);
+        using var held = await NativeStoreLock.HoldAsync(Path.Combine(directory, ProtocolTables.StoreLockName), StorePermissions.FileMode, clock, random, cancellation).ConfigureAwait(Spawning.Captures);
         StorePermissions.Keep(directory);
-        var document = await ReadAsync(cancellation).ConfigureAwait(false);
+        var document = await ReadAsync(cancellation).ConfigureAwait(Spawning.Captures);
         if (!change(document)) return;
         var beside = FilePath + ".tmp";
         try
@@ -51,9 +51,9 @@ public sealed partial class SignInStore
             if (!OperatingSystem.IsWindows()) options.UnixCreateMode = StorePermissions.FileMode;
             using (var file = new FileStream(beside, options))
             {
-                await JsonSerializer.SerializeAsync(file, document, Pretty, cancellation).ConfigureAwait(false);
-                await file.WriteAsync(new byte[] { (byte)'\n' }, cancellation).ConfigureAwait(false);
-                await file.FlushAsync(cancellation).ConfigureAwait(false);
+                await JsonSerializer.SerializeAsync(file, document, Pretty, cancellation).ConfigureAwait(Spawning.Captures);
+                await file.WriteAsync(new byte[] { (byte)'\n' }, cancellation).ConfigureAwait(Spawning.Captures);
+                await file.FlushAsync(cancellation).ConfigureAwait(Spawning.Captures);
             }
             File.Move(beside, FilePath, overwrite: true);
         }
@@ -73,7 +73,7 @@ public sealed partial class SignInStore
     {
         public async Task<StoredSession?> HeldAsync(CancellationToken cancellation = default)
         {
-            var document = await store.ReadAsync(cancellation).ConfigureAwait(false);
+            var document = await store.ReadAsync(cancellation).ConfigureAwait(Spawning.Captures);
             var found = ReadSignIn(document[key]);
             if (found is null || string.IsNullOrEmpty(found.RefreshToken)) return null;
             return new StoredSession { Access = found.Token, Refresh = found.RefreshToken, ClientId = SignInPolicy.ScriptClientId, TokenEndpoint = found.TokenEndpoint, RevocationEndpoint = found.RevocationEndpoint };
@@ -113,7 +113,7 @@ public sealed partial class SignInStore
                 else changed.Remove("expiresAt");
                 given = access;
                 return true;
-            }, cancellation).ConfigureAwait(false);
+            }, cancellation).ConfigureAwait(Spawning.Captures);
             return given;
         }
 

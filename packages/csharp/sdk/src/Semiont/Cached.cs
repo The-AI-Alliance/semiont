@@ -27,7 +27,7 @@ internal sealed class CachedPart<TWhole, T>(Cached<TWhole> whole, Func<TWhole, T
 {
     public override async IAsyncEnumerator<CacheState<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        await foreach (var state in whole.WithCancellation(cancellationToken).ConfigureAwait(false))
+        await foreach (var state in whole.WithCancellation(cancellationToken).ConfigureAwait(Spawning.Captures))
         {
             yield return state switch
             {
@@ -39,7 +39,7 @@ internal sealed class CachedPart<TWhole, T>(Cached<TWhole> whole, Func<TWhole, T
     }
 
     public override async Task<T> FreshAsync(CancellationToken cancellation = default) =>
-        part(await whole.FreshAsync(cancellation).ConfigureAwait(false));
+        part(await whole.FreshAsync(cancellation).ConfigureAwait(Spawning.Captures));
 
     public override void Invalidate() => whole.Invalidate();
 }
@@ -89,7 +89,7 @@ internal sealed class CacheEntry<T> : Cached<T>
             work = Fetch();
         }
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellation, stopped);
-        try { return await work.WaitAsync(waiting.Token).ConfigureAwait(false); }
+        try { return await Spawning.WaitAsync(work, waiting.Token).ConfigureAwait(Spawning.Captures); }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested && stopped.IsCancellationRequested)
         {
             throw ClosedError();
@@ -182,7 +182,7 @@ internal sealed class CacheEntry<T> : Cached<T>
         {
             try
             {
-                while (await ReadableAsync(channel.Reader, waiting.Token).ConfigureAwait(false))
+                while (await ReadableAsync(channel.Reader, waiting.Token).ConfigureAwait(Spawning.Captures))
                 {
                     if (waiting.IsCancellationRequested) yield break;
                     if (channel.Reader.TryRead(out var value)) yield return value;
@@ -198,7 +198,7 @@ internal sealed class CacheEntry<T> : Cached<T>
 
     private static async ValueTask<bool> ReadableAsync(ChannelReader<CacheState<T>> reader, CancellationToken cancellation)
     {
-        try { return await reader.WaitToReadAsync(cancellation).ConfigureAwait(false); }
+        try { return await reader.WaitToReadAsync(cancellation).ConfigureAwait(Spawning.Captures); }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return false; }
     }
 
@@ -232,24 +232,24 @@ internal sealed class CacheEntry<T> : Cached<T>
     private Task<T> Fetch()
     {
         if (flight is not null) return flight;
-        var result = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var result = new TaskCompletionSource<T>(Spawning.CompletionOptions);
         flight = result.Task;
         rehydrated = false;
         activeLoads++;
         var epoch = writeEpoch;
-        _ = Task.Run(() => LoadAsync(result, epoch));
+        _ = Spawning.Run(() => LoadAsync(result, epoch));
         _ = ObserveFailureAsync(result.Task);
         return result.Task;
     }
 
-    private static async Task ObserveFailureAsync(Task work) => await work.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    private static async Task ObserveFailureAsync(Task work) => await work.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
 
     private async Task LoadAsync(TaskCompletionSource<T> result, long epoch)
     {
         try
         {
             stopped.ThrowIfCancellationRequested();
-            var value = await fetch(stopped).ConfigureAwait(false);
+            var value = await fetch(stopped).ConfigureAwait(Spawning.Captures);
             Finish(() =>
             {
                 if (closed) result.TrySetException(ClosedError());
@@ -287,7 +287,7 @@ internal sealed class CacheEntry<T> : Cached<T>
         {
             for (var attempt = 0; ; attempt++)
             {
-                try { await work.ConfigureAwait(false); return; }
+                try { await work.ConfigureAwait(Spawning.Captures); return; }
                 catch (OperationCanceledException) { return; }
                 catch (Exception error)
                 {
@@ -327,7 +327,7 @@ internal sealed class CacheEntry<T> : Cached<T>
 
     private async Task CloseWindowAsync()
     {
-        try { await Task.Delay(window, clock, stopped).ConfigureAwait(false); }
+        try { await Task.Delay(window, clock, stopped).ConfigureAwait(Spawning.Captures); }
         catch (OperationCanceledException) when (stopped.IsCancellationRequested) { return; }
         lock (gate)
         {

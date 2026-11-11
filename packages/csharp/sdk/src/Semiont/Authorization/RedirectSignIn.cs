@@ -45,7 +45,7 @@ public static class RedirectSignIn
     {
         RequireHttpAddress(options.RedirectUri);
         using var issuer = new Issuer(httpClient, timeProvider, random);
-        var found = await issuer.DiscoverAsync(options.Target, cancellation).ConfigureAwait(false);
+        var found = await issuer.DiscoverAsync(options.Target, cancellation).ConfigureAwait(Spawning.Captures);
         var record = new PendingAuthorization(Base64Url(RandomNumberGenerator.GetBytes(24)), Base64Url(RandomNumberGenerator.GetBytes(48)),
             options.RedirectUri, options.Target, new AuthorizationIssuer(found.Issuer, found.Authorization, found.Token, found.Device, found.Revocation),
             options.KbId, options.ExpectedDid, options.ExpectedName);
@@ -100,7 +100,7 @@ public static class RedirectSignIn
             ["redirect_uri"] = record.RedirectUri,
             ["client_id"] = SignInPolicy.BrowserClientId,
             ["code_verifier"] = record.Verifier,
-        }, cancellation: cancellation).ConfigureAwait(false);
+        }, cancellation: cancellation).ConfigureAwait(Spawning.Captures);
         if (answer.Status != 200 || answer.Text("access_token") is not { Length: > 0 } access ||
             answer.Text("refresh_token") is not { Length: > 0 } refresh)
             throw Refused("exchange", "The issuer did not return both tokens.", answer.Status);
@@ -123,7 +123,7 @@ public static class RedirectSignIn
             using var client = new SemiontClient(new HttpTransport(Gateway.Origin(target), access,
                 BusRegistry.ReplyChannelsFor(BusOperations.BrowseKbRequested.Request.Name), httpClient: httpClient,
                 timeProvider: timeProvider, random: random));
-            description = await client.Browse.KbAsync(cancellation).ConfigureAwait(false);
+            description = await client.Browse.KbAsync(cancellation).ConfigureAwait(Spawning.Captures);
         }
         catch (Exception error) when (error is SemiontError or JsonException)
         {

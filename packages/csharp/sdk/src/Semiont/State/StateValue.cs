@@ -59,7 +59,7 @@ internal sealed class UnitWork : IDisposable
 
     internal void Run(Func<CancellationToken, Task> work) => _ = ObserveAsync(work(Token));
 
-    internal static async Task ObserveAsync(Task task) => await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    internal static async Task ObserveAsync(Task task) => await task.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
 
     public void Dispose()
     {
@@ -75,7 +75,7 @@ internal sealed class UnitWork : IDisposable
 
     private static async Task CancelAndDisposeAsync(CancellationTokenSource source)
     {
-        await source.CancelAsync().ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        await Spawning.CancelAsync(source).ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
         source.Dispose();
     }
 }

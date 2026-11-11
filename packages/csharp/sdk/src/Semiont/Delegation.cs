@@ -26,14 +26,14 @@ public sealed class Delegation<T> : IAsyncEnumerable<JobEvent<T>>
     private readonly Running<JobEvent<T>> following;
 
     internal Delegation(Func<Action<JobEvent<T>>?, CancellationToken, Task<T>> follow) =>
-        following = new(async (report, cancellation) => new JobEvent<T>.Complete(await follow(report, cancellation).ConfigureAwait(false)));
+        following = new(async (report, cancellation) => new JobEvent<T>.Complete(await follow(report, cancellation).ConfigureAwait(Spawning.Captures)));
 
     public IAsyncEnumerator<JobEvent<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
         following.GetAsyncEnumerator(cancellationToken);
 
     public async Task<T> CompleteAsync(CancellationToken cancellation = default)
     {
-        var terminal = await following.CompleteAsync(cancellation).ConfigureAwait(false);
+        var terminal = await following.CompleteAsync(cancellation).ConfigureAwait(Spawning.Captures);
         return terminal is JobEvent<T>.Complete(var completion)
             ? completion : throw new InvalidOperationException("A delegation ended without its completion.");
     }

@@ -65,7 +65,7 @@ public sealed class Claims
     {
         cancellation.ThrowIfCancellationRequested();
         Begin();
-        while (await handed.Reader.WaitToReadAsync(cancellation).ConfigureAwait(false))
+        while (await handed.Reader.WaitToReadAsync(cancellation).ConfigureAwait(Spawning.Captures))
         {
             lock (gate)
             {
@@ -103,8 +103,8 @@ public sealed class Claims
 
     private async Task StopCoreAsync(HeldJob? holding, Task? claiming)
     {
-        if (holding is not null) await holding.FailOnStopAsync().ConfigureAwait(false);
-        if (claiming is not null) await claiming.ConfigureAwait(false);
+        if (holding is not null) await holding.FailOnStopAsync().ConfigureAwait(Spawning.Captures);
+        if (claiming is not null) await claiming.ConfigureAwait(Spawning.Captures);
     }
 
     private void Begin()
@@ -143,7 +143,7 @@ public sealed class Claims
         var wasOpen = false;
         try
         {
-            await foreach (var state in transport.States(stop).ConfigureAwait(false))
+            await foreach (var state in transport.States(stop).ConfigureAwait(Spawning.Captures))
             {
                 var open = state == ConnectionState.Open;
                 if (open && !wasOpen) Wake();
@@ -159,7 +159,7 @@ public sealed class Claims
         try
         {
             var frames = transport.ReceivedFrames([BusChannels.JobQueued.Name, BusChannels.JobCancelRequested.Name], null, stop);
-            await foreach (var carried in frames.ConfigureAwait(false))
+            await foreach (var carried in frames.ConfigureAwait(Spawning.Captures))
             {
                 if (carried.Channel == BusChannels.JobQueued.Name)
                 {
@@ -193,7 +193,7 @@ public sealed class Claims
         using var interval = new PeriodicTimer(TimeSpan.FromMilliseconds(timing.HeldJobStallCheckMs), clock);
         try
         {
-            while (await interval.WaitForNextTickAsync(stop).ConfigureAwait(false))
+            while (await interval.WaitForNextTickAsync(stop).ConfigureAwait(Spawning.Captures))
             {
                 lock (gate)
                 {
@@ -216,7 +216,7 @@ public sealed class Claims
             if (stopped || held is not null || transport.State != ConnectionState.Open) return;
             if (pending is not null) { wakeOwed = true; return; }
             pendingCancellations = [];
-            pending = Task.Run(ClaimAsync);
+            pending = Spawning.Run(ClaimAsync);
         }
     }
 
@@ -230,7 +230,7 @@ public sealed class Claims
         try
         {
             var reply = await transport.RequestFrameAsync(BusOperations.JobClaim.Request.Name, command, timing.JobClaimTimeoutMs, default)
-                .ConfigureAwait(false);
+                .ConfigureAwait(Spawning.Captures);
             replySequence = reply.Sequence;
             var record = Bus.Decoded<JobClaimedResult>(reply.Frame.Channel, reply.Frame.Payload).Response;
             acquired = record.Metadata.Type switch
@@ -276,7 +276,7 @@ public sealed class Claims
                 return;
             }
         }
-        if (acquired is not null) await acquired.FailOnStopAsync().ConfigureAwait(false);
+        if (acquired is not null) await acquired.FailOnStopAsync().ConfigureAwait(Spawning.Captures);
     }
 
     internal void Active(HeldJob job)

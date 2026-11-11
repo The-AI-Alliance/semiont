@@ -44,7 +44,7 @@ public sealed class SemiontSession : IStateUnit
         ArgumentNullException.ThrowIfNull(kept);
         if (kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "A session from a kept sign-in requires an HTTP endpoint.");
-        var held = await kept.HeldAsync(cancellation).ConfigureAwait(false);
+        var held = await kept.HeldAsync(cancellation).ConfigureAwait(Spawning.Captures);
         var errors = new Broadcast<SemiontError>(keepForFirst: true);
         var persistence = storage is null ? null : new CachePersistence(storage, kb.Id, kept, errors.Publish);
         if (persistence is not null && held is { PersonKey: { } named }) persistence.Attach(named);
@@ -63,7 +63,7 @@ public sealed class SemiontSession : IStateUnit
                 try
                 {
                     client.Dispose();
-                    await client.Flushed.ConfigureAwait(false);
+                    await client.Flushed.ConfigureAwait(Spawning.Captures);
                 }
                 finally { session.Dispose(); }
             }, session);
@@ -101,13 +101,13 @@ public sealed class SemiontSession : IStateUnit
 
     public async Task ReadyAsync(CancellationToken cancellation = default)
     {
-        await kept.ReadyAsync(cancellation).ConfigureAwait(false);
+        await kept.ReadyAsync(cancellation).ConfigureAwait(Spawning.Captures);
         UpdateIdentity();
     }
 
     public async Task<string?> RefreshAsync(string? refused, CancellationToken cancellation = default)
     {
-        var token = await kept.RefreshAsync(refused, cancellation).ConfigureAwait(false);
+        var token = await kept.RefreshAsync(refused, cancellation).ConfigureAwait(Spawning.Captures);
         UpdateIdentity();
         return token;
     }
@@ -117,13 +117,13 @@ public sealed class SemiontSession : IStateUnit
 
     private async Task FollowIdentityAsync(CancellationToken cancellation)
     {
-        await foreach (var _ in kept.States(cancellation).ConfigureAwait(false))
+        await foreach (var _ in kept.States(cancellation).ConfigureAwait(Spawning.Captures))
             UpdateIdentity();
     }
 
     private async Task FollowStreamAsync(CancellationToken cancellation)
     {
-        await foreach (var state in Client.Transport.States(cancellation).ConfigureAwait(false))
+        await foreach (var state in Client.Transport.States(cancellation).ConfigureAwait(Spawning.Captures))
             StreamState.Set(state);
     }
 

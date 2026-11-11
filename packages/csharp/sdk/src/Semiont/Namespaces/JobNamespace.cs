@@ -40,12 +40,12 @@ public sealed class JobNamespace
 
     public async Task<JobStatusResponse> StatusAsync(JobId jobId, CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.JobStatusRequested, new JobStatusRequest { JobId = jobId },
-            cancellation: cancellation).ConfigureAwait(false)).Response;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response;
 
     /// <summary>Reports whether the queue accepted cancellation of the job.</summary>
     public async Task<bool> CancelAsync(JobId jobId, CancellationToken cancellation = default) =>
         (await wire.RequestAsync(BusOperations.JobCancelRequested, new JobCancelRequest { JobId = jobId },
-            cancellation: cancellation).ConfigureAwait(false)).Response.Cancelled;
+            cancellation: cancellation).ConfigureAwait(Spawning.Captures)).Response.Cancelled;
 
     /// <summary>Returns the first terminal status, reporting each status received along the way. It asks every
     /// <paramref name="intervalMs"/>, jobPollMs when named none, and fails as timed out at <paramref name="timeoutMs"/>
@@ -65,11 +65,11 @@ public sealed class JobNamespace
             while (true)
             {
                 waiting.Token.ThrowIfCancellationRequested();
-                var status = await StatusAsync(jobId, waiting.Token).ConfigureAwait(false);
+                var status = await StatusAsync(jobId, waiting.Token).ConfigureAwait(Spawning.Captures);
                 waiting.Token.ThrowIfCancellationRequested();
                 onStatus?.Invoke(status);
                 if (status.Status is not (JobStatusResponseStatus.Pending or JobStatusResponseStatus.Running)) return status;
-                await Task.Delay(interval, clock, waiting.Token).ConfigureAwait(false);
+                await Task.Delay(interval, clock, waiting.Token).ConfigureAwait(Spawning.Captures);
             }
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested && closed.IsCancellationRequested)
