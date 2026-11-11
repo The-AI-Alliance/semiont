@@ -543,12 +543,9 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         }
         ("job", "pollUntilComplete") => {
             let job_id = args.text("jobId");
-            go!(client.job.poll_until_complete(
-                &as_id(&job_id),
-                Duration::from_millis(10),
-                Duration::from_millis(50),
-                |_| {}
-            ))
+            go!(client
+                .job
+                .poll_until_complete(&as_id(&job_id), None, None, |_| {}))
         }
         ("job", "cancel") => {
             let job_id = args.text("jobId");
