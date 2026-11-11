@@ -455,6 +455,8 @@ func TestB17OnlyTheKeysCurrentFetchIsInFlight(t *testing.T) {
 	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Pending{})
+	// Each fetch asks from its own goroutine, so the two asks are in order only if the first is made before the invalidation.
+	service.count(t, 1)
 	c.Invalidate(cacheKeyOne)
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	if !c.keptFetching() {
