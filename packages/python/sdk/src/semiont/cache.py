@@ -105,11 +105,11 @@ class _Key[V]:
     def __init__(self, state: CacheState[V]) -> None:
         self.state: Final = Variable[CacheState[V]](state)
         self.in_flight: tuple[int, asyncio.Task[V]] | None = None
-        """The fetch in flight for the key: its number, and its task. An
-        `invalidate` lets go of it without waiting, so a fetch whose answer
-        will never come cannot hold the key."""
-        self.validation: tuple[int, bool] | None = None
-        """The live view's ask: the number of the fetch it waits on, and whether that fetch is its second."""
+        """The key's current fetch: its number, and its task. An `invalidate`
+        lets go of it without waiting, so a fetch whose answer will never come
+        cannot hold the key, and one let go of writes nothing (B9)."""
+        self.validation: Literal["first", "retry"] | None = None
+        """Which of the live view's asks the current fetch is; nothing when no ask waits on it."""
 
     def known(self) -> bool:
         """Whether anything asked for the key and has not let go of it."""
@@ -235,18 +235,18 @@ class Cache[K: Hashable, V](StateUnit):
             self._owed = True
             raise
 
-    def _fetching(self, key: K) -> tuple[int, asyncio.Task[V]]:
-        """Start a fetch for `key`, or join the one in flight: its number, and its task."""
+    def _fetching(self, key: K) -> asyncio.Task[V]:
+        """Start a fetch for `key`, or join the one in flight."""
         # Asked for by this cache now, whichever path asked.
         self._kept.discard(key)
         held = self._held(key)
         if held.in_flight is not None:
-            return held.in_flight
+            return held.in_flight[1]
         self._fetches += 1
         fetch = self._tasks.run(self._fetched(key, self._fetches))
         fetch.add_done_callback(_heard)
         held.in_flight = (self._fetches, fetch)
-        return held.in_flight
+        return fetch
 
     async def _fetched(self, key: K, number: int) -> V:
         try:
@@ -258,44 +258,39 @@ class Cache[K: Hashable, V](StateUnit):
             # A cancellation is no failure: nothing is asked again after it.
             self._settled(key, number, None)
             raise
-        self._settled(key, number, None)
-        # A value from any fetch is written, the newest last: each is at least
-        # as new as what was there. A failure writes nothing. One answered
-        # after the cache was disposed has no key to write to.
-        held = self._keys.get(key)
-        if held is not None:
-            held.state.set(Ready(value))
-            self._owe_a_save()
+        self._settled(key, number, Ready(value))
         return value
 
-    def _settled(self, key: K, number: int, failure: Exception | None) -> None:
-        """In the step a fetch settles it is in flight no more, and the live view's ask waiting on it ends.
+    def _settled(self, key: K, number: int, came_to: Ready[V] | Exception | None) -> None:
+        """Act on the key in the step a fetch settles, by what it `came_to`: its value, its failure, or nothing for a cancellation.
 
-        A first ask that failed is asked once more, at once, so the key is
+        Only the key's current fetch acts on the key (B9). It is in flight no
+        more, its value is written, and the live view's ask waiting on it ends:
+        a first ask that failed is asked once more, at once, so the key is
         fetching from its first failure until its retry settles; a second that
-        failed fails a key with no value.
+        failed fails a key with no value. A fetch an invalidate, a removal or
+        the disposal let go of answers its own awaiters, and changes nothing.
         """
         held = self._keys.get(key)
-        if held is None:
+        if held is None or held.in_flight is None or held.in_flight[0] != number:
             return
-        # Only its own: an `invalidate` may have put a newer fetch, and a newer ask, in its place.
-        if held.in_flight is not None and held.in_flight[0] == number:
-            held.in_flight = None
-        validation = held.validation
-        if validation is None or validation[0] != number:
+        held.in_flight = None
+        if isinstance(came_to, Ready):
+            held.state.set(came_to)
+            self._owe_a_save()
+        validation, held.validation = held.validation, None
+        if not isinstance(came_to, Exception):
             return
-        held.validation = None
-        if failure is None:
-            return
-        if not validation[1]:
-            held.validation = (self._fetching(key)[0], True)
-        elif not isinstance(held.state.value, Ready):
-            held.state.set(Failed(failure))
+        if validation == "first":
+            self._fetching(key)
+            held.validation = "retry"
+        elif validation == "retry" and not isinstance(held.state.value, Ready):
+            held.state.set(Failed(came_to))
 
     def _revalidate(self, key: K) -> None:
         """Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes `Failed`."""
-        number, _ = self._fetching(key)
-        self._held(key).validation = (number, False)
+        self._fetching(key)
+        self._held(key).validation = "first"
 
     def observe(self, key: K) -> AsyncIterator[CacheState[V]]:
         """The key's state, now and as it changes, until the cache is disposed.
@@ -326,12 +321,13 @@ class Cache[K: Hashable, V](StateUnit):
         """Ask for the key's value now.
 
         What the service answers, which every observer of the key is given
-        too; or the failure, which only this caller is. Concurrent asks for
-        one key share one fetch.
+        too unless an invalidate or a removal let go of the fetch first; or
+        the failure, which only this caller is. Concurrent asks for one key
+        share one fetch.
         """
         if self._disposed:
             raise closed()
-        return await _joined(self._fetching(key)[1])
+        return await _joined(self._fetching(key))
 
     def get(self, key: K) -> V | None:
         """The key's value now, asking for nothing."""
@@ -363,15 +359,17 @@ class Cache[K: Hashable, V](StateUnit):
     def kept_fetching(self) -> bool:
         """Whether a cache that keeps its values has a fetch in flight: what a disposal drops.
 
-        A fetch is in flight from when it is asked for, before its first turn,
-        until its answer is written, in the same turn, or it fails.
+        A key's current fetch is in flight from when it is asked for, before
+        its first turn, until its answer is written, in the same turn, or it
+        fails. One an invalidate or a removal let go of is in flight no more.
         """
         return self._persister is not None and self._fetch_in_flight()
 
     def invalidate(self, key: K) -> None:
         """The key's value is out of date: ask again, showing what there is meanwhile.
 
-        A fetch already in flight is not waited on: its answer may never come.
+        A fetch already in flight is not waited on: its answer may never come,
+        and when it does it goes to that fetch's own awaiters alone.
         """
         if self._disposed:
             return
@@ -389,12 +387,13 @@ class Cache[K: Hashable, V](StateUnit):
     def remove(self, key: K, gone: Exception) -> None:
         """The key's entity is gone: its value is dropped and the key is failed with `gone`, at once, for every observer.
 
-        Nothing is asked for.
+        Nothing is asked for, and a fetch in flight is let go of: what it answers goes to its own awaiters alone.
         """
         if self._disposed:
             return
         held = self._held(key)
         held.in_flight = None
+        held.validation = None
         held.state.set(Failed(gone))
         self._owe_a_save()
 
@@ -403,7 +402,9 @@ class Cache[K: Hashable, V](StateUnit):
         if self._disposed:
             return
         self._kept.discard(key)
-        self._held(key).state.set(Ready(value))
+        held = self._held(key)
+        held.validation = None
+        held.state.set(Ready(value))
         self._owe_a_save()
 
     @override

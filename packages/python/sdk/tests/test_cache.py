@@ -235,43 +235,81 @@ def test_b8_invalidating_a_key_nobody_asked_for_asks_for_it() -> None:
     run(scenario())
 
 
-def test_b9_invalidating_while_a_fetch_is_in_flight_starts_another_and_the_last_answer_is_the_value() -> None:
+def test_b9_invalidating_while_a_fetch_is_in_flight_starts_another_and_only_it_writes_when_it_answers_first() -> None:
     async def scenario() -> None:
-        cache, service, tasks = world()
+        persister = Kept()
+        cache, service, tasks = world(persister)
         observing = cache.observe(KEY)
         assert await now(observing) == Pending()
+        older = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
         cache.invalidate(KEY)
         await turns()
         # Not joined: the one in flight may never be answered.
         assert service.asked == [KEY, KEY]
         service.answer(1, 5)
         assert await now(observing) == Ready(5)
-        # And when it is answered after all, it is as new as what was there.
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves == [{KEY: 5}]
+        # And when the one let go of is answered after all, its own reader is given its answer, and the key is not.
         service.answer(0, 3)
-        assert await now(observing) == Ready(3)
-        # The newer fetch's end did not clear the way for a third: nothing is in flight, and the next observer asks nothing.
-        assert await now(cache.observe(KEY)) == Ready(3)
+        assert await soon(older) == 3
+        (await nothing_more(observing)).cancel()
+        assert cache.get(KEY) == 5
+        assert not owing(cache)
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves == [{KEY: 5}]
+        # Nothing is in flight now: the next observer is given the value and asks nothing.
+        assert await now(cache.observe(KEY)) == Ready(5)
         assert service.asked == [KEY, KEY]
         await tasks.close()
 
     run(scenario())
 
 
-def test_b9_a_fetch_that_was_let_go_of_does_not_take_the_place_of_the_one_after_it() -> None:
+def test_b9_a_fetch_that_was_let_go_of_and_answers_first_answers_its_own_reader_and_writes_nothing() -> None:
     async def scenario() -> None:
-        cache, service, tasks = world()
-        cache.observe(KEY)
+        persister = Kept()
+        cache, service, tasks = world(persister)
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        older = asyncio.ensure_future(cache.fetch(KEY))
         await turns()
         cache.invalidate(KEY)
         await turns()
-        # The older ends first, while the newer is still in flight: a read now joins the newer.
+        # The older ends first, while the newer is still in flight: its reader is given its answer, and the key is not.
         service.answer(0, 3)
-        await turns()
+        assert await soon(older) == 3
+        waiting = await nothing_more(observing)
+        assert cache.get(KEY) is None
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves == []
+        # A read now joins the newer, whose answer is the key's.
         read = asyncio.ensure_future(cache.fetch(KEY))
         await turns()
         assert service.asked == [KEY, KEY]
         service.answer(1, 5)
         assert await soon(read) == 5
+        assert await soon(waiting) == Ready(5)
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b17_only_the_keys_current_fetch_is_in_flight() -> None:
+    async def scenario() -> None:
+        cache, service, tasks = world(Kept())
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        cache.invalidate(KEY)
+        await turns()
+        assert service.asked == [KEY, KEY]
+        assert fetching(cache)
+        service.answer(1, 5)
+        assert await now(observing) == Ready(5)
+        assert not fetching(cache)
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert not owing(cache)
         await tasks.close()
 
     run(scenario())
@@ -477,6 +515,42 @@ def test_b13a_a_removed_key_is_failed_as_it_was_told_at_once_and_nothing_is_aske
         await turns()
         assert service.asked == [KEY, KEY, KEY]
         read.cancel()
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b13a_a_fetch_in_flight_when_its_key_is_removed_answers_its_own_reader_and_writes_nothing() -> None:
+    async def scenario() -> None:
+        persister = Kept()
+        cache, service, tasks = world(persister)
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        older = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        gone = BusRequestError("bus.not-found", "it was removed")
+        cache.remove(KEY, gone)
+        assert await now(observing) == Failed(gone)
+        assert not fetching(cache)
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves == [{}]
+        service.answer(0, 3)
+        assert await soon(older) == 3
+        waiting = await nothing_more(observing)
+        assert cache.get(KEY) is None
+        assert not owing(cache)
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves == [{}]
+        # The removal ended the observer's ask too: a read after it that fails is the read's alone, and is not asked again.
+        read = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        failure = service.fail(1)
+        with pytest.raises(BusRequestError) as raised:
+            await soon(read)
+        assert raised.value is failure
+        await turns()
+        assert service.asked == [KEY, KEY]
+        waiting.cancel()
         await tasks.close()
 
     run(scenario())
