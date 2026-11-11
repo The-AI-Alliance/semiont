@@ -6,7 +6,8 @@
  * `beckon:focus` that is read cleanly, so the stream is seen to go on past
  * it. What the transport delivers, what a typed read of the case's channel is
  * given, what the failure report is told, and what becomes of a request
- * awaiting the case's reply are each held to the case.
+ * awaiting the case's reply are each held to the case. A case that states a
+ * key this runner does not hold it to fails.
  */
 
 import { readFileSync } from 'node:fs';
@@ -21,6 +22,8 @@ type Frame = { readonly channel: keyof EventMap; readonly payload: unknown; read
 interface Delivered {
   readonly why: string;
   readonly frame: Frame;
+  /** What the channel's typed reader reads of the payload, where that is not the payload as the frame states it. */
+  readonly read?: unknown;
 }
 
 interface Refused {
@@ -41,11 +44,17 @@ const table: { cases: (Delivered | Refused)[] } = JSON.parse(
 const delivered = table.cases.filter((stated): stated is Delivered => !('refused' in stated));
 const refused = table.cases.filter((stated): stated is Refused => 'refused' in stated);
 
+/** The keys this runner holds a case to, of each kind. */
+const DELIVERED_KEYS = new Set(['why', 'frame', 'read']);
+const REFUSED_KEYS = new Set(['why', 'frame', 'data', 'refused', 'member', 'reason', 'told', 'correlationId', 'request']);
+
 /** The channel every case told to its readers is on, but a request's, read here by type. */
 const READ = 'beckon:focus';
 /** The operation a request's case awaits the reply of, and the reply's channels. */
 const REQUEST = 'browse:resource-requested';
 const REPLIES = ['browse:resource-result', 'browse:resource-failed'] as const;
+/** The channels a delivered case is read on by type: the one every case told to its readers is on, and the failures whose code is read. */
+const TYPED = [READ, 'browse:resource-failed', 'gather:failed'] as const;
 /** The correlation id a request's case names its request's by. */
 const AWAITED = 'c-1';
 /** The frame each case's line is followed by. */
@@ -64,7 +73,7 @@ function isAfter(heard: Heard<EventMap[typeof READ]>): boolean {
 /** A transport's stream, carrying the lines it is given. */
 async function carrying() {
   const sse = mockSSEResponse();
-  const stream = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [READ, ...REPLIES] });
+  const stream = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [READ, ...REPLIES, 'gather:failed'] });
   const told: { code: string; message: string }[] = [];
   stream.errors$.subscribe((error) => told.push({ code: error.code, message: error.message }));
   stream.start();
@@ -97,14 +106,33 @@ describe('frame-cases.json', () => {
     expect(new Set(refused.map((stated) => stated.reason))).toEqual(new Set(['lacks', 'malformed']));
     expect(new Set(refused.map((stated) => stated.told))).toEqual(new Set(['readers', 'failure-report']));
     expect(new Set(refused.flatMap((stated) => (stated.request === undefined ? [] : [stated.request])))).toEqual(new Set(['fails', 'waits']));
+    expect(delivered.some((stated) => stated.read !== undefined)).toBe(true);
+  });
+
+  it('states no key it does not hold a case to', () => {
+    for (const stated of delivered) expect(Object.keys(stated).filter((key) => !DELIVERED_KEYS.has(key)), stated.why).toEqual([]);
+    for (const stated of refused) expect(Object.keys(stated).filter((key) => !REFUSED_KEYS.has(key)), stated.why).toEqual([]);
   });
 
   it.each(delivered.map((stated) => [stated.why, stated] as const))('%s', async (_why, stated) => {
+    const { channel } = stated.frame;
+    const typed = TYPED.find((one) => one === channel);
+    if (typed === undefined && stated.read !== undefined) throw new Error(`this runner reads ${channel} by no type, and cannot hold what is read of it`);
     const { sse, stream, told } = await carrying();
-    const read = firstValueFrom(stream.frames(stated.frame.channel));
+    const bus = new Bus({ ...stream, subscribeToResource: () => () => undefined });
+    const delivering = firstValueFrom(stream.frames(channel));
+    const heard = typed === undefined ? undefined : firstValueFrom(bus.frames(typed));
     sse.push(sseChunk('bus-event', JSON.stringify(stated.frame)));
     const { channel: _channel, ...envelope } = stated.frame;
-    expect(await read).toEqual(envelope);
+    expect(await delivering).toEqual(envelope);
+    if (heard !== undefined) {
+      expect(await heard).toEqual({
+        status: 'delivered',
+        payload: stated.read === undefined ? stated.frame.payload : stated.read,
+        ...(stated.frame.correlationId === undefined ? {} : { correlationId: stated.frame.correlationId }),
+        ...(stated.frame.scope === undefined ? {} : { scope: stated.frame.scope }),
+      });
+    }
     expect(told).toEqual([]);
     stream.dispose();
   });

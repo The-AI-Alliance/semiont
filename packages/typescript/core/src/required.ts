@@ -7,7 +7,8 @@
  * schema requires is generated from the spec (`generated/required-schemas.ts`,
  * by the rules of packages/codegen/schemas/required-shapes.mjs, which every SDK's table is
  * written by). This SDK does not decode a reply: it refuses one with a fault,
- * as every other SDK refuses it, and reads the rest as its schema's type.
+ * as every other SDK refuses it, and reads the rest as its schema's type,
+ * without each member the table reads as absent (`recognized`).
  */
 
 import { byCodePoint } from './by-code-point';
@@ -31,6 +32,8 @@ interface Step {
 export interface Shape {
   readonly ref?: SchemaName;
   readonly kinds?: readonly Kind[];
+  /** Of an object's member, the texts it is read as: one that holds a text none of them is no fault, and is left out of what is read. */
+  readonly recognized?: readonly string[];
   readonly enum?: readonly (string | number | boolean)[];
   readonly pattern?: readonly Step[];
   readonly minLength?: number;
@@ -61,6 +64,18 @@ export interface Shape {
 export interface Fault {
   readonly member: string;
   readonly reason: 'lacks' | 'malformed';
+}
+
+/**
+ * The members a reader leaves out of what it reads, by the object that holds
+ * them: each holding a text none of its shape's `recognized` texts.
+ */
+type LeftOut = Map<object, Set<string>>;
+
+function leaveOut(leftOut: LeftOut, object: object, name: string): void {
+  const names = leftOut.get(object);
+  if (names === undefined) leftOut.set(object, new Set([name]));
+  else names.add(name);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -141,27 +156,27 @@ function isAsStated(shape: Shape, value: unknown): boolean {
   return true;
 }
 
-/** The first fault `value` has as a value of `shape`, from `way`. */
-function faultAt(shape: Shape, value: unknown, way: string): Fault | undefined {
+/** The first fault `value` has as a value of `shape`, from `way`; each member to leave out of what is read is added to `leftOut`. */
+function faultAt(shape: Shape, value: unknown, way: string, leftOut: LeftOut): Fault | undefined {
   const own = resolved(shape);
   if (!allows(own.kinds, value) || !isAsStated(own, value)) return { member: way, reason: 'malformed' };
   if (isObject(value)) {
-    const fault = faultOfMembers(own, value, way);
+    const fault = faultOfMembers(own, value, way, leftOut);
     if (fault !== undefined) return fault;
   }
   if (Array.isArray(value) && own.items !== undefined) {
     for (const item of value) {
-      const fault = faultAt(own.items, item, way);
+      const fault = faultAt(own.items, item, way, leftOut);
       if (fault !== undefined) return fault;
     }
   }
   if (own.oneOf !== undefined) {
-    const fault = faultOfOneOf(own.oneOf, own.discriminator, value, way);
+    const fault = faultOfOneOf(own.oneOf, own.discriminator, value, way, leftOut);
     if (fault !== undefined) return fault;
   }
   if (own.allOf !== undefined) {
     for (const part of own.allOf) {
-      const fault = faultAt(part, value, way);
+      const fault = faultAt(part, value, way, leftOut);
       if (fault !== undefined) return fault;
     }
   }
@@ -169,7 +184,7 @@ function faultAt(shape: Shape, value: unknown, way: string): Fault | undefined {
 }
 
 /** The first fault of an object in the members `shape` requires, in what its members are, in the members it may not carry, and in its values. */
-function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: string): Fault | undefined {
+function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: string, leftOut: LeftOut): Fault | undefined {
   for (const name of shape.required ?? []) {
     const held = object[name];
     const member = shape.members?.[name];
@@ -181,7 +196,12 @@ function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: stri
   for (const [name, member] of Object.entries(shape.members ?? {})) {
     const held = object[name];
     if (held === undefined || held === null) continue;
-    const fault = faultAt(member, held, within(way, name));
+    const { recognized } = resolved(member);
+    if (recognized !== undefined && typeof held === 'string' && !recognized.includes(held)) {
+      leaveOut(leftOut, object, name);
+      continue;
+    }
+    const fault = faultAt(member, held, within(way, name), leftOut);
     if (fault !== undefined) return fault;
   }
   const { closed } = shape;
@@ -191,7 +211,7 @@ function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: stri
   }
   if (shape.values !== undefined) {
     for (const key of Object.keys(object).sort(byCodePoint)) {
-      const fault = faultAt(shape.values, object[key], way);
+      const fault = faultAt(shape.values, object[key], way, leftOut);
       if (fault !== undefined) return fault;
     }
   }
@@ -201,10 +221,11 @@ function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: stri
 /**
  * The fault `value` has as one of a union's `variants`: the variant its
  * discriminator names, or else each variant whose kinds allow it. None when
- * one of them has none; the first one's when each has one; and a value no
- * variant allows is malformed.
+ * one of them has none, whose members to leave out are added to `leftOut`;
+ * the first one's when each has one; and a value no variant allows is
+ * malformed.
  */
-function faultOfOneOf(variants: readonly Shape[], discriminator: Shape['discriminator'], value: unknown, way: string): Fault | undefined {
+function faultOfOneOf(variants: readonly Shape[], discriminator: Shape['discriminator'], value: unknown, way: string, leftOut: LeftOut): Fault | undefined {
   let candidates = variants.filter((variant) => allows(resolved(variant).kinds, value));
   if (isObject(value) && discriminator !== undefined) {
     const named = value[discriminator.property];
@@ -215,21 +236,48 @@ function faultOfOneOf(variants: readonly Shape[], discriminator: Shape['discrimi
   if (candidates.length === 0) return { member: way, reason: 'malformed' };
   let first: Fault | undefined;
   for (const candidate of candidates) {
-    const fault = faultAt(candidate, value, way);
-    if (fault === undefined) return undefined;
+    const tried: LeftOut = new Map();
+    const fault = faultAt(candidate, value, way, tried);
+    if (fault === undefined) {
+      for (const [object, names] of tried) for (const name of names) leaveOut(leftOut, object, name);
+      return undefined;
+    }
     if (first === undefined) first = fault;
   }
   return first;
 }
 
-/** The first fault `value` has as a `schema`, by the rules every SDK reads the table by; nothing, when it has none. */
-export function faultOf(schema: SchemaName, value: unknown): Fault | undefined {
-  return faultAt(REQUIRED_SCHEMAS[schema], value, '');
+/** `value` as its reader reads it: each object within it without the members `leftOut` names of it. */
+function without(value: unknown, leftOut: LeftOut): unknown {
+  if (Array.isArray(value)) return value.map((item) => without(item, leftOut));
+  if (!isObject(value)) return value;
+  const names = leftOut.get(value);
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([name]) => names === undefined || !names.has(name))
+      .map(([name, held]) => [name, without(held, leftOut)]),
+  );
 }
 
-/** The first fault `value` has as a value of `shape`, found as `faultOf` finds it. */
-export function faultOfShape(shape: Shape, value: unknown): Fault | undefined {
-  return faultAt(shape, value, '');
+/** A value as its reader reads it (`read`), or its first fault. */
+export type Reading = { readonly read: unknown } | { readonly fault: Fault };
+
+/** The first fault `value` has as a `schema`, by the rules every SDK reads the table by; nothing, when it has none. */
+export function faultOf(schema: SchemaName, value: unknown): Fault | undefined {
+  return faultAt(REQUIRED_SCHEMAS[schema], value, '', new Map());
+}
+
+/**
+ * `value` as a value of `shape`, read by the rules every SDK reads the table
+ * by: its first fault, as `faultOf` finds it, or what is read of it, which
+ * carries no member the table reads as absent (a failure's code that is none
+ * of CommandError's recognized codes).
+ */
+export function readOfShape(shape: Shape, value: unknown): Reading {
+  const leftOut: LeftOut = new Map();
+  const fault = faultAt(shape, value, '', leftOut);
+  if (fault !== undefined) return { fault };
+  return { read: leftOut.size === 0 ? value : without(value, leftOut) };
 }
 
 /** What every SDK says of `fault`, as it refuses what has it: `it has no \`member\``, `its \`member\` is malformed`, or `it is malformed`. */

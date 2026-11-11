@@ -37,23 +37,20 @@ export type BusReply<Op extends BusOperationKey> =
  * The mapping has one site, the table. Left unmapped, a consumer would reach
  * into `details.payload.code` and there would be two ways to ask the same
  * question. The generator refuses a table that leaves a wire code unmapped, and
- * `satisfies` repeats that here against the generated `CommandErrorCode`, so a
- * stale generated file fails to compile rather than defaulting to
+ * the type below repeats that here against the generated `CommandErrorCode`, so
+ * a stale generated file fails to compile rather than defaulting to
  * `bus.rejected`.
  */
-const WIRE_CODES = new Map<unknown, BusRequestErrorCode>(
-  Object.entries(busRequestCodeByWireCode satisfies Record<CommandErrorCode, BusRequestErrorCode>),
-);
+const WIRE_CODES: Record<CommandErrorCode, BusRequestErrorCode> = busRequestCodeByWireCode;
 
 /**
- * Read as `unknown`, because that is what crosses the boundary: the value comes
- * from a peer that may be newer than this build. An unrecognized code degrades
- * to the table's `unrecognizedFailure` rather than being trusted through —
- * inventing a `BusRequestErrorCode` nobody handles is worse than the honest
- * fallback.
+ * A failure's code as read. A code from a peer newer than this build, none
+ * CommandError recognizes, never reaches here: the failure's reader reads it
+ * as absent (`readOfShape`), and a failure read with no code is the table's
+ * `unrecognizedFailure`, as one that states none is.
  */
-export function classifyFailureCode(code: unknown): BusRequestErrorCode {
-  return WIRE_CODES.get(code) ?? unrecognizedFailureCode;
+export function classifyFailureCode(code: CommandErrorCode | undefined): BusRequestErrorCode {
+  return code === undefined ? unrecognizedFailureCode : WIRE_CODES[code];
 }
 
 export class BusRequestError extends SemiontError {
