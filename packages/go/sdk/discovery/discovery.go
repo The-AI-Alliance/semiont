@@ -32,13 +32,14 @@ import (
 	"reflect"
 	"time"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // DiscoveryInterval is how often a launcher's document is read again, unless
 // a caller says otherwise.
-const DiscoveryInterval = 5 * time.Second
+var DiscoveryInterval = semiont.DefaultTiming().DiscoveryInterval
 
 // DiscoveryAbsentReason is why no launcher was found.
 type DiscoveryAbsentReason string
