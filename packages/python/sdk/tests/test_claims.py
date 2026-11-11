@@ -78,6 +78,8 @@ TAGGING: Final = _FILTERS.validate_python([{"jobType": "mark", "params": {"motiv
 RESOURCE: Final = ResourceId("res-1")
 REQUESTS: Final = ("job:claim", "mark:commit", "browse:annotation-requested")
 """What a worker asks and waits to be answered: its claims, its commits, and the question an unacknowledged commit asks."""
+WORKER: Final = (*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
+"""What a worker's stream names: what its claims read, and what its commits await."""
 NOT_THERE: Final[JsonObject] = {"message": "Annotation not found"}
 """What the record answers when it is asked of an annotation it does not hold."""
 QUICK: Final = 200
@@ -141,14 +143,12 @@ class World:
 
     The record acknowledges every commit, and answers every question about an
     annotation with that annotation, unless a test has it do otherwise. Its
-    stream names the `channels` a worker's does, unless a test names others. What
+    stream names `channels`: a worker's, `WORKER`, or what a test names. What
     the `wire` does to each request in turn is the transport's schedule: a
     reply it drops is an answer nobody receives.
     """
 
-    def __init__(
-        self, *, channels: tuple[str, ...] = (*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS), wire: Sequence[FaultAction] = ()
-    ) -> None:
+    def __init__(self, *, channels: tuple[str, ...], wire: Sequence[FaultAction] = ()) -> None:
         self.offered: Final[deque[JsonObject]] = deque()
         self.refusals: Final[deque[JsonObject]] = deque()
         self.refusing_commits = False
@@ -292,7 +292,7 @@ async def commit_observing(w: World, job: HeldJob, how: DurabilityEvidence, anno
 @asynccontextmanager
 async def having_committed(*observed: DurabilityEvidence) -> AsyncGenerator[tuple[World, HeldJob]]:
     """A worker that holds `job-1` and has committed once for each of `observed`, in order. Leaving the block stops it."""
-    w = World(wire=wire_for(*observed))
+    w = World(channels=WORKER, wire=wire_for(*observed))
     w.offered.append(running("job-1"))
     async with w.client.job.claim(EVERYTHING, mark_commit_timeout_ms=QUICK) as claims:
         job = await held(claims)
@@ -349,7 +349,7 @@ def test_whether_a_failed_job_is_retried_is_the_tables_answer() -> None:
 
 def test_claims_nothing_until_read_then_claims_and_holds_the_job_as_the_record_states_it() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         cursor: JsonObject = {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}
         w.offered.append(
             running(
@@ -377,7 +377,7 @@ def test_claims_nothing_until_read_then_claims_and_holds_the_job_as_the_record_s
 
 def test_claims_again_when_a_job_is_settled_and_an_announcement_while_one_is_held_is_ignored() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.extend(running(job_id) for job_id in ("job-1", "job-2", "job-3"))
         async with w.client.job.claim(EVERYTHING) as claims:
             first = await held(claims)
@@ -400,7 +400,7 @@ def test_claims_again_when_a_job_is_settled_and_an_announcement_while_one_is_hel
 
 def test_a_matching_announcement_claims_and_one_that_matches_no_filter_does_not() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         async with w.client.job.claim(TAGGING) as claims:
             reading = asyncio.ensure_future(held(claims))
             await turns()
@@ -423,7 +423,7 @@ def test_a_matching_announcement_claims_and_one_that_matches_no_filter_does_not(
 def test_an_announcement_its_transport_refused_wakes_the_worker_as_a_matching_one_would_since_no_filter_can_be_compared_with_it() -> None:
     async def scenario() -> None:
         # Each claim is answered a tenth of a second after it is sent, so that one is in flight when an announcement comes.
-        w = World(wire=[Delay(100)])
+        w = World(channels=WORKER, wire=[Delay(100)])
         async with w.client.job.claim(TAGGING) as claims:
             reading = asyncio.ensure_future(held(claims))
             await turns()
@@ -456,7 +456,7 @@ def test_an_announcement_its_transport_refused_wakes_the_worker_as_a_matching_on
 
 def test_claims_when_the_stream_opens_and_when_it_opens_again() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.transport.set_state("connecting")
         async with w.client.job.claim(EVERYTHING) as claims:
             reading = asyncio.ensure_future(anext(claims))
@@ -480,7 +480,7 @@ def test_claims_when_the_stream_opens_and_when_it_opens_again() -> None:
 
 def test_a_refusal_is_handed_out_with_its_code_and_a_reply_that_names_no_job_is_refused_here() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.refusals.append({"message": "the caller is not a worker for this knowledge base", "code": "unauthorized"})
         async with w.client.job.claim(EVERYTHING) as claims:
             assert await soon(anext(claims)) == ClaimRefusal("bus.unauthorized", "the caller is not a worker for this knowledge base")
@@ -524,7 +524,7 @@ def test_a_stream_that_does_not_name_what_claiming_reads_cannot_carry_a_workers_
 
 def test_a_held_job_says_its_whole_lifecycle_itself() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(running("job-1", metadata={"retryCount": 1}))
         cursor: JsonObject = {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}
         async with w.client.job.claim(EVERYTHING) as claims:
@@ -552,7 +552,7 @@ def test_a_held_job_says_its_whole_lifecycle_itself() -> None:
 
 def test_a_yield_job_focused_on_an_annotation_is_anchored_to_it_and_says_so() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(
             running(
                 "job-1",
@@ -584,7 +584,7 @@ def test_a_yield_job_focused_on_an_annotation_is_anchored_to_it_and_says_so() ->
 
 def test_a_failure_says_whether_it_will_be_retried_and_a_cancel_says_only_what_its_command_names() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.extend(
             [
                 running("job-1", metadata={"retryCount": 0, "maxRetries": 1}),
@@ -626,7 +626,7 @@ def test_a_failure_says_whether_it_will_be_retried_and_a_cancel_says_only_what_i
 
 def test_a_cancellation_that_names_the_held_job_is_signalled_and_any_other_is_not() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING) as claims:
             job = await held(claims)
@@ -646,7 +646,7 @@ def test_a_cancellation_that_names_the_held_job_is_signalled_and_any_other_is_no
 # WORKER-CONTRACT L8, and what Python has in place of a value being let go of.
 def test_a_worker_that_stops_fails_the_job_it_holds_and_a_job_left_unsettled_is_failed() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.extend([running("job-1"), running("job-2")])
         async with w.client.job.claim(EVERYTHING) as claims:
             async with await held(claims):
@@ -698,7 +698,7 @@ def test_a_stream_that_does_not_name_what_a_commit_awaits_carries_a_workers_clai
 def test_a_commit_cites_the_job_and_is_established_when_the_record_acknowledges_it_and_not_before() -> None:
     async def scenario() -> None:
         # The acknowledgement takes half a minute to arrive: inside the commit's wait, which is the table's.
-        w = World(wire=[Deliver(), Delay(30_000), Deliver()])
+        w = World(channels=WORKER, wire=[Deliver(), Delay(30_000), Deliver()])
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING) as claims:
             job = await held(claims)
@@ -739,7 +739,7 @@ def test_a_commit_cites_the_job_and_is_established_when_the_record_acknowledges_
 
 def test_a_batch_of_no_annotations_is_no_commit_and_a_job_that_committed_nothing_states_nothing_of_its_commits() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.extend([running("job-1"), running("job-2")])
         async with w.client.job.claim(EVERYTHING) as claims:
             job = await held(claims)
@@ -758,7 +758,7 @@ def test_a_batch_of_no_annotations_is_no_commit_and_a_job_that_committed_nothing
 
 def test_a_commit_the_record_refuses_raises_the_records_reason_and_nothing_is_asked_or_observed() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(running("job-1"))
         w.refusing_commits = True
         async with w.client.job.claim(EVERYTHING, mark_commit_timeout_ms=QUICK) as claims:
@@ -787,7 +787,7 @@ def test_a_commit_the_record_refuses_raises_the_records_reason_and_nothing_is_as
 
 def test_a_commit_nobody_acknowledges_asks_whether_the_batchs_last_annotation_is_on_the_resource_and_is_established_when_it_is() -> None:
     async def scenario() -> None:
-        w = World(wire=wire_for("probe-confirmed"))
+        w = World(channels=WORKER, wire=wire_for("probe-confirmed"))
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING, mark_commit_timeout_ms=QUICK) as claims:
             job = await held(claims)
@@ -808,7 +808,7 @@ def test_a_commit_nobody_acknowledges_asks_whether_the_batchs_last_annotation_is
 
 def test_answered_that_it_is_not_there_the_commit_raises_what_its_unanswered_request_did_and_the_failure_says_what_was_observed() -> None:
     async def scenario() -> None:
-        w = World(wire=wire_for("probe-refused"))
+        w = World(channels=WORKER, wire=wire_for("probe-refused"))
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING, mark_commit_timeout_ms=QUICK) as claims:
             job = await held(claims)
@@ -840,7 +840,7 @@ def test_answered_that_it_is_not_there_the_commit_raises_what_its_unanswered_req
 
 def test_not_answered_the_commit_waits_as_long_again_raises_the_same_and_the_failure_says_that_nobody_answered() -> None:
     async def scenario() -> None:
-        w = World(wire=wire_for("probe-unreachable"))
+        w = World(channels=WORKER, wire=wire_for("probe-unreachable"))
         w.offered.append(running("job-1"))
         # Each wait is the table's: for the acknowledgement, and then for the answer.
         wait = MARK_COMMIT_TIMEOUT_MS / 1000
@@ -873,7 +873,7 @@ def test_not_answered_the_commit_waits_as_long_again_raises_the_same_and_the_fai
 # makes of the answer: neither reply is read.
 def test_an_acknowledgement_this_sdk_cannot_type_establishes_the_commit_all_the_same() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(running("job-1"))
         w.transport.queue_reply("mark:commit", [{"stored": "every one of them"}])
         async with w.client.job.claim(EVERYTHING) as claims:
@@ -890,7 +890,7 @@ def test_an_acknowledgement_this_sdk_cannot_type_establishes_the_commit_all_the_
 
 def test_an_answer_this_sdk_cannot_type_establishes_the_commit_all_the_same() -> None:
     async def scenario() -> None:
-        w = World(wire=wire_for("probe-confirmed"))
+        w = World(channels=WORKER, wire=wire_for("probe-confirmed"))
         w.offered.append(running("job-1"))
         w.transport.queue_reply("browse:annotation-requested", [{"held": True}])
         async with w.client.job.claim(EVERYTHING, mark_commit_timeout_ms=QUICK) as claims:
@@ -922,10 +922,10 @@ def test_a_question_that_fails_under_any_code_but_the_records_refusal_is_one_nob
 
     async def scenario() -> None:
         # The gateway did not take the question.
-        assert await observed(World(wire=[Deliver(), DropReply(), RejectEmit(), Deliver()])) == "probe-unreachable"
+        assert await observed(World(channels=WORKER, wire=[Deliver(), DropReply(), RejectEmit(), Deliver()])) == "probe-unreachable"
 
         # The gateway answered for a record it could not reach.
-        unreachable = World(wire=wire_for("probe-refused"))
+        unreachable = World(channels=WORKER, wire=wire_for("probe-refused"))
         unreachable.asked_of["ann-1"] = {"message": "the record is not answering", "code": "peer-unavailable"}
         assert await observed(unreachable) == "probe-unreachable"
 
@@ -938,7 +938,7 @@ def test_a_question_that_fails_under_any_code_but_the_records_refusal_is_one_nob
 
 def test_any_other_failure_of_the_commits_request_is_raised_as_it_is_and_nothing_is_asked_or_observed() -> None:
     async def scenario() -> None:
-        w = World(wire=[Deliver(), RejectEmit(), Deliver()])
+        w = World(channels=WORKER, wire=[Deliver(), RejectEmit(), Deliver()])
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING, mark_commit_timeout_ms=QUICK) as claims:
             job = await held(claims)
@@ -956,7 +956,7 @@ def test_any_other_failure_of_the_commits_request_is_raised_as_it_is_and_nothing
 
 def test_a_settled_job_commits_nothing() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING) as claims:
             job = await held(claims)
@@ -1040,7 +1040,7 @@ def test_a_cancel_says_nothing_of_the_jobs_commits_and_a_job_failed_for_its_work
 
 def test_a_yield_job_commits_and_says_how_its_commits_were_established_as_a_mark_job_does() -> None:
     async def scenario() -> None:
-        w = World(wire=wire_for("probe-confirmed"))
+        w = World(channels=WORKER, wire=wire_for("probe-confirmed"))
         w.offered.append(running("job-1", "yield"))
         async with w.client.job.claim(EVERYTHING, mark_commit_timeout_ms=QUICK) as claims:
             job = await held(claims)
@@ -1057,7 +1057,7 @@ def test_a_yield_job_commits_and_says_how_its_commits_were_established_as_a_mark
 
 def test_vitals_say_what_the_worker_holds_and_has_done_and_a_silent_held_job_is_stalled() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING, held_job_stall_ms=400, held_job_stall_check_ms=100) as claims:
             empty = claims.vitals()
@@ -1094,7 +1094,7 @@ def test_vitals_say_what_the_worker_holds_and_has_done_and_a_silent_held_job_is_
 
 def test_vitals_stamp_an_announcement_its_transport_refused_which_was_received_all_the_same() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.append(running("job-1"))
         async with w.client.job.claim(EVERYTHING) as claims:
             job = await held(claims)
@@ -1113,7 +1113,7 @@ def test_vitals_stamp_an_announcement_its_transport_refused_which_was_received_a
 
 def test_a_claim_is_made_in_no_trace_whatever_span_the_job_before_it_was_settled_in() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         w.offered.extend(running(job_id) for job_id in ("job-1", "job-2", "job-3"))
         async with w.client.job.claim(EVERYTHING) as claims:
             first = await held(claims)
@@ -1135,7 +1135,7 @@ def test_a_claim_is_made_in_no_trace_whatever_span_the_job_before_it_was_settled
 
 def test_the_first_claim_and_one_an_announcement_wakes_are_made_in_no_trace_whatever_span_the_claims_are_first_read_in() -> None:
     async def scenario() -> None:
-        w = World()
+        w = World(channels=WORKER)
         async with w.client.job.claim(TAGGING) as claims:
             with in_span(9):
                 reading = asyncio.ensure_future(held(claims))
@@ -1155,7 +1155,7 @@ def test_the_first_claim_and_one_an_announcement_wakes_are_made_in_no_trace_what
 def test_a_held_job_states_the_trace_its_reply_arrived_in_and_none_when_it_arrived_in_none() -> None:
     async def scenario() -> None:
         # The first claim's own answer is lost on the wire, and the test answers it by hand.
-        w = World(wire=[DropReply(), Deliver(), Deliver()])
+        w = World(channels=WORKER, wire=[DropReply(), Deliver(), Deliver()])
         arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01", tracestate="vendor=value")
         async with w.client.job.claim(EVERYTHING) as claims:
             reading = asyncio.ensure_future(held(claims))
@@ -1189,7 +1189,7 @@ def started() -> str | None:
 def test_a_job_held_with_async_with_runs_its_block_in_the_trace_its_reply_arrived_in_and_what_follows_the_block_does_not() -> None:
     async def scenario() -> None:
         # The first claim's own answer is lost on the wire, and the test answers it by hand.
-        w = World(wire=[DropReply(), Deliver(), Deliver()])
+        w = World(channels=WORKER, wire=[DropReply(), Deliver(), Deliver()])
         arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
         async with w.client.job.claim(EVERYTHING) as claims:
             reading = asyncio.ensure_future(held(claims))
@@ -1227,7 +1227,7 @@ def test_a_job_held_with_async_with_runs_its_block_in_the_trace_its_reply_arrive
 
 def test_a_held_jobs_trace_is_a_value_that_work_done_outside_its_block_continues() -> None:
     async def scenario() -> None:
-        w = World(wire=[DropReply(), Deliver()])
+        w = World(channels=WORKER, wire=[DropReply(), Deliver()])
         arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
         async with w.client.job.claim(EVERYTHING) as claims:
             reading = asyncio.ensure_future(held(claims))
@@ -1253,7 +1253,7 @@ def test_a_held_jobs_trace_is_a_value_that_work_done_outside_its_block_continues
 
 def test_a_block_left_with_its_job_unsettled_fails_the_job_and_leaves_the_jobs_trace() -> None:
     async def scenario() -> None:
-        w = World(wire=[DropReply(), Deliver()])
+        w = World(channels=WORKER, wire=[DropReply(), Deliver()])
         arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
         async with w.client.job.claim(EVERYTHING) as claims:
             reading = asyncio.ensure_future(held(claims))
