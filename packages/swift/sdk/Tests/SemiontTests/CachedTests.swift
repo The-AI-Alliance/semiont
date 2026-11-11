@@ -98,7 +98,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
   }
 }
 
-@Test func invalidationDoesNotWaitForAnOrphanedFetch() async throws {
+@Test func invalidationDoesNotWaitForAnOrphanedFetchAndItsLateAnswerIsNotStored() async throws {
   let transport = ProbeTransport(channels: bridgedChannels)
   let started = Watched(false)
   let release = Watched(false)
@@ -119,13 +119,13 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 
   try await withinTestDeadline {
     let query = client.browse.entityTypes()
+    let orphaned = spawn { try await query.fresh() }
+    for await issued in started where issued { break }
     var first = query.makeAsyncIterator()
-    var second = query.makeAsyncIterator()
-    guard case .pending? = await first.next(), case .pending? = await second.next() else {
-      Issue.record("Both observers should share the pending fetch")
+    guard case .pending? = await first.next() else {
+      Issue.record("The observer should share the pending fetch")
       return
     }
-    for await issued in started where issued { break }
     #expect(transport.calls.count == 1)
     await query.invalidate()
     guard case .ready(let current)? = await first.next() else {
@@ -134,11 +134,14 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     }
     #expect(current == ["Current"])
     release.set(true)
-    guard case .ready(let late)? = await first.next() else {
-      Issue.record("The earlier fetch should still publish its result")
+    let late = try await orphaned.value
+    #expect(late == ["Late"], "The fetch let go of answers its own read")
+    var later = query.makeAsyncIterator()
+    guard case .ready(let held)? = await later.next() else {
+      Issue.record("The query should still be ready")
       return
     }
-    #expect(late == ["Late"])
+    #expect(held == ["Current"], "Only the newest fetch writes (B9)")
     #expect(transport.calls.count == 2)
   }
 }

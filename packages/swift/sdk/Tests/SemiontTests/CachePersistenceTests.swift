@@ -491,6 +491,166 @@ private final class SpawnWatch: TaskExecutor {
   }
 }
 
+/// A fetch every ask of which waits until the test answers it, the asks counted from 0.
+private final class Asks: Sendable {
+  private let waits = Mutex<[SharedWait<Int>]>([])
+
+  func asked() async throws -> Int {
+    let wait = SharedWait<Int>()
+    waits.withLock { $0.append(wait) }
+    return try await withCheckedThrowingContinuation { wait.install($0) }
+  }
+
+  /// Returns once `count` asks have been made.
+  func made(_ count: Int) async {
+    while waits.withLock({ $0.count }) < count { await Task.yield() }
+  }
+
+  func answer(_ nth: Int, _ value: Int) { waits.withLock { $0[nth] }.resolve(.success(value)) }
+}
+
+private let keptKey = "kept"
+
+/// A kept cache whose fetches the test answers: the read `older` has asked for "k" (F0), and
+/// `observer` waits on that fetch.
+private struct AskedOnce {
+  let storage = MemorySessionStorage()
+  let clock = TestClock()
+  let asks = Asks()
+  let persister: StoragePersister<String, Int>
+  let cache: Cache<String, Int>
+  let older: Task<Int, any Error>
+  var observer: Cached<Int>.AsyncIterator
+
+  init() async throws {
+    persister = StoragePersister(storage: storage, storageKey: keptKey, clock: clock)
+    let asks = self.asks
+    let cache = Cache<String, Int>(persister: persister, clock: clock) { _ in
+      try await asks.asked()
+    }
+    self.cache = cache
+    older = spawn { try await cache.fetch("k") }
+    await asks.made(1)
+    observer = cache.observe("k").makeAsyncIterator()
+    guard case .pending? = await observer.next() else {
+      throw SpecFailure.shape("The key was not pending on its first fetch")
+    }
+  }
+
+  /// What the storage holds of "k".
+  var stored: Int? {
+    StoragePersister<String, Int>(storage: storage, storageKey: keptKey).load("k")
+  }
+}
+
+// B9: only a key's newest fetch writes. One an invalidation let go of answers its own read, and
+// stores nothing: no value, no emission, no save.
+@Test func aFetchAnInvalidationLetGoOfAnswersItsReadButStoresNothingThoughItAnswersLast()
+  async throws
+{
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    await asked.cache.invalidate("k")
+    await asked.asks.made(2)
+    asked.asks.answer(1, 5)
+    guard case .ready(5)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The newest fetch's answer was not the key's value")
+    }
+    // Read through the cache, so after the step that settled the newest fetch.
+    #expect(await asked.cache.get("k") == 5)
+    try await saved(asked.storage, keptKey, on: asked.clock) { _ in true }
+    #expect(asked.stored == 5)
+    #expect(!asked.persister.pending)
+
+    asked.asks.answer(0, 3)
+    #expect(try await asked.older.value == 3, "The fetch let go of answers its own read")
+    #expect(await asked.cache.get("k") == 5)
+    #expect(!asked.persister.pending, "Its answer owes no save")
+    #expect(asked.stored == 5)
+    await asked.cache.set("k", value: 9)
+    guard case .ready(9)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The fetch let go of emitted its answer")
+    }
+  }
+}
+
+// B9: the fetch an invalidation let go of, answered before the newest, leaves the key as it was.
+@Test func aFetchAnInvalidationLetGoOfAnsweredFirstLeavesTheKeyToTheNewestFetch() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    await asked.cache.invalidate("k")
+    await asked.asks.made(2)
+    asked.asks.answer(0, 3)
+    #expect(try await asked.older.value == 3, "The fetch let go of answers its own read")
+    #expect(await asked.cache.get("k") == nil, "The key is still pending")
+
+    asked.asks.answer(1, 5)
+    guard case .ready(5)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The key's next state was not the newest fetch's answer")
+    }
+    #expect(await asked.cache.get("k") == 5)
+    try await saved(asked.storage, keptKey, on: asked.clock) { _ in true }
+    #expect(asked.stored == 5)
+    #expect(!asked.persister.pending)
+  }
+}
+
+// B17 and B9: a key is fetching while its newest fetch has not settled, and not for a fetch an
+// invalidation let go of.
+@Test func aKeyIsFetchingForItsNewestFetchAloneAndNotForOneAnInvalidationLetGoOf() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    #expect(!asked.persister.underway.settled, "The first fetch is in flight")
+    await asked.cache.invalidate("k")
+    #expect(!asked.persister.underway.settled, "The newest fetch is in flight in its place")
+    await asked.asks.made(2)
+    asked.asks.answer(1, 5)
+    guard case .ready(5)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The newest fetch's answer was not the key's value")
+    }
+    // Read through the cache, so after the step that settled the newest fetch.
+    #expect(await asked.cache.get("k") == 5)
+    #expect(
+      asked.persister.underway.settled,
+      "The newest fetch settled: nothing is in flight, though the first never answered")
+
+    asked.asks.answer(0, 3)
+    #expect(try await asked.older.value == 3)
+    #expect(asked.persister.underway.settled, "The first fetch's answer ends no count")
+  }
+}
+
+// B13a: a removal lets go of the key's fetch, whose answer stores nothing.
+@Test func aFetchARemovalLetGoOfStoresNothingWhenItIsAnswered() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    await asked.cache.remove("k", gone: BusRequestError(.busNotFound, "k is gone"))
+    guard case .failed(let gone)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The removal did not fail the key")
+    }
+    #expect((gone as? BusRequestError)?.reason == .busNotFound)
+    #expect(
+      asked.persister.underway.settled, "The fetch the removal let go of is in flight no more")
+    try await saved(asked.storage, keptKey, on: asked.clock) { _ in true }
+    let written = asked.storage.get(keptKey)
+    #expect(asked.stored == nil)
+
+    asked.asks.answer(0, 3)
+    #expect(try await asked.older.value == 3, "The fetch let go of answers its own read")
+    #expect(await asked.cache.get("k") == nil)
+    #expect(!asked.persister.pending, "Its answer owes no save")
+    #expect(asked.storage.get(keptKey) == written)
+    await asked.cache.set("k", value: 9)
+    guard case .ready(9)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The fetch the removal let go of emitted its answer")
+    }
+  }
+}
+
 @Test func aValueReceivedAgainUnchangedKeepsTheTimeItWasFirstReceived() throws {
   let storage = MemorySessionStorage()
   let key = "stamps"

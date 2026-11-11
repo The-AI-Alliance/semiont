@@ -131,10 +131,10 @@ private actor CacheEntry<Value: Sendable> {
       [:]
   private var flights: [UUID: Task<Value, any Error>] = [:]
   private var flightEdits: [UUID: [@Sendable (Value) -> Value]] = [:]
+  /// The key's newest flight, the only one that writes (B9). One let go of answers its own reads.
   private var current: UUID?
   /// The flight a validation waits on, and whether it is the validation's second ask.
   private var validation: (flight: UUID, revalidated: Bool)?
-  private var mutation: UInt64 = 0
   private var windowOpen = false
   private var refreshOwed = false
 
@@ -231,31 +231,32 @@ private actor CacheEntry<Value: Sendable> {
     rehydrated = false
     kept?.underway.begin()
     let id = UUID()
-    let revision = mutation
-    let task = spawn(on: self) { entry in try await entry.fly(id, revision: revision) }
+    let task = spawn(on: self) { entry in try await entry.fly(id) }
     current = id
     flights[id] = task
     return (id, task)
   }
 
-  /// The flight `id`, begun at `revision`: its fetch, published unless the value changed since.
-  /// The step that settles it also ends the validation waiting on it, and a retry that validation
-  /// owes is under way before the flight's own count ends: so a key is fetching exactly while a
-  /// fetch of it has not settled (CACHE-SEMANTICS B17).
-  private func fly(_ id: UUID, revision: UInt64) async throws -> Value {
+  /// The flight `id`: its fetch, published while it is the key's current flight (B9). The step
+  /// that settles the current flight also ends the validation waiting on it, and a retry that
+  /// validation owes is under way before the flight's own count ends: so a key is fetching exactly
+  /// while its current fetch has not settled (CACHE-SEMANTICS B17).
+  private func fly(_ id: UUID) async throws -> Value {
     var failure: (any Error)?
     defer {
       flights.removeValue(forKey: id)
       flightEdits.removeValue(forKey: id)
-      if current == id { current = nil }
-      if validation?.flight == id { validated(failure) }
-      kept?.underway.end()
+      if current == id {
+        current = nil
+        if validation?.flight == id { validated(failure) }
+        kept?.underway.end()
+      }
     }
     do {
       try Task.checkCancellation()
       let value = try await fetch()
       guard !lifetime.ended else { throw CancellationError() }
-      if mutation == revision {
+      if current == id {
         let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
         publish(.ready(edited))
       }
@@ -286,10 +287,20 @@ private actor CacheEntry<Value: Sendable> {
 
   func invalidate() {
     guard !lifetime.ended else { return }
-    current = nil
+    let replaced = lettingGo()
     validation = nil
     if case .failed = state { publish(.pending) }
     revalidate()
+    if replaced { kept?.underway.end() }
+  }
+
+  /// Lets go of the current flight, saying whether there was one. Its caller ends that flight's
+  /// count after the fetch or the save that follows it is owed, so no reader finds the key at rest
+  /// between them (B17).
+  private func lettingGo() -> Bool {
+    let held = current != nil
+    current = nil
+    return held
   }
 
   private func revalidate() {
@@ -334,8 +345,8 @@ private actor CacheEntry<Value: Sendable> {
 
   func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) {
     guard isKnown else { return }
-    // Keep unrelated changes from reads already underway, applying the edit to their answers too.
-    for id in flights.keys { flightEdits[id, default: []].append(change) }
+    // Keep unrelated changes from the read underway, applying the edit to its answer too.
+    if let current { flightEdits[current, default: []].append(change) }
     if case .ready(let value) = state { publish(.ready(change(value))) }
   }
 
@@ -347,10 +358,9 @@ private actor CacheEntry<Value: Sendable> {
   /// A value written, or one gone (B13a), which is then kept no longer.
   func replace(_ state: State) {
     guard !lifetime.ended else { return }
-    // Earlier reads can finish for their callers but cannot undo a bus mutation.
-    mutation &+= 1
     rehydrated = false
-    current = nil
+    // Earlier reads can finish for their callers but cannot undo a bus mutation.
+    let replaced = lettingGo()
     validation = nil
     let wasOwed = refreshOwed
     refreshOwed = false
@@ -359,6 +369,7 @@ private actor CacheEntry<Value: Sendable> {
       gone = true
       kept?.forget()
     }
+    if replaced { kept?.underway.end() }
     if wasOwed { owed?.end() }
   }
 
@@ -384,6 +395,7 @@ private actor CacheEntry<Value: Sendable> {
   }
 
   func close() {
+    if lettingGo() { kept?.underway.end() }
     for flight in flights.values { flight.cancel() }
     for listener in listeners.values {
       listener.scope?.dispose()
