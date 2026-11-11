@@ -1,6 +1,6 @@
 -- Generated from protocol/specs/src/errors/codes.json; do not edit.
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.ErrorCodes (BusRequestCode(..), busRequestCode, parseBusRequestCode, busRequestCodeFromWire, ControlCode(..), controlCode, parseControlCode, JobCode(..), jobCode, parseJobCode, KbIdentityCode(..), kbIdentityCode, parseKbIdentityCode, SessionCode(..), sessionCode, parseSessionCode, SignInCode(..), signInCode, parseSignInCode, SpanRefusalCode(..), spanRefusalCode, parseSpanRefusalCode, TransportCode(..), transportCode, parseTransportCode, transportCodeFromStatus) where
+module Semiont.ErrorCodes (BusRequestCode(..), busRequestCode, parseBusRequestCode, ControlCode(..), controlCode, parseControlCode, JobCode(..), jobCode, parseJobCode, KbIdentityCode(..), kbIdentityCode, parseKbIdentityCode, SessionCode(..), sessionCode, parseSessionCode, SignInCode(..), signInCode, parseSignInCode, SpanRefusalCode(..), spanRefusalCode, parseSpanRefusalCode, TransportCode(..), transportCode, parseTransportCode, transportCodeFromStatus) where
 import Data.Aeson (FromJSON(..), ToJSON(..), Value(..), withText)
 import Data.Text (Text)
 data BusRequestCode = BusRequestTimeout | BusRequestRejected | BusRequestClosed | BusRequestNotFound | BusRequestUnsubscribed | BusRequestPeerUnavailable | BusRequestUnauthorized | BusRequestNonePending deriving (Eq, Ord, Show, Enum, Bounded)
@@ -26,13 +26,6 @@ parseBusRequestCode value = case value of
   _ -> Nothing
 instance ToJSON BusRequestCode where toJSON = String . busRequestCode
 instance FromJSON BusRequestCode where parseJSON = withText "BusRequestCode" (\value -> maybe (fail "unknown error code") pure (parseBusRequestCode value))
-busRequestCodeFromWire :: Maybe Text -> BusRequestCode
-busRequestCodeFromWire value = case value of
-  Just "not-found" -> BusRequestNotFound
-  Just "peer-unavailable" -> BusRequestPeerUnavailable
-  Just "unauthorized" -> BusRequestUnauthorized
-  Just "none-pending" -> BusRequestNonePending
-  _ -> BusRequestRejected
 
 data ControlCode = ControlInvalidParams | ControlUnsupportedApiVersion | ControlInvalidRequest | ControlInvalidService | ControlInvalidValue | ControlUnknownSetting | ControlTargetRequired | ControlTargetAmbiguous | ControlRootNotFound | ControlRootNotRegistered | ControlStackNotRunning | ControlStackRunning | ControlStartInProgress | ControlRuntimeUnavailable | ControlDependencyUnavailable | ControlUnreachable | ControlConfirmationRequired | ControlUnreadableState | ControlAlreadySignedIn | ControlSignInFailed | ControlCancelled | ControlFailed deriving (Eq, Ord, Show, Enum, Bounded)
 controlCode :: ControlCode -> Text

@@ -279,12 +279,6 @@ factCases root = do
       let code = at "code" row
       require "error code codec changed its wire spelling" (roundTripError (Key.toText family) code == Right code)
     require "unknown error code was accepted" (isLeft (roundTripError (Key.toText family) (String "__unknown_test_code")))
-  let bus = at "busRequest" errors
-  forM_ (array (at "codes" bus)) $ \row -> case at "wire" row of
-    String wire -> require "wire error classifier differs from spec" (String (Errors.busRequestCode (Errors.busRequestCodeFromWire (Just wire))) == at "code" row)
-    _ -> pure ()
-  forM_ [Nothing, Just "__unknown_test_code"] $ \wire ->
-    require "unrecognized wire failure lost its declared fallback" (String (Errors.busRequestCode (Errors.busRequestCodeFromWire wire)) == at "unrecognizedFailure" bus)
   let transport = at "transport" errors
       statuses = array (at "codes" transport)
       exact status = [at "code" row | row <- statuses, at "status" row == Number (fromIntegral status)]

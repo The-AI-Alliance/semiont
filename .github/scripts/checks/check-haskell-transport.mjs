@@ -124,7 +124,8 @@ const actualStates = new Set(Object.entries(inventory.modules['Semiont.Transport
 same('Haskell connection states', expectedStates, actualStates);
 
 // A failure is read as its channel's generated required table reads it: the table leaves out a code none of
-// CommandError's codes names, so the bus deletes no member, and the operation's own typed failure reads the rest.
+// CommandError's codes names, so the bus deletes no member and reads none directly, and the operation's own
+// typed failure gives its code and its words.
 const requiredLiteral = /^shapesJSON = "(.*)"$/m.exec(read('packages/haskell/sdk/generated/Semiont/Internal/Generated/Required.hs'))?.[1];
 if (requiredLiteral === undefined) throw new Error('no generated Haskell required table');
 const requiredTable = JSON.parse(requiredLiteral.replace(/\\x([0-9a-f]+)\\&|\\(["\\])/g,
@@ -155,9 +156,10 @@ const busFiles = ['src', 'internal', 'generated'].map((directory) => `packages/h
 if (busFiles.length !== 1) throw new Error(`Bus implementation source is ambiguous: ${busFiles}`);
 const bus = read(busFiles[0]);
 if (/\bKM\.delete\b/.test(bus)) throw new Error('the Haskell bus deletes a payload member: the required table leaves out what a reader does not read');
-same('Haskell failure members read directly', new Set(['code']), new Set([...bus.matchAll(/KM\.lookup "(\w+)"/g)].map((match) => match[1])));
-if (!bus.includes('Required.channelRead (channelName failure) fields') || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
-  throw new Error('a failure must be read by its channel’s required table and its words by the operation’s own typed failure');
+same('Haskell failure members read directly', new Set(), new Set([...bus.matchAll(/KM\.lookup "(\w+)"/g)].map((match) => match[1])));
+if (!bus.includes('Required.channelRead (channelName failure) fields') || !bus.includes('OperationFailure.code operation (deliveredPayload delivered)')
+  || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
+  throw new Error('a failure must be read by its channel’s required table, and its code and words by the operation’s own typed failure');
 }
 const diagnosticOperations = new Map(Object.entries(inventory.modules['Semiont.Channels'].values)
   .flatMap(([name, signature]) => {

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Facts (generateFacts) where
+module Facts (generateFacts, wireClassifier) where
 
 import Control.Monad (forM, forM_, unless, (>=>))
 import Data.Aeson (Value(..), eitherDecodeStrict')
@@ -51,6 +51,26 @@ ensureUnique names = unless (Set.size (Set.fromList names) == length names) (Lef
 header :: Text -> Text
 header source = "-- Generated from " <> source <> "; do not edit.\n{-# LANGUAGE OverloadedStrings #-}\n"
 
+-- | A code's constructor: its family's name, then its own after the family's prefix.
+codeConstructor :: Text -> Text -> Text
+codeConstructor family code = name family <> name (case T.breakOn "." code of (whole, rest) -> if T.null rest then whole else T.drop 1 rest)
+
+-- | The bus request code each failure code is read as, by its wire spelling, and the one a failure that
+-- states none is read as: the busRequest family's `wire` and `unrecognizedFailure`, as constructors.
+wireClassifier :: Value -> Either String (Map.Map Text Text, Text)
+wireClassifier source = do
+  family <- object source >>= required "busRequest" >>= object
+  codes <- required "codes" family >>= array >>= traverse object
+  wires <- forM [row | row <- codes, KM.member "wire" row] $ \row -> do
+    wire <- required "wire" row >>= text
+    code <- required "code" row >>= text
+    pure (wire, codeConstructor "busRequest" code)
+  ensureUnique (map fst wires)
+  strings <- traverse (required "code" >=> text) codes
+  fallback <- required "unrecognizedFailure" family >>= text
+  unless (fallback `elem` strings) (Left "error fallback names an unknown code")
+  pure (Map.fromList wires, codeConstructor "busRequest" fallback)
+
 vocabularies :: Text -> Text -> Text -> Value -> Either String [(FilePath, Text)]
 vocabularies authority moduleName testName source = do
   groups <- object source
@@ -64,24 +84,13 @@ vocabularies authority moduleName testName source = do
     let family = Key.toText key
         typ = name family <> "Code"
         function = family <> "Code"
-        constructor code = name family <> name (case T.breakOn "." code of (whole, rest) -> if T.null rest then whole else T.drop 1 rest)
+        constructor = codeConstructor family
         members = map constructor strings
         lookupCode code = if code `elem` strings then Right (constructor code) else Left "error fallback names an unknown code"
     ensureUnique strings
     ensureUnique members
-    wires <- forM [(wire, code) | (row, code) <- zip codes strings, Just wire <- [KM.lookup "wire" row]] $ \(wire, code) -> do
-      wireName <- text wire
-      pure (wireName, constructor code)
-    ensureUnique (map fst wires)
-    wireCode <- case KM.lookup "unrecognizedFailure" fields of
-      Nothing -> if null wires then pure "" else Left "wire classifier has no declared fallback"
-      Just fallback -> do
-        fallbackConstructor <- text fallback >>= lookupCode
-        pure $ T.unlines
-          [ function <> "FromWire :: Maybe Text -> " <> typ
-          , function <> "FromWire value = case value of"
-          ] <> T.unlines ["  Just " <> quoted wire <> " -> " <> member | (wire, member) <- wires]
-            <> "  _ -> " <> fallbackConstructor <> "\n"
+    unless (family == "busRequest" || not (KM.member "unrecognizedFailure" fields || any (KM.member "wire") codes))
+      (Left "only bus request codes are read from a failure's code")
     statuses <- forM [(row, code) | (row, code) <- zip codes strings, KM.member "status" row || KM.member "statusFrom" row] $ \(row, code) -> do
       unless (not (KM.member "status" row && KM.member "statusFrom" row)) (Left "ambiguous HTTP classifier")
       case KM.lookup "status" row of
@@ -107,9 +116,8 @@ vocabularies authority moduleName testName source = do
             <> "  _ -> Nothing\ninstance ToJSON " <> typ <> " where toJSON = String . " <> function <> "\n"
             <> "instance FromJSON " <> typ <> " where parseJSON = withText " <> quoted typ
             <> " (\\value -> maybe (fail \"unknown error code\") pure (parse" <> typ <> " value))\n"
-            <> wireCode <> statusCode
-        exports = [typ <> "(..)", function, "parse" <> typ]
-          ++ [function <> "FromWire" | not (T.null wireCode)] ++ [function <> "FromStatus" | not (T.null statusCode)]
+            <> statusCode
+        exports = [typ <> "(..)", function, "parse" <> typ] ++ [function <> "FromStatus" | not (T.null statusCode)]
     pure (typ, family, exports, code)
   ensureUnique [typ | (typ, _, _, _) <- generated]
   let code = header authority <> "module " <> moduleName <> " ("
