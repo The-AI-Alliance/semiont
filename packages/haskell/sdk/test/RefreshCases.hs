@@ -179,7 +179,7 @@ patchCases fixtures = withCarrier $ \carrier input local -> do
   bracket (Cache.newCache fetch (options time)) Cache.dispose $ \cache -> do
     Cache.set cache resource 0
     let control = Refresh.Acts (Refresh.cacheTargets cache matches)
-          (Just (Refresh.updateTargets cache matches (\_ prior -> prior + 100))) Nothing
+          (Just (Refresh.patchTargets cache matches (\_ prior -> prior + 100))) Nothing
     bracket (Refresh.newRefresher local carrier (clock time) Timing.protocolSettings [(Fact.Annotations,control)]) Refresh.dispose $ \refresher -> do
       Transport.receive input added
       Time.settle

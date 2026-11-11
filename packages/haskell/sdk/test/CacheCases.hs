@@ -1,16 +1,17 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module CacheCases (cacheCases) where
 
-import Control.Concurrent.Async (Async, async, cancel, wait, waitCatch)
+import Control.Concurrent.Async (Async, async, cancel, wait)
 import Control.Concurrent.STM
-import Control.Exception (SomeException, bracket, finally, throwIO, toException, try)
+import Control.Exception (SomeException, bracket, finally, fromException, throwIO, toException, try)
 import Control.Monad (forM_, unless, void)
 import Data.Aeson (Value, ToJSON(..), object, (.=))
 import Data.IORef
+import Data.Maybe (isJust)
 import qualified Semiont.Cache as Cache
 import qualified Semiont.Internal.Cache as Internal
 import Semiont.Errors (BusRequestError(..))
-import Semiont.ErrorCodes (BusRequestCode(BusRequestClosed))
+import Semiont.ErrorCodes (BusRequestCode(BusRequestClosed, BusRequestNotFound))
 import qualified Streaming.Prelude as Stream
 import System.Timeout (timeout)
 import qualified ControlledTime as Time
@@ -62,6 +63,30 @@ noEmission :: TQueue value -> IO ()
 noEmission output = atomically (isEmptyTQueue output) >>= require "cache emitted an intermediate or duplicate state"
 idle :: Cache.Cache key value -> IO ()
 idle cache = atomically (Cache.persistencePending cache >>= check . not)
+
+-- | A harness whose cache keeps its values. Each save it owes queues its
+-- deadline on the timers it returns, then waits for good, so a test reads
+-- which steps owed one.
+keptHarness :: [(Int,Int)] -> IO (Harness, TQueue Integer)
+keptHarness restored = do
+  requests <- newTQueueIO
+  timers <- newTQueueIO
+  scopes <- newTVarIO 0
+  let reader key = do
+        answer <- newEmptyTMVarIO
+        atomically (writeTQueue requests (key,answer))
+        atomically (takeTMVar answer) >>= either throwIO pure
+      persister = Cache.CachePersister (pure restored) (const (pure ())) (pure ())
+      options = Cache.CacheOptions (pure 0) (\deadline -> atomically (writeTQueue timers deadline) >> atomically retry) 5
+        (Just persister) (const (pure (pure ())))
+  cache <- Cache.newCache reader options
+  pure (Harness cache requests scopes, timers)
+withKept :: [(Int,Int)] -> (Harness -> TQueue Integer -> IO ()) -> IO ()
+withKept restored body = bracket (keptHarness restored) (\(Harness cache _ _,_) -> Cache.dispose cache) (uncurry body)
+saveOwed :: TQueue Integer -> IO ()
+saveOwed timers = Time.settle >> atomically (tryReadTQueue timers) >>= require "a cache write owed no save" . isJust
+noSave :: TQueue Integer -> IO ()
+noSave timers = Time.settle >> atomically (isEmptyTQueue timers) >>= require "a reply that is not stored owed a save"
 
 queryCases :: IO ()
 queryCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache _ scopes) -> do
@@ -179,37 +204,6 @@ retryHandOffCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache
   idle cache
   noRequest h
   noEmission events
-  cancel reader
-
-orphanCases :: IO ()
-orphanCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache requests _) -> do
-  old <- async (Cache.fetch cache 1)
-  (_,oldAnswer) <- atomically (readTQueue requests)
-  (reader,events) <- subscriber cache 1
-  pending events
-  Cache.invalidate cache 1
-  reply h 1 (Right 20)
-  ready 20 events
-  atomically (putTMVar oldAnswer (Right 10))
-  wait old >>= require "an orphaned caller must still get its own result" . (==10)
-  require "B9 the answer that arrived last did not land" . (==Just 10) =<< atomically (Cache.get cache 1)
-  ready 10 events
-  noEmission events
-  oldAfterSet <- async (Cache.fetch cache 1)
-  (_,setAnswer) <- atomically (readTQueue requests)
-  Cache.set cache 1 30
-  ready 30 events
-  atomically (putTMVar setAnswer (Right 25))
-  void (wait oldAfterSet)
-  require "B13b an old fetch overwrote write-through" . (==Just 30) =<< atomically (Cache.get cache 1)
-  oldAfterRemove <- async (Cache.fetch cache 1)
-  (_,removeAnswer) <- atomically (readTQueue requests)
-  Cache.remove cache 1 failure
-  failed events
-  atomically (putTMVar removeAnswer (Left failure))
-  void (waitCatch oldAfterRemove)
-  noEmission events
-  noRequest h
   cancel reader
 
 persistenceCases :: IO ()
@@ -356,13 +350,171 @@ structuralKeyCases = do
     require "equivalent JSON keys did not share an entry" (found == Just 8)
     readIORef count >>= require "writing an equivalent structural key fetched" . (==0)
 
+type Answer = TMVar (Either SomeException Int)
+
+-- | F0 asked by a read and joined by an observer, then F1 asked by an
+-- invalidation in its place (B9).
+withReplaced :: (Cache.Cache Int Int -> TQueue Integer -> TQueue (Cache.CacheState Int) -> Async Int -> Answer -> Answer -> IO ()) -> IO ()
+withReplaced body = withKept [] $ \h@(Harness cache requests _) timers -> do
+  older <- async (Cache.fetch cache 1)
+  (_,f0) <- atomically (readTQueue requests)
+  (reader,events) <- subscriber cache 1
+  pending events
+  Cache.invalidate cache 1
+  (_,f1) <- atomically (readTQueue requests)
+  body cache timers events older f0 f1
+  noRequest h
+  cancel reader
+
+-- | Only a key's current fetch writes (B9): one an invalidation replaced or a
+-- removal let go of answers its own read, and stores, emits and owes nothing.
+newestWritesCases :: IO ()
+newestWritesCases = do
+  withReplaced $ \cache timers events older f0 f1 -> do
+    atomically (putTMVar f1 (Right 1))
+    ready 1 events
+    saveOwed timers
+    atomically (putTMVar f0 (Right 0))
+    wait older >>= require "B9 a replaced fetch did not answer its own read" . (==0)
+    noSave timers
+    noEmission events
+    atomically (Cache.get cache 1) >>= require "B9 a replaced fetch's later reply was stored" . (==Just 1)
+  withReplaced $ \cache timers events older f0 f1 -> do
+    atomically (putTMVar f0 (Right 0))
+    wait older >>= require "B9 a replaced fetch did not answer its own read" . (==0)
+    noSave timers
+    noEmission events
+    state <- atomically (Cache.current (Cache.query cache 1))
+    require "B9 a replaced fetch's earlier reply moved its key" (case state of Cache.Pending -> True; _ -> False)
+    atomically (putTMVar f1 (Right 1))
+    ready 1 events
+    atomically (Cache.get cache 1) >>= require "B9 the current fetch's reply was not stored" . (==Just 1)
+  withReplaced $ \cache _ events _ f0 f1 -> do
+    require "B17 a key read at rest while its current fetch was unanswered" =<< atomically (Internal.fetching cache)
+    atomically (putTMVar f1 (Right 1))
+    ready 1 events
+    require "B17 a replaced fetch still counted as fetching" . not =<< atomically (Internal.fetching cache)
+    atomically (putTMVar f0 (Right 0))
+  withKept [] $ \h@(Harness cache requests _) timers -> do
+    older <- async (Cache.fetch cache 1)
+    (_,f0) <- atomically (readTQueue requests)
+    (reader,events) <- subscriber cache 1
+    pending events
+    Cache.remove cache 1 (toException (BusRequestError BusRequestNotFound "the key was removed" Nothing))
+    failed events
+    saveOwed timers
+    atomically (putTMVar f0 (Right 0))
+    wait older >>= require "B13a a fetch a removal let go of did not answer its own read" . (==0)
+    noSave timers
+    noEmission events
+    state <- atomically (Cache.current (Cache.query cache 1))
+    require "B13a a let-go fetch's reply undid the removal" (case state of
+      Cache.Failed problem -> fmap busRequestErrorCode (fromException problem) == Just BusRequestNotFound
+      _ -> False)
+    noRequest h
+    cancel reader
+  withKept [] $ \h@(Harness cache _ _) timers -> do
+    (reader,events) <- subscriber cache 1
+    pending events
+    Cache.set cache 1 5
+    ready 5 events
+    saveOwed timers
+    reply h 1 (Left failure)
+    noSave timers
+    noEmission events
+    noRequest h
+    atomically (Cache.get cache 1) >>= require "B14 a let-go fetch's failure moved its key" . (==Just 5)
+    cancel reader
+
+-- | A whole write lets go of the fetch in flight; a patch rides on it (B13b).
+writePatchCases :: IO ()
+writePatchCases = do
+  withKept [] $ \h@(Harness cache requests _) timers -> do
+    older <- async (Cache.fetch cache 1)
+    (_,f0) <- atomically (readTQueue requests)
+    (reader,events) <- subscriber cache 1
+    pending events
+    Cache.set cache 1 5
+    ready 5 events
+    saveOwed timers
+    require "B13b a set left its key fetching" . not =<< atomically (Internal.fetching cache)
+    atomically (putTMVar f0 (Right 0))
+    wait older >>= require "B13b a fetch a set let go of did not answer its own read" . (==0)
+    noSave timers
+    noEmission events
+    atomically (Cache.get cache 1) >>= require "B13b a let-go fetch's reply overwrote a set" . (==Just 5)
+    noRequest h
+    cancel reader
+  withKept [] $ \h@(Harness cache requests _) timers -> do
+    first <- async (Cache.fetch cache 1)
+    (_,f0) <- atomically (readTQueue requests)
+    (reader,events) <- subscriber cache 1
+    pending events
+    Cache.patch cache 1 (*10)
+    noSave timers
+    noEmission events
+    atomically (putTMVar f0 (Right 3))
+    wait first >>= require "B13b a first fetch's read did not get the patch kept with it" . (==30)
+    ready 30 events
+    noRequest h
+    cancel reader
+  withKept [] $ \h@(Harness cache _ _) _ -> do
+    Cache.set cache 1 1
+    (reader,events) <- subscriber cache 1
+    ready 1 events
+    Cache.invalidate cache 1
+    Cache.patch cache 1 (+10)
+    ready 11 events
+    Cache.patch cache 1 (*2)
+    ready 22 events
+    reply h 1 (Right 5)
+    ready 30 events
+    noRequest h
+    cancel reader
+  withKept [] $ \h@(Harness cache requests _) _ -> do
+    Cache.set cache 1 1
+    (reader,events) <- subscriber cache 1
+    ready 1 events
+    Cache.invalidate cache 1
+    (_,f0) <- atomically (readTQueue requests)
+    Cache.patch cache 1 (+10)
+    ready 11 events
+    Cache.invalidate cache 1
+    (_,f1) <- atomically (readTQueue requests)
+    atomically (putTMVar f1 (Right 5))
+    ready 5 events
+    atomically (putTMVar f0 (Right 7))
+    Time.settle
+    noEmission events
+    atomically (Cache.get cache 1) >>= require "B13b a replaced fetch's reply or patch reached the key" . (==Just 5)
+    noRequest h
+    cancel reader
+  withKept [] $ \h@(Harness cache _ _) timers -> do
+    Cache.patch cache 1 (+1)
+    noSave timers
+    atomically (Cache.known cache 1) >>= require "B13b a patch made an unheld key known" . not
+    atomically (Cache.get cache 1) >>= require "B13b a patch gave an unheld key a value" . (==Nothing)
+    noRequest h
+  withKept [(1,1)] $ \h@(Harness cache requests _) timers -> do
+    Cache.patch cache 1 (+10)
+    atomically (Cache.get cache 1) >>= require "B13b a patch was not applied to a restored value" . (==Just 11)
+    saveOwed timers
+    (reader,events) <- subscriber cache 1
+    ready 11 events
+    Time.settle
+    atomically (isEmptyTQueue requests) >>= require "B18 a patch cleared a restored value's mark" . not
+    reply h 1 (Right 2)
+    ready 2 events
+    cancel reader
+
 cacheCases :: IO ()
 cacheCases = do
   result <- timeout 15000000 $ do
     queryCases
     failureCases
     retryHandOffCases
-    orphanCases
+    newestWritesCases
+    writePatchCases
     persistenceCases
     failedSaveCases
     serialSaveCases
@@ -371,8 +523,6 @@ cacheCases = do
     structuralKeyCases
     routingKeyCases
     atomicMutationCases
-    deferredPatchCases
-    invalidationArrivalCases
     projectedQueryCases
   require "cache contract exceeded its liveness guard" (result == Just ())
   putStrLn "PASS cache B1-B18/B20: lazy reads, deduplication, retry emissions, generation fences, scoped observers, persistence and joined disposal"
@@ -418,32 +568,6 @@ atomicMutationCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cac
   noRequest h
 
 
-deferredPatchCases :: IO ()
-deferredPatchCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache _ _) -> do
-  first <- async (Cache.fetch cache 1)
-  Time.settle
-  atomically (Internal.updateSTM cache 1 (+2)) >>= id
-  reply h 1 (Right 10)
-  wait first >>= require "fresh did not receive the event's deferred patch" . (==12)
-  atomically (Cache.get cache 1) >>= require "the cache published an unpatched first snapshot" . (==Just 12)
-  Cache.invalidate cache 1
-  Time.settle
-  atomically (Internal.updateSTM cache 1 (+100)) >>= id
-  -- A ready value is replaced immediately; the older request may finish,
-  -- but it must not overwrite the known event value.
-  reply h 1 (Right 20)
-  Time.settle
-  atomically (Cache.get cache 1) >>= require "an obsolete fetch overwrote a ready patch" . (==Just 112)
-  orphan <- async (Cache.fetch cache 2)
-  Time.settle
-  atomically (Internal.updateSTM cache 2 (+100)) >>= id
-  Cache.invalidate cache 2
-  reply h 2 (Right 1)
-  wait orphan >>= require "an obsolete generation consumed a deferred patch" . (==1)
-  reply h 2 (Right 2)
-  Time.settle
-  atomically (Cache.get cache 2) >>= require "invalidation retained an earlier deferred patch" . (==Just 2)
-
 projectedQueryCases :: IO ()
 projectedQueryCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache _ _) -> do
   Cache.set cache 1 10
@@ -467,30 +591,3 @@ projectedQueryCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cac
   wait reader
 
 
-invalidationArrivalCases :: IO ()
-invalidationArrivalCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \(Harness cache requests _) -> do
-  (reader,events) <- subscriber cache 1
-  let acquire = atomically $ do
-        (key,answer) <- readTQueue requests
-        unless (key==1) (throwSTM (userError "B9 fetched the wrong key"))
-        pure answer
-  pending events
-  first <- acquire
-  Cache.invalidateQuery (Cache.query cache 1)
-  second <- acquire
-  atomically (putTMVar second (Right 20))
-  ready 20 events
-  atomically (Cache.persistencePending cache) >>= require "a detached fetch disappeared from persistence quiescence"
-  atomically (putTMVar first (Right 10))
-  ready 10 events
-  idle cache
-  atomically (Cache.get cache 1) >>= require "B9 discarded the answer that arrived last" . (==Just 10)
-  Cache.invalidateQuery (Cache.query cache 1)
-  superseded <- acquire
-  Cache.set cache 1 30
-  ready 30 events
-  atomically (putTMVar superseded (Right 5))
-  idle cache
-  noEmission events
-  atomically (Cache.get cache 1) >>= require "B9 weakened an explicit write fence" . (==Just 30)
-  cancel reader

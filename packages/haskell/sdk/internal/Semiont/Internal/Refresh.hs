@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Semiont.Internal.Refresh
   ( Refresher, SubjectInfo(..), Target(..), Write, Acts(..), newRefresher, owes, dispose
-  , cacheTargets, writeTargets, updateTargets, endTargets
+  , cacheTargets, writeTargets, patchTargets, endTargets
   ) where
 
 import Control.Concurrent.STM
@@ -235,10 +235,10 @@ writeTargets cache matches update = Replace $ \info -> do
   keys <- Cache.keys cache
   found <- mapM (\key -> do value <- Cache.get cache key; pure (key,update info value)) (filter (matches info) keys)
   pure [Target (Cache.encodeKey cache key) (Cache.setSTM cache key value) | (key,Just value) <- found]
-updateTargets :: Cache.Cache key value -> (SubjectInfo -> key -> Bool) -> (SubjectInfo -> value -> value) -> Write
-updateTargets cache matches update = Patch $ \info -> do
+patchTargets :: Cache.Cache key value -> (SubjectInfo -> key -> Bool) -> (SubjectInfo -> value -> value) -> Write
+patchTargets cache matches change = Patch $ \info -> do
   keys <- Cache.keys cache
-  pure [Target (Cache.encodeKey cache key) (Cache.updateSTM cache key (update info)) | key <- keys, matches info key]
+  pure [Target (Cache.encodeKey cache key) (Cache.patchSTM cache key (change info)) | key <- keys, matches info key]
 
 endTargets :: Cache.Cache key value -> (SubjectInfo -> key -> Bool) -> SubjectInfo -> STM [Target]
 endTargets cache matches info = do
