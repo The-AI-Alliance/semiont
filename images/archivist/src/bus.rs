@@ -20,6 +20,7 @@ use semiont::channels::{
 };
 use semiont::errors::TransportError;
 use semiont::transport::{Envelope, Frame, Frames};
+use semiont::types::CommandError;
 use semiont_archivist_record::{Object, ids};
 use semiont_observability::logging;
 use serde_json::{Value, json};
@@ -77,10 +78,10 @@ struct Reply {
 }
 
 fn refused(refusal: Refusal) -> Value {
-    match refusal.code {
-        Some(code) => json!({ "code": code, "message": refusal.message }),
-        None => json!({ "message": refusal.message }),
-    }
+    json!(CommandError {
+        code: refusal.code,
+        ..CommandError::new(refusal.message)
+    })
 }
 
 /// Handle one frame, and answer what is to be sent back, if anything.

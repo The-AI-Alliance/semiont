@@ -41,7 +41,11 @@ type Gate = Box<dyn Fn() -> bool + Send + Sync>;
 /// Whether `id` is a recorded event's id, a `PersistedEventId`: the only kind
 /// that is a place, and the one decider of it, by the spec's pattern.
 pub fn is_persisted_event_id(id: &str) -> bool {
-    fault_of(schema("PersistedEventId"), &Value::String(id.to_owned())).is_none()
+    fault_of(
+        schema("PersistedEventId"),
+        &mut Value::String(id.to_owned()),
+    )
+    .is_none()
 }
 
 /// The places reached and not yet written.

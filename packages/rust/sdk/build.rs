@@ -393,6 +393,15 @@ fn shape_of(shape: &Value, of: &str) -> String {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            "recognized" => format!(
+                "recognized: Some(&{:?})",
+                list(part, of)
+                    .iter()
+                    .map(|one| one
+                        .as_str()
+                        .unwrap_or_else(|| panic!("{of}: it recognizes {one}, which is no text")))
+                    .collect::<Vec<_>>()
+            ),
             "enum" => format!(
                 "enumeration: Some(&[{}])",
                 list(part, of)

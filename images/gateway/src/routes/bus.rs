@@ -17,7 +17,7 @@ use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
 use semiont::channels::{Channel, PrincipalProfile};
 use semiont::transport::TraceCarrier;
-use semiont::types::{BusEmitAccepted, BusEmitRequest, LimitRefusalCode};
+use semiont::types::{BusEmitAccepted, BusEmitRequest, CommandErrorCode, LimitRefusalCode};
 use semiont_core::spec::spec;
 use semiont_observability::logging;
 use semiont_observability::telemetry;
@@ -264,7 +264,10 @@ async fn answer_unanswerable(
     };
     failure.remove("_userId");
     failure.remove("_roles");
-    failure.insert("code".to_owned(), json!("peer-unavailable"));
+    failure.insert(
+        "code".to_owned(),
+        json!(CommandErrorCode::PeerUnavailable.as_str()),
+    );
     failure.insert(
         "message".to_owned(),
         json!(format!(

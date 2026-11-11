@@ -324,7 +324,7 @@ mod tests {
         let (mut lacking, mut malformed) = (0, 0);
         for case in table["cases"].as_array().expect("cases") {
             let why = stated(case, "why");
-            let fault = fault_of(schema("ResourceDescriptor"), &case["resource"]);
+            let fault = fault_of(schema("ResourceDescriptor"), &mut case["resource"].clone());
             if case.get("refused") != Some(&Value::Bool(true)) {
                 assert_eq!(fault, None, "{why}");
                 continue;

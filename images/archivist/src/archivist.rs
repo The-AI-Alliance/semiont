@@ -5,6 +5,7 @@
 use crate::anchored::SmeltProgress;
 use crate::content::Content;
 use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated};
+use semiont::types::CommandErrorCode;
 use semiont_archivist_record::kb::Committed;
 use semiont_archivist_record::record::Record;
 use semiont_archivist_record::{Object, SYSTEM};
@@ -44,7 +45,7 @@ pub struct Archivist {
 #[derive(Debug)]
 pub struct Refusal {
     pub message: String,
-    pub code: Option<&'static str>,
+    pub code: Option<CommandErrorCode>,
 }
 
 impl From<String> for Refusal {

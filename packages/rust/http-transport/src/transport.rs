@@ -67,8 +67,8 @@ pub(crate) const MALFORMED: &str = "it is malformed";
 /// schema, or what every SDK says of the first fault that keeps it from
 /// being one.
 pub(crate) fn declared<T: DeserializeOwned + Schema>(body: &[u8]) -> Result<T, String> {
-    let value: Value = serde_json::from_slice(body).map_err(|_| MALFORMED.to_owned())?;
-    if let Some(said) = semiont::fault_said::<T>(&value) {
+    let mut value: Value = serde_json::from_slice(body).map_err(|_| MALFORMED.to_owned())?;
+    if let Some(said) = semiont::fault_said::<T>(&mut value) {
         return Err(said);
     }
     serde_json::from_value(value).map_err(|_| MALFORMED.to_owned())
