@@ -357,7 +357,6 @@ let client = client(
         channels: Some(channels),
         http,
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     },
     ClientOptions::default(),
