@@ -1034,7 +1034,8 @@ export function App() {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
             }}
-            onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeRootPath)}
+            onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeLocalRootPath)}
+            queueRootPath={activeLocalRootPath}
             activeSession={activeSession}
             onNewDocument={() => activeSession && openNewDocument(activeSession.kbUri)}
             conn={activeConn}
@@ -1154,6 +1155,7 @@ function MainPane({
   onOpenKnowledgeBases,
   onOpenKnowledgeBaseDetails,
   onOpenDispatcherMessaging,
+  queueRootPath,
   onNewDocument,
   ...body
 }: {
@@ -1163,6 +1165,7 @@ function MainPane({
   onOpenKnowledgeBases: () => void;
   onOpenKnowledgeBaseDetails: () => void;
   onOpenDispatcherMessaging: () => void;
+  queueRootPath: string | null;
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
@@ -1180,7 +1183,7 @@ function MainPane({
   return (
     <div className="mainwrap">
       <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onNewDocument={onNewDocument} {...body} />
-      <AppFooter prefs={viewerPrefs} activeRootPath={activeRootPath} onOpenDispatcherMessaging={onOpenDispatcherMessaging} />
+      <AppFooter prefs={viewerPrefs} activeRootPath={queueRootPath} onOpenDispatcherMessaging={onOpenDispatcherMessaging} />
     </div>
   );
 }
