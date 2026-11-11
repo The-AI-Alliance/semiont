@@ -346,6 +346,11 @@ type ControlKnowledgeBaseStatus struct {
 	// Its own services, group by group, then the issuer it signs in at. Empty
 	// for a codespace's, whose services its own launcher reports.
 	Services []ControlServiceStatus `json:"services"`
+
+	// The ledger and job queue readings the launcher can attribute to this
+	// knowledge base. A missing reading means the Collector has not reported
+	// that metric, not that its value is zero.
+	Workload *ControlWorkloadStatus `json:"workload,omitempty"`
 }
 
 // ControlSession: The launcher's own stored sign-in for a stack (semiont
@@ -415,6 +420,53 @@ type ControlServiceStatus struct {
 	// For a service several knowledge bases share: the name of each it serves,
 	// as knowledgeBases names them.
 	Serves []string `json:"serves,omitempty"`
+}
+
+// ControlWorkloadStatus: A knowledge base's operational readings from
+// Collector metrics. Request-tracking occupancy and queue depth are current
+// gauges; completed and failed are worker counters since that worker process
+// started. Missing readings are unknown, never zero.
+type ControlWorkloadStatus struct {
+	// The Gateway's request tracking: correlation IDs it currently holds so
+	// replies can be routed to the app client that sent each request, and the
+	// tracking capacity.
+	Ledger *ControlWorkloadStatusLedger `json:"ledger,omitempty"`
+
+	// Current Dispatcher depth and, when the worker has emitted counters,
+	// completed and failed work since worker start. These are different
+	// measurements and time windows.
+	Queue *ControlWorkloadStatusQueue `json:"queue,omitempty"`
+}
+
+// ControlWorkloadStatusLedger: The Gateway's request tracking: correlation
+// IDs it currently holds so replies can be routed to the app client that sent
+// each request, and the tracking capacity.
+type ControlWorkloadStatusLedger struct {
+	// Number of request IDs currently held to route replies to their requesting
+	// app clients. Includes requests still waiting for a reply and recently
+	// answered requests still within the tracking window.
+	Claims int `json:"claims"`
+
+	// The maximum number of IDs held in this Gateway's local tracking
+	// projection.
+	Capacity int `json:"capacity"`
+}
+
+// ControlWorkloadStatusQueue: Current Dispatcher depth and, when the worker
+// has emitted counters, completed and failed work since worker start. These
+// are different measurements and time windows.
+type ControlWorkloadStatusQueue struct {
+	// Jobs currently waiting for a worker.
+	Pending int `json:"pending"`
+
+	// Jobs currently claimed by workers.
+	Running int `json:"running"`
+
+	// Jobs completed since worker start.
+	Completed *int `json:"completed,omitempty"`
+
+	// Jobs finally failed since worker start.
+	Failed *int `json:"failed,omitempty"`
 }
 
 // ControlStackStartParams: stack.start's params: what semiont start takes,
@@ -587,6 +639,91 @@ type ControlAuthLogoutResult struct {
 	// wasSignedIn: the local token is forgotten, and the refresh token stays
 	// valid at the issuer until it expires.
 	Revoked bool `json:"revoked"`
+}
+
+// ControlIdentityUseraddParams: Create one account in the launcher-managed
+// Keycloak realm for a specific local knowledge base.
+type ControlIdentityUseraddParams struct {
+	// The group and version of the control API. Every request's params state it;
+	// a launcher refuses a version it does not speak with
+	// control.unsupported-api-version, and names the ones it does.
+	ApiVersion string `json:"apiVersion"`
+
+	// The local knowledge base whose launcher-managed identity realm an
+	// operation addresses.
+	Target ControlIdentityLocalTarget `json:"target"`
+
+	// The email address that will sign in to this knowledge base.
+	Email string `json:"email"`
+
+	// The user's password. Secret: carried only in this local control request,
+	// never in progress, diagnostics, or persistent state.
+	Password *string `json:"password,omitempty"`
+
+	// Generate a random password in the launcher and return it once in the
+	// result.
+	GeneratePassword bool `json:"generatePassword"`
+}
+
+// ControlIdentityLocalTarget: The local knowledge base whose launcher-managed
+// identity realm an operation addresses.
+type ControlIdentityLocalTarget struct {
+	// Identity administration here is limited to local stacks.
+	Kind string `json:"kind"`
+
+	// The selected knowledge base's clone path.
+	Root string `json:"root"`
+}
+
+// ControlIdentityUseraddResult: The created account's sign-in identity. A
+// generated password is present only in this one answer and is not stored by
+// the launcher.
+type ControlIdentityUseraddResult struct {
+	// The account's email address.
+	Email string `json:"email"`
+
+	// The identity the account acts under in Semiont.
+	Identity string `json:"identity"`
+
+	// Whether a new account was created.
+	Created bool `json:"created"`
+
+	// The generated password, returned once so the operator can share it with
+	// the user. Absent when the operator supplied the password.
+	GeneratedPassword *string `json:"generatedPassword,omitempty"`
+}
+
+// ControlIdentityUsersListParams: List accounts in one local knowledge base's
+// launcher-managed Keycloak realm.
+type ControlIdentityUsersListParams struct {
+	// The group and version of the control API. Every request's params state it;
+	// a launcher refuses a version it does not speak with
+	// control.unsupported-api-version, and names the ones it does.
+	ApiVersion string `json:"apiVersion"`
+
+	// The local knowledge base whose launcher-managed identity realm an
+	// operation addresses.
+	Target ControlIdentityLocalTarget `json:"target"`
+}
+
+// ControlIdentityUsersListResult: Accounts in the selected knowledge base's
+// launcher-managed identity realm.
+type ControlIdentityUsersListResult struct {
+	// Accounts, sorted by sign-in name.
+	Users []ControlIdentityUser `json:"users"`
+}
+
+// ControlIdentityUser: An account in a knowledge base's launcher-managed
+// identity realm. Passwords and tokens are never included.
+type ControlIdentityUser struct {
+	// The account's sign-in name, normally its email address.
+	Email string `json:"email"`
+
+	// The identity the account acts under in Semiont.
+	Identity string `json:"identity"`
+
+	// Whether the identity provider currently allows this account to sign in.
+	Enabled bool `json:"enabled"`
 }
 
 // ControlLogsFollowParams: logs.follow's params.

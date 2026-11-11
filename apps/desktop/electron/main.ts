@@ -1,15 +1,24 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, Menu, net, protocol, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { delimiter, dirname, join, relative, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseAppManifest } from '../src/lib/app-manifest';
+import { parseKbUri, parseUserConfig } from '../src/lib/user-config';
 import type { McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
 import { ControlClient } from './control-client';
 import { registerControlHandlers } from './control-ipc';
+import { handleTrustedIpc, onTrustedIpc } from './ipc-security';
 import { appendLog, configDir, logPath } from './paths';
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'semiont-app',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+}]);
 
 registerAuthHandlers();
 
@@ -18,6 +27,160 @@ let mcpChild: ChildProcess | null = null;
 let mcpStartedAt: number | null = null;
 let mcpStopping = false;
 let mcpError: string | null = null;
+function configuredKbOrigins(toml: string | null): Set<string> {
+  const origins = new Set<string>();
+  if (toml === null) return origins;
+  for (const kb of parseUserConfig(toml).kbs) {
+    try {
+      parseKbUri(kb.uri);
+      origins.add(new URL(kb.uri).origin);
+    } catch {
+      // Invalid configured entries do not widen the renderer's network policy.
+    }
+  }
+  return origins;
+}
+
+function kbRouteId(origin: string): string {
+  return createHash('sha256').update(origin).digest('hex').slice(0, 32);
+}
+
+function configuredKbRoutes(toml: string | null): Map<string, string> {
+  return new Map([...configuredKbOrigins(toml)].map((origin) => [kbRouteId(origin), origin]));
+}
+
+function rendererCsp(): string {
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "media-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-src 'none'",
+  ].join('; ');
+}
+
+function registerRendererProtocol(): void {
+  protocol.handle('semiont-app', async (request) => {
+    const url = new URL(request.url);
+    if (url.hostname !== 'desktop') return new Response('Not found', { status: 404 });
+    if (url.pathname.startsWith('/kb/')) return proxyKnowledgeBaseRequest(request, url);
+    if (request.method !== 'GET') return new Response('Not found', { status: 404 });
+    let requestPath: string;
+    try {
+      requestPath = decodeURIComponent(url.pathname);
+    } catch {
+      return new Response('Bad path', { status: 400 });
+    }
+    const rendererRoot = resolve(__dirname, '../renderer');
+    const filePath = resolve(rendererRoot, `.${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`);
+    const fileRelative = relative(rendererRoot, filePath);
+    if (fileRelative === '..' || fileRelative.startsWith(`..${sep}`) || fileRelative.startsWith(sep)) {
+      return new Response('Not found', { status: 404 });
+    }
+    try {
+      const fileResponse = await net.fetch(pathToFileURL(filePath).toString());
+      if (!fileResponse.ok) return new Response('Not found', { status: 404 });
+      const headers = new Headers(fileResponse.headers);
+      headers.set('X-Content-Type-Options', 'nosniff');
+      headers.set('Referrer-Policy', 'no-referrer');
+      if (fileRelative === 'index.html') {
+        headers.set('Content-Security-Policy', rendererCsp());
+        headers.set('Cache-Control', 'no-store');
+      }
+      return new Response(fileResponse.body, { status: fileResponse.status, headers });
+    } catch {
+      return new Response('Not found', { status: 404 });
+    }
+  });
+}
+
+const KB_REQUEST_HEADERS = new Set([
+  'accept', 'authorization', 'content-type', 'if-match', 'if-none-match',
+  'if-modified-since', 'if-unmodified-since', 'idempotency-key', 'last-event-id',
+  'range', 'traceparent', 'tracestate', 'baggage',
+]);
+const KB_RESPONSE_HEADERS = new Set([
+  'accept-ranges', 'cache-control', 'content-disposition', 'content-length',
+  'content-range', 'content-type', 'etag', 'last-modified', 'vary',
+]);
+
+async function proxyKnowledgeBaseRequest(request: Request, appUrl: URL): Promise<Response> {
+  const initiatorOrigin = (request as Request & { initiatorOrigin?: string }).initiatorOrigin;
+  if (initiatorOrigin !== undefined && initiatorOrigin !== 'semiont-app://desktop') {
+    return new Response('Forbidden', { status: 403 });
+  }
+  const match = /^\/kb\/([a-f0-9]{32})(\/.*)?$/u.exec(appUrl.pathname);
+  if (match === null) return new Response('Not found', { status: 404 });
+  const origin = configuredKbRoutes(readConfigText()).get(match[1]!);
+  if (origin === undefined) return new Response('Knowledge Base route is not configured', { status: 404 });
+  const upstreamUrl = new URL(`${match[2] ?? '/'}${appUrl.search}`, origin);
+  if (!['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  const headers = new Headers();
+  request.headers.forEach((value, name) => {
+    if (KB_REQUEST_HEADERS.has(name.toLowerCase())) headers.set(name, value);
+  });
+  const init: RequestInit & { duplex?: 'half' } = {
+    method: request.method,
+    headers,
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+    redirect: 'manual',
+    signal: request.signal,
+  };
+  if (!['GET', 'HEAD'].includes(request.method) && request.body !== null) {
+    init.body = request.body;
+    init.duplex = 'half';
+  }
+
+  try {
+    let response = await net.fetch(upstreamUrl.toString(), init);
+    // Follow only safe, bodyless redirects which remain inside this configured KB.
+    for (let redirects = 0; [301, 302, 303, 307, 308].includes(response.status); redirects += 1) {
+      const location = response.headers.get('location');
+      if (location === null) break;
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return new Response('Knowledge Base redirect refused for a request with a body', { status: 502 });
+      }
+      if (redirects >= 5) return new Response('Too many Knowledge Base redirects', { status: 502 });
+      const destination = new URL(location, upstreamUrl);
+      if (destination.origin !== origin) return new Response('Cross-origin Knowledge Base redirect refused', { status: 502 });
+      await response.body?.cancel();
+      response = await net.fetch(destination.toString(), {
+        method: request.method,
+        headers,
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        redirect: 'manual',
+        signal: request.signal,
+      });
+      upstreamUrl.href = destination.href;
+    }
+    const safeHeaders = new Headers();
+    response.headers.forEach((value, name) => {
+      if (KB_RESPONSE_HEADERS.has(name.toLowerCase())) safeHeaders.set(name, value);
+    });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: safeHeaders,
+    });
+  } catch (error) {
+    if (request.signal.aborted) return new Response(null, { status: 499 });
+    // Avoid logging request URLs, query tokens, auth headers, or response data.
+    appendLog(`${new Date().toISOString()} [kb-proxy] ${request.method} ${appUrl.pathname} failed (${error instanceof Error ? error.name : 'unknown error'})`);
+    return new Response('Knowledge Base request failed', { status: 502 });
+  }
+}
 
 function launcherPath(): string {
   return app.isPackaged
@@ -55,57 +218,22 @@ const control = new ControlClient(
 );
 registerControlHandlers(control);
 
-ipcMain.handle('dialog:choose-directory', async () => {
+handleTrustedIpc('dialog:choose-directory', async () => {
   const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
   return result.canceled ? null : result.filePaths[0] ?? null;
 });
 
-ipcMain.handle('dialog:choose-resource-directory', async (event, rootValue: unknown, suggestedValue: unknown) => {
-  if (typeof rootValue !== 'string' || rootValue.length === 0 || typeof suggestedValue !== 'string') {
-    throw new Error('Choose resource directory needs a KB root and suggested relative directory.');
-  }
-  const root = resolve(rootValue);
-  if (!existsSync(root) || !statSync(root).isDirectory()) throw new Error('The Knowledge Base folder is unavailable.');
-
-  const suggested = isAbsolute(suggestedValue) ? '' : suggestedValue;
-  const candidate = resolve(root, suggested);
-  const candidateRelative = relative(root, candidate);
-  let defaultPath = candidateRelative === '..' || candidateRelative.startsWith(`..${sep}`) || isAbsolute(candidateRelative)
-    ? root
-    : candidate;
-  if (!existsSync(defaultPath) || !statSync(defaultPath).isDirectory()) defaultPath = root;
-  const options: Electron.OpenDialogOptions = {
-    title: 'Choose a Folder in This Knowledge Base',
-    buttonLabel: 'Choose Folder',
-    defaultPath,
-    properties: ['openDirectory', 'createDirectory'],
-  };
-  const owner = BrowserWindow.fromWebContents(event.sender);
-  const result = owner === null
-    ? await dialog.showOpenDialog(options)
-    : await dialog.showOpenDialog(owner, options);
-  if (result.canceled) return null;
-  const selectedPath = result.filePaths[0];
-  if (selectedPath === undefined) return null;
-
-  const chosen = resolve(selectedPath);
-  const chosenRelative = relative(root, chosen);
-  if (chosenRelative === '..' || chosenRelative.startsWith(`..${sep}`) || isAbsolute(chosenRelative)) {
-    throw new Error('Choose a folder inside this Knowledge Base.');
-  }
-  return chosenRelative.split(sep).join('/');
-});
-
 // Quitting waits for the launcher's control child to answer what it was asked and exit (at
-// most SHUTDOWN_GRACE_MS), then quits for real.
-let launcherClosed = false;
+// most SHUTDOWN_GRACE_MS), then exits directly. Calling app.quit() again from this async
+// continuation can leave macOS with a closed window but a still-running app.
+let quitInProgress = false;
 app.on('before-quit', (event) => {
-  if (launcherClosed) return;
   event.preventDefault();
-  void control.close().then(() => {
-    launcherClosed = true;
-    app.quit();
-  });
+  if (quitInProgress) return;
+  quitInProgress = true;
+  void control.close()
+    .catch((error: unknown) => appendLog(`${new Date().toISOString()} [quit] ${String(error)}`))
+    .finally(() => app.exit(0));
 });
 
 async function ollamaInfo(): Promise<OllamaInfo> {
@@ -170,9 +298,9 @@ async function ollamaInfo(): Promise<OllamaInfo> {
   return { executablePath, endpoint: null, models: [] };
 }
 
-ipcMain.handle('system:ollama-info', () => ollamaInfo());
+handleTrustedIpc('system:ollama-info', () => ollamaInfo());
 
-ipcMain.handle('system:git-path', async () => {
+handleTrustedIpc('system:git-path', async () => {
   const pathValue = launcherEnvironment().PATH ?? '';
   const executableNames = process.platform === 'win32' ? ['git.exe', 'git.cmd', 'git.bat'] : ['git'];
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
@@ -189,7 +317,7 @@ ipcMain.handle('system:git-path', async () => {
   return null;
 });
 
-ipcMain.handle('system:op-path', async () => {
+handleTrustedIpc('system:op-path', async () => {
   const pathValue = launcherEnvironment().PATH ?? '';
   const executableNames = process.platform === 'win32' ? ['op.exe'] : ['op'];
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
@@ -248,9 +376,9 @@ async function mcpProcessStatus(): Promise<McpProcessStatus> {
   };
 }
 
-ipcMain.handle('mcp:status', () => mcpProcessStatus());
+handleTrustedIpc('mcp:status', () => mcpProcessStatus());
 
-ipcMain.handle('mcp:start', async () => {
+handleTrustedIpc('mcp:start', async () => {
   if (mcpChild !== null) return mcpProcessStatus();
   mcpError = null;
   mcpStopping = false;
@@ -288,7 +416,7 @@ ipcMain.handle('mcp:start', async () => {
   return mcpProcessStatus();
 });
 
-ipcMain.handle('mcp:stop', async () => {
+handleTrustedIpc('mcp:stop', async () => {
   const child = mcpChild;
   if (child === null) return mcpProcessStatus();
   mcpStopping = true;
@@ -317,12 +445,11 @@ app.on('before-quit', () => {
 
 function setApplicationMenu(): void {
   const appMenu: MenuItemConstructorOptions[] = [
-    { role: 'about' },
-    { type: 'separator' },
     {
-      label: 'Launcher Status…',
-      click: () => mainWindow?.webContents.send('launcher:status-requested'),
+      label: `About ${app.getName()}`,
+      click: () => mainWindow?.webContents.send('about:requested'),
     },
+    { type: 'separator' },
   ];
   if (process.platform === 'darwin') {
     appMenu.push(
@@ -336,15 +463,32 @@ function setApplicationMenu(): void {
   }
   appMenu.push({ type: 'separator' }, { role: 'quit' });
 
+  const viewMenu: MenuItemConstructorOptions[] = [
+    {
+      label: 'Reload',
+      accelerator: 'CommandOrControl+R',
+      click: () => mainWindow?.webContents.send('documents:reload-requested'),
+    },
+    { role: 'forceReload' },
+    { type: 'separator' },
+    { role: 'toggleDevTools' },
+    { type: 'separator' },
+    { role: 'resetZoom' },
+    { role: 'zoomIn' },
+    { role: 'zoomOut' },
+    { type: 'separator' },
+    { role: 'togglefullscreen' },
+  ];
+
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: app.getName(), submenu: appMenu },
     { role: 'editMenu' },
-    { role: 'viewMenu' },
+    { label: 'View', submenu: viewMenu },
     { role: 'windowMenu' },
   ]));
 }
 
-ipcMain.on('log:append', (_event, line: string) => appendLog(String(line)));
+onTrustedIpc('log:append', (_event, line: string) => appendLog(String(line)));
 process.on('uncaughtException', (err) => appendLog(`${new Date().toISOString()} [main uncaught] ${err.stack ?? String(err)}`));
 
 // Per-user runtime config (the KBs): an XDG TOML file at
@@ -354,16 +498,34 @@ function configPath(): string {
   return join(configDir(), 'config.toml');
 }
 
-ipcMain.handle('config:read', () => {
+function readConfigText(): string | null {
   const path = configPath();
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
+}
+
+handleTrustedIpc('config:read', () => {
+  return readConfigText();
 });
 
-ipcMain.handle('config:write', (_event, toml: string) => {
+handleTrustedIpc('config:write', (_event, toml: string) => {
   const path = configPath();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, toml, { mode: 0o600 });
   chmodSync(path, 0o600); // enforce 0600 on an existing file too
+});
+
+handleTrustedIpc('config:kb-route', (_event, gatewayUrl: string) => {
+  let origin: string;
+  try {
+    parseKbUri(gatewayUrl);
+    origin = new URL(gatewayUrl).origin;
+  } catch {
+    throw new Error('Invalid Knowledge Base gateway URL');
+  }
+  if (!configuredKbOrigins(readConfigText()).has(origin)) {
+    throw new Error('Knowledge Base gateway is not in the saved Desktop configuration');
+  }
+  return `semiont-app://desktop/kb/${kbRouteId(origin)}`;
 });
 
 // Chat history — same XDG dir, a JSON file. localStorage isn't reliably persisted for
@@ -373,12 +535,12 @@ function historyPath(): string {
   return join(configDir(), 'history.json');
 }
 
-ipcMain.handle('history:read', () => {
+handleTrustedIpc('history:read', () => {
   const path = historyPath();
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
 });
 
-ipcMain.handle('history:write', (_event, json: string) => {
+handleTrustedIpc('history:write', (_event, json: string) => {
   const path = historyPath();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, json, { mode: 0o600 });
@@ -390,12 +552,12 @@ function prefsPath(): string {
   return join(configDir(), 'prefs.json');
 }
 
-ipcMain.handle('prefs:read', () => {
+handleTrustedIpc('prefs:read', () => {
   const path = prefsPath();
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
 });
 
-ipcMain.handle('prefs:write', (_event, json: string) => {
+handleTrustedIpc('prefs:write', (_event, json: string) => {
   const path = prefsPath();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, json);
@@ -409,7 +571,7 @@ ipcMain.handle('prefs:write', (_event, json: string) => {
 let preGrowBounds: Electron.Rectangle | null = null;
 let grownWidth: number | null = null;
 
-ipcMain.handle('window:ensure-width', (event, desired: number) => {
+handleTrustedIpc('window:ensure-width', (event, desired: number) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const want = Math.round(Number(desired));
   if (!win || !Number.isFinite(want) || want <= 0 || win.isMaximized() || win.isFullScreen()) return;
@@ -424,7 +586,7 @@ ipcMain.handle('window:ensure-width', (event, desired: number) => {
   win.setBounds({ ...bounds, x, width });
 });
 
-ipcMain.handle('window:restore-width', (event) => {
+handleTrustedIpc('window:restore-width', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win && preGrowBounds !== null && grownWidth !== null && win.getBounds().width === grownWidth) {
     win.setBounds(preGrowBounds);
@@ -464,6 +626,39 @@ function createWindow(): void {
     if (mainWindow === win) mainWindow = null;
   });
 
+  // Only the app document may stay in this window. In development, allow the
+  // local Vite origin; in packaged builds, allow only the app's index document.
+  // Links to external sites are handled separately by setWindowOpenHandler.
+  const devUrl = process.env['ELECTRON_RENDERER_URL'];
+  let devOrigin: string | null = null;
+  if (devUrl !== undefined) {
+    try {
+      const candidate = new URL(devUrl);
+      if (candidate.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(candidate.hostname)) {
+        devOrigin = candidate.origin;
+      }
+    } catch {
+      // An invalid dev URL cannot widen the allowed navigation boundary.
+    }
+  }
+  const allowTopLevelNavigation = (candidateUrl: string): boolean => {
+    try {
+      const candidate = new URL(candidateUrl);
+      return devOrigin !== null
+        ? candidate.origin === devOrigin
+        : candidate.protocol === 'semiont-app:' && candidate.hostname === 'desktop' && candidate.pathname === '/index.html';
+    } catch {
+      return false;
+    }
+  };
+  const blockUnexpectedNavigation = (event: Electron.Event, candidateUrl: string) => {
+    if (allowTopLevelNavigation(candidateUrl)) return;
+    event.preventDefault();
+    appendLog(`${new Date().toISOString()} [navigation] blocked top-level navigation`);
+  };
+  win.webContents.on('will-navigate', blockUnexpectedNavigation);
+  win.webContents.on('will-redirect', blockUnexpectedNavigation);
+
   // Deep-links (sidebar docs, upload records, answer references) use target=_blank /
   // window.open. In Electron that would otherwise spawn a bare in-app window — instead
   // route http(s) to the user's DEFAULT browser (where the Semiont Browser runs), and
@@ -477,15 +672,15 @@ function createWindow(): void {
 
   // dev: `electron:dev` sets ELECTRON_RENDERER_URL to the Vite dev server.
   // packaged: load the Vite-built renderer from out/renderer.
-  const devUrl = process.env['ELECTRON_RENDERER_URL'];
   if (devUrl) {
     void win.loadURL(devUrl);
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'));
+    void win.loadURL('semiont-app://desktop/index.html');
   }
 }
 
 void app.whenReady().then(() => {
+  registerRendererProtocol();
   // Fresh log each launch (so it stays small); the renderer appends after this.
   try {
     mkdirSync(dirname(logPath()), { recursive: true, mode: 0o700 });

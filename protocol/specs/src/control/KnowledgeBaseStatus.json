@@ -72,6 +72,10 @@
         "$ref": "./ServiceStatus.json"
       },
       "description": "Its own services, group by group, then the issuer it signs in at. Empty for a codespace's, whose services its own launcher reports."
+    },
+    "workload": {
+      "$ref": "./WorkloadStatus.json",
+      "description": "The ledger and job queue readings the launcher can attribute to this knowledge base. A missing reading means the Collector has not reported that metric, not that its value is zero."
     }
   },
   "required": [

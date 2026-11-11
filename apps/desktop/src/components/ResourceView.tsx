@@ -9,6 +9,7 @@ import {
   useResourceContent,
   useResourceLoader,
   useTranslationManager,
+  useLineNumbers,
   type AnnotationsCollection,
   type ShapeType,
 } from '@semiont/react-ui';
@@ -287,6 +288,7 @@ function LoadedDocument({
   onOpenResource: (id: string) => void;
 }) {
   const translationManager = useTranslationManager();
+  const { showLineNumbers } = useLineNumbers();
   const mediaType = getPrimaryMediaType(resource) || 'text/plain';
   const renderMode = capabilitiesOf(mediaType)?.render;
   const isBinary = renderMode === 'image' || renderMode === 'pdf';
@@ -324,6 +326,7 @@ function LoadedDocument({
         translationManager={translationManager}
         zoom={zoom}
         showToolbar={false}
+        showLineNumbers={showLineNumbers}
         resource={{ ...resource, content }}
         annotations={annotations}
         annotateMode={annotate}

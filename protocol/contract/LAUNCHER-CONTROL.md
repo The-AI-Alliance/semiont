@@ -85,6 +85,22 @@ exist.
   was started, as the command would resolve it standing there.
   *Held by `protocol/specs/src/control/request-cases.json`.*
 
+- **P3.** `identity.useradd` names one local root explicitly and creates an
+  account only in that root's launcher-managed Keycloak realm. The supplied
+  password travels only in the local control request; it is never included in
+  progress, diagnostics, or launcher state. If the launcher generates a
+  password, that secret appears only in the one result returned to the caller.
+  The request refuses codespace targets and external identity providers.
+  *Held by the method and schemas in `protocol/specs/src/control/` and the
+  handler in `packages/go/launcher/control_ops.go`.*
+
+- **P4.** `identity.users.list` names one local root explicitly and returns
+  only each account's sign-in name, Semiont identity and enabled state. It
+  returns no passwords, tokens or profile secrets. Like `identity.useradd`,
+  it refuses codespace targets and external identity providers.
+  *Held by the method and schemas in `protocol/specs/src/control/` and the
+  handler in `packages/go/launcher/control_ops.go`.*
+
 ## Answers and errors
 
 - **E1.** Every request gets exactly one answer: a result that holds to its

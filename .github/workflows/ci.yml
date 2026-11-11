@@ -2013,7 +2013,9 @@ jobs:
   # its embedding provider, writing a real Qdrant, which the suite reads back.
   smelter-conformance:
     name: Smelter Conformance
-    runs-on: ubuntu-latest
+    # Pin apt-dependent Tesseract setup to stable 24.04 while ubuntu-latest
+    # migrates to Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
@@ -2090,10 +2092,9 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the tesseract program
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
-          tesseract --version
+        timeout-minutes: 10
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/install-tesseract.sh
 
       - name: Make the Smelter's environment
         run: uv sync --locked --no-dev --project images/smelter
@@ -2124,7 +2125,8 @@ jobs:
   # playing its two models and its embedding provider.
   librarian-conformance:
     name: Librarian Conformance
-    runs-on: ubuntu-latest
+    # Keep Tesseract setup on stable 24.04 during the ubuntu-latest migration.
+    runs-on: ubuntu-24.04
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
@@ -2223,10 +2225,9 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the tesseract program
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
-          tesseract --version
+        timeout-minutes: 10
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/install-tesseract.sh
 
       - name: Make the Python Weaver's environment
         run: uv sync --locked --no-dev --all-extras --project images/weaver
@@ -3596,7 +3597,8 @@ jobs:
   # the engine was or on a box to the pixel. They start no service.
   test-smelter-python:
     name: Python Smelter
-    runs-on: ubuntu-latest
+    # Keep Tesseract setup on stable 24.04 during the ubuntu-latest migration.
+    runs-on: ubuntu-24.04
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.smelter == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     strategy:
@@ -3621,10 +3623,9 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the tesseract program
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
-          tesseract --version
+        timeout-minutes: 10
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/install-tesseract.sh
 
       - name: Install the locked environment
         run: uv sync --locked

@@ -85,7 +85,6 @@ export interface McpProcessStatus {
 }
 
 export interface LauncherBridge {
-  onStatusRequested(listener: () => void): () => void;
   /** Send a request of the launcher's control API (protocol/specs/src/control/methods.json).
    *  `listener` hears each of its notifications, then its answer. Resolves with its handle
    *  once the main process has taken it; rejects when what it was handed is no request. */
@@ -98,8 +97,6 @@ export interface LauncherBridge {
    *  answered it already. */
   cancelControl(handle: ControlHandle, reason: string): void;
   chooseDirectory(): Promise<string | null>;
-  /** Show a native folder dialog under a local KB root; returns the selected KB-relative directory. */
-  chooseResourceDirectory(rootPath: string, suggestedDirectory: string): Promise<string | null>;
   gitPath(): Promise<string | null>;
   opPath(): Promise<string | null>;
   ollamaInfo(): Promise<OllamaInfo>;

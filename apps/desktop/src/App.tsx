@@ -23,18 +23,21 @@ import {
   type AppChatSession,
 } from './lib/chat-sessions';
 import { getPref, setPref } from './lib/prefs';
-import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-layout';
+import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout, type ResourcePresentation } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
 import { WorkspaceTabs, localRootPathFromTabId, localRootTabId } from './components/WorkspaceTabs';
-import { ThemePanel } from './components/ThemePanel';
+import { AppearancePanel } from './components/AppearancePanel';
+import { LanguagePanel } from './components/LanguagePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
-import { LauncherStatusModal } from './components/LauncherStatusModal';
+import { RemoteServiceModal, type RemoteService } from './components/RemoteServiceModal';
+import { ServiceGroupModal, type DesktopServiceGroup } from './components/ServiceGroupModal';
 import { KnowledgeBaseModal, KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
+import { KnowledgeBaseUsersModal } from './components/KnowledgeBaseUsersModal';
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
-import { GitModal, type GitCheck } from './components/GitModal';
+import type { GitCheck } from './components/GitStatusSection';
 import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { McpModal } from './components/McpModal';
 import { AppFooter } from './components/AppFooter';
@@ -52,7 +55,7 @@ import {
   type McpProcessStatus,
 } from './lib/launcher-bridge';
 import type { OllamaInfo } from './lib/ollama-info';
-import type { ControlMethod, ControlProgress, ControlServiceStatus } from '../electron/control-types.gen';
+import type { ControlMethod, ControlProgress, ControlServiceGroup, ControlServiceStatus } from '../electron/control-types.gen';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -184,11 +187,10 @@ export function App() {
   const [sessions, setSessions] = useState<AppChatSession[]>([]);
   const [openKbTabUris, setOpenKbTabUris] = useState<string[]>([]);
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
+  const activeRootPath = activeKbTabUri === null ? null : localRootPathFromTabId(activeKbTabUri);
   const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
-  const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string }>>({});
-  const [composeTarget, setComposeTarget] = useState<{ kbUri: string; session: ChatSession; storageRoot: string | null } | null>(null);
-  const [composePreparing, setComposePreparing] = useState(false);
-  const localRootCache = useRef(new Map<string, string | null>());
+  const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string; presentation: ResourcePresentation }>>({});
+  const [composeTarget, setComposeTarget] = useState<{ kbUri: string; session: ChatSession } | null>(null);
   const [kbAliasesByRoot, setKbAliasesByRoot] = useState<Record<string, string>>({});
   const kbAliasesLoaded = useRef(false);
   const activeSessionId = activeKbTabUri === null ? null : activeSessionIdsByKb[activeKbTabUri] ?? null;
@@ -196,14 +198,17 @@ export function App() {
   // The document shown in the main pane. It coexists with the active chat: when both are
   // set and the pane is wide enough, the main pane splits (chat left, document right).
   const activeResource = activeKbTabUri === null ? null : activeResourcesByKb[activeKbTabUri] ?? null;
-  const [showTheme, setShowTheme] = useState(false);
+  const [showAppearance, setShowAppearance] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showInference, setShowInference] = useState(false);
+  const [remoteService, setRemoteService] = useState<RemoteService | null>(null);
   const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
-  const [showLauncherStatus, setShowLauncherStatus] = useState(false);
+  const [serviceGroup, setServiceGroup] = useState<DesktopServiceGroup | null>(null);
   const [showKnowledgeBasePicker, setShowKnowledgeBasePicker] = useState(false);
   const [showKnowledgeBaseDetails, setShowKnowledgeBaseDetails] = useState(false);
+  const [showKnowledgeBaseUsers, setShowKnowledgeBaseUsers] = useState(false);
   const [focusKnowledgeBaseSearch, setFocusKnowledgeBaseSearch] = useState(false);
   const [knowledgeBaseSelectedPath, setKnowledgeBaseSelectedPath] = useState<string | null>(null);
   const [logsRoot, setLogsRoot] = useState<KnowledgeBaseRow | null>(null);
@@ -213,7 +218,6 @@ export function App() {
   // One snapshot for the status, telemetry and runtime views: opening any of them asks again.
   const [snapshot, askSnapshot] = useLauncherAnswer('status.snapshot');
   const [launcherAbout, askLauncherAbout] = useLauncherAnswer('launcher.about');
-  const [showGit, setShowGit] = useState(false);
   const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
   const [showSecrets, setShowSecrets] = useState(false);
   const [secretsCheck, setSecretsCheck] = useState<SecretsCheck>({ status: 'checking' });
@@ -228,10 +232,29 @@ export function App() {
   });
   const [theme, setTheme] = useState<Theme>('system');
 
-  const refreshLauncherStatus = useCallback(() => {
-    setShowLauncherStatus(true);
-    askSnapshot({});
+  const openServiceGroup = useCallback((group: DesktopServiceGroup, selectedRootPath: string | null) => {
+    setServiceGroup(group);
+    askSnapshot((group === 'gateway-archivist' || group === 'dispatcher-messaging' || group === 'index') && selectedRootPath !== null
+      ? { target: { kind: 'local', root: selectedRootPath } }
+      : {});
+    if (group === 'gateway-archivist') {
+      setGitCheck({ status: 'checking' });
+      const bridge = window.launcherBridge;
+      if (bridge === undefined) {
+        setGitCheck({ status: 'unavailable' });
+      } else {
+        void bridge.gitPath().then(
+          (path) => setGitCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
+          () => setGitCheck({ status: 'unavailable' }),
+        );
+      }
+    }
   }, [askSnapshot]);
+  const refreshServiceStatus = useCallback((selectedRootPath: string | null) => {
+    askSnapshot((serviceGroup === 'gateway-archivist' || serviceGroup === 'dispatcher-messaging' || serviceGroup === 'index') && selectedRootPath !== null
+      ? { target: { kind: 'local', root: selectedRootPath } }
+      : {});
+  }, [askSnapshot, serviceGroup]);
 
   const updateKnowledgeBase = useCallback((path: string, update: (row: KnowledgeBaseRow) => KnowledgeBaseRow) => {
     setKnowledgeBasesState((current) => current.status === 'result'
@@ -270,6 +293,10 @@ export function App() {
     setShowKnowledgeBasePicker(true);
     setFocusKnowledgeBaseSearch(focusSearch);
     setKnowledgeBaseSelectedPath(selectedPath);
+    refreshKnowledgeBases();
+  }, [refreshKnowledgeBases]);
+
+  useEffect(() => {
     refreshKnowledgeBases();
   }, [refreshKnowledgeBases]);
 
@@ -313,20 +340,6 @@ export function App() {
     askSnapshot({});
     askLauncherAbout({});
   }, [askSnapshot, askLauncherAbout]);
-
-  const openGit = useCallback(() => {
-    setShowGit(true);
-    setGitCheck({ status: 'checking' });
-    const bridge = window.launcherBridge;
-    if (bridge === undefined) {
-      setGitCheck({ status: 'unavailable' });
-      return;
-    }
-    void bridge.gitPath().then(
-      (path) => setGitCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
-      () => setGitCheck({ status: 'unavailable' }),
-    );
-  }, []);
 
   const openSecrets = useCallback(() => {
     setShowSecrets(true);
@@ -387,8 +400,6 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [mcpStatus.state]);
 
-  useEffect(() => window.launcherBridge?.onStatusRequested(refreshLauncherStatus), [refreshLauncherStatus]);
-
   // App-global viewer prefs (TOOLBAR-PREFS-AS-PROPS): click action + selection motivation are
   // app settings (footer controls by the gear), passed as controlled props to every mounted
   // viewer. Mode is per-message (each MessageView's pencil); shape stays per-instance.
@@ -422,8 +433,12 @@ export function App() {
     }),
     [clickAction, motivation],
   );
-  // Bumped when the chat pane creates a resource, to nudge document lists to re-fetch.
+  // Bumped after resource creation or View > Reload to refresh open document lists.
   const [docsRefresh, setDocsRefresh] = useState(0);
+  useEffect(() => window.appMenuBridge?.onAboutRequested(openAbout), [openAbout]);
+  useEffect(() => window.appMenuBridge?.onDocumentsReloadRequested(() => {
+    setDocsRefresh((value) => value + 1);
+  }), []);
   const [sidebarWidth, setSidebarWidth] = useState<number>(SIDEBAR_DEFAULT);
   // Split-view document-pane width (px), persisted like the sidebar; clamped at render
   // against the measured pane so a stale saved value can't starve the chat column.
@@ -529,9 +544,9 @@ export function App() {
     void loadUserConfig().then(setConfig);
   }, []);
 
-  const saveConfig = (next: UserConfig) => {
+  const saveConfig = async (next: UserConfig) => {
     setConfig(next);
-    void saveUserConfig(next);
+    await saveUserConfig(next);
   };
 
   // Connect to one KB and hold its live session. Multiple KBs can be connected at once,
@@ -696,12 +711,12 @@ export function App() {
     });
   };
 
-  const loginKnowledgeBase = (root: KnowledgeBaseRow) => {
+  const loginKnowledgeBase = async (root: KnowledgeBaseRow) => {
     if (config === null || root.gatewayUrl === undefined) return;
     let kb = config.kbs.find((entry) => normalizeGatewayUri(entry.uri) === normalizeGatewayUri(root.gatewayUrl!));
     if (kb === undefined) {
       kb = { uri: root.gatewayUrl, ...(root.siteName ? { alias: root.siteName } : {}) };
-      saveConfig({ ...config, kbs: [...config.kbs, kb] });
+      await saveConfig({ ...config, kbs: [...config.kbs, kb] });
     }
     void connectKb(kb.uri, true, kb);
   };
@@ -871,47 +886,11 @@ export function App() {
   // Rendered natively via @semiont/react-ui's bring-your-own-session ResourceViewer, so this
   // works in both the web and Electron builds. `name` is what the nav row shows; a reference
   // followed from inside the viewer arrives with the id as its name.
-  const openResource = (kbUri: string, id: string, name: string) => setActiveResourcesByKb((current) => ({ ...current, [kbUri]: { kbUri, id, name } }));
-  const localRootForKb = async (kbUri: string): Promise<string | null> => {
-    if (localRootCache.current.has(kbUri)) return localRootCache.current.get(kbUri) ?? null;
-    const known = knowledgeBasesState.status === 'result'
-      ? knowledgeBasesState.result.roots.find((root) => root.gatewayUrl !== undefined && normalizeGatewayUri(root.gatewayUrl) === normalizeGatewayUri(kbUri))
-      : undefined;
-    if (known !== undefined) {
-      localRootCache.current.set(kbUri, known.path);
-      return known.path;
-    }
-
-    const bridge = window.launcherBridge;
-    if (bridge === undefined) return null;
-    const listed = await askLauncher(bridge, 'roots.list', {});
-    if (!listed.ok) {
-      localRootCache.current.set(kbUri, null);
-      return null;
-    }
-    const localRoots = listed.result.roots.filter((root) => root.placement === 'local' && root.path !== undefined);
-    const snapshots = await Promise.all(localRoots.map(async (root) => ({
-      root,
-      outcome: await askLauncher(bridge, 'status.snapshot', { target: { kind: 'local', root: root.path! } }),
-    })));
-    const rootPath = snapshots.find(({ outcome }) => {
-      const gatewayUrl = stackFacts(outcome).gatewayUrl;
-      return gatewayUrl !== undefined && normalizeGatewayUri(gatewayUrl) === normalizeGatewayUri(kbUri);
-    })?.root.path ?? null;
-    localRootCache.current.set(kbUri, rootPath);
-    return rootPath;
-  };
-
-  const openNewDocument = async (kbUri: string) => {
+  const openResource = (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => setActiveResourcesByKb((current) => ({ ...current, [kbUri]: { kbUri, id, name, presentation } }));
+  const openNewDocument = (kbUri: string) => {
     const session = connections[kbUri]?.opened?.session;
     if (session === undefined) return;
-    setComposePreparing(true);
-    try {
-      const storageRoot = await localRootForKb(kbUri).catch(() => null);
-      setComposeTarget({ kbUri, session, storageRoot });
-    } finally {
-      setComposePreparing(false);
-    }
+    setComposeTarget({ kbUri, session });
   };
   const closeActiveResource = () => {
     if (activeKbTabUri === null) return;
@@ -924,7 +903,12 @@ export function App() {
   // Selecting a chat session leaves any open document in place (split view).
   const selectSession = (id: string) => {
     const selected = sessions.find((session) => session.id === id);
-    if (selected !== undefined) setActiveSessionIdsByKb((current) => ({ ...current, [selected.kbUri]: id }));
+    if (selected === undefined) return;
+    setActiveSessionIdsByKb((current) => ({ ...current, [selected.kbUri]: id }));
+    setActiveResourcesByKb((current) => {
+      const resource = current[selected.kbUri];
+      return resource === undefined ? current : { ...current, [selected.kbUri]: { ...resource, presentation: 'chat-and-document' } };
+    });
   };
 
   if (config === null) return <p className="app__connecting">Loading…</p>;
@@ -953,7 +937,6 @@ export function App() {
     ? { ...knowledgeBasesState, result: { ...knowledgeBasesState.result, roots: knowledgeBaseRows } }
     : knowledgeBasesState;
 
-  const activeRootPath = activeKbTabUri === null ? null : localRootPathFromTabId(activeKbTabUri);
   const activeKbUri = activeKbTabUri === null || activeRootPath !== null ? null : activeKbTabUri;
   const activeKb = activeKbUri === null ? null : config.kbs.find((kb) => kb.uri === activeKbUri) ?? null;
   const activeConn = activeKbUri ? connections[activeKbUri] : undefined;
@@ -962,6 +945,16 @@ export function App() {
     : activeKbUri === null
       ? null
       : knowledgeBaseRows.find((root) => [root.configuredUri, root.gatewayUrl].some((uri) => uri !== undefined && normalizeGatewayUri(uri) === normalizeGatewayUri(activeKbUri))) ?? null;
+  const activeLocalRootPath = activeKnowledgeBaseRoot?.path ?? null;
+  const configuredServiceGroups = new Set<ControlServiceGroup>(
+    activeKnowledgeBaseRoot?.services
+      ?.filter((service) => service.state !== 'not-configured')
+      .map((service) => service.group) ?? [],
+  );
+  const activeKbConnected = activeRootPath !== null
+    ? activeKnowledgeBaseRoot?.activeSessionUri !== undefined
+    : activeConn?.opened !== undefined;
+  const showWorkspaceNav = activeKbTabUri === null || activeKbConnected;
 
   return (
     <>
@@ -985,11 +978,13 @@ export function App() {
           onClose={closeKbTab}
           onAdd={() => openKnowledgeBases(true)}
         />
-        <div className="app__body" style={{ gridTemplateColumns: `${sidebarWidth}px 1px 1fr` }}>
+        <div className="app__body" style={{ gridTemplateColumns: showWorkspaceNav ? `${sidebarWidth}px 1px 1fr` : '0px 1fr' }}>
           <KbNav
+            showWorkspaceContent={showWorkspaceNav}
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
             hasActiveKbTab={activeKbTabUri !== null}
+            hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
             connections={connections}
             sessions={sessions}
             // doc and chat coexist now — both rows light up when both are live
@@ -1000,30 +995,36 @@ export function App() {
             onNewChat={handleNewChat}
             onNewDocument={openNewDocument}
             onSelectSession={selectSession}
-            onOpenAbout={openAbout}
             onOpenInference={openInference}
+            onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
+            onOpenRemoteService={setRemoteService}
             onOpenSecrets={openSecrets}
             onOpenMcp={openMcp}
             mcpStatus={mcpStatus}
-            onOpenTheme={() => setShowTheme(true)}
-            onOpenLauncherStatus={refreshLauncherStatus}
+            onOpenAppearance={() => setShowAppearance(true)}
+            onOpenLanguage={() => setShowLanguage(true)}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
-            onOpenGit={openGit}
             onOpenKnowledgeBase={() => {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
             }}
+            onOpenKnowledgeBaseUsers={() => {
+              setShowKnowledgeBaseUsers(true);
+              refreshKnowledgeBases();
+            }}
           />
-          <div
-            className="app__resizer"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize sidebar"
-            tabIndex={0}
-            onPointerDown={startResize}
-            onKeyDown={nudgeResize}
-          />
+          {showWorkspaceNav && (
+            <div
+              className="app__resizer"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize sidebar"
+              tabIndex={0}
+              onPointerDown={startResize}
+              onKeyDown={nudgeResize}
+            />
+          )}
           <MainPane
             viewerPrefs={viewerPrefs}
             hasOpenKb={activeKbTabUri !== null}
@@ -1033,6 +1034,8 @@ export function App() {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
             }}
+            onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeLocalRootPath)}
+            queueRootPath={activeLocalRootPath}
             activeSession={activeSession}
             onNewDocument={() => activeSession && openNewDocument(activeSession.kbUri)}
             conn={activeConn}
@@ -1048,9 +1051,10 @@ export function App() {
           />
         </div>
       </div>
-      {showTheme && (
-        <ThemePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowTheme(false)} />
+      {showAppearance && (
+        <AppearancePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowAppearance(false)} />
       )}
+      {showLanguage && <LanguagePanel onClose={() => setShowLanguage(false)} />}
       {showAbout && (
         <AboutModal
           version={appVersion}
@@ -1066,11 +1070,19 @@ export function App() {
           onClose={() => setShowInference(false)}
         />
       )}
-      {showLauncherStatus && (
-        <LauncherStatusModal
+      {remoteService !== null && <RemoteServiceModal service={remoteService} onClose={() => setRemoteService(null)} />}
+      {serviceGroup !== null && (
+        <ServiceGroupModal
+          group={serviceGroup}
           state={snapshot}
-          onRefresh={refreshLauncherStatus}
-          onClose={() => setShowLauncherStatus(false)}
+          selectedRootPath={activeLocalRootPath}
+          knowledgeBaseRoot={activeKnowledgeBaseRoot}
+          gitCheck={gitCheck}
+          onStartKnowledgeBase={(root) => operateKnowledgeBase(root, 'starting')}
+          onStopKnowledgeBase={(root) => operateKnowledgeBase(root, 'stopping')}
+          onFollowLogs={setLogsRoot}
+          onRefresh={() => refreshServiceStatus(activeLocalRootPath)}
+          onClose={() => setServiceGroup(null)}
         />
       )}
       {showKnowledgeBasePicker && (
@@ -1093,16 +1105,20 @@ export function App() {
           root={activeKnowledgeBaseRoot}
           kb={activeKb}
           connected={activeKnowledgeBaseRoot?.activeSessionUri !== undefined || activeConn?.opened !== undefined}
-          onStart={(root) => operateKnowledgeBase(root, 'starting')}
-          onStop={(root) => operateKnowledgeBase(root, 'stopping')}
           onLogin={loginKnowledgeBase}
           onLogout={logoutKnowledgeBase}
           onForget={forgetKnowledgeBase}
-          onFollowLogs={setLogsRoot}
           onRenameAlias={renameKnowledgeBase}
           onClose={() => {
             if (logsRoot === null) setShowKnowledgeBaseDetails(false);
           }}
+        />
+      )}
+      {showKnowledgeBaseUsers && (
+        <KnowledgeBaseUsersModal
+          root={activeKnowledgeBaseRoot}
+          kb={activeKb}
+          onClose={() => setShowKnowledgeBaseUsers(false)}
         />
       )}
       {logsRoot !== null && <KnowledgeBaseLogsModal root={logsRoot} onClose={() => setLogsRoot(null)} />}
@@ -1110,20 +1126,11 @@ export function App() {
       {showRuntime && (
         <RuntimeModal status={snapshot} about={launcherAbout} onClose={() => setShowRuntime(false)} />
       )}
-      {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
       {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
-      {composePreparing && (
-        <div className="modal modal--compose">
-          <section className="compose-modal compose-modal--preparing" role="status" aria-live="polite">
-            <p>Preparing the document composer…</p>
-          </section>
-        </div>
-      )}
       {composeTarget !== null && (
         <ResourceComposeModal
           session={composeTarget.session}
-          storageRoot={composeTarget.storageRoot}
           onClose={() => setComposeTarget(null)}
           onCreated={(id, name) => {
             const target = composeTarget;
@@ -1131,7 +1138,7 @@ export function App() {
             setComposeTarget(null);
             setDocsRefresh((n) => n + 1);
             selectWorkspaceTab(target.kbUri);
-            openResource(target.kbUri, id, name);
+            openResource(target.kbUri, id, name, 'chat-and-document');
           }}
         />
       )}
@@ -1147,6 +1154,8 @@ function MainPane({
   activeRootPath,
   onOpenKnowledgeBases,
   onOpenKnowledgeBaseDetails,
+  onOpenDispatcherMessaging,
+  queueRootPath,
   onNewDocument,
   ...body
 }: {
@@ -1155,16 +1164,18 @@ function MainPane({
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
   onOpenKnowledgeBaseDetails: () => void;
+  onOpenDispatcherMessaging: () => void;
+  queueRootPath: string | null;
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
-  activeResource: { id: string; kbUri: string; name: string } | null;
+  activeResource: { id: string; kbUri: string; name: string; presentation: ResourcePresentation } | null;
   /** The connected session for the open document's KB (null if that KB isn't connected). */
   resourceSession: ChatSession | null;
   docWidth: number;
   onDocWidthChange: (updater: (prev: number) => number) => void;
   onCloseResource: () => void;
-  onOpenResource: (kbUri: string, id: string, name: string) => void;
+  onOpenResource: (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => void;
   setActiveEntries: (updater: (prev: LogEntry[]) => LogEntry[]) => void;
   onResourcesChanged: () => void;
   onConnect: () => void;
@@ -1172,15 +1183,14 @@ function MainPane({
   return (
     <div className="mainwrap">
       <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onNewDocument={onNewDocument} {...body} />
-      <AppFooter prefs={viewerPrefs} />
+      <AppFooter prefs={viewerPrefs} activeRootPath={queueRootPath} onOpenDispatcherMessaging={onOpenDispatcherMessaging} />
     </div>
   );
 }
 
-/** The main pane's body. An open document splits the pane beside an active chat when there's
- *  room (`mainLayout`); too narrow — or no chat — and the document takes the whole pane (the
- *  original swap). Chat-side states: empty when no chat is selected, a connect prompt when
- *  the selected chat's KB isn't connected, else the live chat. */
+/** The main pane's body. A document selected in navigation takes the full pane; one opened
+ *  from chat splits beside it when there's room (`mainLayout`). Chat-side states: empty when
+ *  no chat is selected, a connect prompt when its KB isn't connected, else the live chat. */
 function MainBody({
   viewerPrefs,
   hasOpenKb,
@@ -1208,12 +1218,12 @@ function MainBody({
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
-  activeResource: { id: string; kbUri: string; name: string } | null;
+  activeResource: { id: string; kbUri: string; name: string; presentation: ResourcePresentation } | null;
   resourceSession: ChatSession | null;
   docWidth: number;
   onDocWidthChange: (updater: (prev: number) => number) => void;
   onCloseResource: () => void;
-  onOpenResource: (kbUri: string, id: string, name: string) => void;
+  onOpenResource: (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => void;
   setActiveEntries: (updater: (prev: LogEntry[]) => LogEntry[]) => void;
   onResourcesChanged: () => void;
   onConnect: () => void;
@@ -1244,6 +1254,7 @@ function MainBody({
     docOpen: activeResource !== null,
     chatActive: activeSession !== null,
     containerWidth,
+    ...(activeResource === null ? {} : { resourcePresentation: activeResource.presentation }),
   });
 
   // Divider between chat and doc: dragging left widens the doc pane (it hangs off the
@@ -1288,7 +1299,7 @@ function MainBody({
         resourceId={activeResource.id}
         name={activeResource.name}
         onClose={onCloseResource}
-        onOpenResource={(id) => onOpenResource(activeResource.kbUri, id, id)}
+        onOpenResource={(id) => onOpenResource(activeResource.kbUri, id, id, activeResource.presentation)}
       />
     );
 
@@ -1341,7 +1352,7 @@ function MainBody({
         entries={activeSession.entries}
         setEntries={setActiveEntries}
         onResourcesChanged={onResourcesChanged}
-        onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name)}
+        onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name, 'chat-and-document')}
         onNewDocument={onNewDocument}
       />
     );

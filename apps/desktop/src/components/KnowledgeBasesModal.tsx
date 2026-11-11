@@ -193,24 +193,18 @@ export function KnowledgeBaseModal({
   root,
   kb,
   connected,
-  onStart,
-  onStop,
   onLogin,
   onLogout,
   onForget,
-  onFollowLogs,
   onRenameAlias,
   onClose,
 }: {
   root: KnowledgeBaseRow | null;
   kb: { uri: string; alias?: string } | null;
   connected: boolean;
-  onStart: (root: KnowledgeBaseRow) => void;
-  onStop: (root: KnowledgeBaseRow) => void;
   onLogin: (root: KnowledgeBaseRow) => void;
   onLogout: (root: KnowledgeBaseRow) => void;
   onForget: (root: KnowledgeBaseRow) => void;
-  onFollowLogs: (root: KnowledgeBaseRow) => void;
   onRenameAlias: (root: KnowledgeBaseRow, alias: string) => void;
   onClose: () => void;
 }) {
@@ -233,12 +227,9 @@ export function KnowledgeBaseModal({
         {root !== null ? (
           <KnowledgeBaseDetails
             root={root}
-            onStart={onStart}
-            onStop={onStop}
             onLogin={onLogin}
             onLogout={onLogout}
             onForget={onForget}
-            onFollowLogs={onFollowLogs}
             onRenameAlias={onRenameAlias}
           />
         ) : kb !== null ? (
@@ -251,7 +242,7 @@ export function KnowledgeBaseModal({
               <span className={`knowledge-bases__status knowledge-bases__status--${connected ? 'running' : 'stopped'}`}>{connected ? 'Connected' : 'Not connected'}</span>
             </header>
             <dl className="knowledge-bases__metadata"><div><dt>Gateway</dt><dd>{kb.uri}</dd></div></dl>
-            <p className="knowledge-bases__action-note">Launcher controls are available for knowledge bases registered as local roots.</p>
+            <p className="knowledge-bases__action-note">For local knowledge bases, stack controls and logs are under Gateway &amp; Archivist.</p>
           </div>
         ) : (
           <p className="knowledge-bases__empty">No knowledge base is selected.</p>
@@ -381,29 +372,19 @@ function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
   );
 }
 
-function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, onRenameAlias }: {
+function KnowledgeBaseDetails({ root, onLogin, onLogout, onForget, onRenameAlias }: {
   root: KnowledgeBaseRow;
-  onStart: (root: KnowledgeBaseRow) => void;
-  onStop: (root: KnowledgeBaseRow) => void;
   onLogin: (root: KnowledgeBaseRow) => void;
   onLogout: (root: KnowledgeBaseRow) => void;
   onForget: (root: KnowledgeBaseRow) => void;
-  onFollowLogs: (root: KnowledgeBaseRow) => void;
   onRenameAlias: (root: KnowledgeBaseRow, alias: string) => void;
 }) {
   const [confirmForget, setConfirmForget] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(root.desktopAlias ?? '');
-  const [now, setNow] = useState(Date.now());
   useEffect(() => {
     setConfirmForget(false);
     setAliasDraft(root.desktopAlias ?? '');
   }, [root.desktopAlias, root.path]);
-  useEffect(() => {
-    if (root.operationStartedAt === undefined) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [root.operationStartedAt]);
-
   const name = root.siteName || root.path.split(/[\\/]/u).filter(Boolean).at(-1) || root.path;
   const metadata = [
     ['Path', root.path],
@@ -446,90 +427,7 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
       </div>
 
       <div className="knowledge-bases__detail-grid">
-        <section className="knowledge-bases__detail-section knowledge-bases__service-section" aria-labelledby="knowledge-bases-services-heading">
-          <h3 id="knowledge-bases-services-heading">Services</h3>
-          {root.services === undefined ? (
-            <p className="knowledge-bases__action-note">{root.status === 'checking' ? 'Checking service status…' : 'Service status is unavailable.'}</p>
-          ) : root.services.length === 0 ? (
-            <p className="knowledge-bases__action-note">{root.status === 'unknown' ? 'Service status is unavailable.' : 'No service details reported.'}</p>
-          ) : <ServiceGroups services={root.services} />}
-        </section>
-
         <div className="knowledge-bases__operations">
-      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-launcher-heading">
-        <h3 id="knowledge-bases-launcher-heading">Launcher</h3>
-        <div className="knowledge-bases__controls">
-          {root.operation === 'starting' ? (
-            <button type="button" className="kb__connect" disabled>Starting…</button>
-          ) : root.operation === 'stopping' ? (
-            <button type="button" className="kb__connect kb__connect--on" disabled>Stopping…</button>
-          ) : root.status === 'running' ? (
-            <button type="button" className="kb__connect kb__connect--on" disabled={root.operation !== undefined} onClick={() => onStop(root)}>
-              Stop
-            </button>
-          ) : root.status === 'stopped' ? (
-            <button type="button" className="kb__connect" disabled={root.operation !== undefined} onClick={() => onStart(root)}>
-              Start
-            </button>
-          ) : (
-            <>
-              <button type="button" className="kb__connect" disabled={root.operation !== undefined} onClick={() => onStart(root)}>
-                Start / repair
-              </button>
-              <button type="button" className="kb__connect kb__connect--on" disabled={root.operation !== undefined} onClick={() => onStop(root)}>
-                Stop
-              </button>
-            </>
-          )}
-        </div>
-        {root.operationError !== undefined && root.operationErrorAction === 'launcher' && <p className="knowledge-bases__action-error">{root.operationError}</p>}
-        {root.operation !== undefined && (
-          <div className="knowledge-bases__progress" role="status" aria-live="polite">
-            <p>{root.operation === 'starting' ? 'Start progress' : root.operation === 'stopping' ? 'Stop progress' : 'Operation progress'} · {formatElapsed(root.operationStartedAt, now)}</p>
-            {root.operationProgress === undefined || root.operationProgress.length === 0 ? (
-              <span className="knowledge-bases__progress-waiting">Checking service status; waiting for launcher progress…</span>
-            ) : (
-              <ol>
-                {root.operationProgress.slice(-5).map((progress, index) => (
-                  <li key={`${progress.requestId}-${index}`} className={`knowledge-bases__progress--${progress.kind}`}>
-                    {progress.kind === 'command' ? <code>{progress.text}</code> : progress.text}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        )}
-        {root.operation === undefined && root.operationProgress !== undefined && root.operationError !== undefined && (
-          <div className="knowledge-bases__progress" aria-label="Progress before failure">
-            <p>Last progress before failure</p>
-            <ol>
-              {root.operationProgress.map((progress, index) => (
-                <li key={`${progress.requestId}-${index}`} className={`knowledge-bases__progress--${progress.kind}`}>
-                  {progress.kind === 'command' ? <code>{progress.text}</code> : progress.text}
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-      </section>
-
-      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-logs-heading">
-        <h3 id="knowledge-bases-logs-heading">Logs</h3>
-        <div className="knowledge-bases__controls">
-          <button
-            type="button"
-            className="kb__connect"
-            disabled={root.operation !== undefined || (root.status !== 'running' && root.status !== 'attention')}
-            onClick={() => onFollowLogs(root)}
-          >
-            Follow logs
-          </button>
-        </div>
-        {root.status !== 'running' && root.status !== 'attention' && (
-          <p className="knowledge-bases__action-note">Start this knowledge base to follow its service logs.</p>
-        )}
-      </section>
-
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-session-heading">
         <h3 id="knowledge-bases-session-heading">Desktop session</h3>
         <div className="knowledge-bases__session-control">
@@ -593,68 +491,6 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
 function formatDate(value: string | undefined): string {
   if (value === undefined || value === '') return '—';
   return value.slice(0, 10);
-}
-
-function formatElapsed(startedAt: number | undefined, now: number): string {
-  if (startedAt === undefined) return 'in progress';
-  const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
-  const minutes = Math.floor(seconds / 60);
-  return minutes === 0 ? `${seconds}s elapsed` : `${minutes}m ${seconds % 60}s elapsed`;
-}
-
-const SERVICE_GROUPS = [
-  ['record', 'Record'],
-  ['index', 'Index'],
-  ['issuer', 'Issuer'],
-  ['knowledge-workers', 'Knowledge workers'],
-  ['providers', 'Providers'],
-  ['telemetry', 'Telemetry'],
-] as const;
-
-function ServiceGroups({ services }: { services: ControlServiceStatus[] }) {
-  if (services.length === 0) return <p className="knowledge-bases__action-note">No service details reported.</p>;
-  return (
-    <div className="knowledge-bases__service-groups">
-      {SERVICE_GROUPS.map(([group, label]) => {
-        const members = services.filter((service) => service.group === group);
-        if (members.length === 0) return null;
-        return (
-          <section className="knowledge-bases__service-group" key={group} aria-label={`${label} services`}>
-            <h4>{label}</h4>
-            <ul>
-              {members.map((service) => (
-                <li key={`${service.role}/${service.product ?? ''}`}>
-                  <span className="knowledge-bases__service-name">
-                    <strong>{service.role}</strong>
-                    {service.product !== undefined && <small>{service.product}</small>}
-                  </span>
-                  <span className={`knowledge-bases__service-state knowledge-bases__service-state--${serviceStateTone(service)}`}>
-                    {serviceStateLabel(service)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function serviceStateLabel(service: ControlServiceStatus): string {
-  switch (service.state) {
-    case 'running': return service.healthy ? 'Running · healthy' : 'Running · unhealthy';
-    case 'reachable': return service.healthy ? 'Reachable' : 'Reachable · unhealthy';
-    case 'stopped': return 'Stopped';
-    case 'unreachable': return 'Unreachable';
-    case 'absent': return 'Absent';
-    case 'not-configured': return 'Not configured';
-  }
-}
-
-function serviceStateTone(service: ControlServiceStatus): 'healthy' | 'unhealthy' | 'neutral' {
-  if (service.state === 'not-configured' || service.state === 'absent' || service.state === 'stopped') return 'neutral';
-  return service.healthy ? 'healthy' : 'unhealthy';
 }
 
 function statusLabel(status: KnowledgeBaseRuntimeStatus): string {

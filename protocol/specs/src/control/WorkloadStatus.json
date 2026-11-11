@@ -1,0 +1,54 @@
+{
+  "title": "WorkloadStatus",
+  "type": "object",
+  "description": "A knowledge base's operational readings from Collector metrics. Request-tracking occupancy and queue depth are current gauges; completed and failed are worker counters since that worker process started. Missing readings are unknown, never zero.",
+  "properties": {
+    "ledger": {
+      "type": "object",
+      "description": "The Gateway's request tracking: correlation IDs it currently holds so replies can be routed to the app client that sent each request, and the tracking capacity.",
+      "properties": {
+        "claims": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of request IDs currently held to route replies to their requesting app clients. Includes requests still waiting for a reply and recently answered requests still within the tracking window."
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The maximum number of IDs held in this Gateway's local tracking projection."
+        }
+      },
+      "required": ["claims", "capacity"],
+      "additionalProperties": false
+    },
+    "queue": {
+      "type": "object",
+      "description": "Current Dispatcher depth and, when the worker has emitted counters, completed and failed work since worker start. These are different measurements and time windows.",
+      "properties": {
+        "pending": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Jobs currently waiting for a worker."
+        },
+        "running": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Jobs currently claimed by workers."
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Jobs completed since worker start."
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Jobs finally failed since worker start."
+        }
+      },
+      "required": ["pending", "running"],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

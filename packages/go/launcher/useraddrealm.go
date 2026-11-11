@@ -42,6 +42,16 @@ type realmAdmin struct {
 	subjectClaim string
 }
 
+// useraddResult: the account the launcher created or changed. A generated
+// password is returned only to the caller of this operation, never narrated
+// through UI progress.
+type useraddResult struct {
+	email             string
+	identity          string
+	created           bool
+	generatedPassword string
+}
+
 // resolveRealmAdmin: the launcher-run Keycloak of the local stack started at
 // root under did, or a refusal that says which precondition failed. The sticky
 // config, exactly as `identity sync` resolves it — administering a realm the
@@ -83,13 +93,11 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 	// An issuer Semiont does not administer. The account is created THERE and
 	// then signs in here; nothing about this command can reach it.
 	if rp.Driver != "keycloak" {
-		u.Fail("Identity type %q is an issuer Semiont does not administer.", rp.Driver)
-		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
+		u.Fail("Identity type %q is an issuer Semiont does not administer. Create the account at %s, then it can sign in here.", rp.Driver, rp.Issuer)
 		return realmAdmin{}, false
 	}
 	if !mayConfigure(rp) {
-		u.Fail("The identity role is not launcher-run, so its accounts are not ours to administer.")
-		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
+		u.Fail("The identity role is not launcher-run, so its accounts are not ours to administer. Create the account at %s, then it can sign in here.", rp.Issuer)
 		return realmAdmin{}, false
 	}
 	base, adminPass, _, ok := sharedKeycloakAdmin(u, LoadStackSet())
@@ -110,10 +118,10 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 // useraddLocal: the account decisions, in the order the flags imply. The
 // issuer holds whether a person may sign in, so `--active`/`--inactive` are
 // written there and nowhere else; absent both, an update leaves that alone.
-func useraddLocal(u *UI, o useraddOpts, password, root, did string) (code int, created bool) {
+func useraddLocal(u *UI, o useraddOpts, password, root, did string) (useraddResult, int) {
 	a, ok := resolveRealmAdmin(u, root, did)
 	if !ok {
-		return 1, false
+		return useraddResult{}, 1
 	}
 	return applyUseradd(u, a, o, password)
 }
@@ -121,23 +129,22 @@ func useraddLocal(u *UI, o useraddOpts, password, root, did string) (code int, c
 // applyUseradd: the decision tree, against an already-resolved realm. Split
 // from the resolution so the branching — which the flags drive and an operator
 // gets wrong — is testable without a config, a plan or a token exchange.
-func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) (code int, created bool) {
+func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) (useraddResult, int) {
 	account, err := findUserByEmail(a.base, a.realm, a.token, o.email)
 	if err != nil {
 		u.Fail("%v", err)
-		return 1, false
+		return useraddResult{}, 1
 	}
 	if account != nil && o.upsert {
-		fmt.Printf("User already exists: %s\n", o.email)
-		return 0, false
+		return useraddResult{email: o.email}, 0
 	}
 	if account != nil && !o.update {
 		u.Fail("User %s already exists. Use --update to modify or --upsert to skip silently.", o.email)
-		return 1, false
+		return useraddResult{}, 1
 	}
 	if account == nil && o.update {
 		u.Fail("User %s not found. Remove --update to create a new user.", o.email)
-		return 1, false
+		return useraddResult{}, 1
 	}
 	// --generate-password: made HERE, by the launcher that writes it to the
 	// realm — after every refusal, so a rejected call invents nothing. On the
@@ -147,7 +154,7 @@ func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) (code int
 	if o.generate {
 		if password, err = generatePassword(); err != nil {
 			u.Fail("Cannot generate a password: %v", err)
-			return 1, false
+			return useraddResult{}, 1
 		}
 	}
 
@@ -156,44 +163,33 @@ func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) (code int
 		if password != "" {
 			if err := setUserPassword(a.base, a.realm, a.token, account.id, password); err != nil {
 				u.Fail("%v", err)
-				return 1, false
+				return useraddResult{}, 1
 			}
 		}
 		if o.inactive || o.active {
 			if err := setUserEnabled(a.base, a.realm, a.token, account.id, o.active); err != nil {
 				u.Fail("%v", err)
-				return 1, false
+				return useraddResult{}, 1
 			}
 		}
 		subject = account.id
 	} else {
 		if password == "" {
 			u.Fail("Password required: use --password-stdin or --generate-password")
-			return 1, false
+			return useraddResult{}, 1
 		}
 		subject, err = createUser(a.base, a.realm, a.token, o.email, password, !o.inactive)
 		if err != nil {
 			u.Fail("%v", err)
-			return 1, false
+			return useraddResult{}, 1
 		}
 	}
 
-	verb := "User created"
-	if account != nil {
-		verb = "User updated"
-	}
-	fmt.Printf("%s: %s\n", verb, o.email)
+	result := useraddResult{email: o.email, identity: accountIdentity(a, o.email, subject), created: account == nil}
 	if o.generate {
-		fmt.Printf("  Password: %s  %s\n", password, u.Dim("(generated — shown this once, stored nowhere)"))
+		result.generatedPassword = password
 	}
-	fmt.Printf("  Identity: %s\n", accountIdentity(a, o.email, subject))
-	if o.inactive {
-		fmt.Println("  Disabled at the identity provider")
-	}
-	if o.active {
-		fmt.Println("  Enabled at the identity provider")
-	}
-	return 0, account == nil
+	return result, 0
 }
 
 // generatePassword: 16 characters from crypto/rand over [A-Za-z0-9] — about 95

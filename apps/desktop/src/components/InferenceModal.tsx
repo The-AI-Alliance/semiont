@@ -30,8 +30,8 @@ export function InferenceModal({
         onClick={(event) => event.stopPropagation()}
       >
         <header className="config__head">
-          <h1 id="inference-title">Inference</h1>
-          <button type="button" className="config__close" onClick={onClose} aria-label="Close Inference information">
+          <h1 id="inference-title">Inference &amp; Embedding</h1>
+          <button type="button" className="config__close" onClick={onClose} aria-label="Close inference and embedding information">
             ×
           </button>
         </header>

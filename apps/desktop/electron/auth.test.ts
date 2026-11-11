@@ -7,18 +7,24 @@ import { setStoredSession } from '@semiont/sdk';
 import { FileSessionStorage } from './session-file';
 
 // The handlers `registerAuthHandlers` gives `ipcMain`, called here as the preload would.
-const handlers = vi.hoisted(() => new Map<string, (event: null, ...args: unknown[]) => unknown>());
+const handlers = vi.hoisted(() => new Map<string, (event: unknown, ...args: unknown[]) => unknown>());
 vi.mock('electron', () => ({
-  ipcMain: { handle: (channel: string, fn: (event: null, ...args: unknown[]) => unknown) => handlers.set(channel, fn) },
+  ipcMain: { handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(channel, fn) },
   shell: { openExternal: async () => {} },
 }));
 
 const { registerAuthHandlers, sessionPath } = await import('./auth');
 
+const trustedFrame = { url: 'semiont-app://desktop/index.html' };
+const trustedEvent = {
+  sender: { isDestroyed: () => false, mainFrame: trustedFrame },
+  senderFrame: trustedFrame,
+};
+
 function invoke(channel: string, ...args: unknown[]): Promise<unknown> {
   const handler = handlers.get(channel);
   if (handler === undefined) throw new Error(`no handler for ${channel}`);
-  return Promise.resolve(handler(null, ...args));
+  return Promise.resolve(handler(trustedEvent, ...args));
 }
 
 /** The issuer, as the refresh grant and a revocation meet it: one path renews (rotating

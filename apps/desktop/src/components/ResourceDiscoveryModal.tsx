@@ -2,9 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ResourceCard, useObservable } from '@semiont/react-ui';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { ChatSession } from '../lib/session';
+import { isDirectKbDirectory, normalizeKbDirectory } from '../lib/kb-location';
 
 const RESULT_LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 250;
+
+type DirectoryEntry = Awaited<ReturnType<ChatSession['client']['browse']['files']>>['entries'][number];
+type Directory = Extract<DirectoryEntry, { type: 'dir' }>;
+type FileEntry = Extract<DirectoryEntry, { type: 'file' }>;
+type TrackedFileEntry = FileEntry & { tracked: true; resourceId: string };
+
+type DirectoryState =
+  | { status: 'loading' }
+  | { status: 'ready'; entries: DirectoryEntry[] }
+  | { status: 'failed'; message: string };
 
 export function ResourceDiscoveryModal({
   session,
@@ -21,6 +32,10 @@ export function ResourceDiscoveryModal({
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedEntityType, setSelectedEntityType] = useState('');
+  const [view, setView] = useState<'search' | 'folders'>('search');
+  const [directory, setDirectory] = useState('');
+  const [directoryState, setDirectoryState] = useState<DirectoryState>({ status: 'loading' });
+  const [directoryRetry, setDirectoryRetry] = useState(0);
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -37,23 +52,38 @@ export function ResourceDiscoveryModal({
   }, [query]);
 
   const entityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
-  const recentSource = useMemo(() => session.client.browse.resources({
+  const recentSource = useMemo(() => view === 'search' ? session.client.browse.resources({
     limit: RESULT_LIMIT,
     archived: false,
     ...(selectedEntityType ? { entityType: selectedEntityType } : {}),
-  }), [session, selectedEntityType]);
+  }) : null, [session, selectedEntityType, view]);
   const recentState = useObservable(recentSource);
-  const searchSource = useMemo(() => debouncedQuery
+  const searchSource = useMemo(() => view === 'search' && debouncedQuery
     ? session.client.match.resources(debouncedQuery, {
       limit: RESULT_LIMIT,
       archived: false,
       ...(selectedEntityType ? { entityType: selectedEntityType } : {}),
     })
-    : null, [session, debouncedQuery, selectedEntityType]);
+    : null, [session, debouncedQuery, selectedEntityType, view]);
   const searchState = useObservable(searchSource);
 
+  useEffect(() => {
+    if (view !== 'folders') return undefined;
+    let current = true;
+    setDirectoryState({ status: 'loading' });
+    void session.client.browse.files(directory === '' ? undefined : directory, 'name').then((result) => {
+      if (current) setDirectoryState({ status: 'ready', entries: result.entries });
+    }).catch((error: unknown) => {
+      if (current) setDirectoryState({
+        status: 'failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
+    return () => { current = false; };
+  }, [session, view, directory, directoryRetry]);
+
   const entityTypes = entityTypesState?.status === 'ready' ? entityTypesState.value : [];
-  const displayingSearch = query.trim().length > 0;
+  const displayingSearch = view === 'search' && query.trim().length > 0;
   const isSearching = displayingSearch && (
     query.trim() !== debouncedQuery || searchState === undefined || searchState.status === 'pending'
   );
@@ -66,13 +96,29 @@ export function ResourceDiscoveryModal({
   const matchKind = searchState?.status === 'ready' ? searchState.value.matchKind : undefined;
 
   const retryRecent = () => {
-    void recentSource.fresh().catch(() => undefined);
+    if (recentSource !== null) void recentSource.fresh().catch(() => undefined);
   };
 
   const openResource = (resource: ResourceDescriptor) => {
     const id = String(resource['@id']);
     onOpenResource(id, resource.name ?? id);
   };
+
+  const directories: Directory[] = directoryState.status === 'ready'
+    ? directoryState.entries.filter((entry): entry is Directory => entry.type === 'dir' && isDirectKbDirectory(directory, entry.path))
+    : [];
+  const files: TrackedFileEntry[] = directoryState.status === 'ready'
+    ? directoryState.entries.filter((entry): entry is TrackedFileEntry => entry.type === 'file' && entry.tracked && entry.resourceId !== undefined)
+      .filter((entry) => selectedEntityType === '' || entry.entityTypes?.includes(selectedEntityType) === true)
+      .filter((entry) => query.trim() === '' || entry.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+    : [];
+  const breadcrumbs = [
+    { name: 'KB root', path: '' },
+    ...directory.split('/').filter(Boolean).map((segment, index, parts) => ({
+      name: segment,
+      path: parts.slice(0, index + 1).join('/'),
+    })),
+  ];
 
   return (
     <div className="modal modal--discover" onClick={() => closeRef.current()}>
@@ -95,20 +141,41 @@ export function ResourceDiscoveryModal({
 
         <div className="discover-modal__content">
           <div className="semiont-card">
-            <div className="semiont-card__search-form">
-              <div className="semiont-card__search-wrapper">
-                <input
-                  ref={searchRef}
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search resources by name or content…"
-                  className="semiont-card__search-input"
-                  aria-label="Search resources by name or content"
-                />
-                {displayingSearch && isSearching && (
-                  <span className="semiont-card__search-status" role="status">Searching…</span>
-                )}
+            <div className="discover-modal__toolbar">
+              <div className="discover-modal__view-switch" role="group" aria-label="Resource discovery view">
+                <button
+                  type="button"
+                  aria-pressed={view === 'search'}
+                  data-active={view === 'search'}
+                  onClick={() => setView('search')}
+                >
+                  Search
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === 'folders'}
+                  data-active={view === 'folders'}
+                  onClick={() => setView('folders')}
+                >
+                  Browse folders
+                </button>
+              </div>
+
+              <div className="semiont-card__search-form">
+                <div className="semiont-card__search-wrapper">
+                  <input
+                    ref={searchRef}
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={view === 'search' ? 'Search resources by name or content…' : 'Filter this folder by filename…'}
+                    className="semiont-card__search-input"
+                    aria-label={view === 'search' ? 'Search resources by name or content' : 'Filter this folder by filename'}
+                  />
+                  {displayingSearch && isSearching && (
+                    <span className="semiont-card__search-status" role="status">Searching…</span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -141,6 +208,70 @@ export function ResourceDiscoveryModal({
               </div>
             )}
 
+            {view === 'folders' ? (
+              <section className="discover-folders" aria-label="Browse resources by folder">
+                <nav className="discover-folders__breadcrumbs" aria-label="Knowledge Base folder path">
+                  {breadcrumbs.map((crumb, index) => (
+                    <span className="discover-folders__crumb-wrap" key={crumb.path || 'root'}>
+                      {index > 0 && <span aria-hidden="true">/</span>}
+                      <button
+                        type="button"
+                        className="discover-folders__crumb"
+                        aria-current={index === breadcrumbs.length - 1 ? 'location' : undefined}
+                        onClick={() => setDirectory(normalizeKbDirectory(crumb.path) ?? '')}
+                      >
+                        {crumb.name}
+                      </button>
+                    </span>
+                  ))}
+                </nav>
+                <div className="discover-folders__list" aria-live="polite">
+                  {directoryState.status === 'loading' && <p className="discover-modal__message" role="status">Loading folder…</p>}
+                  {directoryState.status === 'failed' && (
+                    <div className="discover-folders__error" role="alert">
+                      <p>Could not list this folder: {directoryState.message}</p>
+                      <button type="button" className="semiont-button" data-variant="secondary" onClick={() => setDirectoryRetry((value) => value + 1)}>Retry</button>
+                    </div>
+                  )}
+                  {directoryState.status === 'ready' && directories.length === 0 && files.length === 0 && (
+                    <p className="discover-modal__message">
+                      {directoryState.entries.length === 0
+                        ? 'This folder is empty.'
+                        : 'No resources match the current filters in this folder.'}
+                    </p>
+                  )}
+                  {directories.map((entry) => (
+                    <button
+                      type="button"
+                      className="discover-folders__entry"
+                      key={entry.path}
+                      onClick={() => setDirectory(normalizeKbDirectory(entry.path) ?? '')}
+                    >
+                      <span aria-hidden="true">▸</span><span>{entry.name}</span><span aria-hidden="true">›</span>
+                    </button>
+                  ))}
+                  {files.map((entry) => (
+                    <button
+                      type="button"
+                      className="discover-folders__entry discover-folders__resource"
+                      key={entry.path}
+                      aria-label={`Open resource ${entry.name}`}
+                      onClick={() => onOpenResource(entry.resourceId, entry.name)}
+                    >
+                      <span aria-hidden="true">▤</span>
+                      <span className="discover-folders__resource-copy">
+                        <strong>{entry.name}</strong>
+                        <small>Modified {new Date(entry.mtime).toLocaleDateString()}</small>
+                      </span>
+                      <span className="discover-folders__tags">
+                        {entry.entityTypes?.slice(0, 2).map((entityType) => <small key={entityType}>{entityType}</small>)}
+                        {entry.annotationCount !== undefined && <small>{entry.annotationCount} annotations</small>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : (
             <div className="semiont-card__documents">
               <h2 className="semiont-card__documents-label">
                 {displayingSearch ? `Search Results${documents.length ? ` (${documents.length})` : ''}` : 'Recent Resources'}
@@ -178,6 +309,7 @@ export function ResourceDiscoveryModal({
                 </p>
               )}
             </div>
+            )}
           </div>
         </div>
       </section>
