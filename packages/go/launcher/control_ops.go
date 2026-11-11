@@ -50,7 +50,11 @@ func (req *controlRequest) operate() (result any, failure *controlFailure) {
 				message: fmt.Sprintf("the launcher failed: %v", p)}
 		}
 	}()
-	return controlHandlers[req.method.name](req, req.ui())
+	handler := controlHandlers[req.method.name]
+	if req.server.handlerFor != nil {
+		handler = req.server.handlerFor(req.method.name)
+	}
+	return handler(req, req.ui())
 }
 
 // decode reads req's params, which checkParams held to their schema, into p.

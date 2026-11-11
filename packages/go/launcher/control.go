@@ -115,6 +115,12 @@ type controlServer struct {
 	inFlight map[string]*controlRequest
 	current  *controlRequest // the exclusive request whose turn it is, which owns what is printed
 	handlers sync.WaitGroup
+	// handlerFor lets tests exercise request validation and response framing
+	// without running commands that can mutate a machine or need a live stack.
+	handlerFor func(string) controlHandler
+	// drainOutput is the production output-marker barrier. Tests that exercise
+	// request handlers without the captured stdout/stderr pipes can replace it.
+	drainOutput func()
 
 	// drained: what the output readers signal when they read a turn's end
 	// marker, by marker.
@@ -193,6 +199,10 @@ const controlTurnMark = "\x00semiont-control-turn "
 // drain waits until everything printed before it has been carried: a mark
 // written to each captured stream comes out after all of it.
 func (s *controlServer) drain() {
+	if s.drainOutput != nil {
+		s.drainOutput()
+		return
+	}
 	var waits []chan struct{}
 	for _, w := range []*os.File{os.Stdout, os.Stderr} {
 		s.drainMu.Lock()
