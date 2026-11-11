@@ -50,7 +50,8 @@ public func sessionFromKept(
     baseUrl: base, httpClient: httpClient,
     token: found.flatMap {
       isTokenExpired($0.access, now: Date().timeIntervalSince1970) ? nil : $0.access
-    }, clock: clock, random: draws, refresher: { try await gate.refresh($0) })
+    }, channels: bridgedChannels, clock: clock, random: draws,
+    refresher: { try await gate.refresh($0) })
   let failures = transport.failures()
   let writer = WritesWhileNamed(
     kept: kept, report: { code, what in await gate.failed(SessionError(code, what, kbId: kb.id)) })

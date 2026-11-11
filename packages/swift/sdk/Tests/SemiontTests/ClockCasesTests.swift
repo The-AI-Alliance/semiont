@@ -289,8 +289,8 @@ private struct Gateway: Sendable {
     }
     let loopback = try await Loopback.open(ledger)
     let transport = HttpTransport(
-      baseUrl: loopback.base, httpClient: loopback.http, token: "a-token", clock: clock,
-      random: LowestDraw())
+      baseUrl: loopback.base, httpClient: loopback.http, token: "a-token",
+      channels: bridgedChannels, clock: clock, random: LowestDraw())
     return Gateway(stream: stream, ledger: ledger, loopback: loopback, transport: transport)
   }
 

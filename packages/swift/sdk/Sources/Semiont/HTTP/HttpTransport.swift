@@ -49,7 +49,7 @@ public actor HttpTransport: Transport, GatewayOperations {
   var emitTail: Task<Void, Never>?
 
   public init(
-    baseUrl: String, httpClient: HTTPClient, token: String?, channels: [String]? = nil,
+    baseUrl: String, httpClient: HTTPClient, token: String?, channels: [String],
     timing: TransportTiming = TransportTiming(), clock: any Clock<Duration> = ContinuousClock(),
     random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator(),
     refresher: (@Sendable (String?) async throws -> String?)? = nil
@@ -57,7 +57,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     self.baseUrl = baseUrl.hasSuffix("/") ? String(baseUrl.dropLast()) : baseUrl
     self.http = httpClient
     self.token = token
-    self.channels = channels ?? bridgedChannels
+    self.channels = channels
     self.timing = timing
     self.clock = clock
     self.random = RandomSource(random)

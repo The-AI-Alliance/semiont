@@ -498,7 +498,7 @@ package struct TableGenerator {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")
     }
     out +=
-      "]\ninternal let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
+      "]\n/// The global channels a full client's transport is given: every channel delivered to everyone, and every operation's reply channels.\npublic let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
     out +=
       "internal let storedEventChannels = [\(storedEventChannels.map(literal).joined(separator: ", "))]\n"
     out += shapeTable(

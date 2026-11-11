@@ -114,7 +114,8 @@ public final class SemiontClient: Sendable {
   {
     try Task.checkCancellation()
     let transport = HttpTransport(
-      baseUrl: baseUrl, httpClient: httpClient, token: token, clock: clock, random: random)
+      baseUrl: baseUrl, httpClient: httpClient, token: token, channels: bridgedChannels,
+      clock: clock, random: random)
     do {
       return try await SemiontClient(
         transport: transport, gateway: transport, persistence: persistence, clock: clock)
