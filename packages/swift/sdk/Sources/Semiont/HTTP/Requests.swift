@@ -21,7 +21,7 @@ func projectWire<Value: Codable>(
 /// held to its channel's shape before it is read, as a result is: one with a fault is refused,
 /// naming the fault. One the shape passes is read as the shape reads it, a code it does not
 /// recognize left out, and is a `BusRequestError` in its own words, under the code its own code
-/// becomes.
+/// becomes, or, when it states none, the code of a failure that states none.
 func projectFailure(_ payload: [String: JSONValue], on channel: String, stamps: Set<String>)
   -> any Error
 {
@@ -34,13 +34,21 @@ func projectFailure(_ payload: [String: JSONValue], on channel: String, stamps: 
   guard case .string(let message) = failure["message"] else {
     return TransportError(.error, notTheChannels(channel, .undecoded))
   }
-  let code: BusRequestErrorCode
-  if case .string(let wireCode) = failure["code"] {
-    code = busRequestCodeByWireCode[wireCode] ?? unrecognizedBusFailure
-  } else {
-    code = unrecognizedBusFailure
-  }
+  let code: BusRequestErrorCode =
+    switch failureCode(failure["code"]) {
+    case nil: unrecognizedBusFailure
+    case let wire?: busRequestCode(for: wire)
+    }
   return BusRequestError(code, message)
+}
+/// The code a failure the table passed states, as the closed type: none when it states none, or
+/// null, which is no code.
+private func failureCode(_ held: JSONValue?) -> CommandErrorCode? {
+  guard let held, held != .null else { return nil }
+  guard case .string(let text) = held, let code = CommandErrorCode(rawValue: text) else {
+    preconditionFailure("the table passed the code \(held), which CommandErrorCode does not name")
+  }
+  return code
 }
 extension HttpTransport {
   public func request(operation: String, payload: [String: JSONValue]) async throws
