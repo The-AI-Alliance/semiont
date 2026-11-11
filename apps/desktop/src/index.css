@@ -3209,6 +3209,54 @@ body.resizing {
   align-items: center;
   gap: 0.85rem;
 }
+.appfooter__queue {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.appfooter__queue:hover {
+  color: var(--text);
+}
+.appfooter__queue:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.appfooter__queue > span:not(.appfooter__queue-label) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+.appfooter__queue-label {
+  color: var(--text);
+  font-weight: 600;
+}
+.appfooter__queue-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.appfooter__queue-dot--pending {
+  background: #d99b19;
+}
+.appfooter__queue-dot--running {
+  background: var(--accent);
+}
+.appfooter__queue-failures {
+  color: var(--danger);
+}
+.appfooter__queue-muted {
+  color: var(--muted);
+}
 
 .chat__input {
   flex: 1;
