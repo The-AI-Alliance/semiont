@@ -51,7 +51,7 @@ public final class SearchPipeline<Result: Sendable>: StateUnit {
     work.waiting?.cancel()
     work.debounceGeneration += 1
     let generation = work.debounceGeneration
-    work.waiting = Task { [weak self, clock, debounce] in
+    work.waiting = spawn { [weak self, clock, debounce] in
       do {
         try await clock.sleep(for: debounce)
         self?.settled(generation)
@@ -73,7 +73,7 @@ public final class SearchPipeline<Result: Sendable>: StateUnit {
       let wanted = current.trimmingCharacters(in: .whitespacesAndNewlines)
       state.set(SearchState(results: [], isSearching: !wanted.isEmpty))
       guard !wanted.isEmpty else { return }
-      work.following = Task { [weak self, search] in
+      work.following = spawn { [weak self, search] in
         guard !Task.isCancelled else { return }
         for await results in search(wanted) {
           guard !Task.isCancelled else { return }

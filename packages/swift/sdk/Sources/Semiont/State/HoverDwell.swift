@@ -33,7 +33,7 @@ public final class HoverDwell: StateUnit {
       state.generation += 1
       guard state.hovered != annotationId else { return }
       let generation = state.generation
-      state.pending = Task { [weak self, clock, delay] in
+      state.pending = spawn { [weak self, clock, delay] in
         do {
           try await clock.sleep(for: delay)
           self?.rested(annotationId, generation: generation)

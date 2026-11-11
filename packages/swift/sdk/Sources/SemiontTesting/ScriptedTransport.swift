@@ -116,7 +116,7 @@ public final class ScriptedTransport: Transport {
     guard !channels.isEmpty else { return source }
     let selected = Set(channels)
     let (stream, continuation) = AsyncThrowingStream<Carried, any Error>.makeStream()
-    let task = Task {
+    let task = spawn {
       do {
         for try await carried in source where selected.contains(carried.channel) {
           continuation.yield(carried)
@@ -158,7 +158,7 @@ public final class ScriptedTransport: Transport {
       wire.attempts.append(RequestAttempt(operation: operation, payload: payload, action: action))
       let reply = wire.queued[operation]?.first
       if reply != nil { wire.queued[operation]?.removeFirst() }
-      let task = Task { [clock, respond, events, subscription] in
+      let task = spawn { [clock, respond, events, subscription] in
         switch action {
         case .rejectEmit:
           throw BusRequestError(.busPeerUnavailable, "The scripted wire rejected \(operation)")

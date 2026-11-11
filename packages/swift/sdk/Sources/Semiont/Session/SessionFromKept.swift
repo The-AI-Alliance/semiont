@@ -91,7 +91,7 @@ public func sessionFromKept(
     onAuthFailed: onAuthFailed)
   let id = UUID()
   let life = session.lifetime
-  let forwarding = Task { [weak session] in
+  let forwarding = spawn { [weak session] in
     defer { life.forget(id) }
     do { for try await error in failures { session?.relay(error) } } catch {
       if !Task.isCancelled { session?.relay(error) }
@@ -120,7 +120,7 @@ public final class OpenedSession: Sendable {
     closing.withLock { closing in
       guard closing == nil else { return }
       session.client.dispose()
-      closing = Task {
+      closing = spawn {
         await session.client.closed()
         session.dispose()
       }

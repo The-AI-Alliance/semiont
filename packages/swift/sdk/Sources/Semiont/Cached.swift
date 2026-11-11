@@ -34,7 +34,7 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
     held = entry
     reading = Reading(entry) { $0 }
     lifetime.onEnd { [weak entry] in
-      Task { await entry?.close() }
+      spawn { await entry?.close() }
     }
   }
 
@@ -209,7 +209,7 @@ private actor CacheEntry<Value: Sendable> {
       stream,
       ResourceHold { [weak self] in
         scope?.dispose()
-        Task { await self?.remove(id) }
+        spawn { await self?.remove(id) }
       }
     )
   }
@@ -230,25 +230,28 @@ private actor CacheEntry<Value: Sendable> {
     kept?.underway.begin()
     let id = UUID()
     let revision = mutation
-    let task = Task {
-      defer {
-        kept?.underway.end()
-        flights.removeValue(forKey: id)
-        flightEdits.removeValue(forKey: id)
-        if current == id { current = nil }
-      }
-      try Task.checkCancellation()
-      let value = try await fetch()
-      guard !lifetime.ended else { throw CancellationError() }
-      if mutation == revision {
-        let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
-        publish(.ready(edited))
-      }
-      return value
-    }
+    let task = spawn(on: self) { entry in try await entry.fly(id, revision: revision) }
     current = id
     flights[id] = task
     return task
+  }
+
+  /// The flight `id`, begun at `revision`: its fetch, published unless the value changed since.
+  private func fly(_ id: UUID, revision: UInt64) async throws -> Value {
+    defer {
+      kept?.underway.end()
+      flights.removeValue(forKey: id)
+      flightEdits.removeValue(forKey: id)
+      if current == id { current = nil }
+    }
+    try Task.checkCancellation()
+    let value = try await fetch()
+    guard !lifetime.ended else { throw CancellationError() }
+    if mutation == revision {
+      let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
+      publish(.ready(edited))
+    }
+    return value
   }
 
   func fresh() async throws -> Value {
@@ -262,7 +265,7 @@ private actor CacheEntry<Value: Sendable> {
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         waiter.install(continuation)
-        Task { waiter.resolve(await flight.result) }
+        spawn { waiter.resolve(await flight.result) }
       }
     } onCancel: {
       waiter.resolve(.failure(CancellationError()))

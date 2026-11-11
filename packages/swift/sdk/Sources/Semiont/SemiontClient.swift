@@ -70,7 +70,7 @@ public final class SemiontClient: Sendable {
     if places != nil { await live.rehydrate() }
     let life = lifetime
     let id = UUID()
-    let task = Task {
+    let task = spawn {
       defer {
         source.dispose()
         life.forget(id)

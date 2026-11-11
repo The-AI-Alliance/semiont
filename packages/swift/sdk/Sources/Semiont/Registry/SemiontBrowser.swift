@@ -149,12 +149,13 @@ public actor SemiontBrowser {
     }
   }
 
-  private func spawn(
+  /// Starts `work` as one of the registry's tasks, kept until it ends; the id names it.
+  private func registryTask(
     abandonOnClose: Bool = false, _ work: @escaping @Sendable () async -> Void
   ) -> UUID {
     let id = UUID()
     if abandonOnClose { abandonable.insert(id) }
-    tasks[id] = Task { [weak self] in
+    tasks[id] = spawn { [weak self] in
       await RegistryTask.$id.withValue(id) { await work() }
       await self?.forget(id)
     }
@@ -170,7 +171,7 @@ public actor SemiontBrowser {
   @discardableResult
   private func watch(_ key: String) -> UUID? {
     guard let changes = storage.subscribe(key) else { return nil }
-    return spawn { [weak self] in
+    return registryTask { [weak self] in
       for await _ in changes {
         guard !Task.isCancelled else { break }
         await self?.storedChange(key)
@@ -331,7 +332,7 @@ public actor SemiontBrowser {
     knowledgeBases.set(knowledgeBases.value)
     if let old {
       let factory = factory
-      _ = spawn(abandonOnClose: true) { await factory.revoke(old) }
+      _ = registryTask(abandonOnClose: true) { await factory.revoke(old) }
     }
     try await forgetAfterClosing(old, kbId: id)
     if activeKbId.value == id { activate() }
@@ -408,7 +409,7 @@ public actor SemiontBrowser {
     let signals = SessionSignals()
     let options = SessionFactoryOptions(kb: kb, storage: storage, signals: signals)
     let factory = factory
-    let idOfTask = spawn(abandonOnClose: true) { [weak self] in
+    let idOfTask = registryTask(abandonOnClose: true) { [weak self] in
       do {
         let opened = try await factory.session(options)
         await self?.read(opened.session, signals: signals)
@@ -433,7 +434,7 @@ public actor SemiontBrowser {
   /// `signals`.
   private func read(_ session: SemiontSession, signals: SessionSignals) {
     let errors = session.errors()
-    readers[session.id] = spawn { [weak self] in
+    readers[session.id] = registryTask { [weak self] in
       do {
         for try await error in errors {
           if let own = error as? SessionError {
@@ -462,7 +463,7 @@ public actor SemiontBrowser {
   /// renews.
   private func renew(_ session: SemiontSession, refused: String?) {
     guard !closed else { return }
-    _ = spawn(abandonOnClose: true) { [weak self] in
+    _ = registryTask(abandonOnClose: true) { [weak self] in
       do { _ = try await session.refresh(refused) } catch is CancellationError {} catch {
         await self?.said(error)
       }
@@ -671,7 +672,7 @@ public actor SemiontBrowser {
       activeSignals.value?.dispose()
       finishShown()
       let reader = live.flatMap { readers[$0.session.id] }.flatMap { tasks[$0] }
-      errorsEnd = Task { [weak self] in
+      errorsEnd = spawn { [weak self] in
         await live?.closed()
         await reader?.value
         await self?.endErrors()

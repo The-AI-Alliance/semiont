@@ -68,7 +68,7 @@ private struct StoreEntry: SignInKept {
     return try? JSONDecoder().decode(SignIn.self, from: JSONEncoder().encode(value))
   }
   func held() async throws -> HeldSignIn? {
-    try await Task.detached { try self.heldNow() }.value
+    try await spawnDetached { try self.heldNow() }.value
   }
   private func heldNow() throws -> HeldSignIn? {
     guard let entry = try decoded(store.read()[key]), let refresh = entry.refreshToken,
@@ -100,7 +100,7 @@ private struct StoreEntry: SignInKept {
       obtainedAt: Date().formatted(.iso8601), revocationEndpoint: signIn.revocationEndpoint,
       token: signIn.access, tokenEndpoint: signIn.tokenEndpoint)
     let value = try written(learned, access: signIn.access, refresh: signIn.refresh)
-    try await Task.detached {
+    try await spawnDetached {
       try store.change { document in
         document[key] = value
         return ((), true)
@@ -108,7 +108,7 @@ private struct StoreEntry: SignInKept {
     }.value
   }
   func renewed(read: HeldSignIn, access: String, refresh: String) async throws -> String? {
-    try await Task.detached {
+    try await spawnDetached {
       try store.change { document -> (String?, Bool) in
         guard let before = try decoded(document[key]) else { return (nil, false) }
         guard before.token == read.access, before.refreshToken == read.refresh else {
@@ -122,7 +122,7 @@ private struct StoreEntry: SignInKept {
   /// The sign-in store keeps no person: it cannot record one.
   func recordPersonKey(holding access: String, _ personKey: String) -> Bool { false }
   func forget() async throws {
-    try await Task.detached {
+    try await spawnDetached {
       try store.change { document in ((), document.removeValue(forKey: key) != nil) }
     }.value
   }

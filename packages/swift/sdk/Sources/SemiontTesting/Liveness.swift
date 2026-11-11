@@ -91,21 +91,21 @@ public func assertLivenessAxioms(_ spec: LivenessSpec) async throws {
     var tasks: [Task<Void, Never>] = []
     for (index, output) in scenario.outputs.enumerated() {
       tasks.append(
-        Task {
+        spawn {
           await output()
           observation.yield(.output(index))
         })
     }
     for (index, settlement) in scenario.settlements.enumerated() {
       tasks.append(
-        Task {
+        spawn {
           await settlement()
           observation.yield(.settlement(index))
         })
     }
     let clock = spec.clock
     tasks.append(
-      Task {
+      spawn {
         do {
           try await clock.sleep(for: bound)
           observation.yield(.deadline)

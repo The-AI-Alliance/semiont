@@ -82,21 +82,21 @@ extension HttpTransport {
           channel: operation, payload: body, correlationId: correlation, afterOpen: true,
           parent: parent)
         enqueued?()
-        let send = Task { [self] in
+        let send = spawn(on: self) { transport in
           defer { life.forget(senderID) }
           do {
-            let count = try await awaitEmission(emission)
+            let count = try await transport.awaitEmission(emission)
             if count == 0 {
-              fail(
+              transport.fail(
                 correlation,
                 error: BusRequestError(.busPeerUnavailable, "No peer answers \(operation)"))
             }
-          } catch { fail(correlation, error: error) }
+          } catch { transport.fail(correlation, error: error) }
         }
         life.keep(send, id: senderID)
       }
     } onCancel: {
-      Task { await self.fail(correlation, error: CancellationError()) }
+      spawn(on: self) { transport in transport.fail(correlation, error: CancellationError()) }
     }
     if frame.channel == descriptor.failure {
       throw projectFailure(frame.payload, on: descriptor.failure, stamps: descriptor.failureStamps)

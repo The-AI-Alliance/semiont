@@ -70,7 +70,7 @@ public final class Watched<Value: Sendable>: AsyncSequence, Sendable {
     self.init(initial)
     let id = UUID()
     let life = updatesLifetime
-    let task = Task { [weak self] in
+    let task = spawn { [weak self] in
       defer { life.forget(id) }
       for await value in updates {
         if Task.isCancelled { break }
@@ -157,7 +157,7 @@ final class Lifetime: Sendable {
     let id = UUID()
     state.withLock { state in
       guard !state.ended else { return }
-      let task = Task {
+      let task = spawn {
         defer { self.forget(id) }
         guard !Task.isCancelled else { return }
         await work()
@@ -285,7 +285,7 @@ func sharedValue<Value: Sendable>(_ task: Task<Value, any Error>, lifetime: Life
   return try await withTaskCancellationHandler {
     try await withCheckedThrowingContinuation { continuation in
       waiter.install(continuation)
-      let observer = Task {
+      let observer = spawn {
         defer { lifetime.forget(id) }
         waiter.resolve(await task.result)
       }
