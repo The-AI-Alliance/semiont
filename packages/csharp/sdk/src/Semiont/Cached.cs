@@ -57,12 +57,11 @@ internal sealed class CacheEntry<T> : Cached<T>
     private readonly CancellationToken stopped;
     private readonly HashSet<ChannelWriter<CacheState<T>>> readers = [];
     private CacheState<T> state = new CacheState<T>.Pending();
+    // The key's current fetch, until it settles: the one fetch whose answer is stored.
     private Task<T>? flight;
-    // The flight a validation waits on, and whether it is the validation's second ask.
+    // The flight a validation waits on, which is the current one, and whether it is the validation's second ask.
     private Task<T>? validation;
     private bool revalidated;
-    private long writeEpoch;
-    private int activeLoads;
     private bool rehydrated;
     private bool windowOpen;
     private bool owed;
@@ -152,7 +151,6 @@ internal sealed class CacheEntry<T> : Cached<T>
 
     private void ForgetPreviousValue()
     {
-        writeEpoch++;
         rehydrated = false;
         flight = null;
         validation = null;
@@ -162,7 +160,7 @@ internal sealed class CacheEntry<T> : Cached<T>
     internal bool IsKnown { get { lock (gate) return Held(); } }
     internal CacheState<T>.Ready? CurrentValue { get { lock (gate) return closed ? null : state as CacheState<T>.Ready; } }
 
-    private bool Held() => !closed && (flight is not null || validation is not null || state is not CacheState<T>.Pending);
+    private bool Held() => !closed && (flight is not null || state is not CacheState<T>.Pending);
 
     private async IAsyncEnumerable<CacheState<T>> ReadAsync([EnumeratorCancellation] CancellationToken cancellation)
     {
@@ -226,7 +224,7 @@ internal sealed class CacheEntry<T> : Cached<T>
         }
     }
 
-    internal bool Fetching { get { lock (gate) return activeLoads > 0 || validation is not null; } }
+    internal bool Fetching { get { lock (gate) return flight is not null; } }
 
     /// <summary>The key's B19 window is open and holds an invalidation it has not yet run.</summary>
     internal bool RefetchOwed { get { lock (gate) return windowOpen && owed; } }
@@ -237,41 +235,41 @@ internal sealed class CacheEntry<T> : Cached<T>
         var result = new TaskCompletionSource<T>(Spawning.CompletionOptions);
         flight = result.Task;
         rehydrated = false;
-        activeLoads++;
-        var epoch = writeEpoch;
-        _ = Spawning.Run(() => LoadAsync(result, epoch));
+        _ = Spawning.Run(() => LoadAsync(result));
         _ = ObserveFailureAsync(result.Task);
         return result.Task;
     }
 
     private static async Task ObserveFailureAsync(Task work) => await work.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
 
-    private async Task LoadAsync(TaskCompletionSource<T> result, long epoch)
+    private async Task LoadAsync(TaskCompletionSource<T> result)
     {
         try
         {
             stopped.ThrowIfCancellationRequested();
             var value = await fetch(stopped).ConfigureAwait(Spawning.Captures);
-            Finish(() =>
+            Finish(current =>
             {
                 if (closed) result.TrySetException(ClosedError());
                 else
                 {
-                    if (epoch == writeEpoch) Ready(value);
+                    if (current) Ready(value);
                     result.TrySetResult(value);
                 }
             }, null);
         }
-        catch (OperationCanceledException error) { Finish(() => result.TrySetCanceled(error.CancellationToken), null); }
-        catch (Exception error) { Finish(() => result.TrySetException(error), error); }
+        catch (OperationCanceledException error) { Finish(_ => result.TrySetCanceled(error.CancellationToken), null); }
+        catch (Exception error) { Finish(_ => result.TrySetException(error), error); }
 
-        void Finish(Action settle, Exception? failure)
+        // Only the key's current fetch writes. One that an invalidate, a write, a removal or the closing let go of
+        // answers whoever awaited it, and stores nothing.
+        void Finish(Action<bool> settle, Exception? failure)
         {
             lock (gate)
             {
-                activeLoads--;
-                if (flight == result.Task) flight = null;
-                settle();
+                var current = flight == result.Task;
+                if (current) flight = null;
+                settle(current);
                 if (validation == result.Task) Validated(failure);
             }
         }
@@ -283,8 +281,9 @@ internal sealed class CacheEntry<T> : Cached<T>
         validation = Fetch();
     }
 
-    /// <summary>Ends a validation in the step that settles the flight it waits on, so a key whose fetch has settled is
-    /// not fetching. A first ask that fails is asked once more; a second that fails fails a key that holds no value.</summary>
+    /// <summary>Ends a validation in the step that settles the flight it waits on. A first ask that fails is asked once
+    /// more in that step, so the key is never at rest between the two asks; a second that fails fails a key that holds
+    /// no value.</summary>
     private void Validated(Exception? failure)
     {
         validation = null;

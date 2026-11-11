@@ -539,7 +539,7 @@ public sealed partial class TransportTests
         Assert.Equal(1, await orphaned);
         await using var reader = key.GetAsyncEnumerator(deadline.Token);
         Assert.True(await reader.MoveNextAsync());
-        Assert.Equal(1, Assert.IsType<CacheState<int>.Ready>(reader.Current).Value);
+        Assert.Equal(2, Assert.IsType<CacheState<int>.Ready>(reader.Current).Value);
         Assert.False(loads.Reader.TryPeek(out _));
 
         var fresh = key.FreshAsync(deadline.Token);
@@ -548,6 +548,151 @@ public sealed partial class TransportTests
         Assert.False(loads.Reader.TryPeek(out _));
         await using var after = key.GetAsyncEnumerator(deadline.Token);
         Assert.True(await after.MoveNextAsync());
-        Assert.Equal(1, Assert.IsType<CacheState<int>.Ready>(after.Current).Value);
+        Assert.Equal(2, Assert.IsType<CacheState<int>.Ready>(after.Current).Value);
+    }
+
+    // B9: only a key's newest fetch writes. The fetch an invalidate replaced answers whoever awaited it, after the newer
+    // one has answered, and stores nothing: no emission, and no save owed.
+    [Fact]
+    public async Task OnlyTheNewestFetchWritesWhenItAnswersBeforeTheFetchItReplaced()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var key = fetches.Cache.Observe("key");
+        await using var reader = key.GetAsyncEnumerator(deadline.Token);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.IsType<CacheState<int>.Pending>(reader.Current);
+        var older = key.FreshAsync(deadline.Token);
+        var replaced = await fetches.AskedAsync(deadline.Token);
+        key.Invalidate();
+        var current = await fetches.AskedAsync(deadline.Token);
+        var newer = key.FreshAsync(deadline.Token);
+
+        current.SetResult(1);
+        Assert.Equal(1, await newer);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(1, Assert.IsType<CacheState<int>.Ready>(reader.Current).Value);
+        Assert.Equal(1, fetches.Changes);
+
+        replaced.SetResult(0);
+        Assert.Equal(0, await older);
+        var next = reader.MoveNextAsync().AsTask();
+        Assert.False(next.IsCompleted, "the replaced fetch's answer reached an observer");
+        Assert.Equal(1, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
+        Assert.Equal(1, fetches.Changes);
+        Assert.True(fetches.Unasked);
+        fetches.Cache.Dispose();
+        Assert.False(await next);
+    }
+
+    // B9: the fetch an invalidate replaced answers first. Its caller has its answer, and the key is as it was until the
+    // newer fetch answers.
+    [Fact]
+    public async Task AFetchAnInvalidateLetGoOfAnswersItsCallerAndStoresNothing()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        fetches.Cache.Set("key", 5);
+        var held = Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key"));
+        var key = fetches.Cache.Observe("key");
+        await using var reader = key.GetAsyncEnumerator(deadline.Token);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Same(held, reader.Current);
+        var older = key.FreshAsync(deadline.Token);
+        var replaced = await fetches.AskedAsync(deadline.Token);
+        key.Invalidate();
+        var current = await fetches.AskedAsync(deadline.Token);
+        var newer = key.FreshAsync(deadline.Token);
+
+        replaced.SetResult(0);
+        Assert.Equal(0, await older);
+        var next = reader.MoveNextAsync().AsTask();
+        Assert.False(next.IsCompleted, "the replaced fetch's answer reached an observer");
+        Assert.Same(held, fetches.Cache.Get("key"));
+        Assert.Equal(1, fetches.Changes);
+
+        current.SetResult(1);
+        Assert.Equal(1, await newer);
+        Assert.True(await next);
+        Assert.Equal(1, Assert.IsType<CacheState<int>.Ready>(reader.Current).Value);
+        Assert.Equal(2, fetches.Changes);
+        Assert.True(fetches.Unasked);
+    }
+
+    // B17: a key is fetching while its current fetch is unsettled, and a fetch an invalidate replaced counts for nothing,
+    // answered or not.
+    [Fact]
+    public async Task AKeyIsFetchingOnlyWhileItsCurrentFetchHasNotSettled()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var key = fetches.Cache.Observe("key");
+        Assert.False(fetches.Cache.Fetching);
+        var older = key.FreshAsync(deadline.Token);
+        await fetches.AskedAsync(deadline.Token);
+        Assert.True(fetches.Cache.Fetching);
+        key.Invalidate();
+        var current = await fetches.AskedAsync(deadline.Token);
+        Assert.True(fetches.Cache.Fetching);
+        var newer = key.FreshAsync(deadline.Token);
+
+        current.SetResult(1);
+        Assert.Equal(1, await newer);
+        Assert.False(fetches.Cache.Fetching);
+        Assert.False(older.IsCompleted);
+        fetches.Cache.Dispose();
+        Assert.Equal("bus.closed", (await Assert.ThrowsAsync<BusRequestError>(() => older)).Code);
+    }
+
+    // B13a: a removal ends the key and lets go of its fetch. That fetch's answer reaches whoever awaited it, and the key
+    // stays failed with bus.not-found, with nothing stored.
+    [Fact]
+    public async Task AFetchARemovalLetGoOfStoresNothing()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var key = fetches.Cache.Observe("key");
+        await using var reader = key.GetAsyncEnumerator(deadline.Token);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.IsType<CacheState<int>.Pending>(reader.Current);
+        var asked = await fetches.AskedAsync(deadline.Token);
+        var awaited = key.FreshAsync(deadline.Token);
+
+        fetches.Cache.Remove("key");
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal("bus.not-found", Assert.IsType<BusRequestError>(Assert.IsType<CacheState<int>.Failed>(reader.Current).Error).Code);
+        Assert.Equal(1, fetches.Changes);
+
+        asked.SetResult(0);
+        Assert.Equal(0, await awaited);
+        var next = reader.MoveNextAsync().AsTask();
+        Assert.False(next.IsCompleted, "the removed key's fetch reached an observer");
+        Assert.Null(fetches.Cache.Get("key"));
+        Assert.Equal(1, fetches.Changes);
+        Assert.True(fetches.Unasked);
+        fetches.Cache.Dispose();
+        Assert.False(await next);
+    }
+
+    /// <summary>A cache whose every fetch waits for the test to answer it, and which counts each change it owes a save
+    /// for: a value it stores, or a removal.</summary>
+    private sealed class AnsweredFetches : IDisposable
+    {
+        private readonly Channel<TaskCompletionSource<int>> asked = Channel.CreateUnbounded<TaskCompletionSource<int>>();
+        private int changes;
+
+        internal AnsweredFetches() =>
+            Cache = new Cache<string, int>((_, cancellation) =>
+            {
+                var answer = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+                asked.Writer.TryWrite(answer);
+                return answer.Task.WaitAsync(cancellation);
+            }, null, TimeProvider.System, TimeSpan.Zero, () => Interlocked.Increment(ref changes));
+
+        internal Cache<string, int> Cache { get; }
+        internal int Changes => Volatile.Read(ref changes);
+        internal bool Unasked => !asked.Reader.TryPeek(out _);
+        internal ValueTask<TaskCompletionSource<int>> AskedAsync(CancellationToken cancellation) => asked.Reader.ReadAsync(cancellation);
+        public void Dispose() => Cache.Dispose();
     }
 }
