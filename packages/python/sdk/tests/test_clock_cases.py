@@ -37,6 +37,7 @@ from semiont.discovery import DiscoveryRead, DiscoveryTransport, Managed, Unchan
 from semiont.errors import BusRequestError, TransportError
 from semiont.http.oauth import sign_in_with_device_grant
 from semiont.http.transport import HttpTransport
+from semiont.identifiers import JobId
 from semiont.operations import BROWSE_EVENTS_REQUESTED
 from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.testing import FaultyTransport, InMemoryContent, StubGateway, create_test_client, refuse_unscripted_operation
@@ -659,6 +660,33 @@ async def job_follower(given: JsonObject, held: AsyncExitStack) -> Subject:
     return Subject(counted=lambda: len(asked_for(transport, "job:status-requested")), act=progressed)
 
 
+async def polled(held: AsyncExitStack) -> tuple[FaultyTransport, asyncio.Task[object]]:
+    """A client's `job.poll_until_complete` of `job-1`, naming no interval and no limit, set going as the case begins."""
+    transport = FaultyTransport(make_response=job_queue, channels=BRIDGED_CHANNELS)
+    client = SemiontClient(transport, InMemoryContent(), StubGateway())
+    await held.enter_async_context(client)
+    return transport, running(held, client.job.poll_until_complete(JobId("job-1")))
+
+
+async def job_poll(given: JsonObject, held: AsyncExitStack) -> Subject:
+    transport, _ = await polled(held)
+    return Subject(counted=lambda: len(asked_for(transport, "job:status-requested")), act=None)
+
+
+async def job_poll_timeout(given: JsonObject, held: AsyncExitStack) -> Subject:
+    _, polling = await polled(held)
+
+    def timed_out() -> int:
+        if not polling.done():
+            return 0
+        error = polling.exception()
+        assert isinstance(error, BusRequestError), f"the poll ended otherwise: {polling!r}"
+        assert error.code == "bus.timeout", f"the poll ended otherwise: {error!r}"
+        return 1
+
+    return Subject(counted=timed_out, act=None)
+
+
 SUBJECTS: Final[Mapping[str, Build]] = {
     "refusedStream": refused_stream,
     "unansweredStream": unanswered_stream,
@@ -677,6 +705,8 @@ SUBJECTS: Final[Mapping[str, Build]] = {
     "unansweredEmit": unanswered_emit,
     "refusedBusRequest": refused_bus_request,
     "timedOutBusRequest": timed_out_bus_request,
+    "jobPoll": job_poll,
+    "jobPollTimeout": job_poll_timeout,
 }
 """How this SDK builds each subject the table names."""
 
