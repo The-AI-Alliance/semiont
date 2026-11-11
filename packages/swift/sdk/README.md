@@ -202,7 +202,10 @@ cancelling the follower itself stops observing and leaves the job running.
 
 `job.queued`, `progress`, `complete` and `fail` are independent typed listeners
 that start when asked for. `pollUntilComplete` reports every status through its
-optional callback and bounds requests and sleeps by the caller's deadline.
+optional callback and bounds requests and sleeps by the caller's deadline. Named
+no interval, it asks every `jobPollMs`; named no limit, it fails as timed out
+`jobPollTimeoutMs` after its first ask, as `protocol/specs/src/client/timing.json`
+states them.
 
 Workers configure their HTTP transport with `jobClaimChannels` and add
 `jobCommitChannels` when they write annotations. Iterate `client.job.claim`
