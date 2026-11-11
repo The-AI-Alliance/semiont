@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import type { GatheredContext, EngineWithLimits, ResourceId } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
+import { HOVER_DELAY_MS } from '@semiont/sdk';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import { useEventSubscription } from '../../contexts/useEventSubscription';
@@ -147,7 +148,7 @@ export function ReferenceWizardModal({
   onLinkResource,
   onComposeSubmit,
   entityTypeOptions = [],
-  hoverDelayMs = 300,
+  hoverDelayMs = HOVER_DELAY_MS,
   translations: t,
   generationEngine,
 }: ReferenceWizardModalProps) {

@@ -8,7 +8,7 @@ import { useAnchoredText } from '../../hooks/useAnchoredText';
 import { AnchoredTextNotice } from '../annotation/AnchoredTextNotice';
 import { PdfPageView, type PageDrawing } from './PdfPageView';
 import { useTranslations } from '../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
+import { HOVER_DELAY_MS, type SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import { loadPdfDocument, type PDFDocumentProxy } from '../../lib/browser-pdfjs';
 import './PdfAnnotationCanvas.css';
@@ -111,7 +111,7 @@ export function PdfAnnotationCanvas({
   session,
   hoveredAnnotationId,
   selectedAnnotationId,
-  hoverDelayMs = 150,
+  hoverDelayMs = HOVER_DELAY_MS,
   zoom = 1,
   ownsScrollport = true,
   pageLayout = 'paged'

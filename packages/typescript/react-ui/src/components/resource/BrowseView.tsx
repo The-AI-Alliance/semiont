@@ -5,7 +5,7 @@ import { useEffect, useRef, useCallback, useMemo, memo, type MouseEvent as React
 import { annotationId as toAnnotationId } from '@semiont/core';
 import { capabilitiesOf, getBodySource, isResolvedReference, textOffsets } from '@semiont/core';
 import type { Annotation, ResourceDescriptor } from '@semiont/core';
-import { createHoverDwell } from '@semiont/sdk';
+import { HOVER_DELAY_MS, createHoverDwell } from '@semiont/sdk';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
@@ -103,7 +103,7 @@ function BrowseViewBody({
   onClickActionChange,
   showToolbar = true,
   annotateMode,
-  hoverDelayMs = 150,
+  hoverDelayMs = HOVER_DELAY_MS,
   session,
   sparkleAnnotationIds,
   renderers,

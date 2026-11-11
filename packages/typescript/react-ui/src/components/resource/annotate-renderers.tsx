@@ -3,7 +3,7 @@
 import type { ResourceId } from '@semiont/core';
 import { lazy, Suspense, useMemo, type ComponentType } from 'react';
 import { textOffsets, type Annotation } from '@semiont/core';
-import type { SemiontSession } from '@semiont/sdk';
+import { HOVER_DELAY_MS, type SemiontSession } from '@semiont/sdk';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
@@ -72,7 +72,7 @@ export function TextAnnotateRenderer({
   hoveredAnnotationId,
   scrollToAnnotationId,
   showLineNumbers = false,
-  hoverDelayMs = 150,
+  hoverDelayMs = HOVER_DELAY_MS,
   enableWidgets = false,
   getTargetResourceName,
   generatingReferenceId,
@@ -110,7 +110,7 @@ export function ImageAnnotateRenderer({
   drawingMode,
   selectedMotivation,
   hoveredAnnotationId,
-  hoverDelayMs = 150,
+  hoverDelayMs = HOVER_DELAY_MS,
   zoom = 1,
 }: AnnotateMediaRendererProps) {
   if (!content) return null;
@@ -137,7 +137,7 @@ export function PdfAnnotateRenderer({
   drawingMode,
   selectedMotivation,
   hoveredAnnotationId,
-  hoverDelayMs = 150,
+  hoverDelayMs = HOVER_DELAY_MS,
   zoom = 1,
 }: AnnotateMediaRendererProps) {
   if (!content) return null;

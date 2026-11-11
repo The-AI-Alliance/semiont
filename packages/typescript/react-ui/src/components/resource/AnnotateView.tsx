@@ -11,7 +11,7 @@ import { DownloadFileLink } from './DownloadFileLink';
 import { TranslationProvider, type TranslationSource } from '../../contexts/TranslationContext';
 import { translationSourceOf } from '../../lib/translation-source';
 import { EditorView } from '@codemirror/view';
-import type { SemiontSession } from '@semiont/sdk';
+import { HOVER_DELAY_MS, type SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
@@ -80,7 +80,7 @@ function AnnotateViewBody({
   getTargetResourceName,
   generatingReferenceId,
   showLineNumbers = false,
-  hoverDelayMs = 150,
+  hoverDelayMs = HOVER_DELAY_MS,
   annotateMode,
   session,
   sparkleAnnotationIds,
