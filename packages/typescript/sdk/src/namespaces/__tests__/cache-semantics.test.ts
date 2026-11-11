@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
-import { EventBus, FrameRefusal, INVALIDATION_WINDOW_MS, resourceId, annotationId } from '@semiont/core';
+import { EventBus, FrameRefusal, INVALIDATION_WINDOW_MS, SAVE_DEBOUNCE_MS, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
@@ -980,13 +980,13 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     function persistedHarness(options: HarnessOptions) {
       const storage = new InMemorySessionStorage();
       const places = coupledLastEventId(storage, lastEventIdKey('kb-1', PERSON));
-      const { transport, content, state } = createWire(options);
+      const { transport, content, getAnnotations, state } = createWire(options);
       const client = new SemiontClient(transport, content, undefined, {
         cachePersistence: { storage: places.storage, kbId: 'kb-1', personKey: PERSON },
         ...(options.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
       });
       places.coupleTo(client);
-      return { client, state, storage, saveLastEventId: places.saveLastEventId };
+      return { client, getAnnotations, state, storage, saveLastEventId: places.saveLastEventId };
     }
 
     /** The total of the resource's annotations its kept document holds. */
@@ -1055,6 +1055,40 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
         client.dispose();
         expect(keptTotal(storage), 'the save the annotations owed is flushed').toBe(2);
         expect(storage.get(lastEventIdKey('kb-1', PERSON)), 'the places wait for the fetch disposal drops').toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a refetch whose value fresh() gives has settled: the save the clock fires at once carries the place its event noted (B17-Q)', async () => {
+      vi.useFakeTimers();
+      try {
+        const { client, getAnnotations, storage, saveLastEventId } = persistedHarness({});
+        const sub = client.browse.annotations(RID).subscribe(() => {});
+        await firstDefined(client.browse.annotations(RID));
+        await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+        expect(keptTotal(storage), 'the first answer is saved').toBe(1);
+
+        // The event is taken, and the refetch it starts waits for the test's answer.
+        type AnnotationsRead = Awaited<ReturnType<IContentTransport['getAnnotations']>>;
+        let answer!: (read: AnnotationsRead) => void;
+        getAnnotations.mockImplementationOnce(() => new Promise<AnnotationsRead>((resolve) => { answer = resolve; }));
+        client.bus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        saveLastEventId(RID, 'p-res-1-2');
+        await vi.advanceTimersByTimeAsync(0);
+        expect(getAnnotations, 'the refresher took the event and asked again').toHaveBeenCalledTimes(2);
+
+        const refetched = client.browse.annotations(RID).fresh();
+        answer({ annotations: [mockAnnotation('ann-1'), mockAnnotation('ann-a')], total: 2 });
+        expect(await refetched).toHaveLength(2);
+        expect(getAnnotations, 'the read joined the refetch').toHaveBeenCalledTimes(2);
+        vi.advanceTimersByTime(SAVE_DEBOUNCE_MS);
+        expect(keptTotal(storage), 'the refetched value is saved').toBe(2);
+        const places = storage.get(lastEventIdKey('kb-1', PERSON));
+        if (places === null) throw new Error('The save made once the refetch had settled held its place back');
+        expect(JSON.parse(places)).toEqual({ 'res-1': 'p-res-1-2' });
+        sub.unsubscribe();
+        client.dispose();
       } finally {
         vi.useRealTimers();
       }
