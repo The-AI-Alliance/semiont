@@ -171,6 +171,8 @@ fn main() {
                 roots: &roots,
                 elsewhere: None,
                 identifiers: &identifiers,
+                // The mark unit holds the motivation a job's parameters state.
+                discriminator_accessors: &["MarkJobParams"],
             },
         ),
     )
@@ -273,6 +275,7 @@ fn main() {
                 roots: &["SignIn"],
                 elsewhere: None,
                 identifiers: &[],
+                discriminator_accessors: &[],
             },
         ),
     )
