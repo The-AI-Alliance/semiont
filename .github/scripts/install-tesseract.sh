@@ -11,11 +11,16 @@ apt_options=(
 # their fallback mirror. Use the fallback directly for this package install.
 if [[ -f /etc/apt/apt-mirrors.txt ]]; then
   printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+  echo 'APT mirror list:'
+  cat /etc/apt/apt-mirrors.txt
 fi
+
+echo 'DNS lookup for archive.ubuntu.com:'
+getent ahostsv4 archive.ubuntu.com || true
 
 for attempt in 1 2; do
   echo "Installing Tesseract (attempt ${attempt}/2)"
-  if sudo timeout 90 apt-get "${apt_options[@]}" update -qq &&
+  if sudo timeout 90 apt-get "${apt_options[@]}" update &&
     sudo timeout 150 apt-get "${apt_options[@]}" install -y --no-install-recommends tesseract-ocr; then
     tesseract --version
     exit 0
