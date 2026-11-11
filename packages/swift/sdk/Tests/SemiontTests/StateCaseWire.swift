@@ -33,6 +33,8 @@ final class StateCaseWire: Sendable {
     script.withLock { $0.replies[channel, default: []].append(response) }
   }
 
+  /// Replies to the `nth` request sent on `channel`, which its caller has settled the case to let
+  /// be sent.
   func reply(
     to channel: String, nth: Int, on reply: String, payload: [String: JSONValue], bus: EventBus
   ) async throws {
@@ -46,13 +48,8 @@ final class StateCaseWire: Sendable {
     } else {
       throw SpecFailure.shape("Invalid reply \(reply) to \(channel)")
     }
-    let request = try await withinTestDeadline {
-      while true {
-        if let request = self.script.withLock({ $0.waiting[channel]?.dropFirst(nth).first }) {
-          return request
-        }
-        try await Task.sleep(for: .milliseconds(2))
-      }
+    guard let request = script.withLock({ $0.waiting[channel]?.dropFirst(nth).first }) else {
+      throw SpecFailure.shape("No request \(nth) was sent on \(channel)")
     }
     let correlation = stateCaseCorrelation(channel, nth)
     let frames = bus.listen([reply])

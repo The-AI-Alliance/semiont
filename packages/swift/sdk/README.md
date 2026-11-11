@@ -287,6 +287,8 @@ caches and state units, a session's renewals, a registry's sign-ins. Hand the
 SDK a `TestClock` and call `advance(by:)` to end its reconnect backoff,
 deadlines, debounces, renewals and polls when a test says, and hand it a
 generator whose draws are fixed to make each jitter the same on every run.
+The sleepers an advance wakes wake earliest first and, at one instant, in the
+order they slept.
 
 ## Transports, the bus, and telemetry
 

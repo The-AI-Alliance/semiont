@@ -43,9 +43,15 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
     var failure: BusRequestError?
     var disposals = 0
     var annotations: [Annotation] = []
+    var strays = 0
   }
   private let storage = Mutex(State())
   var calls: [Call] { storage.withLock { $0.calls } }
+  /// How many reads, emits and requests came from a task that does not prefer the bound executor.
+  var strays: Int { storage.withLock { $0.strays } }
+  private func noteStray() {
+    if !Spawning.onBoundExecutor { storage.withLock { $0.strays += 1 } }
+  }
   var holds: Int { subscription.holds }
   var disposals: Int { storage.withLock { $0.disposals } }
   func handle(
@@ -62,6 +68,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
     if subscription.carries(carried) { hub.yield(carried) }
   }
   func frames(_ channels: [String]) async throws -> Events<Carried> {
+    noteStray()
     if let channel = subscription.unreadable(channels) { throw unsubscribed(channel) }
     let source = hub.listen { [weak self] in self?.storage.withLock { $0.frameEnds += 1 } }
     storage.withLock { $0.onFrames }?()
@@ -74,6 +81,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func emit(
     channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
   ) async throws -> Int? {
+    noteStray()
     let count = storage.withLock {
       $0.calls.append(Call(via: "emit", name: channel, payload: payload))
       return $0.count
@@ -84,6 +92,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func request(operation: String, payload: [String: JSONValue]) async throws
     -> [String: JSONValue]
   {
+    noteStray()
     if let channel = subscription.unanswered(operation) { throw unsubscribed(channel) }
     let handler = try storage.withLock { state in
       state.calls.append(Call(via: "request", name: operation, payload: payload))

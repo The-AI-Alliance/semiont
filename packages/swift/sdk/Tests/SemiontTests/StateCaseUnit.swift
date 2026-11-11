@@ -49,9 +49,13 @@ final class StateCaseSearch: Sendable {
   }
 
   private let requests = Mutex<[Request]>([])
+  private let strayCount = Atomic(0)
   var queries: [String] { requests.withLock { $0.map(\.text) } }
+  /// How many searches a task that does not prefer the bound executor asked.
+  var strays: Int { strayCount.load(ordering: .relaxed) }
 
   func search(_ text: String) -> AsyncStream<[String]?> {
+    if !Spawning.onBoundExecutor { strayCount.add(1, ordering: .relaxed) }
     let (stream, continuation) = AsyncStream<[String]?>.makeStream()
     requests.withLock { $0.append(Request(text: text, continuation: continuation)) }
     return stream
