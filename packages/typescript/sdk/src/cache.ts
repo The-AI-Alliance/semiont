@@ -25,11 +25,15 @@
  *   - `invalidate(key)`: stale-while-revalidate — keeps the current value
  *     visible to observers, and starts a fresh fetch in place of the one in
  *     flight. Recovers an orphaned fetch (SSE torn down, response lost).
- *     Only a key's current fetch writes (B9): one an invalidate, a removal or
- *     disposal let go of answers whoever awaited it, and stores nothing.
+ *     Only a key's current fetch writes (B9): one an invalidate, a write, a
+ *     removal or disposal let go of answers whoever awaited it, and stores
+ *     nothing.
  *   - `remove(key, gone)`: the entity is gone (B13a): the value is dropped and
  *     the key is `failed` with `gone`, for every observer. No refetch.
- *   - `set(key, value)`: write-through without a fetch (B13b).
+ *   - `set(key, value)`: write-through without a fetch (B13b), letting go of
+ *     the fetch in flight.
+ *   - `patch(key, change)`: write part of the value (B13b): applied at once
+ *     to the value the key holds, and to the answer of the fetch in flight.
  *   - `invalidateAll()`: per-key SWR refetch of every key the cache knows.
  *   - `dispose()`: terminal and inert (B16) — completes every per-key
  *     observable (subscribers detach cleanly) and stuns all later acts:
@@ -140,8 +144,22 @@ export interface Cache<K, V> extends StateUnit {
    */
   remove(key: K, gone: Error): void;
 
-  /** Write-through: set the value directly without a fetch. */
+  /**
+   * Write-through: set the value directly without a fetch. The fetch in
+   * flight is let go of (B13b): it was asked before the write, so its answer
+   * is not stored (B9).
+   */
   set(key: K, value: V): void;
+
+  /**
+   * Write part of `key`'s value (B13b): `change` takes the value to the
+   * patched value. It is applied at once to the value the key holds, and
+   * kept with the fetch in flight, whose answer it is applied to, after the
+   * patches made before it, when that answer is stored; it goes with that
+   * fetch. A key that holds neither is left as it is (B20). A restored value
+   * is still revalidated when first observed (B18).
+   */
+  patch(key: K, change: (value: V) => V): void;
 
   /** `invalidate` of every key the cache knows. */
   invalidateAll(): void;
@@ -171,6 +189,8 @@ interface Flight<V> {
   readonly answer: Promise<V>;
   /** The live view's ask that waits on it, when one does. */
   validation: Validation | null;
+  /** The patches made while it is in flight, applied in order to its answer when that is stored (B13b). */
+  readonly patches: Array<(value: V) => V>;
 }
 
 /**
@@ -300,9 +320,11 @@ export function createPersistableCache<K, V>(
    * The key's current fetch, joined (B3), or one started when there is none.
    * Only the current fetch writes (B9): in the step it settles, its value is
    * stored (B5), or its failure, which leaves the store as it was (B6), ends
-   * the live view's ask that waits on it (`askFailed`). One that an
-   * invalidate, a removal or disposal let go of answers whoever awaited it,
-   * and stores nothing.
+   * the live view's ask that waits on it (`askFailed`). Its value is stored
+   * with the patches made while it was in flight applied (B13b), and that is
+   * what it answers. One that an invalidate, a write, a removal or disposal
+   * let go of answers whoever awaited it with what it was answered, and
+   * stores nothing.
    */
   const runFetch = (key: K): Flight<V> => {
     // B18 — a fetch is under way for this key from SOME path (observe's
@@ -318,18 +340,18 @@ export function createPersistableCache<K, V>(
     let flight!: Flight<V>;
     const answer = (async () => {
       try {
-        const value = await fetchFn(key);
-        if (inflight.get(key) === flight) {
-          // Atomic update: one `.next` with a fresh Map reference so
-          // downstream `distinctUntilChanged` sees the transition (B5).
-          const next = new Map(store$.value);
-          next.set(key, value);
-          store$.next(next);
-          // A value arrived from ANY path — the key is live again (B15). After
-          // the store write, so a failed key goes straight to `ready`: a value
-          // outranks a failure, and clearing first would show `pending` between.
-          clearFailure(key);
-        }
+        let value: V = await fetchFn(key);
+        if (inflight.get(key) !== flight) return value;
+        for (const change of flight.patches) value = change(value);
+        // Atomic update: one `.next` with a fresh Map reference so
+        // downstream `distinctUntilChanged` sees the transition (B5).
+        const next = new Map(store$.value);
+        next.set(key, value);
+        store$.next(next);
+        // A value arrived from ANY path — the key is live again (B15). After
+        // the store write, so a failed key goes straight to `ready`: a value
+        // outranks a failure, and clearing first would show `pending` between.
+        clearFailure(key);
         return value;
       } catch (failure) {
         if (inflight.get(key) === flight) {
@@ -344,7 +366,7 @@ export function createPersistableCache<K, V>(
         if (inflight.get(key) === flight) inflight.delete(key);
       }
     })();
-    flight = { answer, validation: null };
+    flight = { answer, validation: null, patches: [] };
     inflight.set(key, flight);
     return flight;
   };
@@ -569,11 +591,27 @@ export function createPersistableCache<K, V>(
       // supersedes any B15 failure — and any B18 rehydrated mark: a
       // caller-supplied value is current by construction. The failure is
       // cleared after the store write, for the reason `runFetch` gives.
+      // The fetch in flight is let go of first, so a listener of the write
+      // finds the key fetching no more.
+      inflight.delete(key);
       rehydrated.delete(key);
       const next = new Map(store$.value);
       next.set(key, value);
       store$.next(next);
       clearFailure(key);
+    },
+
+    patch(key: K, change: (value: V) => V): void {
+      if (disposed) return; // B16
+      // Kept with the fetch in flight before the store write, whose listeners
+      // may put another fetch in its place.
+      const flight = inflight.get(key);
+      if (flight) flight.patches.push(change);
+      const value = store$.value.get(key);
+      if (value === undefined) return;
+      const next = new Map(store$.value);
+      next.set(key, change(value));
+      store$.next(next);
     },
 
     invalidateAll(): void {
