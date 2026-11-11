@@ -501,12 +501,19 @@ private final class Asks: Sendable {
     return try await withCheckedThrowingContinuation { wait.install($0) }
   }
 
+  /// How many asks have been made.
+  var count: Int { waits.withLock { $0.count } }
+
   /// Returns once `count` asks have been made.
   func made(_ count: Int) async {
-    while waits.withLock({ $0.count }) < count { await Task.yield() }
+    while self.count < count { await Task.yield() }
   }
 
   func answer(_ nth: Int, _ value: Int) { waits.withLock { $0[nth] }.resolve(.success(value)) }
+
+  func fail(_ nth: Int) {
+    waits.withLock { $0[nth] }.resolve(.failure(SpecFailure.shape("The service is away")))
+  }
 }
 
 private let keptKey = "kept"
@@ -647,6 +654,184 @@ private struct AskedOnce {
     await asked.cache.set("k", value: 9)
     guard case .ready(9)? = await asked.observer.next() else {
       throw SpecFailure.shape("The fetch the removal let go of emitted its answer")
+    }
+  }
+}
+
+// B13b: a set lets go of the fetch in flight, asked before it, whose answer may be the value the
+// set replaced. It answers its own read and stores nothing.
+@Test func aSetLetsGoOfTheFetchInFlightWhoseAnswerStoresNothing() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    await asked.cache.set("k", value: 7)
+    guard case .ready(7)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The set was not the key's value")
+    }
+    #expect(asked.persister.underway.settled, "The fetch the set let go of is in flight no more")
+    try await saved(asked.storage, keptKey, on: asked.clock) { _ in true }
+    #expect(asked.stored == 7)
+
+    asked.asks.answer(0, 3)
+    #expect(try await asked.older.value == 3, "The fetch let go of answers its own read")
+    #expect(await asked.cache.get("k") == 7)
+    #expect(!asked.persister.pending, "Its answer owes no save")
+    #expect(asked.stored == 7)
+    await asked.cache.set("k", value: 9)
+    guard case .ready(9)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The fetch the set let go of emitted its answer")
+    }
+  }
+}
+
+// B13b and B14: a set lets go of the live view's ask with its fetch, so that fetch failing is
+// asked no more and fails nothing.
+@Test func aSetLetsGoOfTheLiveViewsAskSoItsFetchFailingAsksNothingMore() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    await asked.cache.set("k", value: 7)
+    guard case .ready(7)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The set was not the key's value")
+    }
+    asked.asks.fail(0)
+    let older = asked.older
+    await #expect(throws: SpecFailure.self) { try await older.value }
+    #expect(asked.persister.underway.settled, "Nothing is asked again")
+    #expect(await asked.cache.get("k") == 7)
+    await asked.cache.set("k", value: 9)
+    guard case .ready(9)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The failure of the fetch the set let go of was published")
+    }
+    #expect(asked.asks.count == 1)
+  }
+}
+
+// B13b: a patch to a key whose first fetch is in flight waits with that fetch, and is applied to
+// its answer: what the key holds, and what the fetch's read is given.
+@Test func aPatchToAKeyWhoseFirstFetchIsInFlightIsAppliedToItsAnswer() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    await asked.cache.patch("k") { $0 + 1 }
+    #expect(await asked.cache.get("k") == nil, "Nothing holds a value to apply it to yet")
+    asked.asks.answer(0, 5)
+    #expect(try await asked.older.value == 6, "The fetch's read is given its answer patched")
+    guard case .ready(6)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The key's first value was not its fetch's answer patched")
+    }
+    try await saved(asked.storage, keptKey, on: asked.clock) { _ in true }
+    #expect(asked.stored == 6)
+  }
+}
+
+// B13b: patches are applied in the order made, at once to the value held and to the answer of the
+// fetch in flight, which they let go of nothing of.
+@Test func patchesAreAppliedInTheOrderMadeAtOnceAndToTheAnswerOfTheFetchInFlight() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    asked.asks.answer(0, 1)
+    guard case .ready(1)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The first fetch's answer was not the key's value")
+    }
+    await asked.cache.invalidate("k")
+    await asked.asks.made(2)
+    await asked.cache.patch("k") { $0 + 1 }
+    await asked.cache.patch("k") { $0 * 2 }
+    guard case .ready(2)? = await asked.observer.next(),
+      case .ready(4)? = await asked.observer.next()
+    else {
+      throw SpecFailure.shape("The patches were not applied at once, in the order made")
+    }
+    asked.asks.answer(1, 10)
+    guard case .ready(22)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The patches were not applied to the answer, in the order made")
+    }
+    // Read through the cache, so after the step that settled the fetch.
+    #expect(await asked.cache.get("k") == 22)
+    #expect(asked.persister.underway.settled, "Nothing more is asked")
+    #expect(asked.asks.count == 2)
+  }
+}
+
+// B13b: the patches kept with a fetch an invalidation replaced go with it. The newer fetch was asked
+// after their events, so its answer holds what they did.
+@Test func theFetchAnInvalidationReplacedTakesItsPatchesWithIt() async throws {
+  try await withinTestDeadline {
+    var asked = try await AskedOnce()
+    defer { asked.cache.dispose() }
+    await asked.cache.patch("k") { $0 + 1 }
+    await asked.cache.invalidate("k")
+    await asked.asks.made(2)
+    asked.asks.answer(1, 10)
+    guard case .ready(10)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The newer fetch's answer was not the key's value as it was")
+    }
+    asked.asks.answer(0, 3)
+    #expect(try await asked.older.value == 3, "The fetch let go of answers its own read as it was")
+    #expect(await asked.cache.get("k") == 10)
+    await asked.cache.set("k", value: 9)
+    guard case .ready(9)? = await asked.observer.next() else {
+      throw SpecFailure.shape("The fetch let go of emitted its answer")
+    }
+  }
+}
+
+// B13b and B20: a patch to a key that holds neither a value nor a fetch does nothing.
+@Test func aPatchToAKeyThatHoldsNeitherAValueNorAFetchDoesNothing() async throws {
+  let storage = MemorySessionStorage()
+  let clock = TestClock()
+  let asks = Asks()
+  let persister = StoragePersister<String, Int>(
+    storage: storage, storageKey: keptKey, clock: clock)
+  let cache = Cache<String, Int>(persister: persister, clock: clock) { _ in
+    try await asks.asked()
+  }
+  defer { cache.dispose() }
+  try await withinTestDeadline {
+    await cache.patch("k") { $0 + 1 }
+    #expect(await cache.known("k") == false)
+    #expect(await cache.get("k") == nil)
+    #expect(!persister.pending, "It owes no save")
+    // Its first observer is shown the first fetch's answer as it is.
+    var observer = cache.observe("k").makeAsyncIterator()
+    guard case .pending? = await observer.next() else {
+      throw SpecFailure.shape("The key was not pending on its first fetch")
+    }
+    await asks.made(1)
+    asks.answer(0, 5)
+    guard case .ready(5)? = await observer.next() else {
+      throw SpecFailure.shape("The first fetch's answer was not the key's value as it was")
+    }
+  }
+}
+
+// B13b and B18: a patch leaves a restored value restored: one part of it is known to be current,
+// the rest is not, so its first observation still asks for it anew.
+@Test func aRestoredValueThatIsPatchedIsAskedForAnewWhenFirstObserved() async throws {
+  let storage = MemorySessionStorage()
+  storage.set(keptKey, #"{"version":1,"entries":[["k",1,1]]}"#)
+  let clock = TestClock()
+  let asks = Asks()
+  let cache = Cache<String, Int>(
+    persister: StoragePersister(storage: storage, storageKey: keptKey, clock: clock), clock: clock
+  ) { _ in
+    try await asks.asked()
+  }
+  defer { cache.dispose() }
+  try await withinTestDeadline {
+    await cache.patch("k") { $0 + 1 }
+    #expect(await cache.get("k") == 2)
+    #expect(asks.count == 0, "A patch asks nothing")
+    var observer = cache.observe("k").makeAsyncIterator()
+    guard case .ready(2)? = await observer.next() else {
+      throw SpecFailure.shape("The patched restored value was not shown at once")
+    }
+    await asks.made(1)
+    asks.answer(0, 5)
+    guard case .ready(5)? = await observer.next() else {
+      throw SpecFailure.shape("The restored value was not asked for anew")
     }
   }
 }

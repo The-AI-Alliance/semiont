@@ -252,7 +252,7 @@ struct LiveQueries: Sendable {
       for detail in annotationEntries(subject) { await detail.writeIfKnown(value) }
     case .annotations:
       guard let resource = subject.resource else { return }
-      await annotations.existing(resource)?.editIfKnown { current in
+      await annotations.patch(resource) { current in
         var current = current
         if let index = current.annotations.firstIndex(where: { $0.id == value.id }) {
           current.annotations[index] = value

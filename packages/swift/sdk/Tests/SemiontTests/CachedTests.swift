@@ -367,7 +367,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
       return
     }
     for await issued in started where issued { break }
-    await query.editIfKnown { ["edited"] + $0.dropFirst() }
+    await query.patch { ["edited"] + $0.dropFirst() }
     release.set(true)
     guard case .ready(let result)? = await reader.next() else {
       Issue.record("The read and edit should publish a merged list")

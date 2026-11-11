@@ -101,9 +101,7 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
 
   func refreshIfKnown(coalescing: Bool) async { await entry.refreshIfKnown(coalescing: coalescing) }
   func writeIfKnown(_ value: Value) async { await entry.writeIfKnown(value) }
-  func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) async {
-    await entry.editIfKnown(change)
-  }
+  func patch(_ change: @escaping @Sendable (Value) -> Value) async { await entry.patch(change) }
   func removeIfKnown(_ error: BusRequestError) async { await entry.removeIfKnown(error) }
   func snapshot() async -> Value? { await entry.snapshot() }
   func isKnown() async -> Bool { await entry.isKnown }
@@ -130,9 +128,9 @@ private actor CacheEntry<Value: Sendable> {
     [UUID: (yield: @Sendable (State) -> Void, finish: @Sendable () -> Void, scope: ResourceHold?)] =
       [:]
   private var flights: [UUID: Task<Value, any Error>] = [:]
-  private var flightEdits: [UUID: [@Sendable (Value) -> Value]] = [:]
-  /// The key's newest flight, the only one that writes (B9). One let go of answers its own reads.
-  private var current: UUID?
+  /// The key's newest flight, the only one that writes (B9), and the patches kept with it, which go
+  /// with it (B13b). One let go of answers its own reads.
+  private var current: (id: UUID, patches: [@Sendable (Value) -> Value])?
   /// The flight a validation waits on, and whether it is the validation's second ask.
   private var validation: (flight: UUID, revalidated: Bool)?
   private var windowOpen = false
@@ -227,17 +225,18 @@ private actor CacheEntry<Value: Sendable> {
 
   /// The flight in flight, or one begun.
   private func fetching() -> (id: UUID, task: Task<Value, any Error>) {
-    if let current, let flight = flights[current] { return (current, flight) }
+    if let current, let flight = flights[current.id] { return (current.id, flight) }
     rehydrated = false
     kept?.underway.begin()
     let id = UUID()
     let task = spawn(on: self) { entry in try await entry.fly(id) }
-    current = id
+    current = (id, [])
     flights[id] = task
     return (id, task)
   }
 
-  /// The flight `id`: its fetch, published while it is the key's current flight (B9). The step
+  /// The flight `id`: its fetch, which while it is the key's current flight (B9) is published, and
+  /// given to its reads, with the patches kept with it applied in the order made (B13b). The step
   /// that settles the current flight also ends the validation waiting on it, and a retry that
   /// validation owes is under way before the flight's own count ends: so a key is fetching exactly
   /// while its current fetch has not settled (CACHE-SEMANTICS B17).
@@ -245,8 +244,7 @@ private actor CacheEntry<Value: Sendable> {
     var failure: (any Error)?
     defer {
       flights.removeValue(forKey: id)
-      flightEdits.removeValue(forKey: id)
-      if current == id {
+      if current?.id == id {
         current = nil
         if validation?.flight == id { validated(failure) }
         kept?.underway.end()
@@ -256,11 +254,10 @@ private actor CacheEntry<Value: Sendable> {
       try Task.checkCancellation()
       let value = try await fetch()
       guard !lifetime.ended else { throw CancellationError() }
-      if current == id {
-        let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
-        publish(.ready(edited))
-      }
-      return value
+      guard let held = current, held.id == id else { return value }
+      let patched = held.patches.reduce(value) { value, patch in patch(value) }
+      publish(.ready(patched))
+      return patched
     } catch {
       failure = error
       throw error
@@ -343,10 +340,13 @@ private actor CacheEntry<Value: Sendable> {
     replace(.ready(value))
   }
 
-  func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) {
+  /// Part of the value is known (B13b): `change` is applied now to the value held, and kept with
+  /// the current flight, for its answer. That flight may still carry what the patch does not, so a
+  /// patch lets go of nothing. A key holding neither is left as it is (B20), and a restored value
+  /// stays one (B18).
+  func patch(_ change: @escaping @Sendable (Value) -> Value) {
     guard isKnown else { return }
-    // Keep unrelated changes from the read underway, applying the edit to its answer too.
-    if let current { flightEdits[current, default: []].append(change) }
+    current?.patches.append(change)
     if case .ready(let value) = state { publish(.ready(change(value))) }
   }
 
@@ -402,7 +402,6 @@ private actor CacheEntry<Value: Sendable> {
       listener.finish()
     }
     flights.removeAll()
-    flightEdits.removeAll()
     listeners.removeAll()
     if refreshOwed { owed?.end() }
     refreshOwed = false
