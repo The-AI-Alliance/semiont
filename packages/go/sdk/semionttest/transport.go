@@ -145,8 +145,11 @@ type FaultyConfig struct {
 	// MakeResponse answers every request no queued response does. With none,
 	// such a request is refused by name (RefuseUnscriptedOperation).
 	MakeResponse MakeResponse
-	// Channels are the channels its stream delivers with no scope held. With
-	// none named, every channel.
+	// Channels is the global channels its stream names, as a transport's
+	// are: a frame it sends comes back to it only on one of them, and a read
+	// of any other global channel is refused, as unsubscribed. With none
+	// named, it names none. A client's stream names bus.BridgedChannels, and
+	// a worker's semiont.JobClaimChannels.
 	Channels []bus.Channel
 }
 
@@ -438,7 +441,7 @@ func (f *FaultyTransport) Frames(ctx context.Context, channels ...bus.Channel) (
 }
 
 func (f *FaultyTransport) IsSubscribed(channel bus.Channel) bool {
-	return f.config.Channels == nil || slices.Contains(f.config.Channels, channel)
+	return slices.Contains(f.config.Channels, channel)
 }
 
 // SubscribeToResource takes one hold on resource's scope, which Holds counts;

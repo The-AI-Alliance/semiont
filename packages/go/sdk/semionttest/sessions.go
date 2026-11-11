@@ -2,8 +2,9 @@ package semionttest
 
 // A registry.SessionFactory for tests of a registry and of what is built on
 // one. Each session it builds is a real semiont.Session over a
-// FaultyTransport of its own, and the factory keeps every transport it built,
-// by knowledge base.
+// FaultyTransport of its own, whose stream names what a client's does
+// (bus.BridgedChannels), and the factory keeps every transport it built, by
+// knowledge base.
 //
 // A test scripts three things: what each knowledge base's gateway answers,
 // who the gateway says a token is, and what a renewal gives. Each refuses by
@@ -166,7 +167,7 @@ func (s *ScriptedSessions) Session(ctx context.Context, options registry.Session
 		return nil, nil, &semiont.SessionError{Code: semiont.SessionErrorCodeConstructFailed, Message: why, KbID: kbID}
 	}
 
-	transport := NewFaultyTransport(FaultyConfig{MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
+	transport := NewFaultyTransport(FaultyConfig{Channels: bus.BridgedChannels, MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
 		return s.answer(kbID, operation, payload)
 	}})
 	transport.RefuseWhen(func(operation bus.Channel, payload json.RawMessage) json.RawMessage {

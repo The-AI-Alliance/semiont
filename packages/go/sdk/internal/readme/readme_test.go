@@ -410,7 +410,15 @@ func TestStateUnits(t *testing.T) {
 }
 
 func TestAWorker(t *testing.T) {
-	made := testClient(t, semiont.DefaultTiming())
+	// A worker's stream names what its claims need, as the agent's does.
+	made := semionttest.NewTestClient(semionttest.TestClientConfig{
+		Transport: semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: semiont.JobClaimChannels}),
+		Timing:    semiont.DefaultTiming(),
+	})
+	t.Cleanup(func() {
+		made.Client.Close()
+		made.Transport.Close()
+	})
 	made.Transport.RefuseWhen(func(operation bus.Channel, _ json.RawMessage) json.RawMessage {
 		if operation == bus.JobClaim.Request().Channel() {
 			return json.RawMessage(`{"code":"unauthorized","message":"This account cannot claim jobs"}`)

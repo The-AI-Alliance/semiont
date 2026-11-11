@@ -584,7 +584,7 @@ const claimedJob = `{"status":"running","metadata":{"id":"job-1","type":"mark","
 	`"startedAt":"2026-10-01T00:00:01.000Z","progress":{}}`
 
 func heldJobStall(t *testing.T, _ clockGiven) clockSubject {
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: semiont.JobClaimChannels, MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
 		if operation == bus.JobClaim.Request().Channel() {
 			return json.RawMessage(claimedJob), nil
 		}
@@ -654,7 +654,7 @@ func discoverySubject(t *testing.T, _ clockGiven) clockSubject {
 // ── A client's queries and caches ───────────────────────────────────────
 
 func invalidationWindow(t *testing.T, _ clockGiven) clockSubject {
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{MakeResponse: knowing()})
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels, MakeResponse: knowing()})
 	client, _ := worldOver(t, transport, semiont.DefaultTiming())
 	observed := client.Browse.Events(resourceOf(t, "res-1"))
 	background(t, func(ctx context.Context) {
@@ -704,7 +704,7 @@ func saveDebounce(t *testing.T, _ clockGiven) clockSubject {
 
 func jobFollower(t *testing.T, _ clockGiven) clockSubject {
 	running := statusOf(t, "running", nil)
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels, MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
 		switch operation {
 		case jobCreate:
 			return json.RawMessage(`{"jobId":"job-1"}`), nil
@@ -736,7 +736,7 @@ func jobFollower(t *testing.T, _ clockGiven) clockSubject {
 // ended, unless the case was over first.
 func polledJob(t *testing.T, ended func(err error)) *semionttest.FaultyTransport {
 	running := statusOf(t, "running", nil)
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels, MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
 		if operation == jobStatus {
 			return running, nil
 		}

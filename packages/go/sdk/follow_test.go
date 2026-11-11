@@ -54,6 +54,7 @@ func jobWorld(t *testing.T, answered bool, timing semiont.Timing) (*semiont.Clie
 	}
 	// Each reply is lost on its way, and the test answers what it means to.
 	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{
+		Channels:     bus.BridgedChannels,
 		Schedule:     []semionttest.FaultAction{semionttest.DropReply{}},
 		MakeResponse: func(bus.Channel, json.RawMessage) (json.RawMessage, error) { return nil, nil },
 	})
@@ -64,7 +65,7 @@ func jobWorld(t *testing.T, answered bool, timing semiont.Timing) (*semiont.Clie
 // with created.
 func creatingWorld(t *testing.T, created json.RawMessage, timing semiont.Timing) (*semiont.Client, *semionttest.FaultyTransport) {
 	t.Helper()
-	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels})
 	transport.QueueReply(jobCreate, created)
 	return worldOver(t, transport, timing)
 }

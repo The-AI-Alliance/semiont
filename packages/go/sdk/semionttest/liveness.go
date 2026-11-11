@@ -30,6 +30,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // ── L1, L2 ──────────────────────────────────────────────────────────────
@@ -47,8 +49,9 @@ type LivenessScenario struct {
 
 // LivenessSpec is a composition, and the schedules it is run under.
 type LivenessSpec struct {
-	// Setup builds a fresh composition over the transport it is given. It is
-	// called once per schedule, inside the case's bubble; what it opens it
+	// Setup builds a fresh composition over the transport it is given, whose
+	// stream names what a client's does (bus.BridgedChannels). It is called
+	// once per schedule, inside the case's bubble; what it opens it
 	// closes by t.Cleanup, which runs before the transport is closed. What it
 	// starts must end once the transport has closed: a goroutine still
 	// blocked then fails the test as the bubble's deadlock.
@@ -143,7 +146,7 @@ func AssertLivenessAxioms(t *testing.T, spec LivenessSpec) error {
 	for _, schedule := range spec.Schedules {
 		var violation error
 		synctest.Test(t, func(t *testing.T) {
-			transport := NewFaultyTransport(FaultyConfig{Schedule: schedule, MakeResponse: spec.MakeResponse})
+			transport := NewFaultyTransport(FaultyConfig{Schedule: schedule, MakeResponse: spec.MakeResponse, Channels: bus.BridgedChannels})
 			t.Cleanup(transport.Close)
 			scenario := spec.Setup(t, transport)
 			var delays time.Duration

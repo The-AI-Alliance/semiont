@@ -28,7 +28,7 @@ import (
 func withFake(t *testing.T) (*semionttest.FaultyTransport, func()) {
 	t.Helper()
 	verbFixture(t)
-	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels})
 	restore := launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fake })
 	return fake, restore
 }

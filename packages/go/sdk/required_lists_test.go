@@ -54,7 +54,7 @@ func TestARequiredListLeftNilIsEmittedAsTheEmptyList(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	w := semiont.NewWire(semionttest.NewFaultyTransport(semionttest.FaultyConfig{}))
+	w := semiont.NewWire(semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: []bus.Channel{bus.BindInitiate.Channel()}}))
 	read, err := semiont.Frames(ctx, w, bus.BindInitiate)
 	if err != nil {
 		t.Fatal(err)

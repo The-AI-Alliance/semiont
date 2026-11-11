@@ -23,6 +23,7 @@ import (
 	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 )
 
@@ -61,7 +62,7 @@ func mcpFixture(t *testing.T) (*mcp.ClientSession, *semionttest.FaultyTransport,
 	t.Helper()
 	gateway := newGatewayStub(t, func(string) bool { return true })
 	gatewayFixture(t, gateway)
-	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels})
 	t.Cleanup(launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fake }))
 	return mcpClient(t), fake, gateway
 }

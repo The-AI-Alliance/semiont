@@ -844,7 +844,11 @@ func ATitleIsItsResourcesNameInCapitals(t *testing.T) {
 }
 ```
 
-- **`FaultyTransport`** is a transport with no wire. `QueueReply` says what
+- **`FaultyTransport`** is a transport with no wire. Its `Channels` are the
+  global channels its stream names, as a real transport's are, and with none
+  named it names none: a client's stream names `bus.BridgedChannels`, a
+  worker's `semiont.JobClaimChannels`, and the one `NewTestClient` makes
+  when it is given none names `bus.BridgedChannels`. `QueueReply` says what
   the gateway answers the next requests of an operation with, and
   `RefuseWhen` has it answer with a failure. A reply that names what it
   answers for, as a gathered context names its resource, takes that from the
