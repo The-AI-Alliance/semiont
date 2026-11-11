@@ -258,9 +258,9 @@ package struct TableGenerator {
   func shapeLiteral(_ raw: JSONValue) throws -> String {
     let shape = try raw.object
     let parts = [
-      "ref", "kinds", "enum", "pattern", "minLength", "maxLength", "minimum", "maximum",
-      "minItems", "maxItems", "required", "members", "closed", "items", "values", "oneOf",
-      "discriminator", "allOf",
+      "ref", "kinds", "recognized", "enum", "pattern", "minLength", "maxLength", "minimum",
+      "maximum", "minItems", "maxItems", "required", "members", "closed", "items", "values",
+      "oneOf", "discriminator", "allOf",
     ]
     for key in shape.keys where !parts.contains(key) {
       throw GenerationRefused(description: "a shape states \(key), which the walk does not read")
@@ -285,7 +285,7 @@ package struct TableGenerator {
         throw GenerationRefused(description: "\(key) is \(value), which is no number")
       }
       return "\(number)"
-    case "required", "closed":
+    case "recognized", "required", "closed":
       return "[\(try value.array.map { literal(try $0.text) }.joined(separator: ", "))]"
     case "members":
       let members = try value.object.sorted(by: { $0.key < $1.key }).map {

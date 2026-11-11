@@ -19,15 +19,17 @@ func projectWire<Value: Codable>(
 }
 /// What a request answered on `channel`, its operation's failure channel, fails with. A failure is
 /// held to its channel's shape before it is read, as a result is: one with a fault is refused,
-/// naming the fault. One the shape passes is a `BusRequestError` in its own words, under the code
-/// its own code becomes; the shape holds the code to no list, so it is never decoded to a type whose
-/// code is closed.
+/// naming the fault. One the shape passes is read as the shape reads it, a code it does not
+/// recognize left out, and is a `BusRequestError` in its own words, under the code its own code
+/// becomes.
 func projectFailure(_ payload: [String: JSONValue], on channel: String, stamps: Set<String>)
   -> any Error
 {
-  let failure = declared(payload, stamps: stamps)
-  if let fault = faultOf(payload: failure, on: channel) {
-    return TransportError(.error, notTheChannels(channel, fault))
+  let failure: [String: JSONValue]
+  do throws(Fault) {
+    failure = try payloadAsRead(declared(payload, stamps: stamps), on: channel)
+  } catch {
+    return TransportError(.error, notTheChannels(channel, error))
   }
   guard case .string(let message) = failure["message"] else {
     return TransportError(.error, notTheChannels(channel, .undecoded))
@@ -91,13 +93,16 @@ extension HttpTransport {
     if frame.channel == descriptor.failure {
       throw projectFailure(frame.payload, on: descriptor.failure, stamps: descriptor.failureStamps)
     }
-    let stated = declared(frame.payload, stamps: descriptor.resultStamps)
-    if let fault = faultOf(payload: stated, on: descriptor.result) {
-      throw TransportError(.error, notTheChannels(descriptor.result, fault))
+    let read: [String: JSONValue]
+    do throws(Fault) {
+      read = try payloadAsRead(
+        declared(frame.payload, stamps: descriptor.resultStamps), on: descriptor.result)
+    } catch {
+      throw TransportError(.error, notTheChannels(descriptor.result, error))
     }
     do {
       var answer = frame
-      answer.payload = try descriptor.response(frame.payload)
+      answer.payload = try descriptor.response(read)
       return answer
     } catch {
       throw TransportError(.error, notTheChannels(descriptor.result, .undecoded))

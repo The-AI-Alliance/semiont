@@ -206,9 +206,9 @@ struct LiveQueries: Sendable {
     throws(Unreadable) -> (CacheRefreshRow, Subject)
   {
     guard case .frame(let frame) = carried else { throw Unreadable() }
-    let stated = declared(frame.payload, stamps: stamps)
-    guard faultOf(payload: stated, on: frame.channel) == nil else { throw Unreadable() }
-    let payload = JSONValue.object(stated)
+    guard let read = try? payloadAsRead(declared(frame.payload, stamps: stamps), on: frame.channel)
+    else { throw Unreadable() }
+    let payload = JSONValue.object(read)
     let row: CacheRefreshRow
     if let enriched = cacheRefresh.first(where: { $0.on == trigger && $0.when == .enriched }) {
       let written = try member(enriched.carries, of: payload, as: Annotation.self)
