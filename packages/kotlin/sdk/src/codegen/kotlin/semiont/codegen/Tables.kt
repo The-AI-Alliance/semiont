@@ -103,7 +103,7 @@ internal fun channelsFile(registry: JsonObject, definitions: JsonObject): String
     append("}\n\n")
     append("/** Every channel's name, in the registry's order. */\n")
     append("@Generated\npublic val CHANNEL_NAMES: List<String> = listOf(${rows.joinToString(", ") { literal(it.name) }})\n\n")
-    append("/** What a client with no narrower list of its own subscribes to on no scope: the channels every client hears, and every operation's reply channels. */\n")
+    append("/** What a full client gives its transport to name on no scope: the channels every client hears, and every operation's reply channels. */\n")
     append("@Generated\npublic val BRIDGED_CHANNELS: List<String> = listOf(${bridged.joinToString(", ") { literal(it) }})\n\n")
     append("/** The channels a resource's scope carries. */\n")
     append("@Generated\npublic val RESOURCE_SCOPED_CHANNELS: List<String> = listOf(${scoped.joinToString(", ") { literal(it) }})\n\n")

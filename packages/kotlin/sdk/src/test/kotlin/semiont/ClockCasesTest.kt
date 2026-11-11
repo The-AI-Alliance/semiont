@@ -39,6 +39,7 @@ import semiont.bus.Operations
 import semiont.bus.request
 import semiont.cache.Cache
 import semiont.cache.CachePersister
+import semiont.channels.BRIDGED_CHANNELS
 import semiont.cache.CacheRefreshTrigger
 import semiont.discovery.DiscoveryRead
 import semiont.discovery.DiscoveryTransport
@@ -309,7 +310,7 @@ private class Gateway(
 
     /** A transport to this gateway, holding a token, so its stream is set going. */
     fun transport(bench: Bench): HttpTransport = bench.held(
-        HttpTransport(GATEWAY, MutableStateFlow<String?>("a-token"), http = Network(::answer), context = bench.context, clock = bench.clock, random = LowestDraw),
+        HttpTransport(GATEWAY, MutableStateFlow<String?>("a-token"), BRIDGED_CHANNELS, http = Network(::answer), context = bench.context, clock = bench.clock, random = LowestDraw),
     )
 }
 

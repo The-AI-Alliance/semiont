@@ -33,11 +33,11 @@ Kotlin calls a `suspend` member and collects a `Flow`. Java calls the member's t
 
 ## Connecting
 
-A client of a knowledge base, over HTTP, signed in with a token. In Kotlin:
+A client of a knowledge base, over HTTP, signed in with a token. A transport is always given the channels its stream names on no scope, and assumes none of its own: a full client gives it `BRIDGED_CHANNELS` (`semiont.channels`; `ChannelsKt.getBRIDGED_CHANNELS()` from Java), the channels every client hears and every operation's replies. In Kotlin:
 
 <!-- readme: connect -->
 ```kotlin
-val transport = HttpTransport(baseUrl, MutableStateFlow(token))
+val transport = HttpTransport(baseUrl, MutableStateFlow(token), BRIDGED_CHANNELS)
 val client = SemiontClient(transport, HttpContentTransport(transport), transport)
 ```
 
@@ -45,7 +45,7 @@ In Java:
 
 <!-- readme: connect-java -->
 ```java
-HttpTransport transport = new HttpTransport(baseUrl, StateFlowKt.MutableStateFlow(token));
+HttpTransport transport = new HttpTransport(baseUrl, StateFlowKt.MutableStateFlow(token), ChannelsKt.getBRIDGED_CHANNELS());
 SemiontClient client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 

@@ -252,7 +252,8 @@ private fun gatewayOf(kb: KbTarget): String {
  * already, whether or not the session asks who its token is (`validate`), and
  * otherwise once the gateway has named them and that is recorded on the
  * sign-in the gateway was asked about. A session that does not ask, over a
- * sign-in that names nobody yet, keeps for nobody.
+ * sign-in that names nobody yet, keeps for nobody. Its transport's stream
+ * names `BRIDGED_CHANNELS` on no scope, as a full client's does.
  * A sign-in that cannot record who the gateway named keeps nothing more, and
  * the session says so once (`session.keep-failed`); it goes on, its token held
  * and its person signed in. The gateway and the issuer are asked with `http`.
@@ -263,7 +264,6 @@ internal suspend fun sessionStarted(
     kb: KbTarget,
     kept: SignInKept,
     validate: Boolean,
-    channels: List<String>,
     storage: SessionStorage?,
     onAuthFailed: ((SessionEndReason) -> Unit)?,
     http: HttpClient,
@@ -284,7 +284,7 @@ internal suspend fun sessionStarted(
     val transport = HttpTransport(
         baseUrl,
         token,
-        channels,
+        BRIDGED_CHANNELS,
         refresher = object : TokenRefresher {
             override suspend fun refresh(refused: String?): String? = made.await().refresh(refused)
         },
@@ -357,9 +357,10 @@ internal suspend fun sessionStarted(
  * is renewed through the session, so the transport and the session never hold
  * different ones. With nothing kept, the session is signed out: its token is
  * null, and a request made through its client is refused. `validate` is
- * whether the gateway is asked who the token is; `channels` are the global
- * channels the transport's stream names. With a `storage`, what the client's
- * small queries hold is kept there for the person the kept sign-in names, and
+ * whether the gateway is asked who the token is. Its transport's stream names
+ * `BRIDGED_CHANNELS` on no scope, as a full client's does. With a `storage`,
+ * what the client's small queries hold is kept there for the person the kept
+ * sign-in names, and
  * the stream's place in each scope with it: from the start when it names them
  * already, whether or not the gateway is asked, and otherwise once the gateway
  * has said who the token is and that is recorded on `kept`. The next session
@@ -389,7 +390,6 @@ public suspend fun sessionFromKept(
     kb: KbTarget,
     kept: SignInKept,
     validate: Boolean = true,
-    channels: List<String> = BRIDGED_CHANNELS,
     storage: SessionStorage? = null,
     onAuthFailed: ((SessionEndReason) -> Unit)? = null,
     http: HttpClient = ownHttp,
@@ -397,7 +397,7 @@ public suspend fun sessionFromKept(
     clock: TimeSource = TimeSource.Monotonic,
     random: Random = Random.Default,
 ): OpenedSession {
-    val opened = sessionStarted(kb, kept, validate, channels, storage, onAuthFailed, http, context, clock, random)
+    val opened = sessionStarted(kb, kept, validate, storage, onAuthFailed, http, context, clock, random)
     try {
         opened.session.ready()
     } catch (failure: Throwable) {
@@ -413,7 +413,6 @@ public fun sessionFromKeptFuture(
     kb: KbTarget,
     kept: SignInKept,
     validate: Boolean,
-    channels: List<String>,
     storage: SessionStorage?,
     onAuthFailed: Consumer<SessionEndReason>?,
     http: HttpClient = ownHttp,
@@ -421,7 +420,7 @@ public fun sessionFromKeptFuture(
     clock: TimeSource = TimeSource.Monotonic,
     random: Random = Random.Default,
 ): CompletableFuture<OpenedSession> = CoroutineScope(context).futureOf {
-    sessionFromKept(kb, kept, validate, channels, storage, onAuthFailed?.let { told -> { told.accept(it) } }, http, context, clock, random)
+    sessionFromKept(kb, kept, validate, storage, onAuthFailed?.let { told -> { told.accept(it) } }, http, context, clock, random)
 }
 
 // ── A registry's sessions, over HTTP ───────────────────────────────────
@@ -449,7 +448,6 @@ public class HttpSessionFactory @JvmOverloads constructor(
             KbTarget(kb.id, kb.label, kb.endpoint),
             keptIn(options.storage, kb.id),
             true,
-            BRIDGED_CHANNELS,
             options.storage,
             options.signals::notifySessionEnded,
             http,

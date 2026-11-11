@@ -23,6 +23,7 @@ import semiont.bus.Bus;
 import semiont.bus.Operations;
 import semiont.bus.Typed;
 import semiont.channels.Channels;
+import semiont.channels.ChannelsKt;
 import semiont.channels.Empty;
 import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
@@ -43,7 +44,7 @@ import semiont.types.StatusResponse;
 final class WireTest {
     @Test
     void aRequestRoundTripsThroughItsFuture() throws Exception {
-        try (Gateway gateway = new Gateway(); HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.MutableStateFlow("token"))) {
+        try (Gateway gateway = new Gateway(); HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.MutableStateFlow("token"), ChannelsKt.getBRIDGED_CHANNELS())) {
             gateway.answer = body -> "{\"channel\":\"frame:entity-type-add-ok\",\"payload\":{},\"correlationId\":\"" + Gateway.correlationOf(body) + "\"}";
             Empty added = new Bus(transport).requestFuture(Operations.FRAME_ADD_ENTITY_TYPE, FrameAddEntityTypeCommand.builder("Person").build(), 5_000).get(10, SECONDS);
             assertSame(Empty.INSTANCE, added);
@@ -53,7 +54,7 @@ final class WireTest {
 
     @Test
     void aStreamIsReadThroughItsPublisherAndARefusedFrameIsHeardInItsPlace() throws Exception {
-        try (Gateway gateway = new Gateway(); HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.MutableStateFlow("token"))) {
+        try (Gateway gateway = new Gateway(); HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.MutableStateFlow("token"), ChannelsKt.getBRIDGED_CHANNELS())) {
             CompletableFuture<List<Heard<BeckonFocusEvent>>> both = new CompletableFuture<>();
             List<Heard<BeckonFocusEvent>> heard = new CopyOnWriteArrayList<>();
             try (Typed<BeckonFocusEvent> focus = new Bus(transport).frames(Channels.BECKON_FOCUS)) {
@@ -99,7 +100,7 @@ final class WireTest {
     @Test
     void aRequestCancelledFromJavaClosesItsConnection() throws Exception {
         try (ServerSocket server = new ServerSocket(0, 0, InetAddress.getLoopbackAddress());
-                HttpTransport transport = new HttpTransport("http://127.0.0.1:" + server.getLocalPort(), StateFlowKt.<String>MutableStateFlow(null))) {
+                HttpTransport transport = new HttpTransport("http://127.0.0.1:" + server.getLocalPort(), StateFlowKt.<String>MutableStateFlow(null), ChannelsKt.getBRIDGED_CHANNELS())) {
             CompletableFuture<StatusResponse> status = transport.getStatusFuture();
             try (Socket asked = server.accept();
                     BufferedReader request = new BufferedReader(new InputStreamReader(asked.getInputStream(), UTF_8))) {
@@ -118,7 +119,7 @@ final class WireTest {
     @Test
     void anUploadIsBuiltAndAwaitedFromJava() throws Exception {
         try (Gateway gateway = new Gateway();
-                HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow(null));
+                HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow(null), ChannelsKt.getBRIDGED_CHANNELS());
                 HttpContentTransport content = new HttpContentTransport(transport)) {
             PutBinaryRequest request = PutBinaryRequest.builder("Notes", "the bytes".getBytes(UTF_8), "text/plain", "file://notes.txt")
                     .language("en")
@@ -138,7 +139,7 @@ final class WireTest {
     @Test
     void aResourcesBytesAreReadWholeAndThroughAPublisherFromJava() throws Exception {
         try (Gateway gateway = new Gateway();
-                HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow(null));
+                HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow(null), ChannelsKt.getBRIDGED_CHANNELS());
                 HttpContentTransport content = new HttpContentTransport(transport)) {
             Content whole = content.getBinaryFuture(new ResourceId("res-1")).get(10, SECONDS);
             assertEquals("text/plain", whole.getContentType());
