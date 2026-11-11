@@ -1,4 +1,5 @@
 import Foundation
+import SemiontTesting
 import Synchronization
 import Testing
 
@@ -23,14 +24,14 @@ struct Call: Equatable, Sendable {
   let name: String
   let payload: [String: JSONValue]
 }
-/// A transport given its global channels, as a real one is: it delivers those and the
-/// resource-scoped ones, and refuses a read or a request of another.
+/// A transport given its global channels, as a real one is: it delivers those, and a
+/// resource-scoped frame only while its scope is held, and refuses a read or a request of another.
 final class ProbeTransport: Transport, GatewayOperations, Sendable {
   let baseUrl = "http://kb.test"
   let emitted = Watched(false)
   let state = Watched<ConnectionState>(.open)
-  private let channels: [String]
-  init(channels: [String]) { self.channels = channels }
+  private let subscription: Subscription
+  init(channels: [String]) { subscription = Subscription(channels: channels) }
   private let hub = Broadcast<Carried>()
   private let failureEvents = Broadcast<TransportError>()
   private struct State: Sendable {
@@ -40,13 +41,12 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
     var frameEnds = 0
     var handler: (@Sendable (String, [String: JSONValue]) async throws -> [String: JSONValue])?
     var failure: BusRequestError?
-    var holds = 0
     var disposals = 0
     var annotations: [Annotation] = []
   }
   private let storage = Mutex(State())
   var calls: [Call] { storage.withLock { $0.calls } }
-  var holds: Int { storage.withLock { $0.holds } }
+  var holds: Int { subscription.holds }
   var disposals: Int { storage.withLock { $0.disposals } }
   func handle(
     _ handler: @escaping @Sendable (String, [String: JSONValue]) async throws -> [String: JSONValue]
@@ -59,22 +59,17 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func setCount(_ count: Int?) { storage.withLock { $0.count = count } }
   func setFailure(_ failure: BusRequestError?) { storage.withLock { $0.failure = failure } }
   func deliver(_ carried: Carried) {
-    guard isDelivered(carried.channel) else { return }
-    hub.yield(carried)
-  }
-  private func isDelivered(_ channel: String) -> Bool {
-    channels.contains(channel) || resourceScopedChannels.contains(channel)
+    if subscription.carries(carried) { hub.yield(carried) }
   }
   func frames(_ channels: [String]) async throws -> Events<Carried> {
-    for channel in channels where !isDelivered(channel) { throw unsubscribed(channel) }
+    if let channel = subscription.unreadable(channels) { throw unsubscribed(channel) }
     let source = hub.listen { [weak self] in self?.storage.withLock { $0.frameEnds += 1 } }
     storage.withLock { $0.onFrames }?()
     return source
   }
   func failures() -> Events<TransportError> { failureEvents.listen() }
   func subscribeToResource(_ resource: ResourceId) async -> ResourceHold {
-    storage.withLock { $0.holds += 1 }
-    return ResourceHold { [self] in storage.withLock { $0.holds -= 1 } }
+    subscription.hold(resource)
   }
   func emit(
     channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
@@ -89,9 +84,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func request(operation: String, payload: [String: JSONValue]) async throws
     -> [String: JSONValue]
   {
-    for channel in replyChannelsFor([operation]) where !channels.contains(channel) {
-      throw unsubscribed(channel)
-    }
+    if let channel = subscription.unanswered(operation) { throw unsubscribed(channel) }
     let handler = try storage.withLock { state in
       state.calls.append(Call(via: "request", name: operation, payload: payload))
       if let failure = state.failure { throw failure }
@@ -653,12 +646,15 @@ private let callsByName:
   let resource = try ResourceId("res-1")
   let source = try await bus.frames(Channels.markAdded, resource: resource)
   #expect(probe.holds == 1)
+  // Another reader holds res-2, so its frame reaches the stream, and this read passes it by.
+  let elsewhere = await probe.subscribeToResource(try ResourceId("res-2"))
   probe.deliver(
     .frame(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-2"))))
   probe.deliver(
     .frame(
       ReceivedFrame(
         channel: "mark:added", payload: ["test-source": .string("wanted")], scope: resource)))
+  elsewhere.dispose()
   probe.dispose()
   var iterator = source.makeAsyncIterator()
   guard case .refused(let wanted) = try await iterator.next() else {

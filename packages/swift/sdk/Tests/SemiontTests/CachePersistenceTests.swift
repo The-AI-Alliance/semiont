@@ -400,6 +400,10 @@ private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async thr
     client.dispose()
   }
   _ = try await client.browse.live.resources.fetch(held)
+  // The stream holds both resources' scopes, as a gateway sends a resource's events only then; only
+  // res-1 has a value in the cache.
+  let scopes = [await probe.subscribeToResource(held), await probe.subscribeToResource(unheld)]
+  defer { for scope in scopes { scope.dispose() } }
 
   // A place noted while nothing is unsettled is written with the next save.
   probe.deliver(.frame(try archived(unheld, id: "p-res-2-1")))

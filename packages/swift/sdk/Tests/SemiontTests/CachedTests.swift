@@ -192,7 +192,8 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
       resourceId: second,
       timestamp: "2026-11-03T00:00:00Z", type: channel,
       userId: UserId("did:web:kb.test:users:person"), version: 1)
-    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(edit))))
+    transport.deliver(
+      .frame(ReceivedFrame(channel: channel, payload: try wirePayload(edit), scope: second)))
     guard case .ready? = await secondReader.next() else {
       Issue.record("An annotation edit should refresh the history of its resource")
       return
@@ -245,7 +246,8 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
       annotation: enriched, id: "e-write", metadata: EventMetadata(sequenceNumber: 1),
       payload: payload, resourceId: resource, timestamp: "2026-11-04T00:01:00Z",
       type: channel, userId: UserId("did:web:kb.test:users:person"), version: 1)
-    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
+    transport.deliver(
+      .frame(ReceivedFrame(channel: channel, payload: try wirePayload(event), scope: resource)))
     guard case .ready(let writtenList)? = await listReader.next(),
       case .ready(let writtenDetail)? = await detailReader.next()
     else {
@@ -260,7 +262,8 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     transport.handle { _, _ in try annotationReply(fetched) }
     event.annotation = nil
     event.id = "e-refetch"
-    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
+    transport.deliver(
+      .frame(ReceivedFrame(channel: channel, payload: try wirePayload(event), scope: resource)))
     guard case .ready(let fetchedList)? = await listReader.next(),
       case .ready(let fetchedDetail)? = await detailReader.next()
     else {
@@ -316,7 +319,8 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
         payload: wirePayload(AnnotationRemovedPayload(annotationId: id)), resourceId: resource,
         timestamp: "2026-11-04T00:01:00Z", type: channel,
         userId: UserId("did:web:kb.test:users:person"), version: 1)
-      transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
+      transport.deliver(
+        .frame(ReceivedFrame(channel: channel, payload: try wirePayload(event), scope: resource)))
     }
     guard case .failed(let removed)? = await reader.next() else {
       Issue.record("Removal should fail the detail directly")

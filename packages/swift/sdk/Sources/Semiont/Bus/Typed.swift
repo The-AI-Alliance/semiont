@@ -29,7 +29,7 @@ public enum Carried: Sendable {
     }
   }
   /// The resource whose scope it was delivered on.
-  var scope: ResourceId? {
+  package var scope: ResourceId? {
     switch self {
     case .frame(let frame): frame.scope
     case .refused(let refusal): refusal.scope
