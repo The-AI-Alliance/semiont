@@ -296,6 +296,10 @@ export function App() {
     refreshKnowledgeBases();
   }, [refreshKnowledgeBases]);
 
+  useEffect(() => {
+    refreshKnowledgeBases();
+  }, [refreshKnowledgeBases]);
+
   const createKnowledgeBase = useCallback(async (
     options: NewKnowledgeBaseOptions,
     onProgress: (progress: ControlProgress) => void,
