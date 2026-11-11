@@ -160,7 +160,7 @@
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/identity.ml": "926a5ae2b89b08a294af2bbee6975347194bdaea78109f82a777b9fcff388e58",
-    "lib/job.ml": "2381750e7292f8a03640f1e09de22eb525086877fb8289b46e3d188798181453",
+    "lib/job.ml": "583809224cd23d98628e42793857f6877951d14ca1984bafd820aa56ec71b788",
     "lib/job_filter.ml": "d0b6bff412af0031c187c9f667c7d75cbff5d486f48c24d34d6441e4d13e4c01",
     "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
     "lib/kept_renewal.ml": "3c69043d8304fa35dcbe80e5322ea71bb0f39d7ee57e4d772cc789b1de36ddee",
@@ -15073,7 +15073,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.Job.poll_until_complete",
-      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
+      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  ?within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
     },
     {
       "kind": "value",
@@ -17271,7 +17271,7 @@
     {
       "kind": "value",
       "path": "Semiont.Job.poll_until_complete",
-      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
+      "declaration": "val poll_until_complete :\n  Semiont__.Client_core.t ->\n  ?every_ms:int ->\n  ?within_ms:int ->\n  on_status:([ `JobStatusResult ] Semiont__Bus_registry.component\n             Semiont__.Bus_registry.decoded -> 'a) ->\n  [ `JobStatusRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded ->\n  ([ `JobStatusResult ] Semiont__Bus_registry.component\n   Semiont__.Bus_registry.decoded, Semiont__.Client_core.error)\n  result"
     },
     {
       "kind": "value",

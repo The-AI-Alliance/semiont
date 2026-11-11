@@ -250,7 +250,8 @@ let controlled () =
                   read Subscription.Initial;
                   `Stop_daemon)
           | _ -> ())
-      | ("heldJobStall" | "invalidationWindow" | "jobFollower") as subject -> (
+      | ( "heldJobStall" | "invalidationWindow" | "jobFollower" | "jobPoll"
+        | "jobPollTimeout" ) as subject -> (
           let session =
             Session.start ~sw ~clock ~initial_token:(Some "token")
               ~renew:(fun ~holding:_ -> Session.Refused)
@@ -306,7 +307,7 @@ let controlled () =
               | "job:create" ->
                   answer "job:created" (read {|{"response":{"jobId":"job-1"}}|})
               | "job:status-requested" ->
-                  incr count;
+                  if subject <> "jobPollTimeout" then incr count;
                   answer "job:status-result"
                     (read
                        {|{"response":{"jobId":"job-1","type":"mark","status":"running","userId":"did:web:kb.example:users:one","created":"2026-01-01T00:00:00Z"}}|})
@@ -359,6 +360,26 @@ let controlled () =
                   frame "job:report-progress"
                     (read
                        {|{"resourceId":"res-1","jobId":"job-1","jobType":"mark","percentage":10,"progress":{"percentage":10}}|})
+          | "jobPoll" | "jobPollTimeout" ->
+              let job =
+                Result.get_ok
+                  (Bus_registry.decode
+                     Bus_registry.Channels.job_status_requested
+                     {|{"jobId":"job-1"}|})
+              in
+              Fiber.fork_daemon ~sw (fun () ->
+                  (match
+                     ( subject,
+                       Client.Job.poll_until_complete client ~on_status:ignore
+                         job )
+                   with
+                  | ( "jobPollTimeout",
+                      Error (Client.Transport Subscription.Timeout) ) ->
+                      incr count
+                  | "jobPollTimeout", _ ->
+                      Alcotest.fail "the poll did not time out"
+                  | _ -> ());
+                  `Stop_daemon)
           | _ ->
               let filter =
                 Result.get_ok
