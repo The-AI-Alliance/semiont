@@ -644,6 +644,38 @@ async function jobFollower(_given: JsonObject | undefined, held: Held): Promise<
   };
 }
 
+/** A client's `job.pollUntilComplete` of one job, naming no interval and no limit, over a transport that answers every status ask with the job running. */
+function polling(held: Held): { transport: FaultyTransport; poll: Promise<unknown> } {
+  const { client, transport } = createTestClient({
+    transport: { makeResponse: answering(held, { 'job:status-requested': () => JOB_RUNNING }) },
+  });
+  held.later(() => client.dispose());
+  return { transport, poll: client.job.pollUntilComplete(jobId('job-1')) };
+}
+
+async function jobPoll(_given: JsonObject | undefined, held: Held): Promise<Subject> {
+  const { transport, poll } = polling(held);
+  // How it ends is what jobPollTimeout counts.
+  poll.then(
+    () => held.wrong.push('the poll ended'),
+    () => {},
+  );
+  return { counted: () => asked(transport, 'job:status-requested') };
+}
+
+async function jobPollTimeout(_given: JsonObject | undefined, held: Held): Promise<Subject> {
+  const { poll } = polling(held);
+  let timedOut = 0;
+  poll.then(
+    () => held.wrong.push('the poll ended'),
+    (error: unknown) => {
+      if (error instanceof BusRequestError && error.code === 'bus.timeout') timedOut += 1;
+      else held.wrong.push(`the poll failed otherwise: ${said(error)}`);
+    },
+  );
+  return { counted: () => timedOut };
+}
+
 /** How this SDK builds each subject the table names. */
 const SUBJECTS: Record<string, Build> = {
   refusedStream,
@@ -663,6 +695,8 @@ const SUBJECTS: Record<string, Build> = {
   unansweredEmit,
   refusedBusRequest,
   timedOutBusRequest,
+  jobPoll,
+  jobPollTimeout,
 };
 
 // ── A case, played ──────────────────────────────────────────────────────

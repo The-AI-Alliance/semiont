@@ -1,7 +1,7 @@
 import type { Observable } from 'rxjs';
 import type { EventBus, EventMap, FrameRefusal, JobId, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { Bus, BusRequestError } from '@semiont/core';
+import { Bus, BUS_REQUEST_TIMEOUT_MS, BusRequestError, JOB_POLL_MS, JOB_POLL_TIMEOUT_MS } from '@semiont/core';
 import { ClaimsObservable, type ClaimOptions } from '../claims';
 import type { JobNamespace as IJobNamespace } from './types';
 
@@ -54,20 +54,23 @@ export class JobNamespace implements IJobNamespace {
     jobId: JobId,
     options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void },
   ): Promise<JobStatusResponse> {
-    const interval = options?.interval ?? 1000;
-    const timeout = options?.timeout ?? 60000;
-    const startTime = Date.now();
+    const interval = options?.interval ?? JOB_POLL_MS;
+    const timeout = options?.timeout ?? JOB_POLL_TIMEOUT_MS;
+    const due = Date.now() + timeout;
+    const timedOut = () => new BusRequestError(`Job polling timed out after ${timeout}ms`, 'bus.timeout', { jobId });
 
     while (true) {
-      const status = await this.status(jobId);
+      const left = due - Date.now();
+      if (left <= 0) throw timedOut();
+      // The limit counts the asks too: one still unanswered at it fails there.
+      const status = await this.wire.request('job:status-requested', { jobId }, Math.min(left, BUS_REQUEST_TIMEOUT_MS));
       if (options?.onProgress) options.onProgress(status);
       if (status.status === 'complete' || status.status === 'failed' || status.status === 'cancelled') {
         return status;
       }
-      if (Date.now() - startTime > timeout) {
-        throw new BusRequestError(`Job polling timeout after ${timeout}ms`, 'bus.timeout', { jobId });
-      }
-      await new Promise(resolve => setTimeout(resolve, interval));
+      const waitLeft = due - Date.now();
+      if (waitLeft <= 0) throw timedOut();
+      await new Promise((resolve) => setTimeout(resolve, Math.min(interval, waitLeft)));
     }
   }
 
