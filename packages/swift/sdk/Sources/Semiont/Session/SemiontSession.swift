@@ -107,18 +107,20 @@ public actor SemiontSession: StateUnit {
       return try await sharedValue(task, lifetime: lifetime)
     }
     let id = UUID()
-    let task = spawn(on: self) { session in try await session.renewedAndConfirmed(id) }
+    let task = spawn(on: self) { session in try await session.renewedAndConfirmed(refused, id: id) }
     validation = (refused, task)
     lifetime.keep(task, id: id)
     return try await sharedValue(task, lifetime: lifetime)
   }
-  /// The validation `id`: it renews the token, asks the gateway who the renewed one is, and gives
-  /// the token then held.
-  private func renewedAndConfirmed(_ id: UUID) async throws -> String? {
+  /// The validation `id` of `refused`: it renews the token, asks the gateway who the renewed one is,
+  /// and gives the token then held. It begins after `refresh` spawned it, so a renewal that ended in
+  /// between may have replaced `refused`: that refusal was answered already, and nothing is renewed.
+  private func renewedAndConfirmed(_ refused: String?, id: UUID) async throws -> String? {
     defer {
       lifetime.forget(id)
       validation = nil
     }
+    guard token.value == refused else { return token.value }
     guard let renewed = try await renewed(), readyState, let validate else { return token.value }
     do {
       let named = try await validate(renewed)
