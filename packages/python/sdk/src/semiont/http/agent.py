@@ -350,7 +350,7 @@ class AgentToken:
                 response.content,
                 retry_after_ms(response.headers.get("retry-after")),
             )
-        principal = read_as(UserResponse, response.content, UserResponse.model_validate_json)
+        principal = read_as(UserResponse, response.content, UserResponse.model_validate)
         if isinstance(principal, Fault):
             raise TransportError("error", f"{url} did not answer who the agent is: {principal}", status=status)
         return principal.did

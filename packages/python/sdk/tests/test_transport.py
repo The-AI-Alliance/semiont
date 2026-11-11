@@ -156,8 +156,9 @@ def test_a_request_answered_on_its_failure_channel_fails_under_the_code_the_tabl
         error = run(scenario({"message": "said by the peer", "code": wire}))
         assert (error.code, error.message, error.failure) == (code, "said by the peer", {"message": "said by the peer", "code": wire})
     assert run(scenario({"message": "no code at all"})).code == unrecognized
+    # A code the wire does not list is read as absent: the request fails with the failure as read.
     later = run(scenario({"message": "a code from a later peer", "code": "not-a-code-yet"}))
-    assert (later.code, later.message) == (unrecognized, "a code from a later peer")
+    assert (later.code, later.message, later.failure) == (unrecognized, "a code from a later peer", {"message": "a code from a later peer"})
 
 
 def test_a_failure_that_is_not_its_channel_s_is_refused_naming_its_fault_and_is_given_no_words() -> None:

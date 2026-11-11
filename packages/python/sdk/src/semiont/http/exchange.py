@@ -23,7 +23,7 @@ from functools import partial
 from typing import TypeAliasType, final, override
 
 import httpx
-from pydantic import TypeAdapter, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont import telemetry
 from semiont._required import Fault, read_as
@@ -293,7 +293,7 @@ class Exchange:
         The answer, once begun, is read within the same deadline.
         """
         return await self._answer(
-            declared.model_validate_json,
+            declared.model_validate,
             declared,
             method,
             path,
@@ -306,12 +306,12 @@ class Exchange:
     async def answer_one_of[T](self, declared: TypeAdapter[T], named: TypeAliasType, method: str, path: str) -> T:
         """The same, of an operation that declares one of several shapes: `declared` reads the body, and `named` is the union's name."""
         return await self._answer(
-            declared.validate_json, named, method, path, authenticated=True, headers=None, content=None, at_length=False
+            declared.validate_python, named, method, path, authenticated=True, headers=None, content=None, at_length=False
         )
 
     async def _answer[T](
         self,
-        read: Callable[[str | bytes], T],
+        read: Callable[[JsonValue], T],
         declared: object,
         method: str,
         path: str,

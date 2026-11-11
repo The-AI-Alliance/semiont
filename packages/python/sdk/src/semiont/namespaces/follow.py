@@ -41,7 +41,7 @@ from typing import Final, Literal, final
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from semiont._required import UNDECODED, fault_of
+from semiont._required import UNDECODED, Fault, as_read
 from semiont.bus import Heard, heard
 from semiont.channels import JOB_COMPLETE, JOB_FAIL, JOB_REPORT_PROGRESS
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
@@ -214,10 +214,12 @@ def _learned[C: JobCompleteCommand](completion: type[C], delegated: JobType, sta
     # A job completed without a result is stored with an empty one: an object that holds nothing.
     if not (status.result is None or isinstance(status.result, dict)):
         stated["result"] = written(status.result)
-    fault = fault_of(completion, stated)
-    if fault is None:
+    read = as_read(completion, stated)
+    if isinstance(read, Fault):
+        fault = read
+    else:
         try:
-            return TypeAdapter(completion).validate_python(stated)
+            return TypeAdapter(completion).validate_python(read)
         except ValidationError:
             fault = UNDECODED
     # Raised from nothing: the decoder's failure shows the result, and what a failure is raised from is printed with it.
