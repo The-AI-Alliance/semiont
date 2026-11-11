@@ -1252,6 +1252,30 @@
         "anchorMethod": "fuzzy-match",
         "matchQuality": "case-insensitive"
       }
+    },
+    {
+      "why": "a character that is both cased and case-ignorable is case-ignorable first, as Unicode's rule has it (the Standard, 3.13: its repetition takes as many as it can, with no backup): the modifier letter small h (U+02B0) is both, so the capital sigma after it has no cased letter before it once the case-ignorable are passed, does not end a word, and lower-cases to the sigma that is not final, which the model wrote",
+      "text": "\u02b0\u03a3",
+      "quoted": { "exact": "\u02b0\u03c3" },
+      "reconciled": {
+        "start": 0,
+        "end": 2,
+        "exact": "\u02b0\u03a3",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "after a capital sigma too, a character that is both cased and case-ignorable is case-ignorable first: the modifier letter small h (U+02B0) after this sigma is passed over, no cased letter is beyond it, and the sigma, with a capital alpha before it, ends a word and lower-cases to the final sigma",
+      "text": "\u0391\u03a3\u02b0",
+      "quoted": { "exact": "\u03b1\u03c2\u02b0" },
+      "reconciled": {
+        "start": 0,
+        "end": 3,
+        "exact": "\u0391\u03a3\u02b0",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
     }
   ]
 }
