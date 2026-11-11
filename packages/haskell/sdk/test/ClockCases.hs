@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module ClockCases (clockCasesFor, clockCensus, Scenario(..), cacheClockCases, httpClockCases, discoveryClockCases, clientClockCases) where
+module ClockCases (clockCasesFor, clockCensus, Scenario(..), cacheClockCases, httpClockCases, discoveryClockCases, clientClockCases, jobPollClockCases) where
 
-import Control.Concurrent.Async (async, cancel)
+import Control.Concurrent.Async (async, cancel, poll)
 import Control.Concurrent.STM
-import Control.Exception (SomeException, bracket, finally, try)
+import Control.Exception (SomeException, bracket, finally, throwIO, try)
 import Control.Monad (forM_, unless, when)
 import Data.Aeson (Value(..), eitherDecodeStrict', toJSON, FromJSON, fromJSON, Result(..))
 import qualified Data.Aeson.Key as Key
@@ -32,6 +32,7 @@ import Semiont.Errors (BusRequestError(..))
 import qualified Semiont.Gateway as Gateway
 import qualified Semiont.Http as Http
 import qualified Semiont.Http.Routes as Route
+import qualified Semiont.Job as Job
 import qualified Semiont.Retry as Retry
 import qualified Semiont.StateValue as State
 import qualified Semiont.Timing.Settings as Timing
@@ -225,38 +226,77 @@ cacheClockCases root = clockCasesFor root ["saveDebounce"] $ \clock _ -> do
   pure (Scenario action (readTVarIO saves) (Cache.dispose cache))
 
 
-clientClockCases :: FilePath -> Map.Map Text Value -> IO [Text]
-clientClockCases root fixtures = clockCasesFor root ["invalidationWindow"] $ \time _ -> do
-  count <- newTVarIO 0
+fixture :: FromJSON value => Map.Map Text Value -> Text -> IO value
+fixture fixtures name = case Map.lookup name fixtures of
+  Nothing -> ioError (userError ("missing client clock fixture " ++ Text.unpack name))
+  Just value -> case fromJSON value of Error message -> ioError (userError message); Success parsed -> pure parsed
+
+-- | A client over an in-process transport that hands each frame it sends to answer, with the input it replies on.
+inProcessClient :: Time.ControlledTime -> (Transport.TransportInput -> BusFrame -> IO ()) -> IO (Client.Client, Transport.TransportInput)
+inProcessClient time answer = do
   ids <- newTVarIO (0::Integer)
   inputCell <- newEmptyTMVarIO
-  identity <- either (ioError . userError) pure (mkResourceId "clock-resource")
-  let fixture :: FromJSON value => Text -> IO value
-      fixture name = case Map.lookup name fixtures of
-        Nothing -> ioError (userError "missing client clock fixture")
-        Just value -> case fromJSON value of Error message -> ioError (userError message); Success parsed -> pure parsed
-      unexpected :: IO value
-      unexpected = ioError (userError "unexpected content read in invalidation clock case")
+  let unexpected :: IO value
+      unexpected = ioError (userError "unexpected content read in a client clock case")
       contents = Content.ContentTransport (\_ _ _ _ -> unexpected) (\_ _ -> unexpected) (\_ _ _ -> unexpected)
         (\_ _ -> unexpected) (\_ _ -> unexpected) (\_ _ -> unexpected) (pure ())
       options = Bus.BusOptions (Time.now time) (Time.waitUntil time)
         (atomically $ do modifyTVar' ids (+1); Text.pack . show <$> readTVar ids)
       send frame = do
-        unless (busFrameChannel frame==Channel.channelName Channel.BrowseEventsRequested) (ioError (userError "unexpected client clock request"))
-        atomically (modifyTVar' count (+1))
-        response <- fixture "BrowseEventsResult"
         input <- atomically (readTMVar inputCell)
-        case Channel.encodePayload Channel.BrowseEventsResult response of
-          Object fields -> Transport.receive input (BusFrame (Channel.channelName Channel.BrowseEventsResult) (busFrameCorrelationId frame) (BusFramePayload fields) Nothing)
-          _ -> ioError (userError "events reply is not an object")
+        answer input frame
         pure Nothing
   (carrier,input) <- Transport.newTransport (Transport.TransportOptions "local://clock" (Set.fromList Channel.channelNames) send (pure ()))
   atomically (putTMVar inputCell input)
   Transport.setState input Transport.Connecting
   Transport.setState input Transport.Open
   client <- Client.newClient carrier contents Nothing options Timing.protocolSettings Nothing
+  pure (client, input)
+
+-- | Answers the request a frame asks, on channel, with value.
+reply :: Transport.TransportInput -> BusFrame -> Channel.Channel scope value -> value -> IO ()
+reply input frame channel value = case Channel.encodePayload channel value of
+  Object fields -> Transport.receive input (BusFrame (Channel.channelName channel) (busFrameCorrelationId frame) (BusFramePayload fields) Nothing)
+  _ -> ioError (userError "a client clock case's reply is not an object")
+
+clientClockCases :: FilePath -> Map.Map Text Value -> IO [Text]
+clientClockCases root fixtures = clockCasesFor root ["invalidationWindow"] $ \time _ -> do
+  count <- newTVarIO 0
+  identity <- either (ioError . userError) pure (mkResourceId "clock-resource")
+  response <- fixture fixtures "BrowseEventsResult"
+  (client,input) <- inProcessClient time $ \input frame -> do
+    unless (busFrameChannel frame==Channel.channelName Channel.BrowseEventsRequested) (ioError (userError "unexpected client clock request"))
+    atomically (modifyTVar' count (+1))
+    reply input frame Channel.BrowseEventsResult response
   observer <- async (Cache.watch (Browse.events (Client.browse client) identity) (Stream.mapM_ (const (pure ()))))
-  stored <- fixture "StoredEventResponse"
+  stored <- fixture fixtures "StoredEventResponse"
   let payload=case toJSON stored { storedEventResponseResourceId=Just identity } of Object fields -> BusFramePayload fields; _ -> error "stored event is not an object"
       action=Transport.receive input (BusFrame (Channel.channelName Channel.MarkAdded) Nothing payload (Just identity))
   pure (Scenario action (readTVarIO count) (Client.dispose client `finally` cancel observer))
+
+-- | A client's job.pollUntilComplete of one job, naming no interval and no limit, over a transport that answers every
+-- status request with that job running.
+jobPollClockCases :: FilePath -> Map.Map Text Value -> IO [Text]
+jobPollClockCases root fixtures = clockCasesFor root ["jobPoll", "jobPollTimeout"] $ \time row -> do
+  asks <- newTVarIO 0
+  timedOut <- newTVarIO 0
+  identity <- either (ioError . userError) pure (mkJobId "polled-job")
+  base <- fixture fixtures "JobStatusResponse"
+  let running = JobStatusResult base { jobStatusResponseJobId=identity, jobStatusResponseStatus=JobStatusResponseStatusRunning } mempty
+  (client,_) <- inProcessClient time $ \input frame -> do
+    unless (busFrameChannel frame==Channel.channelName Channel.JobStatusRequested) (ioError (userError "unexpected job poll request"))
+    atomically (modifyTVar' asks (+1))
+    reply input frame Channel.JobStatusResult running
+  poller <- async $ do
+    outcome <- try (Job.pollUntilComplete (Client.job client) identity (Job.PollOptions Nothing Nothing (const (pure ()))))
+    case outcome of
+      Left failure | busRequestErrorCode failure == Code.BusRequestTimeout -> atomically (modifyTVar' timedOut (+1))
+      Left failure -> throwIO failure
+      Right _ -> ioError (userError "the poll of a running job ended")
+  let counter = if member "subject" row == String "jobPoll" then asks else timedOut
+      count = do
+        ended <- poll poller
+        case ended of
+          Just (Left problem) -> throwIO problem
+          _ -> readTVarIO counter
+  pure (Scenario (pure ()) count (Client.dispose client `finally` cancel poller))

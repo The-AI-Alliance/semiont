@@ -317,7 +317,7 @@ invoke (Rig client _ clock _) namespace member args = case (namespace,member) of
   ("job","status") -> field "jobId" args >>= void . Job.status (Client.job client)
   ("job","pollUntilComplete") -> do
     identity <- field "jobId" args
-    void (Job.pollUntilComplete (Client.job client) identity (Job.PollOptions 1 10 (const (pure ()))))
+    void (Job.pollUntilComplete (Client.job client) identity (Job.PollOptions Nothing Nothing (const (pure ()))))
   ("job","cancel") -> field "jobId" args >>= void . Job.cancel (Client.job client)
   ("job","claim") -> do
     config <- field "options" args

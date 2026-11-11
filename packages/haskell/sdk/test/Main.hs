@@ -60,7 +60,7 @@ import WorkerCases (workerCases)
 import GatewayCases (gatewayCases)
 import HeldCases (heldCases, heldClockCases)
 import SurfaceCases (surfaceCases)
-import ClockCases (clockCensus, clientClockCases, cacheClockCases, httpClockCases, discoveryClockCases)
+import ClockCases (clockCensus, clientClockCases, jobPollClockCases, cacheClockCases, httpClockCases, discoveryClockCases)
 import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
@@ -439,9 +439,10 @@ runCases root = do
   followerClock <- followerClockCases root fixtures
   surfaceCases root fixtures
   clientClock <- clientClockCases root fixtures
+  jobPollClock <- jobPollClockCases root fixtures
   refreshCases fixtures
   heldCases fixtures
   heldClock <- heldClockCases root fixtures
-  clockCensus root (concat [saveClock, httpClock, discoveryClock, deviceClock, sessionClock, followerClock, clientClock, heldClock])
+  clockCensus root (concat [saveClock, httpClock, discoveryClock, deviceClock, sessionClock, followerClock, clientClock, jobPollClock, heldClock])
   httpCases root fixtures
   corpusCases root
