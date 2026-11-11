@@ -556,6 +556,134 @@ def test_b13a_a_fetch_in_flight_when_its_key_is_removed_answers_its_own_reader_a
     run(scenario())
 
 
+def test_b13b_a_value_written_while_a_fetch_is_in_flight_lets_go_of_it() -> None:
+    async def scenario() -> None:
+        persister = Kept()
+        cache, service, tasks = world(persister)
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        older = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        cache.set(KEY, 7)
+        assert await now(observing) == Ready(7)
+        assert not fetching(cache)
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves == [{KEY: 7}]
+        # Its answer, coming later, is its reader's alone.
+        service.answer(0, 3)
+        assert await soon(older) == 3
+        waiting = await nothing_more(observing)
+        assert cache.get(KEY) == 7
+        assert not owing(cache)
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves == [{KEY: 7}]
+        # A write lets go of a revalidation too: when it fails, it is not asked again, and fails nothing.
+        cache.invalidate(KEY)
+        await turns()
+        cache.set(KEY, 8)
+        assert await soon(waiting) == Ready(8)
+        service.fail(1)
+        await turns()
+        (await nothing_more(observing)).cancel()
+        assert cache.get(KEY) == 8
+        assert service.asked == [KEY, KEY]
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b13b_a_patch_made_while_the_first_fetch_is_in_flight_is_applied_to_its_answer() -> None:
+    async def scenario() -> None:
+        cache, service, tasks = world(Kept())
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        read = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        cache.patch(KEY, lambda value: value * 10)
+        waiting = await nothing_more(observing)
+        assert cache.get(KEY) is None
+        assert fetching(cache)
+        service.answer(0, 3)
+        assert await soon(read) == 30
+        assert await soon(waiting) == Ready(30)
+        assert cache.get(KEY) == 30
+        assert service.asked == [KEY]
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b13b_patches_are_applied_to_the_value_at_once_and_to_the_answer_of_the_fetch_in_flight_in_the_order_made() -> None:
+    async def scenario() -> None:
+        persister = Kept()
+        cache, service, tasks = world(persister)
+        observing = await ready(cache, service, 1)
+        cache.invalidate(KEY)
+        read = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        cache.patch(KEY, lambda value: value + 1)
+        cache.patch(KEY, lambda value: value * 10)
+        assert cache.get(KEY) == 20
+        assert await now(observing) == Ready(20)
+        service.answer(1, 5)
+        assert await soon(read) == 60
+        assert await now(observing) == Ready(60)
+        assert service.asked == [KEY, KEY]
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert persister.saves[-1] == {KEY: 60}
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b13b_the_patches_kept_with_a_fetch_that_was_replaced_go_with_it() -> None:
+    async def scenario() -> None:
+        cache, service, tasks = world()
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        older = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        cache.patch(KEY, lambda value: value * 10)
+        cache.invalidate(KEY)
+        await turns()
+        assert service.asked == [KEY, KEY]
+        # The newer fetch was asked after the patch's event arrived: its answer holds it.
+        service.answer(1, 4)
+        assert await now(observing) == Ready(4)
+        service.answer(0, 5)
+        assert await soon(older) == 5
+        (await nothing_more(observing)).cancel()
+        assert cache.get(KEY) == 4
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b13b_a_patch_to_a_key_with_neither_a_value_nor_a_fetch_in_flight_does_nothing() -> None:
+    async def scenario() -> None:
+        cache, service, tasks = world(Kept())
+        # One nothing asked for is not held.
+        cache.patch(KEY, lambda value: value + 1)
+        assert not cache.known(KEY)
+        assert cache.get(KEY) is None
+        assert not owing(cache)
+        # One whose fetch failed twice holds no value, and has nothing in flight.
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        service.fail(0)
+        await turns()
+        failure = service.fail(1)
+        assert await now(observing) == Failed(failure)
+        cache.patch(KEY, lambda value: value + 1)
+        (await nothing_more(observing)).cancel()
+        assert cache.get(KEY) is None
+        assert not owing(cache)
+        assert service.asked == [KEY, KEY]
+        await tasks.close()
+
+    run(scenario())
+
+
 def test_a_value_that_is_known_is_written_and_nothing_is_asked_for() -> None:
     async def scenario() -> None:
         cache, service, tasks = world()
@@ -706,6 +834,22 @@ def test_b17_a_cache_given_what_was_kept_after_it_began_takes_only_the_keys_it_h
         # From now on its values are saved where they are kept.
         await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
         assert persister.saves[-1:] == [{"held": 7, KEY: 5}]
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b18_a_kept_value_that_is_patched_is_still_one_and_is_asked_for_anew_the_first_time_it_is_observed() -> None:
+    async def scenario() -> None:
+        cache, service, tasks = world(Kept({KEY: 1}))
+        cache.patch(KEY, lambda value: value + 1)
+        assert cache.get(KEY) == 2
+        assert service.asked == []
+        observing = cache.observe(KEY)
+        assert await now(observing) == Ready(2)
+        assert service.asked == [KEY]
+        service.answer(0, 5)
+        assert await now(observing) == Ready(5)
         await tasks.close()
 
     run(scenario())

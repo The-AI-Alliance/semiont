@@ -17,9 +17,10 @@ Two ways to read:
   and decides.
 
 `invalidate` asks again and keeps showing the value meanwhile; `set` writes a
-value that is known; `remove` ends a key whose entity is gone. `dispose` is
-terminal: every observer's states end, and nothing is fetched, retried or
-failed after it.
+value that is known, and lets go of the fetch in flight; `patch` writes part of
+one, and is kept with that fetch to be applied to its answer; `remove` ends a
+key whose entity is gone. `dispose` is terminal: every observer's states end,
+and nothing is fetched, retried or failed after it.
 
 A cache with a `CachePersister` begins with what was kept and saves its values
 as they change. A value that was kept is shown at once and asked for again the
@@ -101,15 +102,26 @@ def closed() -> BusRequestError:
 
 
 @final
+class _Flight[V]:
+    """A key's current fetch, and what goes with it when it is let go of."""
+
+    def __init__(self, number: int, task: asyncio.Task[V]) -> None:
+        self.number: Final = number
+        self.task: Final = task
+        self.ask: Literal["first", "retry"] | None = None
+        """Which of the live view's asks it is (B14); nothing when no ask waits on it."""
+        self.patches: Final[list[Callable[[V], V]]] = []
+        """The patches made while it was in flight, to apply to its answer in the order made (B13b)."""
+
+
+@final
 class _Key[V]:
     def __init__(self, state: CacheState[V]) -> None:
         self.state: Final = Variable[CacheState[V]](state)
-        self.in_flight: tuple[int, asyncio.Task[V]] | None = None
-        """The key's current fetch: its number, and its task. An `invalidate`
-        lets go of it without waiting, so a fetch whose answer will never come
+        self.in_flight: _Flight[V] | None = None
+        """The key's current fetch. An `invalidate`, a `set` or a `remove` lets
+        go of it without waiting, so a fetch whose answer will never come
         cannot hold the key, and one let go of writes nothing (B9)."""
-        self.validation: Literal["first", "retry"] | None = None
-        """Which of the live view's asks the current fetch is; nothing when no ask waits on it."""
 
     def known(self) -> bool:
         """Whether anything asked for the key and has not let go of it."""
@@ -117,7 +129,7 @@ class _Key[V]:
 
 
 def _heard(fetch: asyncio.Task[object]) -> None:
-    """Retrieve a fetch's failure, which its key (`Cache._settled`) and each awaiter are told: asyncio logs one nobody retrieved."""
+    """Retrieve a fetch's failure, which its key (`Cache._failed`) and each awaiter are told: asyncio logs one nobody retrieved."""
     if not fetch.cancelled():
         fetch.exception()
 
@@ -235,62 +247,77 @@ class Cache[K: Hashable, V](StateUnit):
             self._owed = True
             raise
 
-    def _fetching(self, key: K) -> asyncio.Task[V]:
+    def _fetching(self, key: K) -> _Flight[V]:
         """Start a fetch for `key`, or join the one in flight."""
         # Asked for by this cache now, whichever path asked.
         self._kept.discard(key)
         held = self._held(key)
-        if held.in_flight is not None:
-            return held.in_flight[1]
-        self._fetches += 1
-        fetch = self._tasks.run(self._fetched(key, self._fetches))
-        fetch.add_done_callback(_heard)
-        held.in_flight = (self._fetches, fetch)
-        return fetch
+        if held.in_flight is None:
+            self._fetches += 1
+            fetch = self._tasks.run(self._fetched(key, self._fetches))
+            fetch.add_done_callback(_heard)
+            held.in_flight = _Flight(self._fetches, fetch)
+        return held.in_flight
 
     async def _fetched(self, key: K, number: int) -> V:
         try:
             value = await self._fetch(key)
         except Exception as failure:
-            self._settled(key, number, failure)
+            self._failed(key, number, failure)
             raise
         except BaseException:
             # A cancellation is no failure: nothing is asked again after it.
-            self._settled(key, number, None)
+            self._settling(key, number)
             raise
-        self._settled(key, number, Ready(value))
-        return value
+        return self._landed(key, number, value)
 
-    def _settled(self, key: K, number: int, came_to: Ready[V] | Exception | None) -> None:
-        """Act on the key in the step a fetch settles, by what it `came_to`: its value, its failure, or nothing for a cancellation.
+    def _settling(self, key: K, number: int) -> tuple[_Key[V], _Flight[V]] | None:
+        """The key, and its fetch numbered `number`, in the step that fetch settles, if it is still the key's current one.
 
-        Only the key's current fetch acts on the key (B9). It is in flight no
-        more, its value is written, and the live view's ask waiting on it ends:
-        a first ask that failed is asked once more, at once, so the key is
-        fetching from its first failure until its retry settles; a second that
-        failed fails a key with no value. A fetch an invalidate, a removal or
-        the disposal let go of answers its own awaiters, and changes nothing.
+        From that step it is in flight no more. A fetch an invalidate, a set, a
+        removal or the disposal let go of is not the key's: it answers its own
+        awaiters, and changes nothing (B9).
         """
         held = self._keys.get(key)
-        if held is None or held.in_flight is None or held.in_flight[0] != number:
+        if held is None or held.in_flight is None or held.in_flight.number != number:
+            return None
+        flight, held.in_flight = held.in_flight, None
+        return held, flight
+
+    def _landed(self, key: K, number: int, value: V) -> V:
+        """What a fetch's awaiters are given: its answer, with the patches kept with it applied in the order made (B13b).
+
+        The key stores it while the fetch is its current one.
+        """
+        settling = self._settling(key, number)
+        if settling is None:
+            return value
+        held, flight = settling
+        for change in flight.patches:
+            value = change(value)
+        held.state.set(Ready(value))
+        self._owe_a_save()
+        return value
+
+    def _failed(self, key: K, number: int, failure: Exception) -> None:
+        """A fetch failed: the live view's first ask is asked once more, at once (B14); a second that failed fails a key with no value.
+
+        So the key is fetching from its first failure until its retry settles.
+        The patches kept with the fetch go with it (B13b): the retry is asked
+        after their events arrived, so its answer holds them.
+        """
+        settling = self._settling(key, number)
+        if settling is None:
             return
-        held.in_flight = None
-        if isinstance(came_to, Ready):
-            held.state.set(came_to)
-            self._owe_a_save()
-        validation, held.validation = held.validation, None
-        if not isinstance(came_to, Exception):
-            return
-        if validation == "first":
-            self._fetching(key)
-            held.validation = "retry"
-        elif validation == "retry" and not isinstance(held.state.value, Ready):
-            held.state.set(Failed(came_to))
+        held, flight = settling
+        if flight.ask == "first":
+            self._fetching(key).ask = "retry"
+        elif flight.ask == "retry" and not isinstance(held.state.value, Ready):
+            held.state.set(Failed(failure))
 
     def _revalidate(self, key: K) -> None:
         """Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes `Failed`."""
-        self._fetching(key)
-        self._held(key).validation = "first"
+        self._fetching(key).ask = "first"
 
     def observe(self, key: K) -> AsyncIterator[CacheState[V]]:
         """The key's state, now and as it changes, until the cache is disposed.
@@ -320,14 +347,14 @@ class Cache[K: Hashable, V](StateUnit):
     async def fetch(self, key: K) -> V:
         """Ask for the key's value now.
 
-        What the service answers, which every observer of the key is given
-        too unless an invalidate or a removal let go of the fetch first; or
-        the failure, which only this caller is. Concurrent asks for one key
-        share one fetch.
+        What the service answers, with the patches made meanwhile, which every
+        observer of the key is given too unless an invalidate, a set or a
+        removal let go of the fetch first; or the failure, which only this
+        caller is. Concurrent asks for one key share one fetch.
         """
         if self._disposed:
             raise closed()
-        return await _joined(self._fetching(key))
+        return await _joined(self._fetching(key).task)
 
     def get(self, key: K) -> V | None:
         """The key's value now, asking for nothing."""
@@ -361,7 +388,8 @@ class Cache[K: Hashable, V](StateUnit):
 
         A key's current fetch is in flight from when it is asked for, before
         its first turn, until its answer is written, in the same turn, or it
-        fails. One an invalidate or a removal let go of is in flight no more.
+        fails. One an invalidate, a set or a removal let go of is in flight no
+        more.
         """
         return self._persister is not None and self._fetch_in_flight()
 
@@ -393,19 +421,45 @@ class Cache[K: Hashable, V](StateUnit):
             return
         held = self._held(key)
         held.in_flight = None
-        held.validation = None
         held.state.set(Failed(gone))
         self._owe_a_save()
 
     def set(self, key: K, value: V) -> None:
-        """The key's value is known: write it, asking for nothing."""
+        """The key's value is known: write it, asking for nothing.
+
+        A fetch in flight is let go of, as a removal lets it go (B13b): it was
+        asked before the write, so its answer can be the value the write
+        replaced. What it answers goes to its own awaiters alone.
+        """
         if self._disposed:
             return
         self._kept.discard(key)
         held = self._held(key)
-        held.validation = None
+        held.in_flight = None
         held.state.set(Ready(value))
         self._owe_a_save()
+
+    def patch(self, key: K, change: Callable[[V], V]) -> None:
+        """Write part of the key's value: `change` takes the value to the patched one (B13b).
+
+        It is applied to the value now, if the key has one. A fetch in flight
+        can hold what the patch does not, so the patch lets go of nothing: it
+        is kept with that fetch, and applied to its answer after those made
+        before it. A key with neither a value nor a fetch in flight is left as
+        it is (B20). A value an earlier cache kept stays one (B18): the rest
+        of it is not known to be current.
+        """
+        if self._disposed:
+            return
+        held = self._keys.get(key)
+        if held is None:
+            return
+        if held.in_flight is not None:
+            held.in_flight.patches.append(change)
+        state = held.state.value
+        if isinstance(state, Ready):
+            held.state.set(Ready(change(state.value)))
+            self._owe_a_save()
 
     @override
     def dispose(self) -> None:

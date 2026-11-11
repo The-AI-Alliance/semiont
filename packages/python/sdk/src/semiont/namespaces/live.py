@@ -322,13 +322,16 @@ class Live:
         if resource is None or written is None:
             return
         if query == "annotations":
-            # Into the resource's list, when the client holds it: where the annotation was, or at its end.
-            held = self.annotations.get(resource)
-            if held is not None:
+
+            def written_into(held: AnnotationsValue) -> AnnotationsValue:
+                # Where the annotation was, or at the list's end.
                 listed = [written if annotation.id == written.id else annotation for annotation in held.annotations]
                 if all(annotation.id != written.id for annotation in held.annotations):
                     listed.append(written)
-                self.annotations.set(resource, held.model_copy(update={"annotations": listed}))
+                return held.model_copy(update={"annotations": listed})
+
+            # A patch: the list's fetch in flight can hold what the event does not (B13b).
+            self.annotations.patch(resource, written_into)
         elif query == "annotation":
             self.annotation_of[written.id] = resource
             self.annotation.set(written.id, written)
