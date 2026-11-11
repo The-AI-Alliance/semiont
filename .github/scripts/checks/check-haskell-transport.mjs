@@ -157,7 +157,8 @@ if (busFiles.length !== 1) throw new Error(`Bus implementation source is ambiguo
 const bus = read(busFiles[0]);
 if (/\bKM\.delete\b/.test(bus)) throw new Error('the Haskell bus deletes a payload member: the required table leaves out what a reader does not read');
 same('Haskell failure members read directly', new Set(), new Set([...bus.matchAll(/KM\.lookup "(\w+)"/g)].map((match) => match[1])));
-if (!bus.includes('Required.channelRead (channelName failure) fields') || !bus.includes('OperationFailure.code operation (deliveredPayload delivered)')
+if (!bus.includes('Required.channelRead (channelName failure) fields') || !bus.includes('decoded failure (Transport.Arrived frame)')
+  || !bus.includes('OperationFailure.code operation (deliveredPayload delivered)')
   || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
   throw new Error('a failure must be read by its channel’s required table, and its code and words by the operation’s own typed failure');
 }
@@ -166,13 +167,21 @@ const diagnosticOperations = new Map(Object.entries(inventory.modules['Semiont.C
     const match = /^Semiont\.Channels\.Operation \S+ \S+ (\S+)$/.exec(signature);
     return match ? [[name, match[1]]] : [];
   }));
-const diagnostics = [...read('packages/haskell/sdk/generated/Semiont/Internal/Generated/OperationFailure.hs')
-  .matchAll(/^message (\w+) = Types\.(\w+)$/gm)];
+const failureReaders = read('packages/haskell/sdk/generated/Semiont/Internal/Generated/OperationFailure.hs');
+const diagnostics = [...failureReaders.matchAll(/^message (\w+) = Types\.(\w+)$/gm)];
 same('Haskell per-operation failure diagnostics', new Set(diagnosticOperations.keys()), new Set(diagnostics.map((match) => match[1])));
 if (diagnostics.length !== diagnosticOperations.size) throw new Error('duplicate operation failure diagnostic');
 for (const [, operation, accessor] of diagnostics) {
   if (inventory.modules['Semiont.Types'].values[accessor] !== `${diagnosticOperations.get(operation)} -> Data.Text.Internal.Text`) {
     throw new Error(`${operation} does not read its own typed failure’s text: ${accessor}`);
+  }
+}
+const failureCodes = [...failureReaders.matchAll(/^code (\w+) = \w+ \. Types\.(\w+)$/gm)];
+same('Haskell per-operation failure codes', new Set(diagnosticOperations.keys()), new Set(failureCodes.map((match) => match[1])));
+if (failureCodes.length !== diagnosticOperations.size) throw new Error('duplicate operation failure code');
+for (const [, operation, accessor] of failureCodes) {
+  if (!inventory.modules['Semiont.Types'].values[accessor]?.startsWith(`${diagnosticOperations.get(operation)} -> Maybe `)) {
+    throw new Error(`${operation} does not read its own typed failure’s code: ${accessor}`);
   }
 }
 console.log('PASS Haskell transport, typed bus and failure-reader censuses');
