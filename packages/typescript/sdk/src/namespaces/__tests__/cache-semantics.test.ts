@@ -499,17 +499,22 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('last-write-wins when both fetches resolve', async () => {
+    it('only the newest fetch writes, though every fetch is answered', async () => {
       const { browse, state } = createHarness();
-      browse.resource(RID).subscribe(() => {});
+      const names: string[] = [];
+      browse.resource(RID).subscribe((s) => {
+        if (s.status === 'ready') names.push(s.value.name);
+      });
       state.resourceName = () => 'First';
-      // Fire a second fetch; responses come back in order.
       browse.invalidateResourceDetail(RID);
       state.resourceName = () => 'Second';
       browse.invalidateResourceDetail(RID);
       await flush();
-      const val = await firstDefined(browse.resource(RID));
-      expect(val).toMatchObject({ name: 'Second' });
+      // The fetches the invalidates let go of are answered first, in the
+      // order they were asked, and are not stored.
+      expect(names).not.toContain('Resource res-1');
+      expect(names).not.toContain('First');
+      expect(names.at(-1)).toBe('Second');
     });
   });
 

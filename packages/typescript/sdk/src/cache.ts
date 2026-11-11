@@ -23,8 +23,10 @@
  *     rejecting if the fetch fails. Concurrent calls for the same key share
  *     one in-flight fetch. Backs `CacheObservable.fresh()`.
  *   - `invalidate(key)`: stale-while-revalidate — keeps the current value
- *     visible to observers, clears the in-flight guard, starts a fresh
- *     fetch. Recovers an orphaned fetch (SSE torn down, response lost).
+ *     visible to observers, and starts a fresh fetch in place of the one in
+ *     flight. Recovers an orphaned fetch (SSE torn down, response lost).
+ *     Only a key's current fetch writes (B9): one an invalidate, a removal or
+ *     disposal let go of answers whoever awaited it, and stores nothing.
  *   - `remove(key, gone)`: the entity is gone (B13a): the value is dropped and
  *     the key is `failed` with `gone`, for every observer. No refetch.
  *   - `set(key, value)`: write-through without a fetch (B13b).
@@ -103,8 +105,9 @@ export interface Cache<K, V> extends StateUnit {
   observe(key: K): Observable<CacheState<V>>;
 
   /**
-   * Force a fresh fetch for `key`, update the store (so subscribers see it),
-   * and resolve with the fetched value — rejecting if the fetch fails.
+   * Force a fresh fetch for `key`, update the store (so subscribers see it)
+   * while it is still the key's current fetch (B9), and resolve with the
+   * fetched value — rejecting if the fetch fails.
    * Concurrent calls for the same key share one in-flight fetch. Backs the
    * one-shot `await` path: a re-read reflects writes rather than serving the
    * memoized value. Live-query *subscribers* (`observe`) keep B6 — a failed
@@ -154,6 +157,27 @@ export interface Cache<K, V> extends StateUnit {
    */
   persistencePending(): boolean;
 }
+
+/**
+ * What the live view's ask of a key waits on a fetch for (B14): its first
+ * ask, one that fails being asked once more, or the ask made because the
+ * first failed, one that fails failing a key that holds no value (B15).
+ */
+type Validation = 'first' | 'again';
+
+/** A key's current fetch, from when it is asked until it settles. */
+interface Flight<V> {
+  /** What it is answered, which everyone who joined it is given (B3). */
+  readonly answer: Promise<V>;
+  /** The live view's ask that waits on it, when one does. */
+  validation: Validation | null;
+}
+
+/**
+ * A rejection the live view's ask settled, in the step its fetch settled
+ * (B14): the swallowed paths tell no caller of it (B6).
+ */
+const settledByTheAsk = (): void => {};
 
 export function createCache<K, V>(
   fetchFn: (key: K) => Promise<V>,
@@ -219,8 +243,8 @@ export function createPersistableCache<K, V>(
    * helps (the B17-Q gate may be holding the bookmark, so none is persisted).
    */
   const rehydrated = new Set<K>();
-  /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
-  const inflight = new Map<K, Promise<V>>();
+  /** The current fetch per key, until it settles: the one whose answer is stored (B9). Joined by concurrent asks (B3). */
+  const inflight = new Map<K, Flight<V>>();
   const obsCache = new Map<K, Observable<CacheState<V>>>();
 
   /**
@@ -228,7 +252,9 @@ export function createPersistableCache<K, V>(
    * fetch, retry, or failure push: a B14 chain that straddles teardown
    * (Bus.request resolving `bus.closed` mid-retry) must die quietly instead
    * of erroring observers that dispose() just completed. Checked at every
-   * async resumption point in the SWR driver, not just at entry.
+   * act's entry; disposal lets go of every fetch in flight, so the step a
+   * fetch settles in, where a retry or a failure begins, finds it current no
+   * more and does nothing.
    */
   let disposed = false;
   /** B17-Q: disposal dropped a fetch in flight, so the places stay held back. */
@@ -271,12 +297,14 @@ export function createPersistableCache<K, V>(
   let pendingSave: { timer: ReturnType<typeof setTimeout> | null; save(): void } | null = null;
 
   /**
-   * Run (or join) a fetch for `key`. Resolves with the value and updates the
-   * store on success; rejects on failure WITHOUT touching the store (B6 —
-   * subscribers keep their prior value / loading state). Concurrent callers
-   * share the same promise.
+   * The key's current fetch, joined (B3), or one started when there is none.
+   * Only the current fetch writes (B9): in the step it settles, its value is
+   * stored (B5), or its failure, which leaves the store as it was (B6), ends
+   * the live view's ask that waits on it (`askFailed`). One that an
+   * invalidate, a removal or disposal let go of answers whoever awaited it,
+   * and stores nothing.
    */
-  const runFetch = (key: K): Promise<V> => {
+  const runFetch = (key: K): Flight<V> => {
     // B18 — a fetch is under way for this key from SOME path (observe's
     // revalidation, invalidate, or the await path), so it stops being
     // merely restored-from-disk. Cleared before the dedup return: joining an
@@ -285,76 +313,112 @@ export function createPersistableCache<K, V>(
     const existing = inflight.get(key);
     if (existing) return existing;
 
-    // Definite-assignment: `p` is assigned synchronously below, before the
-    // async `finally` (which references it) can run.
-    let p!: Promise<V>;
-    p = (async () => {
+    // Definite-assignment: `flight` is assigned synchronously below, before
+    // the fetch it starts can settle.
+    let flight!: Flight<V>;
+    const answer = (async () => {
       try {
         const value = await fetchFn(key);
-        // Atomic update: one `.next` with a fresh Map reference so
-        // downstream `distinctUntilChanged` sees the transition (B5).
-        const next = new Map(store$.value);
-        next.set(key, value);
-        store$.next(next);
-        // A value arrived from ANY path — the key is live again (B15). After
-        // the store write, so a failed key goes straight to `ready`: a value
-        // outranks a failure, and clearing first would show `pending` between.
-        clearFailure(key);
+        if (inflight.get(key) === flight) {
+          // Atomic update: one `.next` with a fresh Map reference so
+          // downstream `distinctUntilChanged` sees the transition (B5).
+          const next = new Map(store$.value);
+          next.set(key, value);
+          store$.next(next);
+          // A value arrived from ANY path — the key is live again (B15). After
+          // the store write, so a failed key goes straight to `ready`: a value
+          // outranks a failure, and clearing first would show `pending` between.
+          clearFailure(key);
+        }
         return value;
+      } catch (failure) {
+        if (inflight.get(key) === flight) {
+          // Let go of first, so a retry asks anew instead of joining this one.
+          inflight.delete(key);
+          askFailed(key, flight.validation, failure);
+        }
+        throw failure;
       } finally {
-        // Only clear if we're still the in-flight entry — an `invalidate`
-        // may have replaced us with a newer fetch (B9 orphan recovery).
-        if (inflight.get(key) === p) inflight.delete(key);
+        // Its own entry only: a newer fetch may have been put in its place
+        // (B9), by an invalidate or by a listener of the value it wrote.
+        if (inflight.get(key) === flight) inflight.delete(key);
       }
     })();
-    inflight.set(key, p);
-    return p;
+    flight = { answer, validation: null };
+    inflight.set(key, flight);
+    return flight;
   };
 
   /**
-   * Fetch driver for the swallowed SWR paths (observe / invalidate): retry
-   * once on failure (B14), then go idle — as `failed`, when the key holds no
+   * The live view's ask of `key`, on the swallowed paths (observe /
+   * invalidate): it waits on the key's current fetch, joined or started
+   * (B3), and ends in the step that fetch settles. A failure is asked once
+   * more (B14), then the key goes idle — as `failed`, when the key holds no
    * value (B15).
    *
    * The failure this covers is a lost one-shot reply — a Bus.request times
    * out because its SSE result raced a connection swap. Without a retry,
    * every subscriber of a never-loaded key starves silently until some future
    * observe()/invalidate() happens to act. A key that holds a value keeps
-   * showing it through a failure (B6); the retry joins any fetch another
-   * caller started in the meantime (B3), and the next observe()/invalidate()
+   * showing it through a failure (B6), and the next observe()/invalidate()
    * of an exhausted key starts a fresh chain. The `fetch`/await path never
    * comes through here — its caller sees the rejection and owns retry policy.
    */
-  const runFetchSWR = (key: K): void => {
-    if (disposed) return;
-    void runFetch(key).catch((firstErr: unknown) => {
-      // B16: teardown straddled the attempt — no retry, no breadcrumb noise.
-      if (disposed) return;
-      // Always-on breadcrumb: a failure swallowed with zero trace is how lost
-      // replies starve silently. Not deduped — a spamming retry line means
-      // fetches are failing repeatedly, which is itself the signal.
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[cache RETRY] SWR fetch failed for key ${String(key)}; re-issuing once (B14):`,
-        firstErr instanceof Error ? firstErr.message : firstErr,
-      );
-      void runFetch(key).catch((retryErr: unknown) => {
-        // B16: teardown straddled the retry — its failure has nowhere it
-        // needs to go (observers completed at dispose).
-        if (disposed) return;
+  const runFetchSWR = (key: K, validation: Validation): void => {
+    const flight = runFetch(key);
+    flight.validation = validation;
+    void flight.answer.catch(settledByTheAsk);
+  };
+
+  /**
+   * The live view's ask that waited on `key`'s current fetch, which failed
+   * with `failure`, ends in the step that fetch settles (B14 boundary 4): a
+   * first ask is asked once more, so no reader finds the key at rest between
+   * the two asks (B17), and a second fails a key that holds no value (B15).
+   * A fetch no ask waits on fails only its callers (B14 boundary 1).
+   */
+  const askFailed = (key: K, validation: Validation | null, failure: unknown): void => {
+    switch (validation) {
+      case 'first':
+        // Always-on breadcrumb: a failure swallowed with zero trace is how lost
+        // replies starve silently. Not deduped — a spamming retry line means
+        // fetches are failing repeatedly, which is itself the signal.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[cache RETRY] SWR fetch failed for key ${String(key)}; re-issuing once (B14):`,
+          failure instanceof Error ? failure.message : failure,
+        );
+        runFetchSWR(key, 'again');
+        return;
+      case 'again':
         // eslint-disable-next-line no-console
         console.warn(
           `[cache IDLE] retry also failed for key ${String(key)}; going idle until the ` +
             `next observe()/invalidate() (B14):`,
-          retryErr instanceof Error ? retryErr.message : retryErr,
+          failure instanceof Error ? failure.message : failure,
         );
         // B15: with no cached value to serve, "idle" would leave observers
         // on `pending` forever — the forbidden fourth state (L1). The key's
         // state becomes `failed` instead. A key WITH a stale value stays
         // silent (B6 stale-beats-error).
-        if (!store$.value.has(key)) setFailure(key, toError(retryErr));
-      });
-    });
+        if (!store$.value.has(key)) setFailure(key, toError(failure));
+        return;
+      case null:
+        return;
+    }
+  };
+
+  /**
+   * B7, B9 — ask for `key` again in place of the fetch in flight, which is
+   * let go of. The fresh fetch is current from this same step, so a reader of
+   * whether the key is fetching finds the one or the other, never neither
+   * (B17); the B15 failure is cleared only then. The value stays shown until
+   * the new one replaces it.
+   */
+  const refetch = (key: K): void => {
+    inflight.delete(key);
+    runFetchSWR(key, 'first');
+    clearFailure(key);
   };
 
   const knownKeys = (): K[] => [...new Set([...store$.value.keys(), ...failures$.value.keys(), ...inflight.keys()])];
@@ -436,7 +500,7 @@ export function createPersistableCache<K, V>(
             // flight for all of them. Cleared before `inner` is subscribed,
             // so the arriving observer's first state is `pending`.
             clearFailure(key);
-            runFetchSWR(key);
+            runFetchSWR(key, 'first');
           } else if (rehydrated.has(key)) {
             // B18 — first observation of a restored-from-disk value: serve it
             // immediately (it is already in the store, so subscribers paint
@@ -448,12 +512,12 @@ export function createPersistableCache<K, V>(
             // thereafter B2 applies as usual. A failed chain keeps the
             // persisted value visible (B6) — never worse than not
             // revalidating at all.
-            runFetchSWR(key);
+            runFetchSWR(key, 'first');
           } else if (!store$.value.has(key) && !inflight.has(key)) {
             // Subscribe path: fire-and-forget, swallow failures so a
             // subscriber stays at its last value (B6); one bounded retry
             // (B14). The awaiter's `fetch` surfaces failures instead.
-            runFetchSWR(key);
+            runFetchSWR(key, 'first');
           }
           return inner.subscribe(subscriber);
         });
@@ -467,7 +531,7 @@ export function createPersistableCache<K, V>(
       // policy (B14 boundary 1), so it gets a rejection it can see, under the
       // code a request of a closed bus fails with.
       if (disposed) return Promise.reject(new BusRequestError('The client is closed', 'bus.closed'));
-      return runFetch(key);
+      return runFetch(key).answer;
     },
 
     get(key: K): V | undefined {
@@ -482,18 +546,13 @@ export function createPersistableCache<K, V>(
 
     invalidate(key: K): void {
       if (disposed) return; // B16
-      // B7: do NOT erase the value. Clear the guard (B9 orphan recovery)
-      // and the B15 failure marker, then trigger a fresh fetch (with the
-      // B14 bounded retry). Observers keep seeing the stale value until the
-      // new value replaces it.
-      inflight.delete(key);
-      clearFailure(key);
-      runFetchSWR(key);
+      refetch(key);
     },
 
     remove(key: K, gone: Error): void {
       if (disposed) return; // B16
       rehydrated.delete(key); // B18: nothing left to revalidate
+      // B13a: the fetch in flight is let go of, and its answer is not stored (B9).
       inflight.delete(key);
       // B13a: the failure first, so the key goes from `ready` straight to
       // `failed`: dropping the value first would show `pending` between, a
@@ -519,11 +578,7 @@ export function createPersistableCache<K, V>(
 
     invalidateAll(): void {
       if (disposed) return; // B16
-      for (const key of knownKeys()) {
-        inflight.delete(key);
-        clearFailure(key);
-        runFetchSWR(key);
-      }
+      for (const key of knownKeys()) refetch(key);
     },
 
     persistencePending(): boolean {
