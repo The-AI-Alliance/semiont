@@ -1,0 +1,34 @@
+{
+  "about": "an event that carries an annotation, heard while its resource's annotation list is first asked for, is patched into what that request answers: neither the answer nor the event is lost, and nothing more is asked (B13b)",
+  "source": "protocol/contract/CACHE-SEMANTICS.md B13b; protocol/specs/src/client/refresh.json mark:body-updated",
+  "tier": "parity",
+  "steps": [
+    {"let": {
+      "original": {"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"},
+      "updated": {"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "commenting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"},
+      "added": {"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a2"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}
+    }},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"backend": "annotations", "with": {"resource": {"$var": "r1"}, "annotations": {"annotations": [{"$var": "original"}], "total": 1}}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "annotation", "resource": {"$var": "r1"}, "annotation": {"$var": "a1"}}, "as": "mark"},
+    {"fetch": "browse:annotation-requested", "payload": {"resourceId": {"$var": "r1"}, "annotationId": {"$var": "a1"}}, "as": "d1"},
+    {"backend": "emit", "with": {"channel": "browse:annotation-result", "correlationId": {"$var": "d1"}, "payload": {"response": {"annotation": {"$var": "original"}, "resource": null, "resolvedResource": null}}}},
+    {"reaches": "mark", "state": {"status": "ready", "value": {"$var": "original"}}},
+
+    {"backend": "hold", "with": {"wire": "GET /resources/{id}/annotations"}},
+    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "marks"},
+    {"holds": "marks", "state": {"status": "pending"}},
+    {"scopes": [{"$var": "r1"}]},
+    {"backend": "annotations", "with": {"resource": {"$var": "r1"}, "annotations": {"annotations": [{"$var": "original"}, {"$var": "added"}], "total": 2}}},
+    {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:body-updated", "sequence": 1, "live": true, "payload": {"annotationId": {"$var": "a1"}, "operations": []}, "enriched": {"annotation": {"$var": "updated"}}}},
+    {"reaches": "mark", "state": {"status": "ready", "value": {"$var": "updated"}}},
+    {"backend": "release"},
+    {"fetch": "GET /resources/{id}/annotations", "params": {"id": {"$var": "r1"}}},
+    {"reaches": "marks", "state": {"status": "ready", "value": [{"$var": "updated"}, {"$var": "added"}]}},
+    {"quiet": 300},
+    {"holds": "marks", "state": {"status": "ready", "value": [{"$var": "updated"}, {"$var": "added"}]}}
+  ]
+}
