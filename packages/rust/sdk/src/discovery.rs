@@ -39,7 +39,7 @@ use tokio::task::AbortHandle;
 const VERSION: i64 = 1;
 
 /// How often a launcher's document is read again, unless told otherwise.
-pub const DISCOVERY_INTERVAL: Duration = Duration::from_secs(5);
+pub const DISCOVERY_INTERVAL: Duration = crate::timing::DISCOVERY_INTERVAL;
 
 /// Why no launcher was found.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
