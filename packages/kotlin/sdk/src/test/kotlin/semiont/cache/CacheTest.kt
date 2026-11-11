@@ -525,6 +525,119 @@ class CacheTest {
     }
 
     @Test
+    fun b13bASetLetsGoOfTheFetchInFlightWhoseAnswerStoresNothing() = runTest {
+        val persister = Kept()
+        val world = World(this, persister)
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        val older = async { world.cache.fetch(KEY) }
+        runCurrent()
+        assertTrue(world.cache.keptFetchInFlight)
+        world.cache.set(KEY, 7)
+        assertEquals(ready(7), now(observer))
+        assertFalse(world.cache.keptFetchInFlight)
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(listOf(mapOf(KEY to 7)), persister.saves)
+        // Asked before the set, its answer may be the value the set replaced: it answers its own read, and is stored nowhere.
+        world.service.answer(0, 3)
+        assertEquals(3, older.await())
+        nothingMore(observer)
+        assertEquals(7, world.cache.get(KEY))
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(listOf(mapOf(KEY to 7)), persister.saves)
+        assertFalse(world.cache.persistencePending)
+        assertEquals(listOf(KEY), world.service.asked)
+        world.close()
+    }
+
+    @Test
+    fun b13bASetLetsGoOfTheLiveViewsAskSoItsFetchFailingAsksNothingMore() = runTest {
+        val world = World(this)
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        world.cache.set(KEY, 7)
+        assertEquals(ready(7), now(observer))
+        world.service.fail(0)
+        runCurrent()
+        nothingMore(observer)
+        assertEquals(listOf(KEY), world.service.asked)
+        world.close()
+    }
+
+    @Test
+    fun b13bAPatchToAKeyWhoseFirstFetchIsInFlightIsAppliedToItsAnswer() = runTest {
+        val persister = Kept()
+        val world = World(this, persister)
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        val read = async { world.cache.fetch(KEY) }
+        runCurrent()
+        world.cache.patch(KEY) { it + 1 }
+        // Nothing to apply it to yet: it waits with the fetch.
+        nothingMore(observer)
+        assertNull(world.cache.get(KEY))
+        world.service.answer(0, 5)
+        assertEquals(6, read.await())
+        assertEquals(ready(6), now(observer))
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(listOf(mapOf(KEY to 6)), persister.saves)
+        world.close()
+    }
+
+    @Test
+    fun b13bPatchesAreAppliedInTheOrderMadeAtOnceAndToTheAnswerOfTheFetchInFlight() = runTest {
+        val world = World(this)
+        val observer = readied(world, 1)
+        world.cache.invalidate(KEY)
+        runCurrent()
+        world.cache.patch(KEY) { it + 1 }
+        world.cache.patch(KEY) { it * 2 }
+        assertEquals(ready(4), now(observer))
+        world.service.answer(1, 10)
+        assertEquals(ready(22), now(observer))
+        assertEquals(listOf(KEY, KEY), world.service.asked)
+        world.close()
+    }
+
+    @Test
+    fun b13bTheFetchAnInvalidationReplacedTakesItsPatchesWithIt() = runTest {
+        val world = World(this)
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        val older = async { world.cache.fetch(KEY) }
+        runCurrent()
+        world.cache.patch(KEY) { it + 1 }
+        world.cache.invalidate(KEY)
+        runCurrent()
+        // The newer fetch was asked after the patch's event: its answer holds what the patch did.
+        world.service.answer(1, 10)
+        assertEquals(ready(10), now(observer))
+        world.service.answer(0, 3)
+        assertEquals(3, older.await())
+        nothingMore(observer)
+        assertEquals(10, world.cache.get(KEY))
+        world.close()
+    }
+
+    @Test
+    fun b13bAPatchToAKeyThatHoldsNeitherAValueNorAFetchDoesNothing() = runTest {
+        val persister = Kept()
+        val world = World(this, persister)
+        world.cache.patch(KEY) { it + 1 }
+        assertFalse(world.cache.known(KEY))
+        assertNull(world.cache.get(KEY))
+        advanceTimeBy(Timings.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(emptyList<Map<String, Int>>(), persister.saves)
+        assertFalse(world.cache.persistencePending)
+        // Its first observer is shown the first fetch's answer as it is.
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        world.service.answer(0, 5)
+        assertEquals(ready(5), now(observer))
+        world.close()
+    }
+
+    @Test
     fun aValueThatIsKnownIsWrittenAndNothingIsAskedFor() = runTest {
         val world = World(this)
         world.cache.set(KEY, 3)
@@ -712,6 +825,20 @@ class CacheTest {
             assertEquals(if (first == "its removal") 1 else asked, world.service.asked.size, first)
             world.close()
         }
+    }
+
+    @Test
+    fun b18AKeptValueThatIsPatchedIsStillOneAndItsFirstObservationAsksForItAnew() = runTest {
+        val world = World(this, Kept(mapOf(KEY to 1)))
+        world.cache.patch(KEY) { it + 1 }
+        assertEquals(2, world.cache.get(KEY))
+        assertEquals(emptyList<String>(), world.service.asked)
+        val observer = world.observe()
+        assertEquals(ready(2), now(observer))
+        assertEquals(listOf(KEY), world.service.asked)
+        world.service.answer(0, 5)
+        assertEquals(ready(5), now(observer))
+        world.close()
     }
 
     @Test

@@ -363,6 +363,7 @@ public final class semiont/cache/Cache : semiont/StateUnit {
 	public final fun keys ()Ljava/util/List;
 	public final fun known (Ljava/lang/Object;)Z
 	public final fun observe (Ljava/lang/Object;)Lsemiont/transport/Events;
+	public final fun patch (Ljava/lang/Object;Lkotlin/jvm/functions/Function1;)V
 	public final fun remove (Ljava/lang/Object;Ljava/lang/Exception;)V
 	public final fun set (Ljava/lang/Object;Ljava/lang/Object;)V
 }
