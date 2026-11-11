@@ -100,7 +100,7 @@ public sealed class CensusTests
 
     private static async Task<ImmutableArray<Diagnostic>> BesideTheSeamAsync(string member)
     {
-        var tree = CSharpSyntaxTree.ParseText("public static class Example { " + member + " }");
+        var tree = CSharpSyntaxTree.ParseText("using System.Threading.Tasks;\npublic static class Example { " + member + " }");
         var compilation = CSharpCompilation.Create("Example", [tree, Seam], Framework,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         Assert.Empty(compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
