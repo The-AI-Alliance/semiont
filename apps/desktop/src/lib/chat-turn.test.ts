@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createTestSession, refuseUnscriptedOperation } from '@semiont/sdk/testing';
-import { FrameRefusal, jobId as brandJobId, resourceId as brandResourceId } from '@semiont/core';
+import { jobId as brandJobId, resourceId as brandResourceId } from '@semiont/core';
 import type { GatheredContext, ResourceId } from '@semiont/core';
 import { chatTurn, createResolvedReference } from './chat-turn';
 import { QUESTION_ENTITY_TYPE } from './session';
@@ -55,7 +55,10 @@ function harness(opts: {
       makeResponse: (op) => {
         if (op === 'mark:create-request') return { annotationId: `ann-${++annCounter}` };
         if (op === 'gather:resource-requested') return context;
-        if (op === 'job:create') return { jobId: 'job-1' };
+        if (op === 'job:create') {
+          if (!opts.hangGeneration) finishGeneration();
+          return { jobId: 'job-1' };
+        }
         if (op === 'job:status-requested') {
           return {
             jobId: 'job-1',
@@ -79,43 +82,33 @@ function harness(opts: {
   const payloadsOf = (channel: string) =>
     transport.requestLog.filter((e) => e.channel === channel).map((e) => e.payload);
 
-  if (!opts.hangGeneration) {
-    // Finish the generation once the job exists (a tick later, so the SDK has
-    // its jobId registered before the lifecycle event arrives).
-    transport.on('job:create', () => {
-      setTimeout(() => {
-        void transport.emit('job:complete', {
-          resourceId: brandResourceId(opts.questionId),
-          jobId: brandJobId('job-1'),
-          jobType: 'yield',
-          // A `yield` job's result is the resource it made (resourceId + truncated
-          // required) or a decline (the one with `declined`); neither names a kind.
-          // "No answer resource" is a completion with no result at all.
-          ...(opts.declined !== undefined
-            ? { result: { declined: true, reason: opts.declined } }
-            : opts.answerId === null
-              ? {}
-              : {
-                  result: {
-                    resourceId: brandResourceId(opts.answerId ?? 'answer-1'),
-                    resourceName: 'answer',
-                    truncated: opts.truncated ?? false,
-                  },
-                }),
-        });
-      }, 0);
-    });
+  // The worker: once the gateway is asked for the job, it finishes the generation
+  // a tick later, so the SDK has its jobId registered before the lifecycle event arrives.
+  function finishGeneration(): void {
+    setTimeout(() => {
+      void transport.emit('job:complete', {
+        resourceId: brandResourceId(opts.questionId),
+        jobId: brandJobId('job-1'),
+        jobType: 'yield',
+        // A `yield` job's result is the resource it made (resourceId + truncated
+        // required) or a decline (the one with `declined`); neither names a kind.
+        // "No answer resource" is a completion with no result at all.
+        ...(opts.declined !== undefined
+          ? { result: { declined: true, reason: opts.declined } }
+          : opts.answerId === null
+            ? {}
+            : {
+                result: {
+                  resourceId: brandResourceId(opts.answerId ?? 'answer-1'),
+                  resourceName: 'answer',
+                  truncated: opts.truncated ?? false,
+                },
+              }),
+      });
+    }, 0);
   }
 
-  // Stall-guard observation: the SDK's guard cancels the job on the wire, by its id
-  // (`job:cancel-requested`), so the pin listens at the transport.
-  const cancels: Array<{ jobId: string }> = [];
-  transport.on('job:cancel-requested', (p) => {
-    if (p instanceof FrameRefusal) throw new Error(`the transport was handed a refusal on ${p.channel}`);
-    cancels.push(p);
-  });
-
-  return { session, transport, content, channels, payloadOf, payloadsOf, cancels };
+  return { session, transport, content, channels, payloadOf, payloadsOf };
 }
 
 describe('chatTurn (resource-focal)', () => {
@@ -221,8 +214,8 @@ describe('chatTurn (resource-focal)', () => {
 
       expect(outcome.ok).toBe(false);
       if (!outcome.ok) expect(String((outcome.err as Error).message)).toMatch(/went silent|reconnect/i);
-      // the job the queue named is cancelled, not left running
-      expect(h.cancels).toContainEqual(expect.objectContaining({ jobId: 'job-1' }));
+      // the job the queue named is cancelled on the wire, by its id, not left running
+      expect(h.payloadsOf('job:cancel-requested')).toContainEqual(expect.objectContaining({ jobId: 'job-1' }));
       await h.session.dispose();
     } finally {
       vi.useRealTimers();

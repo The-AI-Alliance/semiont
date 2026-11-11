@@ -179,21 +179,33 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
 describe('Bus.frames: a channel of a resource\'s scope', () => {
   it("holds the resource's scope for as long as it is read, and gives that resource's frames only", () => {
     const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
+    // A stream carries every scope it holds on the one channel: another
+    // reader holds another resource's, so its events are there too.
+    transport.subscribeToResource(OTHER);
+    const stream = collect(transport.frames('mark:archived'));
+    const holding = transport.subscribeToResource.bind(transport);
     const leave = vi.fn();
-    const held = vi.spyOn(transport, 'subscribeToResource').mockReturnValue(leave);
+    const held = vi.spyOn(transport, 'subscribeToResource').mockImplementation((resource) => {
+      const release = holding(resource);
+      return () => {
+        leave();
+        release();
+      };
+    });
     const reading = collect(new Bus(transport).frames('mark:archived', RID));
     expect(held).toHaveBeenCalledExactlyOnceWith(RID);
 
-    // A stream carries every scope it holds on the one channel: another
-    // resource's events are there too.
     void transport.emit('mark:archived', archived(RID), { scope: RID });
     void transport.emit('mark:archived', archived(OTHER), { scope: OTHER });
+    expect(stream.seen.map((frame) => frame.scope)).toEqual([RID, OTHER]);
     expect(reading.seen.map(delivered).map((frame) => [frame.payload.id, frame.scope])).toEqual([['evt-res-1', RID]]);
     expect(leave).not.toHaveBeenCalled();
 
     reading.stop();
     expect(leave).toHaveBeenCalledOnce();
+    // Its scope is let go, so the stream carries that resource's events no more.
     void transport.emit('mark:archived', archived(RID), { scope: RID });
+    expect(stream.seen).toHaveLength(2);
     expect(reading.seen).toHaveLength(1);
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createTestSession, refuseUnscriptedOperation, stubGateway } from '@semiont/sdk/testing';
-import { FrameRefusal, jobId, resourceId, userId, type components } from '@semiont/core';
+import { isArray, isObject, isString, jobId, resourceId, userId, type components } from '@semiont/core';
 import {
   buildTask,
   delegate,
@@ -27,20 +27,30 @@ const JOB = jobId('job-2');
  * The real client over the scriptable transport (@semiont/sdk/testing): `mark.delegate`
  * runs its REAL job conversation — `job:create` on the wire, lifecycle events back.
  * Requests are read off `transport.requestLog` (payload snapshots, arrival order);
- * the handler below only replays the job's lifecycle a tick later, as a worker reports
- * it: for a linking job, progress per entity type; then how the job ended.
+ * the gateway's answer to `job:create` also sets the worker below going, which only
+ * replays the job's lifecycle a tick later, as a worker reports it: for a linking job,
+ * progress per entity type; then how the job ended.
  */
 function delegateHarness(ending: 'completes' | 'declines' | 'fails' = 'completes') {
   const { session, transport } = createTestSession({
-    transport: { makeResponse: (op) => (op === 'job:create' ? { jobId: JOB } : refuseUnscriptedOperation(op)) },
+    transport: {
+      makeResponse: (op, payload) => {
+        if (op !== 'job:create') return refuseUnscriptedOperation(op);
+        work(payload);
+        return { jobId: JOB };
+      },
+    },
   });
-  transport.on('job:create', (job) => {
-    if (job instanceof FrameRefusal) throw new Error(`the transport was handed a refusal on ${job.channel}`);
-    if (job.jobType !== 'mark') return;
-    const { resourceId: resource, params } = job;
+  function work(asked: Record<string, unknown>): void {
+    const { jobType, resourceId: askedFor, params } = asked;
+    if (jobType !== 'mark') return;
+    if (!isString(askedFor) || !isObject(params)) throw new Error(`job:create asked for a mark job of no resource or params: ${JSON.stringify(asked)}`);
+    const entityTypes = params['motivation'] === 'linking' ? params['entityTypes'] : [];
+    if (!isArray(entityTypes) || !entityTypes.every(isString)) throw new Error(`job:create asked for a linking job of no entity types: ${JSON.stringify(asked)}`);
+    const resource = resourceId(askedFor);
     setTimeout(() => {
       void (async () => {
-        for (const entityType of params.motivation === 'linking' ? params.entityTypes : []) {
+        for (const entityType of entityTypes) {
           await transport.emit('job:report-progress', {
             resourceId: resource,
             jobId: JOB,
@@ -71,7 +81,7 @@ function delegateHarness(ending: 'completes' | 'declines' | 'fails' = 'completes
         });
       })();
     }, 0);
-  });
+  }
   const jobs = () =>
     transport.requestLog
       .filter((e) => e.channel === 'job:create')

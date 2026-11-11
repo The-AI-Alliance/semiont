@@ -1,5 +1,5 @@
 /**
- * FaultyTransport sequenced replies.
+ * FaultyTransport: sequenced replies, and what a reader is given.
  *
  * The division of labor the queue introduces: the fault SCHEDULE scripts the
  * WIRE (deliver / drop / delay / duplicate / reject-emit), the reply QUEUE
@@ -15,11 +15,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { Observable } from 'rxjs';
 import { Bus } from '../bus';
 import { BUS_OPERATIONS, type BusOperationKey } from '../bus-operations';
 import { BRIDGED_CHANNELS } from '../bridged-channels';
+import { EventBus } from '../event-bus';
 import { FaultyTransport } from '../faulty-transport';
-import { resourceId } from '../identifiers';
+import { annotationId, resourceId, userId, type ResourceId } from '../identifiers';
+import type { EventMap } from '../bus-protocol';
 import type { GatheredContext } from '../payload-types';
 import type { components } from '../types';
 
@@ -257,6 +260,118 @@ describe('requestLog payloads', () => {
     expect(transport.requestLog[0]!.action.kind).toBe('reject-emit');
     expect(transport.requestLog[0]!.payload).toMatchObject({ limit: 3 });
 
+    transport.dispose();
+  });
+});
+
+// ── What a reader is given ───────────────────────────────────────────────
+//
+// What a wire transport's stream carries, and no more: a frame of no scope on
+// a channel the transport was given, and a frame of a resource's scope on a
+// resource-scoped channel while that scope is held. Anything else is dropped,
+// a request's echo included.
+
+describe('what a reader is given', () => {
+  const RID = resourceId('res-1');
+  const FOCUS: EventMap['beckon:focus'] = { annotationId: annotationId('ann-1'), resourceId: RID };
+
+  function archived(of: ResourceId): EventMap['mark:archived'] {
+    return {
+      id: `evt-${of}`,
+      type: 'mark:archived',
+      resourceId: of,
+      userId: userId('did:web:example.org:users:alice'),
+      version: 1,
+      timestamp: '2026-01-01T00:00:00Z',
+      payload: {},
+      metadata: { sequenceNumber: 1 },
+    };
+  }
+
+  /** Every value `observable` gives from now on. */
+  function collect<T>(observable: Observable<T>): T[] {
+    const seen: T[] = [];
+    observable.subscribe((value) => seen.push(value));
+    return seen;
+  }
+
+  /** What `read` threw. */
+  function refusalOf(read: () => unknown): unknown {
+    try {
+      read();
+    } catch (error) {
+      return error;
+    }
+    throw new Error('the read was not refused');
+  }
+
+  it("gives a resource's frame only while its scope is held: each hold counts, and a release is idempotent", () => {
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
+    const archives = collect(transport.frames('mark:archived'));
+
+    void transport.emit('mark:archived', archived(RID), { scope: RID });
+    const first = transport.subscribeToResource(RID);
+    const second = transport.subscribeToResource(RID);
+    void transport.emit('mark:archived', archived(RID), { scope: RID });
+    first();
+    first();
+    void transport.emit('mark:archived', archived(RID), { scope: RID });
+    second();
+    void transport.emit('mark:archived', archived(RID), { scope: RID });
+
+    expect(archives.map((frame) => frame.scope)).toEqual([RID, RID]);
+    transport.dispose();
+  });
+
+  it('gives a frame of no scope on a channel it was given, and drops one of a scope there, and one of no scope on a scoped channel', () => {
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
+    transport.subscribeToResource(RID);
+    const focused = collect(transport.frames('beckon:focus'));
+    const archives = collect(transport.frames('mark:archived'));
+
+    void transport.emit('beckon:focus', FOCUS, { scope: RID });
+    void transport.emit('mark:archived', archived(RID));
+    void transport.emit('beckon:focus', FOCUS);
+
+    expect(focused.map((frame) => frame.payload)).toEqual([FOCUS]);
+    expect(archives).toEqual([]);
+    transport.dispose();
+  });
+
+  it('refuses at the call a read of a channel it was not given and no resource scopes, as bus.unsubscribed', () => {
+    const transport = new FaultyTransport({ channels: [BUS_OPERATIONS[OP].result] });
+
+    for (const read of [() => transport.frames(OP), () => transport.stream(OP), () => transport.on(OP, () => {})]) {
+      expect(refusalOf(read)).toMatchObject({ code: 'bus.unsubscribed', details: { channel: OP } });
+    }
+    transport.dispose();
+  });
+
+  it("gives a request's echo to a reader of a transport given the request's channel", async () => {
+    const { result, failure } = BUS_OPERATIONS[OP];
+    const transport = new FaultyTransport({ channels: [OP, result, failure], makeResponse: () => pageOf(1) });
+    const echoes = collect(transport.frames(OP));
+
+    await new Bus(transport).request(OP, { limit: 1 }, 1_000);
+
+    expect(echoes.map((frame) => frame.payload)).toMatchObject([{ limit: 1 }]);
+    transport.dispose();
+  });
+
+  it('bridges what a reader is given on the channels it was given, and no other', () => {
+    const transport = new FaultyTransport({ channels: ['beckon:focus'] });
+    const bridged = new EventBus();
+    transport.bridgeInto(bridged);
+    const focused = collect(bridged.on('beckon:focus'));
+    const sparkled = collect(bridged.on('beckon:sparkle'));
+
+    void transport.emit('beckon:sparkle', { annotationId: annotationId('ann-1') });
+    void transport.emit('beckon:focus', FOCUS, { scope: RID });
+    void transport.emit('beckon:focus', FOCUS);
+
+    expect(focused).toEqual([FOCUS]);
+    expect(sparkled).toEqual([]);
+    bridged.destroy();
     transport.dispose();
   });
 });
