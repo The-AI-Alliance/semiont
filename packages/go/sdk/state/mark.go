@@ -122,18 +122,22 @@ func (u *MarkStateUnit) RequestDelegate(params api.MarkJobParams) {
 	if u.closed {
 		return
 	}
+	var motivation api.Motivation
 	stated, err := params.Discriminator()
-	motivation := api.Motivation(stated)
+	if err == nil {
+		// The union refuses a motivation that is none of its members', and an absent one.
+		_, err = params.ValueByDiscriminator()
+	}
+	if err == nil {
+		motivation = api.Motivation(stated)
+	}
 	u.delegating.Set(motivation)
 	u.progress.Set(nil)
 	u.progressMotivation.Set(motivation)
-	u.failure.Set(nil)
+	u.failure.Set(err)
 	u.jobID.Set(api.JobId{})
 	if err != nil {
-		// Parameters that state no motivation are no job's: none is delegated, and why is held.
-		u.failure.Set(err)
-		u.delegating.Set("")
-		u.progressMotivation.Set("")
+		// Parameters that state no motivation the union maps are no job's: none is delegated, and why is held.
 		return
 	}
 	before, answered := u.nextRun()

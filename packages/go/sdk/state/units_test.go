@@ -3,7 +3,9 @@ package state_test
 // What the units' cases in protocol/specs/src/client/state-units.json cannot state:
 // the state-unit axioms, each unit's; how often a state wakes a reader,
 // which differs by language; that a search the pipeline abandons is let go;
-// and that what a unit's method takes is what the namespace it calls takes.
+// that mark parameters stating no motivation their union maps, which the
+// spec's cases cannot write, are no job's; and that what a unit's method
+// takes is what the namespace it calls takes.
 
 import (
 	"context"
@@ -268,6 +270,41 @@ func TestASearchThatIsAbandonedIsLetGo(t *testing.T) {
 			t.Fatalf("the search under way at the end was not let go: %v", got)
 		}
 	})
+}
+
+func TestMarkParamsThatStateNoMotivationTheUnionMapsAreNoJobs(t *testing.T) {
+	for _, stated := range []struct{ name, params string }{
+		{"no motivation", `{}`},
+		{"a motivation no member is", `{"motivation":"bogus"}`},
+	} {
+		t.Run(stated.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var params api.MarkJobParams
+				if err := json.Unmarshal([]byte(stated.params), &params); err != nil {
+					t.Fatal(err)
+				}
+				made := semionttest.NewTestClient(semionttest.TestClientConfig{Transport: semionttest.NewFaultyTransport(semionttest.FaultyConfig{Channels: bus.BridgedChannels}), Timing: semiont.DefaultTiming()})
+				defer made.Transport.Close()
+				defer made.Client.Close()
+				unit := state.NewMarkStateUnit(made.Client, idOf[api.ResourceId](t, "res-1"))
+				defer unit.Close()
+				unit.RequestDelegate(params)
+				synctest.Wait()
+				if sent := made.Transport.RequestLog(); len(sent) != 0 {
+					t.Fatalf("requests were sent: %v", sent)
+				}
+				if unit.Failure().Value() == nil {
+					t.Error("the unit holds no failure")
+				}
+				if delegating := unit.DelegatingMotivation().Value(); delegating != "" {
+					t.Errorf("the unit is delegating %q", delegating)
+				}
+				if progress := unit.ProgressMotivation().Value(); progress != "" {
+					t.Errorf("the unit holds progress of %q", progress)
+				}
+			})
+		})
+	}
 }
 
 // parameters is what a function takes, its first skip parameters left out.
