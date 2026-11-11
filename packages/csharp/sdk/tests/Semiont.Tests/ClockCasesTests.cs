@@ -68,6 +68,8 @@ public sealed class ClockCasesTests
         ["unansweredEmit"] = UnansweredEmitAsync,
         ["refusedBusRequest"] = RefusedBusRequestAsync,
         ["timedOutBusRequest"] = TimedOutBusRequestAsync,
+        ["jobPoll"] = JobPollAsync,
+        ["jobPollTimeout"] = JobPollTimeoutAsync,
     };
 
     public static IEnumerable<object[]> Cases()
@@ -431,6 +433,40 @@ public sealed class ClockCasesTests
             queue.Deliver(progressed);
             return Task.CompletedTask;
         }));
+    }
+
+    /// <summary>A job's pollUntilComplete, naming no interval and no limit, set going as the case begins, over a queue
+    /// that answers every ask of the job's status with the job running.</summary>
+    private static (FaultyTransport Queue, Task Polled) PolledJob(Case play)
+    {
+        var queue = play.Keep(new FaultyTransport(respond: (operation, _) => operation == BusOperations.JobStatusRequested.Request.Name
+            ? Parsed("""{"jobId":"job-1","type":"mark","status":"running","userId":"did:web:example.org:users:alice","created":"2026-10-01T00:00:00.000Z"}""")
+            : throw Unscripted(operation), timeProvider: play.Clock));
+        var http = play.Keep(new HttpClient(queue, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan });
+        var client = play.Keep(new SemiontClient(GatewayUrl, "a-token", http, play.Clock, play.Random));
+        return (queue, play.Running(stop => client.Job.PollUntilCompleteAsync(JobId.Parse("job-1"), cancellation: stop)));
+    }
+
+    private static Task<Subject> JobPollAsync(JsonElement given, Case play)
+    {
+        var (queue, polled) = PolledJob(play);
+        return Task.FromResult(new Subject(() =>
+        {
+            // How it fails is what jobPollTimeout counts.
+            if (polled.IsCompletedSuccessfully) throw new CaseFailed("the poll ended with the job running");
+            return Sent(queue, BusOperations.JobStatusRequested.Request.Name);
+        }, null));
+    }
+
+    private static Task<Subject> JobPollTimeoutAsync(JsonElement given, Case play)
+    {
+        var (_, polled) = PolledJob(play);
+        return Task.FromResult(new Subject(() =>
+        {
+            if (!polled.IsCompleted) return 0;
+            if (polled.Exception?.InnerException is BusRequestError { Code: "bus.timeout" }) return 1;
+            throw new CaseFailed($"the poll ended otherwise: {polled.Status}, {polled.Exception?.InnerException?.Message}");
+        }, null));
     }
 
     // ── What a case is played with ──────────────────────────────────────────
