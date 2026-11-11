@@ -25,5 +25,6 @@ val invalidate : t -> string -> unit
 val invalidate_all : t -> unit
 val remove : t -> string -> string -> unit
 val set : t -> string -> Yojson.Safe.t -> unit
+val patch : t -> string -> (Yojson.Safe.t -> Yojson.Safe.t) -> unit
 val persistence_pending : t -> bool
 val dispose : t -> unit

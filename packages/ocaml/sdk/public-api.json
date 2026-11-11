@@ -125,8 +125,8 @@
     "lib/bus_log.ml": "1f9824f508b55593336fe854f12be7f202a8bab58393607bb7f77b43abc552ce",
     "lib/bus_registry.ml": "06ba21493e91fe1985a48cbc7416d6dc5318faa55872552e48701d01dfb5a79f",
     "lib/bus_registry.mli": "a43ea86d26004cdbb0f68d47a419f92da7fdaea69aff840b30d6b0d0e161a3eb",
-    "lib/cache_state.ml": "a7dd3b38f2eaccd71566cd680fe78ccb9601e6ee384200b91b07f2afdfa27dfb",
-    "lib/cache_state.mli": "1a0dc6090874daf5a0df80f2f6a50c72f717a0b6bd599c8136180fae5e4ef173",
+    "lib/cache_state.ml": "b270721df6ee9432f61bfa450fb280036a1c1a1f880de8eabed84aec0fab8c5a",
+    "lib/cache_state.mli": "940957912e84b57a1404ea6adceeb35efbc6ecb7cdc3bd28f5c6e98b24ecb13f",
     "lib/claims.ml": "52ff135d1c111beeceec0ddf0895231aefaf3dbc2a9bd29cf5f3b6b7bc0e350f",
     "lib/claims.mli": "f7bebec3f61f8b39c4cb884a49f1e5703ece2c60d2f6d87b8822411aea9bd3ea",
     "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
@@ -165,8 +165,8 @@
     "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
     "lib/kept_renewal.ml": "3c69043d8304fa35dcbe80e5322ea71bb0f39d7ee57e4d772cc789b1de36ddee",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
-    "lib/live_query.ml": "ee3988f981aee75edf175e2c4da0eb5bba31baff423c0a4e98ee8a1ceb2ade24",
-    "lib/live_query.mli": "a8cfca36c3a042a1e71cbc7232160376f1a93945eb3e64740e806ac48c209d8c",
+    "lib/live_query.ml": "7038b501e02b72ed14594aed3d0a44d1a91813ad5494367bbbc625a58f4bf4d0",
+    "lib/live_query.mli": "f18de5f9c81f1c3a92b247ef50fd8df03bc558c1fea3878fbeba4e01d01f6c18",
     "lib/log_facts.ml": "7fbe278d5eb452d36445aa0cd571ce86ef65e0c69d9fab65b6bc3b4a6a5a45cf",
     "lib/mark.ml": "d539b4cea644c035198f7b22d9384e1e19c7815e806e240a2309e9e1e17a7072",
     "lib/mark.mli": "daa70a35284997cf8b5796bda5f3262c19e8690a40090dc415729c4e3dddbbb3",
@@ -12656,6 +12656,11 @@
     },
     {
       "kind": "value",
+      "path": "Semiont.Live_query.patch",
+      "declaration": "val patch : ('key, 'value) t -> 'key -> ('value -> 'value) -> unit"
+    },
+    {
+      "kind": "value",
       "path": "Semiont.Live_query.ready_for_replay",
       "declaration": "val ready_for_replay :\n  (key, 'value) t -> string -> (key * 'value option) list -> bool"
     },
@@ -18444,6 +18449,11 @@
       "kind": "value",
       "path": "Semiont.State_units.Cache.set",
       "declaration": "val set : t -> string -> Yojson.Safe.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Cache.patch",
+      "declaration": "val patch : t -> string -> (Yojson.Safe.t -> Yojson.Safe.t) -> unit"
     },
     {
       "kind": "value",

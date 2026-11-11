@@ -835,6 +835,366 @@ let replay_waits_for_every_key () =
         (Live_query.ready_for_replay query "res-1" changes)
         "a place stayed held back once every key had settled")
 
+(* A query on one key whose every ask waits for the test to answer it, with
+   the states one observer saw and the saves the query made. *)
+type asked = {
+  query : (unit, int) Live_query.t;
+  asks : (int, string) result Promise.u Queue.t;
+  states : int Live_query.state list ref;
+  saves : int option list ref;
+}
+
+let asked_query ~restored ~sw ~clock =
+  let asks = Queue.create () in
+  let saves = ref [] in
+  let query =
+    Live_query.make ~sw ~clock
+      ~load:(fun () ->
+        let reply, answer = Promise.create () in
+        Queue.add answer asks;
+        Promise.await reply)
+      ~restore:(fun () -> restored)
+      ~save:(fun () value -> saves := value :: !saves)
+      ~hold:(fun () () -> ())
+      ()
+  in
+  { query; asks; states = ref []; saves }
+
+let watched asked =
+  Live_query.observe asked.query ()
+    ~on_state:(fun state -> asked.states := state :: !(asked.states))
+    ~on_close:ignore
+
+let answer asked reply =
+  Promise.resolve (Queue.take asked.asks) reply;
+  settle ()
+
+(* What a step changed: the states the observer saw and the saves made. *)
+let quiet asked step =
+  let states = List.length !(asked.states) in
+  let saves = List.length !(asked.saves) in
+  step ();
+  List.length !(asked.states) = states && List.length !(asked.saves) = saves
+
+let with_asked ?restored body =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let clock, _, _ = mock_clock () in
+  let asked = asked_query ~restored ~sw ~clock in
+  Fun.protect
+    ~finally:(fun () -> Live_query.close asked.query)
+    (fun () -> body sw asked)
+
+(* F0 asked by a read and joined by an observer, then F1 asked by an
+   invalidation in its place (B9). The body is given the read. *)
+let with_replaced body =
+  with_asked (fun sw asked ->
+      let older =
+        Fiber.fork_promise ~sw (fun () -> Live_query.fresh asked.query ())
+      in
+      let release = watched asked in
+      Live_query.invalidate asked.query ();
+      settle ();
+      check (Queue.length asked.asks = 2) "an invalidation did not ask again";
+      Fun.protect ~finally:release (fun () -> body asked older))
+
+(* CACHE-SEMANTICS B9: only a key's current fetch writes. *)
+let replaced_newer_first () =
+  with_replaced (fun asked older ->
+      let f0 = Queue.take asked.asks in
+      answer asked (Ok 1);
+      check
+        (Live_query.get asked.query () = Some 1)
+        "the current fetch's reply was not stored";
+      check
+        (quiet asked (fun () ->
+             Promise.resolve f0 (Ok 0);
+             settle ()))
+        "a replaced fetch's later reply emitted or saved";
+      check
+        (Promise.await_exn older = Ok 0)
+        "a replaced fetch did not answer its own read";
+      check
+        (Live_query.get asked.query () = Some 1)
+        "a replaced fetch's later reply was stored")
+
+let replaced_older_first () =
+  with_replaced (fun asked older ->
+      check
+        (quiet asked (fun () -> answer asked (Ok 0)))
+        "a replaced fetch's earlier reply emitted or saved";
+      check
+        (Promise.await_exn older = Ok 0)
+        "a replaced fetch did not answer its own read";
+      check
+        (Live_query.get asked.query () = None)
+        "a replaced fetch's earlier reply was stored";
+      answer asked (Ok 1);
+      check
+        (Live_query.get asked.query () = Some 1)
+        "the current fetch's reply was not stored")
+
+(* CACHE-SEMANTICS B17: a key is in flight while its current fetch is. *)
+let replaced_in_flight () =
+  with_replaced (fun asked _ ->
+      let f0 = Queue.take asked.asks in
+      check
+        (Live_query.in_flight asked.query)
+        "a key read at rest while its current fetch was unanswered";
+      answer asked (Ok 1);
+      check
+        (not (Live_query.in_flight asked.query))
+        "a replaced fetch still counted as in flight";
+      Promise.resolve f0 (Ok 0);
+      settle ())
+
+(* CACHE-SEMANTICS B13a: a removal lets go of the fetch in flight. *)
+let removal_lets_go () =
+  with_asked (fun sw asked ->
+      let older =
+        Fiber.fork_promise ~sw (fun () -> Live_query.fresh asked.query ())
+      in
+      let release = watched asked in
+      Fun.protect ~finally:release (fun () ->
+          Live_query.remove asked.query () "bus.not-found";
+          check
+            (quiet asked (fun () -> answer asked (Ok 0)))
+            "a let-go fetch's reply emitted or saved";
+          check
+            (Promise.await_exn older = Ok 0)
+            "a fetch a removal let go of did not answer its own read";
+          check
+            (List.hd !(asked.states) = Live_query.Failed "bus.not-found")
+            "a let-go fetch's reply undid the removal";
+          check
+            (Live_query.get asked.query () = None)
+            "a let-go fetch's reply was stored"))
+
+(* CACHE-SEMANTICS B13b: a set lets go of the fetch in flight and starts none. *)
+let set_lets_go () =
+  with_asked (fun sw asked ->
+      let older =
+        Fiber.fork_promise ~sw (fun () -> Live_query.fresh asked.query ())
+      in
+      let release = watched asked in
+      Fun.protect ~finally:release (fun () ->
+          Live_query.set asked.query () 5;
+          check
+            (List.hd !(asked.states) = Live_query.Ready 5)
+            "a set was not shown";
+          check
+            (not (Live_query.in_flight asked.query))
+            "a set left its key in flight";
+          check
+            (quiet asked (fun () -> answer asked (Ok 0)))
+            "a let-go fetch's reply emitted or saved";
+          check
+            (Promise.await_exn older = Ok 0)
+            "a fetch a set let go of did not answer its own read";
+          check
+            (Live_query.get asked.query () = Some 5)
+            "a let-go fetch's reply overwrote a set";
+          check (Queue.is_empty asked.asks) "a set asked again"))
+
+(* CACHE-SEMANTICS B13b: a patch to a key whose first fetch is in flight rides
+   on that fetch. *)
+let patch_rides_first_fetch () =
+  with_asked (fun sw asked ->
+      let first =
+        Fiber.fork_promise ~sw (fun () -> Live_query.fresh asked.query ())
+      in
+      let release = watched asked in
+      Fun.protect ~finally:release (fun () ->
+          check
+            (quiet asked (fun () ->
+                 Live_query.patch asked.query () (fun value -> value * 10)))
+            "a patch to a key with no value emitted or saved";
+          answer asked (Ok 3);
+          check
+            (Promise.await_exn first = Ok 30)
+            "a first fetch's read did not get the patch kept with it";
+          check
+            (Live_query.get asked.query () = Some 30)
+            "a first fetch stored its reply without its patch"))
+
+(* CACHE-SEMANTICS B13b: patches apply at once and ride in the order made. *)
+let patches_in_order () =
+  with_asked (fun _ asked ->
+      Live_query.set asked.query () 1;
+      let release = watched asked in
+      Fun.protect ~finally:release (fun () ->
+          Live_query.invalidate asked.query ();
+          settle ();
+          Live_query.patch asked.query () (fun value -> value + 10);
+          Live_query.patch asked.query () (fun value -> value * 2);
+          check
+            (Live_query.get asked.query () = Some 22)
+            "patches were not applied at once, in order";
+          answer asked (Ok 5);
+          check
+            (Live_query.get asked.query () = Some 30)
+            "the reply did not carry the patches in order";
+          check (Queue.is_empty asked.asks) "a patch asked again"))
+
+(* CACHE-SEMANTICS B13b: the patches kept with a replaced fetch go with it. *)
+let replaced_patches_go () =
+  with_asked (fun _ asked ->
+      Live_query.set asked.query () 1;
+      let release = watched asked in
+      Fun.protect ~finally:release (fun () ->
+          Live_query.invalidate asked.query ();
+          settle ();
+          let f0 = Queue.take asked.asks in
+          Live_query.patch asked.query () (fun value -> value + 10);
+          Live_query.invalidate asked.query ();
+          settle ();
+          answer asked (Ok 5);
+          check
+            (Live_query.get asked.query () = Some 5)
+            "a replaced fetch's patch reached its successor";
+          check
+            (quiet asked (fun () ->
+                 Promise.resolve f0 (Ok 7);
+                 settle ()))
+            "a replaced fetch's reply emitted or saved";
+          check
+            (Live_query.get asked.query () = Some 5)
+            "a replaced fetch's reply was stored"))
+
+(* CACHE-SEMANTICS B13b, B20: a patch to a key holding neither a value nor a
+   fetch does nothing. *)
+let patch_unheld () =
+  with_asked (fun _ asked ->
+      check
+        (quiet asked (fun () ->
+             Live_query.patch asked.query () (fun value -> value + 1)))
+        "a patch to an unheld key emitted or saved";
+      check
+        (not (Live_query.known asked.query ()))
+        "a patch made an unheld key known";
+      check (Queue.is_empty asked.asks) "a patch asked for an unheld key")
+
+(* CACHE-SEMANTICS B14: a fetch that was let go of is not asked again when it
+   fails, and its failure fails nothing. *)
+let let_go_failure () =
+  with_asked (fun _ asked ->
+      let release = watched asked in
+      Fun.protect ~finally:release (fun () ->
+          settle ();
+          Live_query.set asked.query () 5;
+          check
+            (quiet asked (fun () -> answer asked (Error "bus.timeout")))
+            "a let-go fetch's failure emitted or saved";
+          check
+            (Queue.is_empty asked.asks)
+            "a let-go fetch's failure was asked again";
+          check
+            (Live_query.get asked.query () = Some 5)
+            "a let-go fetch's failure moved its key"))
+
+(* CACHE-SEMANTICS B13b: the patches kept with an ask that fails go with it; the
+   retry is asked after their events. *)
+let failed_ask_patches_go () =
+  with_asked (fun _ asked ->
+      Live_query.set asked.query () 1;
+      let release = watched asked in
+      Fun.protect ~finally:release (fun () ->
+          Live_query.invalidate asked.query ();
+          settle ();
+          Live_query.patch asked.query () (fun value -> value + 10);
+          answer asked (Error "bus.timeout");
+          check
+            (Queue.length asked.asks = 1)
+            "a failed ask was not asked once more";
+          answer asked (Ok 5);
+          check
+            (Live_query.get asked.query () = Some 5)
+            "a failed ask's patch reached its retry"))
+
+(* CACHE-SEMANTICS B18: a patch leaves a restored value's mark, so its first
+   observation still revalidates it. The patch is made while the observer is
+   first shown the restored value, before that observation asks. *)
+let patch_keeps_restored_mark () =
+  with_asked ~restored:1 (fun _ asked ->
+      let patched = ref false in
+      let release =
+        Live_query.observe asked.query ()
+          ~on_state:(fun state ->
+            asked.states := state :: !(asked.states);
+            if not !patched then (
+              patched := true;
+              Live_query.patch asked.query () (fun value -> value + 10)))
+          ~on_close:ignore
+      in
+      Fun.protect ~finally:release (fun () ->
+          settle ();
+          check
+            (Live_query.get asked.query () = Some 11)
+            "a patch was not applied to a restored value";
+          check
+            (List.mem (Some 11) !(asked.saves))
+            "a patch to a restored value owed no save";
+          check
+            (Queue.length asked.asks = 1)
+            "a patched restored value was not revalidated";
+          answer asked (Ok 2);
+          check
+            (Live_query.get asked.query () = Some 2)
+            "the revalidation's reply was not stored"))
+
+(* CACHE-SEMANTICS B13b: an annotation an event carries is written into its
+   resource's list in place of the one with its id, or at the end, and rides on
+   the list's fetch in flight. *)
+let list_write_rides () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let clock, _, _ = mock_clock () in
+  let asks = Queue.create () in
+  let query =
+    Live_query.make ~sw ~clock
+      ~load:(fun _ ->
+        let reply, answer = Promise.create () in
+        Queue.add answer asks;
+        Promise.await reply)
+      ~hold:(fun _ () -> ())
+      ()
+  in
+  let named id resource : Yojson.Safe.t =
+    `Assoc [ ("id", `String id); ("target", `String resource) ]
+  in
+  let written resource annotation =
+    Live_query.refetch query ~on:"mark:body-updated"
+      ~payload:
+        (Some
+           (`Assoc
+              [ ("resourceId", `String resource); ("annotation", annotation) ]))
+  in
+  let held = ("annotations", Some "res-1", None) in
+  let fetching = ("annotations", Some "res-2", None) in
+  Fun.protect
+    ~finally:(fun () -> Live_query.close query)
+    (fun () ->
+      Live_query.set query held (`List [ named "ann-1" "res-1" ]);
+      written "res-1" (named "ann-2" "res-1");
+      check
+        (Live_query.get query held
+        = Some (`List [ named "ann-1" "res-1"; named "ann-2" "res-1" ]))
+        "an annotation its list lacked was not written at the end";
+      let first =
+        Fiber.fork_promise ~sw (fun () -> Live_query.fresh query fetching)
+      in
+      written "res-2" (named "ann-3" "res-2");
+      Promise.resolve (Queue.take asks) (Ok (`List [ named "ann-4" "res-2" ]));
+      settle ();
+      let listed = `List [ named "ann-4" "res-2"; named "ann-3" "res-2" ] in
+      check
+        (Promise.await_exn first = Ok listed)
+        "a list's first fetch did not carry the annotation written meanwhile";
+      check
+        (Live_query.get query fetching = Some listed)
+        "a list stored its first fetch without the annotation written meanwhile";
+      check (Queue.is_empty asks) "writing into a list asked again")
+
 let observe_during_invalidation () =
   Eio_main.run @@ fun _ ->
   Switch.run @@ fun sw ->
@@ -887,6 +1247,33 @@ let () =
             unobserved_refresh;
           Alcotest.test_case "a place waits for every kept key" `Quick
             replay_waits_for_every_key;
+          Alcotest.test_case "B9 a replaced fetch's later reply is not stored"
+            `Quick replaced_newer_first;
+          Alcotest.test_case "B9 a replaced fetch's earlier reply is not stored"
+            `Quick replaced_older_first;
+          Alcotest.test_case "B17 only the current fetch is in flight" `Quick
+            replaced_in_flight;
+          Alcotest.test_case "B13a a removal lets go of the fetch in flight"
+            `Quick removal_lets_go;
+          Alcotest.test_case "B13b a set lets go of the fetch in flight" `Quick
+            set_lets_go;
+          Alcotest.test_case "B13b a patch rides on a first fetch" `Quick
+            patch_rides_first_fetch;
+          Alcotest.test_case "B13b patches ride in the order made" `Quick
+            patches_in_order;
+          Alcotest.test_case "B13b a replaced fetch's patches go with it" `Quick
+            replaced_patches_go;
+          Alcotest.test_case "B13b a patch to an unheld key does nothing" `Quick
+            patch_unheld;
+          Alcotest.test_case "B14 a let-go fetch's failure is not asked again"
+            `Quick let_go_failure;
+          Alcotest.test_case "B13b a failed ask's patches go with it" `Quick
+            failed_ask_patches_go;
+          Alcotest.test_case "B18 a patch keeps a restored value's mark" `Quick
+            patch_keeps_restored_mark;
+          Alcotest.test_case
+            "B13b an event writes into a list and rides its fetch" `Quick
+            list_write_rides;
         ] );
       ( "authorization",
         [
