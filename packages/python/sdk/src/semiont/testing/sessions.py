@@ -1,7 +1,8 @@
 """A `SessionFactory` for tests of a registry (`semiont.registry.SemiontBrowser`) and of what is built on one.
 
 Each session it builds is a real `SemiontSession` over a `FaultyTransport` of
-its own, and the factory keeps every transport it built, by knowledge base.
+its own, whose stream names a full client's channels, `BRIDGED_CHANNELS`, and
+the factory keeps every transport it built, by knowledge base.
 It reads none of what a session says: the registry is its errors' one reader.
 
 A test scripts three things: what each knowledge base's gateway answers, who
@@ -21,6 +22,7 @@ from typing import Final, final, override
 
 from pydantic import JsonValue
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.errors import SessionError, SignInError, TransportError
 from semiont.registry import SessionFactory, SessionFactoryOptions, kept_in
 from semiont.session import SemiontSession
@@ -116,7 +118,7 @@ class ScriptedSessions(SessionFactory):
         def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
             return None if self._refuse is None else self._refuse(kb_id, operation, payload)
 
-        transport = FaultyTransport(make_response=answer)
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=answer)
         transport.refuse_when(refuse)
         client = create_test_client(transport=transport).client
         self._built.append((kb_id, transport))

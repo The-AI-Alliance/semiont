@@ -31,7 +31,7 @@ from semiont import retry, timing
 from semiont.bus import request
 from semiont.cache import Cache, CachePersister
 from semiont.channels import BRIDGED_CHANNELS
-from semiont.claims import ClaimRefusal
+from semiont.claims import JOB_CLAIM_CHANNELS, ClaimRefusal
 from semiont.client import SemiontClient
 from semiont.discovery import DiscoveryRead, DiscoveryTransport, Managed, Unchanged, subscribe_discovery
 from semiont.errors import BusRequestError, TransportError
@@ -525,7 +525,7 @@ def dispatcher(operation: str, asked: Mapping[str, JsonValue]) -> JsonValue:
 
 
 async def held_job_stall(given: JsonObject, held: AsyncExitStack) -> Subject:
-    transport = FaultyTransport(make_response=dispatcher)
+    transport = FaultyTransport(channels=JOB_CLAIM_CHANNELS, make_response=dispatcher)
     held.push_async_callback(transport.close)
     client = SemiontClient(transport, InMemoryContent(), StubGateway())
     held.push_async_callback(client.close)
@@ -583,7 +583,7 @@ async def drained(values: AsyncIterator[object]) -> None:
 
 
 async def invalidation_window(given: JsonObject, held: AsyncExitStack) -> Subject:
-    transport = FaultyTransport(make_response=knowing)
+    transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=knowing)
     client = SemiontClient(transport, knowing_content(), StubGateway())
     await held.enter_async_context(client)
     running(held, drained(await held.enter_async_context(client.browse.events(RESOURCE))))

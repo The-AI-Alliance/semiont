@@ -14,6 +14,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 from shown import CARRIED, parts_of, printed
 from spec import JsonObject
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import ResourceId
@@ -55,7 +56,7 @@ type Client = SemiontClient[FaultyTransport]
 
 def world(*, answered: bool = True) -> tuple[Client, FaultyTransport]:
     """A client whose `job:create` is answered with `job-1`, or by the test when it is not `answered`."""
-    transport = FaultyTransport() if answered else silent()
+    transport = FaultyTransport(channels=BRIDGED_CHANNELS) if answered else silent()
     if answered:
         transport.queue_reply("job:create", [{"jobId": "job-1"}])
     return SemiontClient(transport, InMemoryContent(), StubGateway()), transport
@@ -751,7 +752,7 @@ def test_a_generation_waits_as_long_as_its_length_allows_when_no_deadline_is_sta
 
 def test_a_client_told_other_waits_keeps_them() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
         transport.queue_reply("job:create", [{"jobId": "job-1"}])
         transport.queue_reply("job:status-requested", [status("complete")])
         client = SemiontClient(transport, InMemoryContent(), StubGateway(), timing=ClientTiming(job_silence_ms=50, job_status_poll_ms=20))

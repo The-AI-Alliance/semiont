@@ -57,7 +57,7 @@ WINDOW_MS = 1000
 
 def world(window_ms: int = WINDOW_MS, *, answered: bool = True) -> tuple[Client, FaultyTransport, InMemoryContent | SilentContent]:
     """A client over doubles that answer every read a live query makes, or, when it is not `answered`, that answer none: the test does."""
-    transport = FaultyTransport(make_response=knowing) if answered else silent()
+    transport = FaultyTransport(channels=BRIDGED_CHANNELS, make_response=knowing) if answered else silent()
     content = knowing_content() if answered else SilentContent()
     timing = ClientTiming(invalidation_window_ms=window_ms)
     client: Client = SemiontClient(transport, content, StubGateway(), timing=timing)
@@ -132,7 +132,7 @@ def expected(queries: Sequence[CacheQuery], reach: CacheRefreshReach) -> Counter
 
 ROWS = [(trigger, row) for trigger, rows in CACHE_REFRESH.items() for row in rows]
 
-UNREADABLE = Frame(channel="mark:added", payload={"not": "a recorded event"})
+UNREADABLE = Frame(channel="mark:added", payload={"not": "a recorded event"}, scope=RESOURCE)
 """An event on a channel of the table that its reading refuses."""
 
 
@@ -254,9 +254,10 @@ def test_b20_an_event_asks_again_only_for_what_the_cache_holds() -> None:
     async def scenario() -> None:
         client, transport, _ = world(window_ms=0)
         async with client, AsyncExitStack() as held:
-            # Nothing is held: no event of any kind asks for anything.
-            for trigger in CACHE_REFRESH_CHANNELS:
-                transport.deliver(event(trigger))
+            # Nothing is held: no event of any kind asks for anything, though the stream carries each.
+            with transport.subscribe_to_resource(RESOURCE):
+                for trigger in CACHE_REFRESH_CHANNELS:
+                    transport.deliver(event(trigger))
             transport.set_state("reconnecting")
             await turns()
             transport.set_state("open")
@@ -265,7 +266,9 @@ def test_b20_an_event_asks_again_only_for_what_the_cache_holds() -> None:
 
             await watched(held, client.browse.events(RESOURCE))
             before = len(transport.emitted)
-            # Of what `mark:added` names, the events are held and the annotations are not; and no other resource's are.
+            # Of what `mark:added` names, the events are held and the annotations are not; and no other resource's are,
+            # though the stream carries the other's.
+            held.enter_context(transport.subscribe_to_resource(OTHER))
             transport.deliver(event("mark:added"))
             transport.deliver(event("mark:added", resource=OTHER))
             await turns(20)
@@ -306,7 +309,7 @@ def test_b20_a_key_that_is_failed_or_being_fetched_is_held() -> None:
 UNREADABLES: dict[str, Frame | FrameRefusal] = {
     "its channel's reading refuses it": UNREADABLE,
     "its transport refused it": FrameRefusal(
-        channel="mark:added", member="payload", reason="malformed", payload="not an event", scope=None, correlation_id=None
+        channel="mark:added", member="payload", reason="malformed", payload="not an event", scope=RESOURCE, correlation_id=None
     ),
     "the annotation it names is no id": Frame(
         channel="mark:removed", payload=recorded("mark:removed", RESOURCE, {"annotationId": "not an id"}), scope=RESOURCE
@@ -402,7 +405,7 @@ def test_b13b_an_event_that_carries_an_annotation_writes_it_where_it_was_or_at_t
             # One the list does not hold is added at its end, and is then an annotation the client holds.
             added = recorded("mark:body-updated", RESOURCE, {"annotationId": "ann-new"})
             added["annotation"] = annotation("ann-new", RESOURCE, modified="2026-10-06T02:00:00.000Z")
-            transport.deliver(Frame(channel="mark:body-updated", payload=added))
+            transport.deliver(Frame(channel="mark:body-updated", payload=added, scope=RESOURCE))
             state = await soon(anext(listed))
             assert isinstance(state, Ready)
             assert [(each.id, each.modified) for each in state.value] == [(ANNOTATION, None), ("ann-new", "2026-10-06T02:00:00.000Z")]
@@ -433,10 +436,11 @@ def test_b13b_an_event_that_carries_an_annotation_writes_it_where_it_was_or_at_t
             assert {"resourceId": RESOURCE, "annotationId": "ann-new"} in again
             before = len(transport.emitted)
 
-            # An event about a resource whose list is not held writes no list.
+            # An event about a resource whose list is not held writes no list, though its scope is held.
+            held.enter_context(transport.subscribe_to_resource(OTHER))
             elsewhere = recorded("mark:body-updated", OTHER, {"annotationId": ELSEWHERE})
             elsewhere["annotation"] = annotation(ELSEWHERE, OTHER)
-            transport.deliver(Frame(channel="mark:body-updated", payload=elsewhere))
+            transport.deliver(Frame(channel="mark:body-updated", payload=elsewhere, scope=OTHER))
             await turns(20)
             assert len(transport.emitted) == before
             unheld = await held.enter_async_context(client.browse.annotations(OTHER))

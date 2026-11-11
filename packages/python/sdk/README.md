@@ -835,8 +835,12 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
   request, so a test queues the response alone. A schedule of `Deliver`,
   `DropReply`, `Delay`, `DuplicateReply` and `RejectEmit` says what the wire
   does to each request in turn, so a lost reply and the retry after it can be
-  scripted. `request_log` and `emitted` are what was sent; `deliver` carries a
-  frame in as the bus would; `set_state` drops the stream and brings it back.
+  scripted. It is always given the `channels` its stream names, as an
+  `HttpTransport` is, and carries only what such a stream carries: a frame on
+  one of them, and a frame on a channel a resource's scope carries, on the
+  scope of a resource it holds. `request_log` and `emitted` are what was sent;
+  `deliver` carries a frame in as the bus would; `set_state` drops the stream
+  and brings it back.
 - **`InMemoryContent`** keeps what is uploaded and what a test seeds, and
   **`StubGateway`** answers the gateway's own operations as a test scripted
   them. Each records the calls made of it.
@@ -845,7 +849,8 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
   stored fails naming the resource. None answers with a value of its own
   making, so a test that forgot to say something fails where it forgot.
 - **`create_test_client`** takes the doubles a test built, or makes ones
-  nothing is scripted on, and the client's own timing and persistence.
+  nothing is scripted on, its transport given a full client's channels,
+  `BRIDGED_CHANNELS`; and the client's own timing and persistence.
 - **`create_test_session`** gives a real `SemiontSession` over a test client,
   ready as soon as it is held, holding a token only if its sign-in was kept.
 - **`semiont.testing.axioms`** holds a state unit, a program's own too, to the

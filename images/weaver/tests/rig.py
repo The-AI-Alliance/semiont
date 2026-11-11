@@ -29,6 +29,7 @@ from semiont_service.follower import Cursors, Record, RecordUnread
 from spec import JsonObject
 
 from semiont_weaver.fold import apply
+from semiont_weaver.service import CHANNELS
 from semiont_weaver.weaver import Weaver
 
 
@@ -161,7 +162,7 @@ class Rig:
         self.unanswered: Final[set[str]] = set()
         """The operations nobody answers: each is refused as a peer that is not there."""
         self.archivist: Final = Kept(self.record)
-        self.transport: Final = FaultyTransport(make_response=self._answer)
+        self.transport: Final = FaultyTransport(channels=CHANNELS, make_response=self._answer)
         self.transport.refuse_when(self._refuse)
         self._home: Final = tempfile.TemporaryDirectory()
         self.kept: Final = Path(self._home.name) / "cursors.json" if kept is None else kept

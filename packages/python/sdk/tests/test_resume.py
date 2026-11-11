@@ -70,7 +70,7 @@ def test_a_place_waits_for_the_client_it_is_coupled_to_to_be_at_rest() -> None:
         storage = MemoryStorage()
         places = CoupledBookmarks(storage, KEY)
         # The resource's answer is lost: its fetch is in flight until the test answers it.
-        transport = FaultyTransport([DropReply()], make_response=knowing)
+        transport = FaultyTransport([DropReply()], channels=BRIDGED_CHANNELS, make_response=knowing)
         persistence = CachePersistence(storage=places.storage, kb_id="kb-a", person_key=PERSON)
         client = SemiontClient(transport, knowing_content(), StubGateway(), persistence=persistence)
         places.couple_to(client)

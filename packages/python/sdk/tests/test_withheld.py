@@ -36,6 +36,7 @@ from semiont.bus import Bus
 from semiont.channel import Channel
 from semiont.channels import (
     BECKON_HOVER,
+    BRIDGED_CHANNELS,
     CHANNELS,
     JOB_CHECKPOINT,
     JOB_COMPLETE,
@@ -363,7 +364,7 @@ def test_a_payload_that_is_not_its_channel_s_is_refused_to_its_reader_by_the_way
 
 def test_a_result_that_is_not_its_operation_s_is_refused_for_what_it_lacks_and_in_none_of_its_own_words() -> None:
     async def scenario() -> None:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
         # The token a resource is cloned by is a credential, whether or not the answer that carries it is the one declared.
         transport.queue_reply("yield:clone-token-requested", [{"token": CARRIED, "expiresAt": "2026-10-11T00:00:00.000Z"}])
         refused = await raised(Bus(transport).request(YIELD_CLONE_TOKEN_REQUESTED, YieldCloneTokenRequest(resource_id=RESOURCE)))

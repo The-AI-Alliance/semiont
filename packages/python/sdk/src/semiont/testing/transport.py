@@ -15,9 +15,13 @@ A request nobody scripted a response for is refused, naming the operation. A
 double that answered it with an empty success would hand its caller a reply
 whose every field is absent, which fails far from its cause.
 
-What is emitted through it is delivered through it, to whoever listens, as a
-gateway gives a frame to its subscribers. All of its variation comes in
-through the schedule, so a test that fixes the schedule fixes the run.
+It is always given the channels its stream names, as an `HttpTransport` is,
+and it carries only what a stream that names them carries: a frame on one of
+those channels, and a frame on a channel a resource's scope carries, on the
+scope of a resource it holds. What is emitted through it, and what a test
+delivers, reaches whoever listens only then, as a gateway gives a frame to the
+streams that name it. All of its variation comes in through the schedule, so a
+test that fixes the schedule fixes the run.
 """
 
 import asyncio
@@ -29,7 +33,7 @@ from typing import Final, Literal, NoReturn, final, override
 from pydantic import JsonValue, TypeAdapter
 
 from semiont._reading import Reading
-from semiont.channels import TRACE_FIELD
+from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
@@ -160,23 +164,24 @@ class FaultyTransport(Transport):
     The i-th request meets `schedule[i % len(schedule)]`; with an empty
     schedule every reply is delivered. `make_response` answers every request
     no queued response does: with none, such a request is refused by name.
-    `channels` are the channels its stream delivers with no scope held: every
-    channel, unless a test names them. A frame it is sent comes back to it, as a
-    gateway gives a frame to every client whose stream names its channel, only
-    on a channel its stream names: a client's stream carries the replies and the
-    broadcasts, and not the requests.
+    `channels` are the global channels its stream names, and it assumes none
+    of its own: a full client's are `semiont.channels.BRIDGED_CHANNELS`, and a
+    process that awaits only some operations names their reply channels and no
+    others. A frame it is sent comes back to it as a frame a test delivers
+    does, only when its stream carries it: a client's stream carries the
+    replies and the broadcasts, and not the requests.
     """
 
     def __init__(
         self,
         schedule: Sequence[FaultAction] = (),
         *,
+        channels: Collection[str],
         make_response: MakeResponse = refuse_unscripted_operation,
-        channels: Collection[str] | None = None,
     ) -> None:
         self._schedule: Final = tuple(schedule)
         self._make_response: Final = make_response
-        self._channels: Final = channels
+        self._channels: Final = frozenset(channels)
         self._refuse: Refuse | None = None
         self._replies: Final[dict[str, deque[JsonValue | None]]] = {}
         self._log: Final[list[RequestLogEntry]] = []
@@ -219,9 +224,13 @@ class FaultyTransport(Transport):
         self._state.set(state)
 
     def deliver(self, frame: Frame | FrameRefusal) -> None:
-        """Deliver a frame, or its refusal, as if the bus had carried it. A closed transport has nobody to deliver to."""
-        self._router.route(frame)
-        self._hub.deliver(frame)
+        """Deliver a frame, or its refusal, as if the bus had carried it: one its stream does not carry reaches nobody.
+
+        A closed transport has nobody to deliver to.
+        """
+        if self._carries(frame):
+            self._router.route(frame)
+            self._hub.deliver(frame)
 
     # ── What a test reads ───────────────────────────────────────────────
 
@@ -268,7 +277,7 @@ class FaultyTransport(Transport):
         self._emitted.append(request)
         operation = OPERATIONS.get(channel)
         if operation is None:
-            self._echo(request)
+            self.deliver(request)
             return 1
 
         action: FaultAction = self._schedule[len(self._log) % len(self._schedule)] if self._schedule else Deliver()
@@ -298,7 +307,7 @@ class FaultyTransport(Transport):
             if response is not None:
                 answered["response"] = response
             reply = Frame(channel=operation.result.name, payload=answered, correlation_id=correlation_id)
-        self._echo(request)
+        self.deliver(request)
 
         # The reply comes after the emit has been accepted, as a wire's does. One on its way when the transport closes is dropped.
         loop = asyncio.get_running_loop()
@@ -313,10 +322,11 @@ class FaultyTransport(Transport):
                 pass
         return 1
 
-    def _echo(self, sent: Frame) -> None:
-        """A frame this transport sent, given back to it when its stream names the frame's channel."""
-        if self.is_subscribed(sent.channel):
-            self.deliver(sent)
+    def _carries(self, frame: Frame | FrameRefusal) -> bool:
+        """Whether its stream carries `frame`: on a channel it names, or on a resource's channel, on the scope of a resource it holds."""
+        if frame.channel in self._channels:
+            return True
+        return frame.channel in RESOURCE_SCOPED_CHANNELS and frame.scope is not None and frame.scope in self._held
 
     def _arrive(self, reply: Frame, copies: int) -> None:
         for _ in range(copies):
@@ -324,17 +334,19 @@ class FaultyTransport(Transport):
 
     @override
     def frames(self, channel: str) -> Events[Frame | FrameRefusal]:
-        if not self.is_subscribed(channel):
+        # As the real transport's: a resource-scoped channel passes with no
+        # scope held yet, since frames flow the moment one is.
+        if not self.is_subscribed(channel) and channel not in RESOURCE_SCOPED_CHANNELS:
             raise unsubscribed(channel)
         return self._hub.frames(channel)
 
     @override
     def is_subscribed(self, channel: str) -> bool:
-        return self._channels is None or channel in self._channels
+        return channel in self._channels
 
     @override
     def subscribe_to_resource(self, resource_id: ResourceId) -> ResourceHold:
-        # Nothing here is delivered by scope, so a hold changes only the count of them (`holds`).
+        # A scope is on the stream from its first hold to its last release.
         self._held[resource_id] = self._held.get(resource_id, 0) + 1
 
         def release() -> None:

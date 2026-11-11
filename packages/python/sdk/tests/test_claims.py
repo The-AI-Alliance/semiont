@@ -140,12 +140,15 @@ class World:
     """A client, a stand-in dispatcher that answers its claims, and a stand-in record that answers its commits.
 
     The record acknowledges every commit, and answers every question about an
-    annotation with that annotation, unless a test has it do otherwise. What
+    annotation with that annotation, unless a test has it do otherwise. Its
+    stream names the `channels` a worker's does, unless a test names others. What
     the `wire` does to each request in turn is the transport's schedule: a
     reply it drops is an answer nobody receives.
     """
 
-    def __init__(self, *, channels: tuple[str, ...] | None = None, wire: Sequence[FaultAction] = ()) -> None:
+    def __init__(
+        self, *, channels: tuple[str, ...] = (*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS), wire: Sequence[FaultAction] = ()
+    ) -> None:
         self.offered: Final[deque[JsonObject]] = deque()
         self.refusals: Final[deque[JsonObject]] = deque()
         self.refusing_commits = False

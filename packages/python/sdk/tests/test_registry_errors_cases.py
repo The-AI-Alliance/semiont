@@ -24,6 +24,7 @@ from spec import SPEC, JsonObject, read, text
 from storages import Refusing
 from tokens import token
 
+from semiont.channels import BRIDGED_CHANNELS
 from semiont.error_codes import SemiontSessionErrorCode, TransportErrorCode
 from semiont.errors import SessionError, TransportError
 from semiont.events import Broadcast, Events
@@ -165,7 +166,7 @@ class Scripted(SessionFactory):
     @override
     @asynccontextmanager
     async def session(self, options: SessionFactoryOptions) -> AsyncGenerator[SemiontSession[FaultyTransport]]:
-        transport = FaultyTransport()
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
         client = create_test_client(transport=transport).client
         keeping = Broadcast[SessionError]()
 
