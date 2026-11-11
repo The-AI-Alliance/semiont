@@ -876,7 +876,9 @@ mod tests {
     use crate::transport::{HttpTransportConfig, Timing};
     use futures::{FutureExt, Stream};
     use semiont::bus::StreamError;
-    use semiont::channels::{BeckonFocus, BrowseResourceRequested, Channel, Request};
+    use semiont::channels::{
+        BRIDGED_CHANNELS, BeckonFocus, BrowseResourceRequested, Channel, Request,
+    };
     use semiont::event_bus::EventBus;
     use semiont::transport::{Events, FrameRefusalReason, Lagged};
     use serde_json::json;
@@ -944,7 +946,7 @@ mod tests {
             base_url: "http://gateway.test".to_owned(),
             token: watch::channel(None).1,
             refresher: None,
-            channels: None,
+            channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
             http: reqwest::Client::new(),
             timing: Timing::default(),
             random: None,

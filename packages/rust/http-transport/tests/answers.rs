@@ -8,6 +8,7 @@ use axum::extract::State;
 use axum::http::{StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::transport::{GatewayOperations, Transport};
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
@@ -50,7 +51,7 @@ async fn an_answer_that_is_not_its_declared_body_fails_as_error_naming_its_first
         base_url: origin,
         token: watch::channel(Some("a-token".to_owned())).1,
         refresher: None,
-        channels: None,
+        channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
         http: reqwest::Client::new(),
         timing: Timing::default(),
         random: None,

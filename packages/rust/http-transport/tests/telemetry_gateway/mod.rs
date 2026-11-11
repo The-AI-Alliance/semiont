@@ -85,7 +85,7 @@ impl Gateway {
             base_url: self.origin.clone(),
             token: watch::channel(Some("a-token".to_owned())).1,
             refresher: None,
-            channels: Some(vec![HEARD.to_owned()]),
+            channels: vec![HEARD.to_owned()],
             http: reqwest::Client::new(),
             timing: Timing::default(),
             random: None,

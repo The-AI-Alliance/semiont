@@ -134,7 +134,7 @@ impl Wire {
             base_url: text(args, "baseUrl")?.to_owned(),
             token: tokens,
             refresher,
-            channels: Some(texts(args, "channels")?),
+            channels: texts(args, "channels")?,
             http: reqwest::Client::new(),
             timing,
 

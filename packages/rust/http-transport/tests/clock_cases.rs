@@ -38,6 +38,7 @@ use futures::stream::Stream;
 use rand_core::{Rng, TryRng};
 use semiont::bus::{Bus, operation};
 use semiont::cache::{Cache, CachePersister};
+use semiont::channels::BRIDGED_CHANNELS;
 use semiont::claims::ClaimOptions;
 use semiont::client::SemiontClient;
 use semiont::discovery::{DiscoveryRead, DiscoveryState, DiscoveryTransport, subscribe_discovery};
@@ -492,7 +493,7 @@ async fn over_a_gateway(
         base_url: network.origin.clone(),
         token: watch::channel(Some("a-token".to_owned())).1,
         refresher: None,
-        channels: None,
+        channels: BRIDGED_CHANNELS.iter().map(ToString::to_string).collect(),
         http: http(),
         timing: Timing::default(),
         random: Some(lowest()),

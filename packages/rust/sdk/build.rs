@@ -934,7 +934,7 @@ fn channels_of(registry: &Value) -> String {
         code.push_str("];\n");
     };
     constant(
-        "The channels a client hears globally unless it names a narrower list: every operation's result and failure, and the events sent to every client.",
+        "The channels a full client hears globally, which it gives its transport: every operation's result and failure, and the events sent to every client.",
         "BRIDGED_CHANNELS",
         &bridged,
     );

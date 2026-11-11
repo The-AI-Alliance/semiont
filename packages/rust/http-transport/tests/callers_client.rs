@@ -70,7 +70,7 @@ async fn a_transport_makes_its_stream_its_emits_its_requests_and_its_content_wit
         base_url: origin,
         token: watch::channel(Some("a-token".to_owned())).1,
         refresher: None,
-        channels: Some(vec!["beckon:focus".to_owned()]),
+        channels: vec!["beckon:focus".to_owned()],
         http: callers,
         timing: Timing::default(),
         random: None,
