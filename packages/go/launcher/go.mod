@@ -7,7 +7,7 @@ go 1.27.0
 // then fails govulncheck on a compiler nobody chose. actions/setup-go reads
 // this line from go-version-file, so the scan and the build agree on one
 // compiler.
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/The-AI-Alliance/semiont/packages/go/sdk v0.0.0-00010101000000-000000000000
