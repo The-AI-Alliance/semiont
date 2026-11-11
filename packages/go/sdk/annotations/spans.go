@@ -13,6 +13,7 @@ package annotations
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/text/cases"
@@ -208,26 +209,52 @@ func normalized(text string) changed {
 	return changed{text: written.String(), origins: origins}
 }
 
-// lowerCased is text lower-cased whole, by Unicode's rule of no language: a
-// capital sigma that ends a word becomes the final one, which a character at
-// a time would miss. A character becomes as many code points whole as alone
-// (a capital I with a dot becomes two), and that is what the origins are
-// counted from.
+const (
+	capitalSigma rune = 0x03a3
+	finalSigma   rune = 0x03c2
+)
+
+// lowerCased is text in lower case, by Unicode's rule of no language: each
+// character as it lower-cases alone (a capital I with a dot becomes two code
+// points, which the origins count from the one character), but a capital
+// sigma that ends a word becomes the final one. x/text, lowering a whole
+// text, decides that sigma by taking a character that is both cased and
+// case-ignorable as cased, which Unicode's rule passes over as case-ignorable.
 func lowerCased(text string) changed {
+	characters := []rune(text)
 	lower := cases.Lower(language.Und)
-	lowered := lower.String(text)
+	var written strings.Builder
 	var origins []int
-	offset := 0
-	for _, character := range text {
-		for range utf8.RuneCountInString(lower.String(string(character))) {
+	for offset, character := range characters {
+		var lowered string
+		if character == capitalSigma && endsWord(characters, offset) {
+			lowered = string(finalSigma)
+		} else {
+			lowered = lower.String(string(character))
+		}
+		written.WriteString(lowered)
+		for range utf8.RuneCountInString(lowered) {
 			origins = append(origins, offset)
 		}
-		offset++
 	}
-	if utf8.RuneCountInString(lowered) != len(origins) {
-		panic("a text lower-cased whole is not as long as its characters lower-cased one at a time")
+	return changed{text: written.String(), origins: origins}
+}
+
+// endsWord is whether the character at offset ends a word: the first before
+// it that is not case-ignorable is cased, and the first after it is not.
+func endsWord(text []rune, offset int) bool {
+	return casedFirst(text, offset, -1) && !casedFirst(text, offset, 1)
+}
+
+// casedFirst is whether the first character from offset, a step at a time,
+// that is not case-ignorable is cased; false when there is none.
+func casedFirst(text []rune, offset, step int) bool {
+	for at := offset + step; at >= 0 && at < len(text); at += step {
+		if !unicode.Is(caseIgnorable, text[at]) {
+			return unicode.Is(cased, text[at])
+		}
 	}
-	return changed{text: lowered, origins: origins}
+	return false
 }
 
 // distancesFrom is the edit distance from wanted to each stretch of text at
@@ -323,7 +350,7 @@ func looser(text, exact string) ([]place, MatchQuality, bool) {
 	if found := normalized(text).placesOf(normalized(exact).text); len(found) > 0 {
 		return found, MatchQualityNormalized, true
 	}
-	if found := lowerCased(text).placesOf(cases.Lower(language.Und).String(exact)); len(found) > 0 {
+	if found := lowerCased(text).placesOf(lowerCased(exact).text); len(found) > 0 {
 		return found, MatchQualityCaseInsensitive, true
 	}
 	if nearest, found := nearestStretch([]rune(text), []rune(exact)); found {

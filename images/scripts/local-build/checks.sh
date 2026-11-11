@@ -233,18 +233,18 @@ fi
 
 # --- Unicode's Cased and Case_Ignorable properties ---
 #
-# C#'s and Kotlin's copies of them are COMMITTED: C#'s source generator and
-# Kotlin's generator read them, and neither .NET nor the JDK gives the two
-# properties.
+# C#'s, Kotlin's and Go's copies of them are COMMITTED: C#'s source generator
+# and Kotlin's generator read them, Go's SDK compiles its range tables, and
+# neither .NET, the JDK nor Go's unicode package gives the two properties.
 
-if ! run_logged "C#'s and Kotlin's copies of Unicode's case properties match this Node's" \
+if ! run_logged "C#'s, Kotlin's and Go's copies of Unicode's case properties match this Node's" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
     npm run generate:unicode-case:check; then
-  fail "C#'s or Kotlin's copy of Unicode's case properties is STALE (or was hand-edited) — it must match Node's Unicode data."
+  fail "C#'s, Kotlin's or Go's copy of Unicode's case properties is STALE (or was hand-edited) — it must match Node's Unicode data."
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
-  echo -e "    ${BOLD}npm run generate:unicode-case${RESET}   (packages/csharp/sdk/generators/Semiont.Generator, packages/kotlin/sdk/src/codegen)"
+  echo -e "    ${BOLD}npm run generate:unicode-case${RESET}   (packages/csharp/sdk/generators/Semiont.Generator, packages/kotlin/sdk/src/codegen, packages/go/sdk/annotations)"
   echo ""
   exit 1
 fi

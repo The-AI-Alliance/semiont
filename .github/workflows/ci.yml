@@ -3849,11 +3849,12 @@ jobs:
       # Node has them → the code points of each, which decide whether a
       # capital sigma ends a word (protocol/specs/src/annotations/reconcile-cases.json):
       # the copy C#'s source generator reads
-      # (packages/csharp/sdk/generators/Semiont.Generator/unicode-case.json) and
-      # the copy Kotlin's generator reads (packages/kotlin/sdk/src/codegen/unicode-case.json).
-      # Neither .NET nor the JDK gives the two properties, and no build runs
-      # Node, so the copies are committed, and are what can go stale.
-      - name: Unicode's case properties vs C#'s and Kotlin's copies
+      # (packages/csharp/sdk/generators/Semiont.Generator/unicode-case.json),
+      # the copy Kotlin's generator reads (packages/kotlin/sdk/src/codegen/unicode-case.json)
+      # and Go's range tables (packages/go/sdk/annotations/unicodecase_gen.go).
+      # Neither .NET, the JDK nor Go's unicode package gives the two properties,
+      # and no build runs Node, so the copies are committed, and are what can go stale.
+      - name: Unicode's case properties vs C#'s, Kotlin's and Go's copies
         run: npm run generate:unicode-case:check
 
       # A knowledge base's documents (protocol/specs/src/stack, and the project file's
