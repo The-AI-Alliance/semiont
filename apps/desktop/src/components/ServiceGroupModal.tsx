@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type {
   ControlKnowledgeBaseStatus,
   ControlServiceGroup,
@@ -17,6 +17,7 @@ import type { KnowledgeBaseRow } from './KnowledgeBasesModal';
 type KnowledgeBaseServiceModal = 'gateway-archivist' | 'dispatcher-messaging' | 'index';
 export type DesktopServiceGroup = Extract<ControlServiceGroup, 'knowledge-workers' | 'issuer'> | 'browser' | KnowledgeBaseServiceModal;
 type Action = 'start' | 'stop';
+const STATUS_REFRESH_INTERVAL_MS = 30_000;
 interface ServiceRow {
   key: string;
   kbName?: string;
@@ -68,6 +69,15 @@ export function ServiceGroupModal({
   const [pending, setPending] = useState<{ key: string; action: Action } | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = window.setInterval(() => onRefreshRef.current(), STATUS_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [autoRefresh]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -145,7 +155,21 @@ export function ServiceGroupModal({
         </div>
 
         <footer className="service-group__footer">
-          <button type="button" className="kb__connect" onClick={onRefresh} disabled={pending !== null}>Refresh</button>
+          <div className="service-group__auto-refresh">
+            <span>Auto-refresh</span>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Automatically refresh service status"
+              aria-checked={autoRefresh}
+              onClick={() => setAutoRefresh((enabled) => !enabled)}
+              className={`service-group__switch${autoRefresh ? ' service-group__switch--on' : ''}`}
+            >
+              <span className="service-group__switch-thumb" />
+            </button>
+            <span className="service-group__auto-refresh-state">{autoRefresh ? 'On' : 'Off'}</span>
+            {autoRefresh && <span className="service-group__auto-refresh-interval">Every 30 seconds</span>}
+          </div>
         </footer>
       </section>
     </div>
