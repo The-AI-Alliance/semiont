@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Semiont.Errors;
@@ -57,21 +58,38 @@ public sealed partial class TransportTests
         using var server = new Handler();
         using var http = new HttpClient(server);
         var replies = BusOperations.BrowseResourceRequested;
+        var gathered = BusOperations.GatherRequested;
         using var transport = new HttpTransport("http://unit.test", "token",
-            [BusChannels.BeckonFocus.Name, replies.Result.Name, replies.Failure.Name], httpClient: http);
+            [BusChannels.BeckonFocus.Name, replies.Result.Name, replies.Failure.Name, gathered.Failure.Name], httpClient: http);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await OpenAsync(transport);
 
         if (!stated.TryGetProperty("refused", out _))
         {
-            Assert.Equal(["frame", "why"], stated.EnumerateObject().Select(member => member.Name).Order(StringComparer.Ordinal));
+            Assert.Equal(["frame", "why"], stated.EnumerateObject().Select(member => member.Name).Where(name => name != "read").Order(StringComparer.Ordinal));
             var frame = stated.GetProperty("frame");
-            await using var delivered = new Reading<Carried>(transport.Frames(Text(frame, "channel"), deadline.Token));
+            var deliveredOn = Text(frame, "channel");
+            var wire = new Bus(transport);
+            await using var delivered = new Reading<Carried>(transport.Frames(deliveredOn, deadline.Token));
+            // A failure's channel is read by type: what its reader reads is the case's `read`, or the frame's payload.
+            await using var byType = deliveredOn == replies.Failure.Name ? new Reading<JsonElement>(PayloadsRead(wire.Frames(replies.Failure, cancellation: deadline.Token)))
+                : deliveredOn == gathered.Failure.Name ? new Reading<JsonElement>(PayloadsRead(wire.Frames(gathered.Failure, cancellation: deadline.Token)))
+                : null;
             await using var failures = new Reading<SemiontError>(transport.Errors(deadline.Token));
             Carry(server, "e-1", JsonSerializer.Serialize(frame));
             Carry(server, "e-2", NamesNoChannel);
             var received = Assert.IsType<ReceivedBusFrame>(await delivered.NextAsync());
             Assert.True(JsonElement.DeepEquals(frame, Written(received.Frame)), "it is delivered as " + JsonSerializer.Serialize(Written(received.Frame)));
+            if (byType is null)
+            {
+                Assert.False(stated.TryGetProperty("read", out _), "it states what is read of " + deliveredOn + ", which this runner reads by no type");
+            }
+            else
+            {
+                var readByType = await byType.NextAsync();
+                Assert.True(JsonElement.DeepEquals(stated.TryGetProperty("read", out var stating) ? stating : frame.GetProperty("payload"), readByType),
+                    "its typed reader reads " + readByType.GetRawText());
+            }
             AssertToldNoFrame(Fault.Undecoded, await failures.NextAsync());
             return;
         }
@@ -160,6 +178,14 @@ public sealed partial class TransportTests
             case var outcome:
                 throw new InvalidOperationException("a request the table does not give: " + outcome);
         }
+    }
+
+    /// <summary>What a typed reader reads of each frame's payload, written as the wire states it.</summary>
+    private static async IAsyncEnumerable<JsonElement> PayloadsRead<T>(IAsyncEnumerable<Heard<T>> heard,
+        [EnumeratorCancellation] CancellationToken cancellation = default) where T : class
+    {
+        await foreach (var one in heard.WithCancellation(cancellation))
+            yield return JsonSerializer.SerializeToElement(Assert.IsType<Heard<T>.Delivered>(one).Payload);
     }
 
     private static bool IsTheFrameAfter(Carried carried) =>

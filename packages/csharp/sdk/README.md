@@ -399,7 +399,9 @@ the `Member` the frame's first fault is at, its way from the frame (`payload.res
 or `payload` for the payload itself), and the `Reason`, `FrameRefusalReason.Lacks` or
 `FrameRefusalReason.Malformed`; it holds the payload as it came, the scope, and the frame's
 correlation id whenever that can be read. The read goes on to the frames after it. A scoped
-read keeps its resource subscribed until the enumerator ends.
+read keeps its resource subscribed until the enumerator ends. A failure whose `code` is none
+of the codes `CommandError` names is read with no code, its other members kept, by a typed
+read and by the request it answers alike.
 
 A delegation's events tell a refused `job:report-progress`, `job:fail` or `job:complete` as
 `JobEvent<T>.Refused`, naming its channel, member and reason: it names no job, is no word of

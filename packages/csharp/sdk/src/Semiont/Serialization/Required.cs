@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Semiont.Serialization;
 
@@ -18,8 +19,8 @@ internal sealed record Fault(string Member, FrameRefusalReason Reason)
         : "its `" + Member + "` is malformed";
 }
 
-// The first fault of a value as one of the protocol's component schemas. Every SDK holds what it reads to the table of
-// what each schema requires, and names the first fault it finds the same way. The table is this SDK's copy of it
+// The first fault of a value as one of the protocol's component schemas, and what a reader reads of it. Every SDK holds
+// what it reads to the table of what each schema requires, and names the first fault it finds the same way. The table is this SDK's copy of it
 // (generators/Semiont.Generator/required-schemas.json), written by the rules of
 // packages/codegen/schemas/required-shapes.mjs, which states what each part of a shape means and the order a reader
 // walks them in. The generator adds what each payload type the bus registry makes requires (an envelope of a schema's
@@ -29,12 +30,19 @@ internal static partial class Required
     private static readonly Dictionary<string, Shape> Schemas = ParseTable();
 
     /// <summary>The first fault <paramref name="value"/> has as the component schema <paramref name="schema"/>, by the
-    /// rules every SDK reads the table by; null when it has none.</summary>
-    internal static Fault? FaultOf(string schema, JsonElement value) => FaultAt(Component(schema), value, "");
+    /// rules every SDK reads the table by; null when it has none, and then <paramref name="read"/> is what a reader
+    /// decodes: <paramref name="value"/> without each member that holds a text none of its recognized ones.</summary>
+    internal static Fault? FaultOf(string schema, JsonElement value, out JsonElement read)
+    {
+        var unread = new List<Place>();
+        var fault = FaultAt(Component(schema), value, "", Place.Value, unread);
+        read = fault is null && unread.Count > 0 ? Without(value, unread) : value;
+        return fault;
+    }
 
     /// <summary>Whether <paramref name="id"/> is a persisted event's id: components/schemas/PersistedEventId.json, its
     /// pattern and not its prefix alone. Only such an id is a place a scope resumes from.</summary>
-    internal static bool IsPersistedEventId(JsonElement id) => FaultOf("PersistedEventId", id) is null;
+    internal static bool IsPersistedEventId(JsonElement id) => FaultOf("PersistedEventId", id, out _) is null;
 
     /// <summary><paramref name="schema"/>, once the table is read and found to state it.</summary>
     internal static string Stated(string schema)
@@ -52,11 +60,23 @@ internal static partial class Required
     /// <summary>The member whose value names the variant of a union a value is.</summary>
     private sealed record Discriminator(string Property, IReadOnlyDictionary<string, int> Mapping);
 
+    /// <summary>Where a value is within the one walked: the member <c>Member</c>, or else the item <c>Item</c>, of the
+    /// value at <c>Within</c>; the walked value itself when it is within none.</summary>
+    private sealed record Place(Place? Within, string? Member, int Item)
+    {
+        internal static readonly Place Value = new(null, null, 0);
+
+        internal Place Of(string member) => new(this, member, 0);
+
+        internal Place At(int item) => new(this, null, item);
+    }
+
     /// <summary>What a value must be. A part that is null is one the table does not state.</summary>
     private sealed record Shape
     {
         public string? Ref { get; init; }
         public IReadOnlyList<Kind>? Kinds { get; init; }
+        public IReadOnlyList<string>? Recognized { get; init; }
         public IReadOnlyList<JsonElement>? Enum { get; init; }
         public IReadOnlyList<Step>? Pattern { get; init; }
         public int? MinLength { get; init; }
@@ -96,6 +116,7 @@ internal static partial class Required
             {
                 "ref" => shape with { Ref = Text(value) },
                 "kinds" => shape with { Kinds = value.EnumerateArray().Select(ParseKind).ToArray() },
+                "recognized" => shape with { Recognized = value.EnumerateArray().Select(Text).ToArray() },
                 "enum" => shape with { Enum = value.EnumerateArray().Select(listed => listed.Clone()).ToArray() },
                 "pattern" => shape with { Pattern = value.EnumerateArray().Select(ParseStep).ToArray() },
                 "minLength" => shape with { MinLength = value.GetInt32() },
@@ -226,33 +247,61 @@ internal static partial class Required
     }
 
     /// <summary>The first fault <paramref name="value"/> has as a value of <paramref name="shape"/>, from
-    /// <paramref name="way"/>.</summary>
-    private static Fault? FaultAt(Shape shape, JsonElement value, string way)
+    /// <paramref name="way"/>. Each member a reader reads as absent is added to <paramref name="unread"/>, by its place
+    /// from <paramref name="at"/>, the value's own.</summary>
+    private static Fault? FaultAt(Shape shape, JsonElement value, string way, Place at, List<Place> unread)
     {
         var own = Resolved(shape);
         if (!Allows(own.Kinds, value) || !IsAsStated(own, value)) return new Fault(way, FrameRefusalReason.Malformed);
-        if (value.ValueKind == JsonValueKind.Object && FaultOfMembers(own, value, way) is { } inMembers) return inMembers;
+        if (value.ValueKind == JsonValueKind.Object && FaultOfMembers(own, value, way, at, unread) is { } inMembers) return inMembers;
         if (value.ValueKind == JsonValueKind.Array && own.Items is { } items)
         {
+            var index = 0;
             foreach (var item in value.EnumerateArray())
             {
-                if (FaultAt(items, item, way) is { } inItem) return inItem;
+                if (FaultAt(items, item, way, at.At(index++), unread) is { } inItem) return inItem;
             }
         }
-        if (own.OneOf is { } variants && FaultOfOneOf(variants, own.Discriminator, value, way) is { } inVariant) return inVariant;
+        if (own.OneOf is { } variants && FaultOfOneOf(variants, own.Discriminator, value, way, at, unread) is { } inVariant) return inVariant;
         if (own.AllOf is { } parts)
         {
             foreach (var part in parts)
             {
-                if (FaultAt(part, value, way) is { } inPart) return inPart;
+                if (FaultAt(part, value, way, at, unread) is { } inPart) return inPart;
             }
         }
         return null;
     }
 
+    /// <summary>Whether a reader reads <paramref name="held"/>, a member of shape <paramref name="shape"/>, as absent: a
+    /// text none of the shape's recognized ones.</summary>
+    private static bool IsUnrecognized(Shape shape, JsonElement held) =>
+        Resolved(shape).Recognized is { } recognized && held.ValueKind == JsonValueKind.String
+        && !recognized.Contains(Text(held), StringComparer.Ordinal);
+
+    /// <summary><paramref name="value"/> without the member at each of <paramref name="unread"/>.</summary>
+    private static JsonElement Without(JsonElement value, List<Place> unread)
+    {
+        var read = JsonNode.Parse(value.GetRawText()) ?? throw new InvalidOperationException("A value with members is null.");
+        foreach (var place in unread)
+        {
+            var within = place.Within ?? throw new InvalidOperationException("A member is within no value.");
+            var member = place.Member ?? throw new InvalidOperationException("An item is read as absent.");
+            NodeAt(read, within).AsObject().Remove(member);
+        }
+        return JsonSerializer.SerializeToElement(read);
+    }
+
+    private static JsonNode NodeAt(JsonNode value, Place place) =>
+        (place.Within is not { } within ? value
+            : place.Member is { } member ? NodeAt(value, within)[member]
+            : NodeAt(value, within)[place.Item])
+        ?? throw new InvalidOperationException("A place holds no value.");
+
     /// <summary>The first fault of an object in the members the shape requires, in what its members are, in the
-    /// members it may not carry, and in its values.</summary>
-    private static Fault? FaultOfMembers(Shape shape, JsonElement value, string way)
+    /// members it may not carry, and in its values. A member that holds a text none of its recognized ones is no fault:
+    /// it is unread.</summary>
+    private static Fault? FaultOfMembers(Shape shape, JsonElement value, string way, Place at, List<Place> unread)
     {
         if (shape.Required is { } required)
         {
@@ -271,7 +320,12 @@ internal static partial class Required
             foreach (var (name, member) in members.OrderBy(pair => pair.Key, CodePoints.Order))
             {
                 if (!value.TryGetProperty(name, out var held) || held.ValueKind == JsonValueKind.Null) continue;
-                if (FaultAt(member, held, Within(way, name)) is { } inMember) return inMember;
+                if (IsUnrecognized(member, held))
+                {
+                    unread.Add(at.Of(name));
+                    continue;
+                }
+                if (FaultAt(member, held, Within(way, name), at.Of(name), unread) is { } inMember) return inMember;
             }
         }
         var names = value.EnumerateObject().Select(property => property.Name).Order(CodePoints.Order).ToArray();
@@ -283,30 +337,36 @@ internal static partial class Required
         {
             foreach (var name in names)
             {
-                if (FaultAt(values, value.GetProperty(name), way) is { } inValue) return inValue;
+                if (FaultAt(values, value.GetProperty(name), way, at.Of(name), unread) is { } inValue) return inValue;
             }
         }
         return null;
     }
 
     /// <summary>The fault <paramref name="value"/> has as one of a union's <paramref name="variants"/>: the variant its
-    /// discriminator names, or else each variant whose kinds allow it. None when one of them has none; the first one's
-    /// when each has one; and a value no variant allows is malformed.</summary>
-    private static Fault? FaultOfOneOf(IReadOnlyList<Shape> variants, Discriminator? discriminator, JsonElement value, string way)
+    /// discriminator names, or else each variant whose kinds allow it. None when one of them has none, and what that one
+    /// leaves unread is unread; the first one's when each has one; and a value no variant allows is malformed.</summary>
+    private static Fault? FaultOfOneOf(IReadOnlyList<Shape> variants, Discriminator? discriminator, JsonElement value, string way,
+        Place at, List<Place> unread)
     {
         IReadOnlyList<Shape> candidates = variants.Where(variant => Allows(Resolved(variant).Kinds, value)).ToArray();
         if (value.ValueKind == JsonValueKind.Object && discriminator is not null
             && value.TryGetProperty(discriminator.Property, out var named) && named.ValueKind == JsonValueKind.String
-            && named.GetString() is { } variantName && discriminator.Mapping.TryGetValue(variantName, out var at)
-            && at >= 0 && at < variants.Count)
+            && named.GetString() is { } variantName && discriminator.Mapping.TryGetValue(variantName, out var variantAt)
+            && variantAt >= 0 && variantAt < variants.Count)
         {
-            candidates = [variants[at]];
+            candidates = [variants[variantAt]];
         }
         if (candidates.Count == 0) return new Fault(way, FrameRefusalReason.Malformed);
         Fault? first = null;
         foreach (var candidate in candidates)
         {
-            if (FaultAt(candidate, value, way) is not { } fault) return null;
+            var unreadByIt = new List<Place>();
+            if (FaultAt(candidate, value, way, at, unreadByIt) is not { } fault)
+            {
+                unread.AddRange(unreadByIt);
+                return null;
+            }
             if (first is null) first = fault;
         }
         return first;
