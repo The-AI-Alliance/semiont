@@ -12,7 +12,7 @@
 
 import util from 'node:util';
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
-import { REQUEST_RETRY_PAUSE_MS, baseUrl, resourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, REQUEST_RETRY_PAUSE_MS, baseUrl, resourceId } from '@semiont/core';
 import type { KyInstance } from 'ky';
 
 vi.mock('ky', () => ({
@@ -106,6 +106,7 @@ function makeTransportAndContent(tokenRefresher?: () => Promise<string | null>) 
   const token$ = new BehaviorSubject<string | null>('test-token-abc');
   const transport = new HttpTransport({
     baseUrl: testBaseUrl,
+    channels: BRIDGED_CHANNELS,
     token$: token$ as never,
     ...(tokenRefresher ? { tokenRefresher } : {}),
   });

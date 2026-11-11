@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { accessToken, baseUrl, type AccessToken, type EventMap, type FrameRefusal, annotationId, resourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, accessToken, baseUrl, type AccessToken, type EventMap, type FrameRefusal, annotationId, resourceId } from '@semiont/core';
 import { HttpContentTransport } from '../http-content-transport';
 import { HttpTransport, currentUserOf } from '../http-transport';
 import { createSSEStream, mockFetch, mockSSEResponse, sseChunk } from './helpers/mock-conn';
@@ -29,7 +29,7 @@ describe('HttpTransport ITransport delegation', () => {
 
   it('emit posts the channel and payload, and resolves the subscriber count', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 2 }) });
-    const transport = new HttpTransport({ baseUrl: BASE });
+    const transport = new HttpTransport({ baseUrl: BASE, channels: BRIDGED_CHANNELS });
 
     await expect(transport.emit('beckon:hover', { annotationId: annotationId('a-1') })).resolves.toBe(2);
 
@@ -45,7 +45,7 @@ describe('HttpTransport ITransport delegation', () => {
 
   it('emit carries the resource scope when one is given', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 1 }) });
-    const transport = new HttpTransport({ baseUrl: BASE });
+    const transport = new HttpTransport({ baseUrl: BASE, channels: BRIDGED_CHANNELS });
 
     await transport.emit('beckon:hover', { annotationId: annotationId('a-1') }, { scope: resourceId('res-9') });
 
@@ -64,7 +64,7 @@ describe('HttpTransport ITransport delegation', () => {
     const sse = mockSSEResponse();
     // A credential is required to connect at all (the SSE connect gate), so a
     // tokenless transport would never issue the subscribe this test waits on.
-    const transport = new HttpTransport({ baseUrl: BASE, token$: token() });
+    const transport = new HttpTransport({ baseUrl: BASE, channels: BRIDGED_CHANNELS, token$: token() });
 
     const seen: (EventMap['beckon:focus'] | FrameRefusal)[] = [];
     const off = transport.on('beckon:focus', (p) => seen.push(p));
@@ -101,7 +101,7 @@ describe('HttpTransport ITransport delegation', () => {
     const sse = mockSSEResponse();
     // A credential is required to connect at all (the SSE connect gate), so a
     // tokenless transport would never issue the subscribe this test waits on.
-    const transport = new HttpTransport({ baseUrl: BASE, token$: token() });
+    const transport = new HttpTransport({ baseUrl: BASE, channels: BRIDGED_CHANNELS, token$: token() });
 
     const seen: (EventMap['beckon:focus'] | FrameRefusal)[] = [];
     const sub = transport.stream('beckon:focus').subscribe((p) => seen.push(p));
@@ -118,7 +118,7 @@ describe('HttpTransport ITransport delegation', () => {
 
   it('state$ and trackReply reach the actor', async () => {
     mockSSEResponse();
-    const transport = new HttpTransport({ baseUrl: BASE });
+    const transport = new HttpTransport({ baseUrl: BASE, channels: BRIDGED_CHANNELS });
 
     const states: string[] = [];
     transport.state$.subscribe((s) => states.push(s));
@@ -157,7 +157,7 @@ describe('HttpTransport given its caller\'s fetch', () => {
 
   it('sends its stream, its emits, its requests and its content through that fetch, and nothing through the runtime\'s', async () => {
     const given = recordingFetch();
-    const transport = new HttpTransport({ baseUrl: BASE, token$: new BehaviorSubject<AccessToken | null>(accessToken('tok')), fetch: given.fetch });
+    const transport = new HttpTransport({ baseUrl: BASE, channels: BRIDGED_CHANNELS, token$: new BehaviorSubject<AccessToken | null>(accessToken('tok')), fetch: given.fetch });
 
     await vi.waitFor(() => expect(given.asked).toContain('POST /bus/subscribe'));
     await transport.emit('beckon:hover', { annotationId: annotationId('a-1') });

@@ -39,7 +39,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { asDeclared, BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, REQUEST_RETRY_PAUSE_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, watched, type RetryPolicy, type Watched } from '@semiont/core';
+import { asDeclared, HTTP_REQUEST_TIMEOUT_MS, REQUEST_RETRY_PAUSE_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, watched, type RetryPolicy, type Watched } from '@semiont/core';
 import type { BusEnvelope, BusFrame, FrameRefusal } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -77,15 +77,15 @@ export interface HttpTransportConfig {
   loadLastEventIds?: () => ReadonlyMap<ResourceId, string> | null;
   saveLastEventId?: (scope: ResourceId, id: string) => void;
   /**
-   * The global SSE channel set this transport subscribes. Absent means the
-   * full `BRIDGED_CHANNELS` — a full client must receive every operation's
-   * reply channel, or its `Bus.request`s time out. A narrow-profile process
-   * (the worker) passes exactly the reply channels for the operations it
-   * awaits, and is sent no frame on any other global channel.
-   * A `Bus.request` on an operation whose replies are outside this set
-   * fails fast with `bus.unsubscribed` (see `BusPrimitive`).
+   * The global SSE channel set this transport subscribes; it assumes none of
+   * its own. A full client gives it `BRIDGED_CHANNELS`: it must receive every
+   * operation's reply channel, or its `Bus.request`s time out. A
+   * narrow-profile process (the worker) gives it exactly the reply channels
+   * for the operations it awaits, and is sent no frame on any other global
+   * channel. A `Bus.request` on an operation whose replies are outside this
+   * set fails fast with `bus.unsubscribed` (see `BusPrimitive`).
    */
-  channels?: readonly (keyof EventMap)[];
+  channels: readonly (keyof EventMap)[];
   /**
    * `reconnectMs`, `streamOpenTimeoutMs`, `lazyRemoveMs`, `lingerMs`,
    * `emitRetry` and `seenEventIdsCount` of protocol/specs/src/client/timing.json, for
@@ -406,11 +406,10 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   private get actor(): ActorStateUnit {
     if (!this._actor) {
-      const globalChannels = this.config.channels ?? BRIDGED_CHANNELS;
       this._actor = createActorStateUnit({
         baseUrl: this.baseUrl,
         token: () => this.token$.getValue() ?? '',
-        channels: [...globalChannels],
+        channels: [...this.config.channels],
         ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
         ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
@@ -450,7 +449,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
             for (const bus of this.bridges) bus.emit(channel, declared, envelope);
           },
         },
-        [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
+        [...this.config.channels, ...RESOURCE_SCOPED_CHANNELS],
         // `EventBus.emit` is synchronous, so this never fires; it is the
         // honest answer rather than an omission the relay has to guard against.
         (channel, error) => this.logger?.error('Bridge relay failed', { channel, error }),
@@ -509,8 +508,8 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   /**
-   * Wire this transport's SSE fan-in into the given bus. Every channel
-   * in `BRIDGED_CHANNELS` (and subsequently per-resource scoped channels
+   * Wire this transport's SSE fan-in into the given bus. Every global
+   * channel it was given (and subsequently per-resource scoped channels
    * opened by `subscribeToResource`) is published on the bus, as its
    * channel types it; one that is not its channel's, or that the stream
    * refused, is published as its `FrameRefusal`, in its place.
@@ -569,7 +568,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   /**
    * `Bus.request`'s fail-fast probe (`BusPrimitive.isSubscribed`):
    * whether the actor's global subscription set delivers `channel`. On a
-   * full client (no `channels` config) every bridged reply channel is
+   * full client (given `BRIDGED_CHANNELS`) every bridged reply channel is
    * subscribed and this never gates; on a narrowed transport it turns a
    * doomed request into an immediate `bus.unsubscribed` error.
    */

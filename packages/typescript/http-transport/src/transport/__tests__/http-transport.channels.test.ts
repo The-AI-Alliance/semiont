@@ -1,10 +1,10 @@
 /**
  * HttpTransport `channels` config — the narrowed-subscription seam.
  *
- * Absent, the transport subscribes the full `BRIDGED_CHANNELS`. A
- * narrow-profile process (the worker) passes exactly the reply channels
- * it awaits; `isSubscribed` is the probe `Bus.request` uses to fail fast
- * on anything outside the set.
+ * A transport subscribes the global channels it is given, and none of its
+ * own: a full client gives it `BRIDGED_CHANNELS`, a narrow-profile process
+ * (the worker) exactly the reply channels it awaits. `isSubscribed` is the
+ * probe `Bus.request` uses to fail fast on anything outside the set.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -14,8 +14,8 @@ import { HttpTransport } from '../http-transport';
 const BASE = baseUrl('http://localhost:4000');
 
 describe('HttpTransport channels config', () => {
-  it('subscribes the full bridged set when no channels are configured', () => {
-    const transport = new HttpTransport({ baseUrl: BASE });
+  it('subscribes the full bridged set when given it', () => {
+    const transport = new HttpTransport({ baseUrl: BASE, channels: BRIDGED_CHANNELS });
     for (const channel of BRIDGED_CHANNELS) {
       expect(transport.isSubscribed(channel)).toBe(true);
     }

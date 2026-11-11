@@ -11,7 +11,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, test } from 'vitest';
-import { REQUEST_RETRY_PAUSE_MS, accessToken, baseUrl, type SemiontError } from '@semiont/core';
+import { BRIDGED_CHANNELS, REQUEST_RETRY_PAUSE_MS, accessToken, baseUrl, type SemiontError } from '@semiont/core';
 import { HttpContentTransport } from '../http-content-transport';
 import { HttpTransport } from '../http-transport';
 
@@ -67,7 +67,7 @@ const TOKEN = accessToken('first');
 
 /** A transport with no token of its own, so it opens no stream: each upload names its token. */
 function contentOf(url: string, config: { timeout?: number; tokenRefresher?: () => Promise<string | null> } = {}) {
-  const transport = new HttpTransport({ baseUrl: baseUrl(url), ...config });
+  const transport = new HttpTransport({ baseUrl: baseUrl(url), channels: BRIDGED_CHANNELS, ...config });
   const errors: SemiontError[] = [];
   transport.errors$.subscribe((error) => errors.push(error));
   return { content: new HttpContentTransport(transport), errors };

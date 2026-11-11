@@ -31,9 +31,10 @@ The stack wired by hand. A session does this for you.
 ```typescript
 import { SemiontClient } from '@semiont/sdk';
 import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
-import { baseUrl } from '@semiont/core';
+import { BRIDGED_CHANNELS, baseUrl } from '@semiont/core';
 
-const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
+// A full client's stream names every channel a client hears.
+const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/'), channels: BRIDGED_CHANNELS });
 
 // HttpTransport is also the gateway's plain operations: passed third, it
 // gives the client its `auth` and `system` namespaces.
@@ -49,12 +50,12 @@ Every request of a transport is sent with the `fetch` its config gives, or with 
 
 ```typescript
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl } from '@semiont/core';
+import { BRIDGED_CHANNELS, baseUrl } from '@semiont/core';
 
 // A fetch that trusts the gateway's certificate authority.
 declare const trusting: typeof fetch;
 
-const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/'), fetch: trusting });
+const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/'), channels: BRIDGED_CHANNELS, fetch: trusting });
 ```
 
 ## What a change must keep

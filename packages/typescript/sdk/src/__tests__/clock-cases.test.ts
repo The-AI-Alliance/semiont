@@ -16,6 +16,7 @@ import {
   accessToken,
   annotationId,
   baseUrl,
+  BRIDGED_CHANNELS,
   Bus,
   BusRequestError,
   jobId,
@@ -263,6 +264,7 @@ class Gateway {
     const transport = new HttpTransport({
       baseUrl: baseUrl(GATEWAY),
       token$: watched(new BehaviorSubject<AccessToken | null>(accessToken('a-token'))),
+      channels: BRIDGED_CHANNELS,
       fetch: this.fetch,
     });
     this.held.later(() => transport.dispose());

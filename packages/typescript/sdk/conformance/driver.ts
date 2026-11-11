@@ -10,7 +10,7 @@
  */
 import { createInterface } from 'node:readline';
 import { BehaviorSubject, type Subscription } from 'rxjs';
-import { SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken, type GenerationJobParams, type MarkJobParams } from '@semiont/core';
+import { BRIDGED_CHANNELS, SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken, type GenerationJobParams, type MarkJobParams } from '@semiont/core';
 import type { Observable } from 'rxjs';
 import {
   HttpContentTransport,
@@ -146,6 +146,7 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     const transport = new HttpTransport({
       baseUrl: baseUrl(text(args, 'baseUrl')),
       token$: new BehaviorSubject<AccessToken | null>(accessToken(text(args, 'token'))),
+      channels: BRIDGED_CHANNELS,
       ...(reconnectMs === undefined ? {} : { reconnectMs }),
       ...(lazyRemoveMs === undefined ? {} : { lazyRemoveMs }),
       ...(lingerMs === undefined ? {} : { lingerMs }),

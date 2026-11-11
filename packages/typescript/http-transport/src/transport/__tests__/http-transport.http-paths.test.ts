@@ -18,7 +18,7 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import type { KyInstance } from 'ky';
-import { HTTP_REQUEST_TIMEOUT_MS, baseUrl, resourceId } from '@semiont/core';
+import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, baseUrl, resourceId } from '@semiont/core';
 
 vi.mock('ky', () => ({
   default: {
@@ -102,20 +102,20 @@ describe('HttpTransport — HTTP wire shape', () => {
     actorHarness.addChannels.mockClear();
     actorHarness.removeChannels.mockClear();
     actorHarness.dispose.mockClear();
-    transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10000 });
+    transport = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 10000 });
     content = new HttpContentTransport(transport);
   });
 
   describe('The deadline on a request', () => {
     test('is the one every SDK keeps, when the caller states none', () => {
       vi.mocked(ky.create).mockClear();
-      new HttpTransport({ baseUrl: testBaseUrl });
+      new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS });
       expect(vi.mocked(ky.create).mock.calls[0]?.[0]).toMatchObject({ timeout: HTTP_REQUEST_TIMEOUT_MS });
     });
 
     test('is the one the caller states', () => {
       vi.mocked(ky.create).mockClear();
-      new HttpTransport({ baseUrl: testBaseUrl, timeout: 1234 });
+      new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, timeout: 1234 });
       expect(vi.mocked(ky.create).mock.calls[0]?.[0]).toMatchObject({ timeout: 1234 });
     });
   });
@@ -707,14 +707,14 @@ describe('HttpTransport — HTTP wire shape', () => {
     test('accepts a BehaviorSubject token source and constructs without error', async () => {
       const { BehaviorSubject } = await import('rxjs');
       const token$ = new BehaviorSubject<string | null>('tok-1');
-      const t = new HttpTransport({ baseUrl: testBaseUrl, token$: token$ as never });
+      const t = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS, token$: token$ as never });
       expect(t).toBeDefined();
       // Updates propagate; no throw.
       token$.next('tok-2');
     });
 
     test('defaults to a null BehaviorSubject when token$ is omitted', () => {
-      const t = new HttpTransport({ baseUrl: testBaseUrl });
+      const t = new HttpTransport({ baseUrl: testBaseUrl, channels: BRIDGED_CHANNELS });
       expect(t).toBeDefined();
     });
   });

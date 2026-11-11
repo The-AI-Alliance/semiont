@@ -10,11 +10,11 @@ For the namespace-level API tour, see [`docs/builder/Usage.md`](../../../../docs
 
 ### `HttpTransportConfig`
 
-Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport/http-transport.ts). Only `baseUrl` is required.
+Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport/http-transport.ts). `baseUrl` and `channels` are required.
 
 - **`token$`** is where the transport reads the current token. A new token pushed into it is used from the next request on.
 - **`tokenRefresher`** is asked for a new token when the gateway refuses one (below).
-- **`channels`** narrows what the stream carries. A worker that awaits only some operations names their reply channels, and is sent nothing else.
+- **`channels`** are the global channels the stream names; the transport assumes none of its own. A full client gives it `BRIDGED_CHANNELS`. A worker that awaits only some operations names their reply channels, and is sent nothing else.
 - **`loadLastEventIds`** and **`saveLastEventId`** let a client resume its stream where its last life stopped.
 - **`logger`** receives what the transport logs: see [Logging](./LOGGING.md).
 - **`fetch`** is what every request is sent with: the stream's connects, the emits, the plain operations and the content transport's requests, but a browser page's upload with progress or a `signal`, which goes through `XMLHttpRequest`. Absent, the runtime's own. The certificates trusted and the proxy are the fetch's: see [The fetch it sends with](../README.md#the-fetch-it-sends-with).
@@ -53,11 +53,11 @@ The intended consumption pattern is to import `SemiontClient` from `@semiont/sdk
 
 ```typescript
 import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
-import { baseUrl, accessToken, type AccessToken } from '@semiont/core';
+import { BRIDGED_CHANNELS, baseUrl, accessToken, type AccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('...'));
-const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example.com'), token$ });
+const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example.com'), channels: BRIDGED_CHANNELS, token$ });
 // HttpTransport implements both ITransport and IGatewayOperations; passing it
 // third enables the `auth` / `system` namespaces. Omit the third argument and
 // `client.auth` / `client.system` are `undefined`.
