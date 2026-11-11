@@ -916,8 +916,9 @@ async fn b17_a_place_whose_event_the_refresher_has_not_taken_is_not_written() {
 
 /// Once the refresher has taken an event, the place is noted, and the fetch
 /// the event started holds it back while it is in flight: a kept cache
-/// written meanwhile does not carry it. Once the fetch is in and its value
-/// saved, the place is written (B17).
+/// written meanwhile does not carry it. A fetch is in flight until it has
+/// settled and no longer (B17): once its value is seen through `fresh()`, the
+/// save the clock fires at once carries the place.
 #[tokio::test(start_paused = true)]
 async fn b17_a_place_is_noted_once_the_refresher_has_taken_its_event_and_waits_for_its_fetch() {
     let entity_types = cache_key("kb-1", PERSON, CacheQuery::EntityTypes);
@@ -965,7 +966,20 @@ async fn b17_a_place_is_noted_once_the_refresher_has_taken_its_event_and_waits_f
         "the place waits for the fetch its event started"
     );
 
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    client
+        .browse
+        .resource(&as_id("res-1"))
+        .fresh()
+        .await
+        .expect("the refetch is answered");
+    assert_eq!(
+        asked_of(&transport, "browse:resource-requested", "res-1"),
+        2,
+        "the read joined the refetch"
+    );
+    tokio::time::advance(SAVE_DEBOUNCE).await;
+    // The runtime polls the test before the save the clock woke: one yield lets the save run.
+    tokio::task::yield_now().await;
     assert!(client.persistence_settled(), "the refetch is in and saved");
     assert_eq!(
         storage

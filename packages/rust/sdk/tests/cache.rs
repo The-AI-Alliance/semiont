@@ -460,6 +460,44 @@ async fn b14_a_failed_fetch_is_tried_once_more_and_its_observers_recover() {
     assert_eq!(service.asked(), 2);
 }
 
+/// The second ask of a failed first is made in the step that settles the
+/// first, so the key is fetching from its first ask to its second's answer:
+/// a task woken just after the first ask's fetch runs straight after that
+/// fetch settles, and finds the key fetching, as a client's places must
+/// (B14, B17).
+#[tokio::test(start_paused = true)]
+async fn b14_b17_a_failed_first_ask_is_asked_again_in_the_step_that_settles_it() {
+    let service = Service::default();
+    let first = service.hold();
+    let again = service.hold();
+    let cache = service.cache();
+    let mut observer = cache.observe(&key("a"));
+    let (look, looking) = oneshot::channel::<()>();
+    let reading = cache.clone();
+    let read = tokio::spawn(async move {
+        looking.await.expect("told to look");
+        reading.persistence_pending()
+    });
+    settle().await;
+    assert_eq!(service.asked(), 1);
+
+    first
+        .send(Err(refused("a blip")))
+        .expect("the first ask is waiting");
+    look.send(()).expect("the reader is waiting");
+    assert!(
+        read.await.expect("the reader ran"),
+        "the key is fetching between its first ask's failure and its second ask"
+    );
+    assert_eq!(service.asked(), 2);
+
+    again
+        .send(Ok(key("recovered")))
+        .expect("the second ask is waiting");
+    assert_eq!(holds(&mut observer).await, ready("recovered"));
+    assert!(!cache.persistence_pending());
+}
+
 #[tokio::test(start_paused = true)]
 async fn b14_b15_a_key_that_keeps_failing_is_failed_after_one_retry_and_no_more_is_asked() {
     let service = Service::default();

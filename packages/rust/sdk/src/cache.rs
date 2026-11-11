@@ -170,12 +170,30 @@ type Fetch<K, V> = dyn Fn(K) -> BoxFuture<'static, Result<V, Arc<dyn std::error:
 /// Where a fetch in flight puts what it was answered.
 type Outcome<V> = watch::Receiver<Option<Result<V, Arc<dyn std::error::Error + Send + Sync>>>>;
 
+/// What the live view's ask of a key waits on a fetch for (B14).
+enum Validation {
+    /// Its first ask: one that fails is asked once more.
+    First,
+    /// The ask made because the first failed: one that fails fails a key
+    /// that holds no value.
+    Again,
+}
+
+/// A fetch in flight for a key.
+struct Flight<V> {
+    number: u64,
+    /// Where its outcome will be.
+    outcome: Outcome<V>,
+    /// The live view's ask that waits on it, when one does.
+    validation: Option<Validation>,
+}
+
 struct Key<V> {
     state: watch::Sender<CacheState<V>>,
-    /// The fetch in flight for the key: its number, and where its outcome
-    /// will be. An `invalidate` lets go of it without waiting, so a fetch
-    /// whose answer will never come cannot hold the key.
-    in_flight: Option<(u64, Outcome<V>)>,
+    /// The fetch in flight for the key. An `invalidate` lets go of it
+    /// without waiting, so a fetch whose answer will never come cannot hold
+    /// the key.
+    in_flight: Option<Flight<V>>,
 }
 
 impl<V> Key<V> {
@@ -326,80 +344,100 @@ where
         }
     }
 
-    /// Start a fetch for `key`, or join the one in flight.
-    fn fetching(self: &Arc<Self>, key: &K) -> Outcome<V> {
-        let mut state = self.state();
+    /// The fetch in flight for `key`, joined, or one started when none is,
+    /// in the step that holds `state`.
+    fn fetching<'a>(self: &Arc<Self>, state: &'a mut State<K, V>, key: &K) -> &'a mut Flight<V> {
+        let State {
+            keys,
+            kept,
+            fetches,
+            ..
+        } = state;
         // Asked for by this cache now, whichever path asked.
-        state.kept.remove(key);
-        state.fetches += 1;
-        let number = state.fetches;
-        let held = state
-            .keys
-            .entry(key.clone())
-            .or_insert_with(|| Key::new(CacheState::Pending));
-        if let Some((_, in_flight)) = &held.in_flight {
-            return in_flight.clone();
-        }
-        let (answered, outcome) = watch::channel(None);
-        held.in_flight = Some((number, outcome.clone()));
-        drop(state);
+        kept.remove(key);
+        keys.entry(key.clone())
+            .or_insert_with(|| Key::new(CacheState::Pending))
+            .in_flight
+            .get_or_insert_with(|| self.flight(fetches, key))
+    }
 
+    /// A fetch for `key` in place of the one in flight (B9), started in the
+    /// step that holds `state`, so whoever reads whether the key is fetching
+    /// finds the one fetch or the other, and never neither (B17).
+    fn refetching<'a>(self: &Arc<Self>, state: &'a mut State<K, V>, key: &K) -> &'a mut Flight<V> {
+        let State {
+            keys,
+            kept,
+            fetches,
+            ..
+        } = state;
+        // Asked for by this cache now, whichever path asked.
+        kept.remove(key);
+        keys.entry(key.clone())
+            .or_insert_with(|| Key::new(CacheState::Pending))
+            .in_flight
+            .insert(self.flight(fetches, key))
+    }
+
+    /// Start a fetch for `key`, numbered after the `fetches` begun before it.
+    fn flight(self: &Arc<Self>, fetches: &mut u64, key: &K) -> Flight<V> {
+        *fetches += 1;
+        let number = *fetches;
+        let (answered, outcome) = watch::channel(None);
         let cache = self.clone();
         let key = key.clone();
         tokio::spawn(async move {
             let fetched = (cache.fetch)(key.clone()).await;
-            {
-                let mut state = cache.state();
-                let changed = match state.keys.get_mut(&key) {
-                    Some(held) => {
-                        // Only its own: an `invalidate` may have put a newer
-                        // fetch in its place.
-                        if held.in_flight.as_ref().is_some_and(|(of, _)| *of == number) {
-                            held.in_flight = None;
-                        }
-                        // A value from any fetch is written, the newest
-                        // last: each is at least as new as what was there.
-                        // A failure writes nothing.
-                        match &fetched {
-                            Ok(value) => {
-                                held.state.send_replace(CacheState::Ready(value.clone()));
-                                true
-                            }
-                            Err(_) => false,
-                        }
-                    }
-                    // Disposed while it was in flight.
-                    None => false,
-                };
-                if changed {
-                    cache.owe_a_save(&mut state);
-                }
-            }
+            cache.settled(&key, number, &fetched);
             let _ = answered.send(Some(fetched));
         });
-        outcome
+        Flight {
+            number,
+            outcome,
+            validation: None,
+        }
     }
 
-    /// Fetch for the live view: a failure is tried once more, and a key with
-    /// no value whose retry also fails becomes `Failed`.
-    fn revalidate(self: &Arc<Self>, key: &K) {
-        let cache = self.clone();
-        let key = key.clone();
-        let first = self.fetching(&key);
-        tokio::spawn(async move {
-            if outcome(first).await.is_ok() || cache.state().disposed {
-                return;
+    /// The fetch numbered `number` for `key` settled with `fetched`. In this
+    /// one step it stops being in flight, a value it brought is written, and
+    /// the live view's ask that waits on it ends: a first ask that failed is
+    /// asked once more (B14), and a second that fails fails a key that holds
+    /// no value (B15). So a key whose fetch has settled is not fetching, and
+    /// one whose ask goes on is (B17).
+    fn settled(
+        self: &Arc<Self>,
+        key: &K,
+        number: u64,
+        fetched: &Result<V, Arc<dyn std::error::Error + Send + Sync>>,
+    ) {
+        let mut state = self.state();
+        // Disposed while it was in flight.
+        let Some(held) = state.keys.get_mut(key) else {
+            return;
+        };
+        // Only its own: an `invalidate` may have put a newer fetch in its
+        // place, and the ask that waits on it with it.
+        let validation = held
+            .in_flight
+            .take_if(|flight| flight.number == number)
+            .and_then(|flight| flight.validation);
+        match (fetched, validation) {
+            // A value from any fetch is written, the newest last: each is at
+            // least as new as what was there.
+            (Ok(value), _) => {
+                held.state.send_replace(CacheState::Ready(value.clone()));
+                self.owe_a_save(&mut state);
             }
-            let Err(failure) = outcome(cache.fetching(&key)).await else {
-                return;
-            };
-            let state = cache.state();
-            if let Some(held) = state.keys.get(&key)
-                && !held.state.borrow().is_ready()
-            {
-                held.state.send_replace(CacheState::Failed(failure));
+            (Err(_), Some(Validation::First)) => {
+                self.fetching(&mut state, key).validation = Some(Validation::Again);
             }
-        });
+            (Err(failure), Some(Validation::Again)) => {
+                if !held.state.borrow().is_ready() {
+                    held.state.send_replace(CacheState::Failed(failure.clone()));
+                }
+            }
+            (Err(_), None) => {}
+        }
     }
 }
 
@@ -604,9 +642,8 @@ where
             failed
         });
         let observing = WatchStream::new(held.state.subscribe());
-        drop(state);
         if asks {
-            self.inner.revalidate(key);
+            self.inner.fetching(&mut state, key).validation = Some(Validation::First);
         }
         observing
     }
@@ -622,10 +659,14 @@ where
         let cache = self.inner.clone();
         let key = key.clone();
         async move {
-            if cache.state().disposed {
-                return Err(closed());
-            }
-            outcome(cache.fetching(&key)).await
+            let asked = {
+                let mut state = cache.state();
+                if state.disposed {
+                    return Err(closed());
+                }
+                cache.fetching(&mut state, &key).outcome.clone()
+            };
+            outcome(asked).await
         }
     }
 
@@ -657,25 +698,23 @@ where
     /// meanwhile. A fetch already in flight is not waited on: its answer may
     /// never come.
     pub fn invalidate(&self, key: &K) {
-        {
-            let mut state = self.inner.state();
-            if state.disposed {
-                return;
-            }
-            let held = state
-                .keys
-                .entry(key.clone())
-                .or_insert_with(|| Key::new(CacheState::Pending));
-            held.in_flight = None;
-            held.state.send_if_modified(|current| {
+        let mut state = self.inner.state();
+        if state.disposed {
+            return;
+        }
+        state
+            .keys
+            .entry(key.clone())
+            .or_insert_with(|| Key::new(CacheState::Pending))
+            .state
+            .send_if_modified(|current| {
                 let failed = matches!(current, CacheState::Failed(_));
                 if failed {
                     *current = CacheState::Pending;
                 }
                 failed
             });
-        }
-        self.inner.revalidate(key);
+        self.inner.refetching(&mut state, key).validation = Some(Validation::First);
     }
 
     /// `invalidate`, of every key the cache knows.
