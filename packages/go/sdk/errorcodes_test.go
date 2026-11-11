@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -103,8 +104,24 @@ func TestAWireCodeBecomesTheBusCodeThatRestatesIt(t *testing.T) {
 	if got := semiont.BusRequestErrorCodeOfWire(nil); got != unrecognized {
 		t.Errorf("a failure that states no code becomes %q; the table says %q", got, unrecognized)
 	}
+}
+
+// A failure is read with no code CommandErrorCode does not name: its reader
+// leaves one the required table does not recognize out
+// (replies_test.go's rejection in its own words). Given one, the mapping says
+// the table and CommandError disagree, and becomes no code.
+func TestACodeCommandErrorCodeDoesNotNameBecomesNoBusCode(t *testing.T) {
 	unknown := api.CommandErrorCode("a-code-no-table-names")
-	if got := semiont.BusRequestErrorCodeOfWire(&unknown); got != unrecognized {
-		t.Errorf("a code the vocabulary does not name becomes %q; the table says %q", got, unrecognized)
+	// What the mapping gives, or what it panics with.
+	said := func() (said any) {
+		defer func() {
+			if refused := recover(); refused != nil {
+				said = refused
+			}
+		}()
+		return semiont.BusRequestErrorCodeOfWire(&unknown)
+	}()
+	if message, ok := said.(string); !ok || !strings.Contains(message, `"a-code-no-table-names" is none of CommandErrorCode's`) {
+		t.Errorf("a code CommandErrorCode does not name is mapped to %v", said)
 	}
 }

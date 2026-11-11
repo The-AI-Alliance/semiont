@@ -43,8 +43,11 @@ const (
 )
 
 // BusRequestErrorCodeOfWire is the code a failure's own code
-// (CommandError.code) becomes. A failure that states none, or one this
-// vocabulary does not name, is BusRequestErrorCodeRejected.
+// (CommandError.code) becomes, a case for each of CommandErrorCode's codes. A
+// failure that states none is BusRequestErrorCodeRejected. A reader leaves a code the
+// required table does not recognize out of the failure before it decodes it,
+// so a code CommandErrorCode does not name is none a failure is read with:
+// given one, it panics.
 func BusRequestErrorCodeOfWire(code *api.CommandErrorCode) BusRequestErrorCode {
 	if code == nil {
 		return BusRequestErrorCodeRejected
@@ -59,7 +62,7 @@ func BusRequestErrorCodeOfWire(code *api.CommandErrorCode) BusRequestErrorCode {
 	case api.CommandErrorCodeNonePending:
 		return BusRequestErrorCodeNonePending
 	default:
-		return BusRequestErrorCodeRejected
+		panic("a failure's code \"" + string(*code) + "\" is none of CommandErrorCode's: the required table recognizes a code CommandError does not list")
 	}
 }
 

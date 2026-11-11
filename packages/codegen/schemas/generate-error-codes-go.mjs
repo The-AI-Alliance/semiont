@@ -82,8 +82,11 @@ import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 ${vocabulary('BusRequestErrorCode', table.busRequest.docs, busCodes)}
 // BusRequestErrorCodeOfWire is the code a failure's own code
-// (CommandError.code) becomes. A failure that states none, or one this
-// vocabulary does not name, is ${constant('BusRequestErrorCode', unrecognized.code)}.
+// (CommandError.code) becomes, a case for each of CommandErrorCode's codes. A
+// failure that states none is ${constant('BusRequestErrorCode', unrecognized.code)}. A reader leaves a code the
+// required table does not recognize out of the failure before it decodes it,
+// so a code CommandErrorCode does not name is none a failure is read with:
+// given one, it panics.
 func BusRequestErrorCodeOfWire(code *api.CommandErrorCode) BusRequestErrorCode {
 	if code == nil {
 		return ${constant('BusRequestErrorCode', unrecognized.code)}
@@ -91,7 +94,7 @@ func BusRequestErrorCodeOfWire(code *api.CommandErrorCode) BusRequestErrorCode {
 	switch *code {
 ${busWire.map((entry) => `\tcase api.CommandErrorCode${pascal(entry.wire)}:\n\t\treturn ${constant('BusRequestErrorCode', entry.code)}`).join('\n')}
 	default:
-		return ${constant('BusRequestErrorCode', unrecognized.code)}
+		panic("a failure's code \\"" + string(*code) + "\\" is none of CommandErrorCode's: the required table recognizes a code CommandError does not list")
 	}
 }
 
