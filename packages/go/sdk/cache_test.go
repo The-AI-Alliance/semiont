@@ -669,6 +669,131 @@ func TestB13aAFetchInFlightWhenItsKeyIsRemovedAnswersItsOwnReaderAndWritesNothin
 	service.askedJust(t, cacheKeyOne)
 }
 
+func TestB13bAValueWrittenWhileAFetchIsInFlightLetsGoOfIt(t *testing.T) {
+	persister := &keptBack{}
+	c, service, _ := cacheWorld(t, persister, 10*time.Millisecond)
+	older := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	c.Set(cacheKeyOne, 7)
+	isState(t, o.now(t), Ready[int]{Value: 7})
+	if c.keptFetching() {
+		t.Fatal("the fetch the write let go of is still in flight")
+	}
+	eventually(t, "the write saved", func() bool { return len(persister.saved()) == 1 })
+	// Its answer, coming later, is its reader's alone.
+	service.answer(t, 0, 3)
+	if got := readEnded(t, older); got.err != nil || got.value != 3 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	o.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 7 || c.PersistencePending() {
+		t.Fatalf("the value is %d and owed %v, want 7 and nothing owed", value, c.PersistencePending())
+	}
+	if saves := persister.saved(); !reflect.DeepEqual(saves, []map[string]int{{cacheKeyOne: 7}}) {
+		t.Fatalf("saved %v", saves)
+	}
+	// A write lets go of a revalidation too: when it fails, it is not asked again, and fails nothing.
+	c.Invalidate(cacheKeyOne)
+	service.count(t, 2)
+	c.Set(cacheKeyOne, 8)
+	isState(t, o.now(t), Ready[int]{Value: 8})
+	service.fail(t, 1, "the revalidation")
+	o.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 8 {
+		t.Fatalf("the value is %d, want 8", value)
+	}
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+}
+
+func TestB13bAPatchMadeWhileTheFirstFetchIsInFlightIsAppliedToItsAnswer(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
+	read := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	c.Patch(cacheKeyOne, func(value int) int { return value * 10 })
+	o.nothingMore(t)
+	if _, has := c.Get(cacheKeyOne); has || !c.keptFetching() {
+		t.Fatal("a patch gave a key with no value one, or let go of its fetch")
+	}
+	service.answer(t, 0, 3)
+	if got := readEnded(t, read); got.err != nil || got.value != 30 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	isState(t, o.now(t), Ready[int]{Value: 30})
+	service.askedJust(t, cacheKeyOne)
+}
+
+func TestB13bPatchesAreAppliedToTheValueAtOnceAndToTheAnswerOfTheFetchInFlightInTheOrderMade(t *testing.T) {
+	persister := &keptBack{}
+	c, service, _ := cacheWorld(t, persister, 10*time.Millisecond)
+	o := ready(t, c, service, 1)
+	c.Invalidate(cacheKeyOne)
+	read := aRead(context.Background(), c, cacheKeyOne)
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	c.Patch(cacheKeyOne, func(value int) int { return value * 10 })
+	if value, _ := c.Get(cacheKeyOne); value != 20 {
+		t.Fatalf("the value is %d, want 20", value)
+	}
+	isState(t, o.now(t), Ready[int]{Value: 20})
+	service.answer(t, 1, 5)
+	if got := readEnded(t, read); got.err != nil || got.value != 60 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	isState(t, o.now(t), Ready[int]{Value: 60})
+	eventually(t, "the answer saved", func() bool {
+		saves := persister.saved()
+		return len(saves) > 0 && reflect.DeepEqual(saves[len(saves)-1], map[string]int{cacheKeyOne: 60})
+	})
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+}
+
+func TestB13bThePatchesKeptWithAFetchThatWasReplacedGoWithIt(t *testing.T) {
+	c, service, _ := cacheWorld(t, nil, 0)
+	older := aRead(context.Background(), c, cacheKeyOne)
+	service.count(t, 1)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	c.Patch(cacheKeyOne, func(value int) int { return value * 10 })
+	c.Invalidate(cacheKeyOne)
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+	// The newer fetch was asked after the patch's event arrived: its answer holds it.
+	service.answer(t, 1, 4)
+	isState(t, o.now(t), Ready[int]{Value: 4})
+	service.answer(t, 0, 5)
+	if got := readEnded(t, older); got.err != nil || got.value != 5 {
+		t.Fatalf("the read gave %d, %v", got.value, got.err)
+	}
+	o.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 4 {
+		t.Fatalf("the value is %d, want 4", value)
+	}
+}
+
+func TestB13bAPatchToAKeyWithNeitherAValueNorAFetchInFlightDoesNothing(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{}, time.Hour)
+	// One nothing asked for is not held.
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	if _, has := c.Get(cacheKeyOne); has || c.Known(cacheKeyOne) || c.PersistencePending() {
+		t.Fatal("a patch to a key nothing asked for wrote it, or owes a save")
+	}
+	// One whose fetch failed twice holds no value, and has nothing in flight.
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	service.fail(t, 0, "the first")
+	failure := service.fail(t, 1, "the retry")
+	isState(t, o.now(t), Failed{Err: failure})
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	o.nothingMore(t)
+	if _, has := c.Get(cacheKeyOne); has || c.PersistencePending() {
+		t.Fatal("a patch to a failed key wrote it, or owes a save")
+	}
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+}
+
 func TestAValueThatIsKnownIsWrittenAndNothingIsAskedFor(t *testing.T) {
 	c, service, _ := cacheWorld(t, nil, 0)
 	c.Set(cacheKeyOne, 3)
@@ -789,6 +914,20 @@ func TestB17ACacheBeginsWithWhatWasKeptAndB18AsksForItAnewTheFirstTimeItIsObserv
 	if value, _ := c.Get("unobserved"); value != 2 {
 		t.Fatalf("the unobserved kept value is %d, want 2", value)
 	}
+}
+
+func TestB18AKeptValueThatIsPatchedIsStillOneAndIsAskedForAnewTheFirstTimeItIsObserved(t *testing.T) {
+	c, service, _ := cacheWorld(t, &keptBack{kept: map[string]int{cacheKeyOne: 1}}, time.Hour)
+	c.Patch(cacheKeyOne, func(value int) int { return value + 1 })
+	if value, _ := c.Get(cacheKeyOne); value != 2 {
+		t.Fatalf("the patched value is %d, want 2", value)
+	}
+	service.askedJust(t)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Ready[int]{Value: 2})
+	service.askedJust(t, cacheKeyOne)
+	service.answer(t, 0, 5)
+	isState(t, o.now(t), Ready[int]{Value: 5})
 }
 
 func TestB18AKeptValueWhoseRevalidationFailsTwiceStaysAndIsNotAskedForAThirdTime(t *testing.T) {
