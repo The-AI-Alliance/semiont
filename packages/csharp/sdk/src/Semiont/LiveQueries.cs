@@ -181,7 +181,7 @@ internal sealed class LiveQueries : IDisposable
     private void WriteAnnotations(Subject subject)
     {
         if (subject.Resource is not { } resource || subject.Written is not { } written) return;
-        Annotations.Find(resource)?.Patch(answer =>
+        Annotations.Patch(resource, answer =>
         {
             var values = answer.Annotations.ToList();
             var index = values.FindIndex(item => item.Id == written.Id);

@@ -715,7 +715,7 @@ public sealed partial class TransportTests
         var awaited = fetches.Cache.FetchAsync("key", deadline.Token);
         var asked = await fetches.AskedAsync(deadline.Token);
 
-        fetches.Cache.Entry("key").Patch(value => value + 1);
+        fetches.Cache.Patch("key", value => value + 1);
         Assert.Null(fetches.Cache.Get("key"));
         Assert.Equal(0, fetches.Changes);
 
@@ -736,9 +736,8 @@ public sealed partial class TransportTests
         var awaited = fetches.Cache.FetchAsync("key", deadline.Token);
         var asked = await fetches.AskedAsync(deadline.Token);
 
-        var entry = fetches.Cache.Entry("key");
-        entry.Patch(value => value + 1);
-        entry.Patch(value => value * 10);
+        fetches.Cache.Patch("key", value => value + 1);
+        fetches.Cache.Patch("key", value => value * 10);
         Assert.Equal(60, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
         Assert.Equal(3, fetches.Changes);
         Assert.True(fetches.Cache.Fetching);
@@ -760,7 +759,7 @@ public sealed partial class TransportTests
         var key = fetches.Cache.Observe("key");
         var older = key.FreshAsync(deadline.Token);
         var replaced = await fetches.AskedAsync(deadline.Token);
-        fetches.Cache.Entry("key").Patch(value => value + 1);
+        fetches.Cache.Patch("key", value => value + 1);
         key.Invalidate();
         var current = await fetches.AskedAsync(deadline.Token);
         var newer = key.FreshAsync(deadline.Token);
@@ -779,13 +778,16 @@ public sealed partial class TransportTests
     }
 
     // B13b, B20: a patch to a key with neither a value nor a fetch changes nothing, owes no save, and is kept for no
-    // later fetch.
+    // later fetch. A key the cache has never been asked for gains no entry by it.
     [Fact]
     public async Task APatchToAKeyWithNeitherValueNorFetchDoesNothing()
     {
         using var fetches = new AnsweredFetches();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        fetches.Cache.Entry("key").Patch(value => value + 1);
+        fetches.Cache.Patch("key", value => value + 1);
+        Assert.Null(fetches.Cache.Find("key"));
+        fetches.Cache.Observe("key");
+        fetches.Cache.Patch("key", value => value + 1);
         Assert.Null(fetches.Cache.Get("key"));
         Assert.False(fetches.Cache.Fetching);
         Assert.Equal(0, fetches.Changes);
@@ -804,7 +806,7 @@ public sealed partial class TransportTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var entry = fetches.Cache.Entry("key");
         entry.Rehydrate(5);
-        entry.Patch(value => value + 1);
+        fetches.Cache.Patch("key", value => value + 1);
         Assert.Equal(6, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
         Assert.True(fetches.Unasked);
 

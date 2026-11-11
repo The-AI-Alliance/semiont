@@ -65,6 +65,16 @@ public sealed class Cache<TKey, T> : IStateUnit, IRefreshedCache where TKey : no
 
     public void Set(TKey key, T value) => Entry(key).Set(value);
 
+    /// <summary>
+    /// Writes part of <paramref name="key"/>'s value: <paramref name="change"/> takes the value to the patched one. It
+    /// applies at once to the value the key holds, and to the reply of the key's fetch in flight when it lands, which
+    /// <see cref="Set"/> would let go of. A key the cache does not hold is not changed.
+    /// </summary>
+    public void Patch(TKey key, Func<T, T> change)
+    {
+        if (Find(key) is { } entry) entry.Patch(change);
+    }
+
     public void Remove(TKey key) => Entry(key).Remove();
 
     internal KeyValuePair<TKey, CacheEntry<T>>[] Snapshot()
