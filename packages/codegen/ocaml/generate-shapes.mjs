@@ -22,6 +22,7 @@ const shape = (value) => {
     ref: ['reference', option(string)],
     kinds: ['kinds', option(list(kind))],
     enum: ['enum', option(list(literal))],
+    recognized: ['recognized', option(list(string))],
     pattern: ['pattern', option(list(({ of, min, max }) =>
       `(${list(([lo, hi]) => `(${lo}, ${hi})`)(of)}, ${min}, ${option(String)(max)})`))],
     minLength: ['min_length', option(String)],
@@ -47,7 +48,9 @@ const shape = (value) => {
   return updates.length ? `{ any with ${updates.join('; ')} }` : 'any';
 };
 const header = '(* Generated from OpenAPI component schemas through required-shapes.mjs. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n';
-const definitions = names.map((name, index) => `let shape_${index} = ${shape(shapes.get(name))}`);
+// Each shape is built by a function of its own: built in the module's initializer, the table is more than the
+// native compiler can allocate registers for.
+const definitions = names.map((name, index) => `let shape_${index} () = ${shape(shapes.get(name))}`);
 const entries = names.map((name, index) => `  (${string(name)}, shape_${index});`);
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/schema_shapes.ml'),
   `${header}\nopen Schema_shape\n\n${definitions.join('\n')}\n\nlet all = [\n${entries.join('\n')}\n]\n`,

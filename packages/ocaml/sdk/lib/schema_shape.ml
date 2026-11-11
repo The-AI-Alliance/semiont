@@ -4,6 +4,7 @@ type t = {
   reference : string option;
   kinds : kind list option;
   enum : Yojson.Raw.t list option;
+  recognized : string list option;
   pattern : ((int * int) list * int * int option) list option;
   min_length : int option;
   max_length : int option;
@@ -26,6 +27,7 @@ let any =
     reference = None;
     kinds = None;
     enum = None;
+    recognized = None;
     pattern = None;
     min_length = None;
     max_length = None;

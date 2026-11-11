@@ -7,7 +7,11 @@ let ( let* ) = Result.bind
 let malformed member = Error { member; reason = `Malformed }
 let lacks member = Error { member; reason = `Lacks }
 let child path key = if path = "" then key else path ^ "." ^ key
-let shapes = List.to_seq Schema_shapes.all |> Hashtbl.of_seq
+
+let shapes =
+  List.to_seq Schema_shapes.all
+  |> Seq.map (fun (name, shape) -> (name, shape ()))
+  |> Hashtbl.of_seq
 
 let rec resolve shape =
   match shape.reference with
@@ -101,7 +105,38 @@ let rec each visit = function
       let* () = visit item in
       each visit rest
 
-let rec validate path shape value =
+let rec read_each visit = function
+  | [] -> Ok []
+  | item :: rest ->
+      let* read = visit item in
+      let* reads = read_each visit rest in
+      Ok (read :: reads)
+
+(* A member whose shape recognizes texts, holding a text none of them: a reader
+   reads it as absent, and a writer holds it to them as to an enum. *)
+type direction = Reading | Writing
+
+let recognizes codes = function
+  | `Stringlit literal -> List.mem (text literal) codes
+  | _ -> false
+
+let unrecognized shape value =
+  match ((resolve shape).recognized, value) with
+  | Some codes, `Stringlit _ -> not (recognizes codes value)
+  | _ -> false
+
+let reread fields reads =
+  List.map
+    (fun (key, value) ->
+      match List.assoc_opt key reads with
+      | Some read -> (key, read)
+      | None -> (key, value))
+    fields
+
+let by_name fields =
+  List.sort (fun (left, _) (right, _) -> String.compare left right) fields
+
+let rec validate direction path shape value =
   let shape = resolve shape in
   let* () = check path (allows_value shape value) in
   let* () =
@@ -110,45 +145,75 @@ let rec validate path shape value =
          ~some:(List.exists (equal_scalar value))
          shape.enum)
   in
-  let* () = validate_kind path shape value in
-  let* () = validate_variants path shape value in
-  each (fun part -> validate path part value) shape.all_of
+  let* () =
+    check path
+      (Option.fold ~none:true
+         ~some:(fun codes -> recognizes codes value)
+         shape.recognized)
+  in
+  let* value = validate_kind direction path shape value in
+  let* value = validate_variants direction path shape value in
+  validate_all direction path shape.all_of value
 
-and validate_kind path shape = function
-  | `Assoc fields -> validate_object path shape fields
-  | `List values ->
+and validate_all direction path parts value =
+  match parts with
+  | [] -> Ok value
+  | part :: rest ->
+      let* value = validate direction path part value in
+      validate_all direction path rest value
+
+and validate_kind direction path shape = function
+  | `Assoc fields ->
+      let* fields = validate_object direction path shape fields in
+      Ok (`Assoc fields)
+  | `List values -> (
       let* () =
         check path
           (within Int.compare shape.min_items shape.max_items
              (List.length values))
       in
-      Option.fold ~none:(Ok ())
-        ~some:(fun item -> each (validate path item) values)
-        shape.items
-  | `Stringlit literal ->
-      let value = text literal in
+      match shape.items with
+      | None -> Ok (`List values)
+      | Some item ->
+          let* values = read_each (validate direction path item) values in
+          Ok (`List values))
+  | `Stringlit literal as value ->
+      let content = text literal in
       let length =
-        Uutf.String.fold_utf_8 (fun count _ _ -> count + 1) 0 value
+        Uutf.String.fold_utf_8 (fun count _ _ -> count + 1) 0 content
       in
-      check path
-        (within Int.compare shape.min_length shape.max_length length
-        && Option.fold ~none:true
-             ~some:(fun steps -> Pattern.matches steps value)
-             shape.pattern)
-  | `Intlit value | `Floatlit value ->
-      if shape.minimum = None && shape.maximum = None then Ok ()
-      else
-        let numeric = number value in
+      let* () =
         check path
-          (within
-             (fun numeric bound -> compare_number numeric (number bound))
-             shape.minimum shape.maximum numeric)
-  | `Bool _ | `Null -> Ok ()
+          (within Int.compare shape.min_length shape.max_length length
+          && Option.fold ~none:true
+               ~some:(fun steps -> Pattern.matches steps content)
+               shape.pattern)
+      in
+      Ok value
+  | (`Intlit literal | `Floatlit literal) as value ->
+      let* () =
+        if shape.minimum = None && shape.maximum = None then Ok ()
+        else
+          check path
+            (within
+               (fun numeric bound -> compare_number numeric (number bound))
+               shape.minimum shape.maximum (number literal))
+      in
+      Ok value
+  | (`Bool _ | `Null) as value -> Ok value
 
-and validate_object path shape fields =
+and validate_object direction path shape fields =
   let member key = List.assoc_opt key shape.members in
-  let sorted =
-    List.sort (fun (left, _) (right, _) -> String.compare left right) fields
+  let fields =
+    match direction with
+    | Writing -> fields
+    | Reading ->
+        List.filter
+          (fun (key, value) ->
+            match member key with
+            | Some shape -> not (unrecognized shape value)
+            | None -> true)
+          fields
   in
   let* () =
     each
@@ -165,30 +230,40 @@ and validate_object path shape fields =
         | Some _ -> Ok ())
       shape.required
   in
-  let* () =
-    each
+  let* members =
+    read_each
       (fun (key, shape) ->
         match List.assoc_opt key fields with
-        | None | Some `Null -> Ok ()
-        | Some value -> validate (child path key) shape value)
+        | None | Some `Null -> Ok []
+        | Some value ->
+            let* read = validate direction (child path key) shape value in
+            Ok [ (key, read) ])
       shape.members
   in
+  let fields = reread fields (List.concat members) in
   let* () =
     Option.fold ~none:(Ok ())
       ~some:(fun names ->
         each
           (fun (key, _) -> check (child path key) (List.mem key names))
-          sorted)
+          (by_name fields))
       shape.closed
   in
-  Option.fold ~none:(Ok ())
-    ~some:(fun shape ->
-      each (fun (_, value) -> validate path shape value) sorted)
-    shape.values
+  match shape.values with
+  | None -> Ok fields
+  | Some shape ->
+      let* values =
+        read_each
+          (fun (key, value) ->
+            let* read = validate direction path shape value in
+            Ok (key, read))
+          (by_name fields)
+      in
+      Ok (reread fields values)
 
-and validate_variants path shape value =
+and validate_variants direction path shape value =
   match shape.variants with
-  | [] -> Ok ()
+  | [] -> Ok value
   | variants -> (
       let selected =
         match (shape.discriminator, value) with
@@ -201,7 +276,7 @@ and validate_variants path shape value =
         | _ -> None
       in
       match selected with
-      | Some variant -> validate path variant value
+      | Some variant -> validate direction path variant value
       | None -> (
           let candidates =
             List.filter (fun shape -> allows_value shape value) variants
@@ -209,31 +284,31 @@ and validate_variants path shape value =
           let rec try_rest first = function
             | [] -> first
             | variant :: rest -> (
-                match validate path variant value with
-                | Ok () -> Ok ()
+                match validate direction path variant value with
+                | Ok _ as read -> read
                 | Error _ -> try_rest first rest)
           in
           match candidates with
           | [] -> malformed path
           | first :: rest -> (
-              match validate path first value with
-              | Ok () -> Ok ()
+              match validate direction path first value with
+              | Ok _ as read -> read
               | Error _ as fault -> try_rest fault rest)))
 
 let decode shape source =
   match Strict_json.parse source with
   | Error message -> Error (Invalid_json message)
   | Ok value -> (
-      match validate "" shape value with
-      | Ok () -> Ok value
+      match validate Writing "" shape value with
+      | Ok value -> Ok value
       | Error fault -> Error (Invalid_payload fault))
 
 (* The HTTP gateway stamps these verified identity facts after it validates
-   the channel payload. Preserve the original received payload for consumers. *)
+   the channel payload. Keep them for consumers, beside the payload as read. *)
 let decode_received shape source =
   match Strict_json.parse source with
   | Error message -> Error (Invalid_json message)
-  | Ok (`Assoc fields as raw) -> (
+  | Ok (`Assoc fields) -> (
       let auth = function "_userId" | "_roles" -> true | _ -> false in
       let identity, payload =
         List.partition (fun (key, _) -> auth key) fields
@@ -253,13 +328,15 @@ let decode_received shape source =
           ()
       in
       let result =
-        let* () = validate "" shape (`Assoc payload) in
-        validate "" identity_shape (`Assoc identity)
+        let* read = validate Reading "" shape (`Assoc payload) in
+        let* _ = validate Reading "" identity_shape (`Assoc identity) in
+        Ok read
       in
       match result with
-      | Ok () -> Ok raw
+      | Ok (`Assoc read) -> Ok (`Assoc (read @ identity))
+      | Ok _ -> assert false (* an object reads as an object *)
       | Error fault -> Error (Invalid_payload fault))
   | Ok value -> (
-      match validate "" shape value with
-      | Ok () -> Ok value
+      match validate Reading "" shape value with
+      | Ok value -> Ok value
       | Error fault -> Error (Invalid_payload fault))
