@@ -1029,7 +1029,8 @@ func TestAKnowledgeBaseWhoseTokensTheStorageWillNotForgetIsNotRemoved(t *testing
 		storage := &refusing{SharedStorage: w.storage}
 		browser := w.browserOver(storage)
 		live(t, browser)
-		storage.deletes.Store(true)
+		// A stored sign-in is forgotten by one update of its key.
+		storage.updates.Store(true)
 
 		if err := browser.RemoveKb(kbA); !errors.Is(err, errFull) {
 			t.Fatalf("removing A says %v", err)
@@ -1053,7 +1054,8 @@ func TestASignOutTheStorageWillNotKeepLeavesTheSessionAsItWas(t *testing.T) {
 		storage := &refusing{SharedStorage: w.storage}
 		browser := w.browserOver(storage)
 		live(t, browser)
-		storage.deletes.Store(true)
+		// A stored sign-in is forgotten by one update of its key.
+		storage.updates.Store(true)
 
 		if err := browser.SignOut(kbA); !errors.Is(err, errFull) {
 			t.Fatalf("signing out says %v", err)

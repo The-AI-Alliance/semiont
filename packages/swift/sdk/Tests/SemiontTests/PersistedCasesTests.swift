@@ -506,7 +506,7 @@ private final class PersonGateway: Sendable {
         payload: try wirePayload(
           BrowseResourceResult(
             response: BrowseResourceResultResponse(
-              lastSequence: 0, resource: try resource(read.resourceId, named: "fresh")))))
+              lastSequence: 1, resource: try resource(read.resourceId, named: "fresh")))))
     case Channels.browseKbRequested.name:
       frame = BusFrame(
         channel: Channels.browseKbResult.name, correlationId: emitted.correlationId,

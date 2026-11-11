@@ -126,6 +126,7 @@ fn the_table_states_only_what_this_runner_reads() {
     let parts = [
         "$comment",
         "runBy",
+        "notYetReached",
         "people",
         "keys",
         "forgetStorage",
