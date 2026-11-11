@@ -63,7 +63,7 @@ table refreshes only the client's caches, so a host invalidates its own.
 | **Entry** | The current value (or absence) associated with a key. |
 | **Observer** | A caller who holds the `Observable<CacheState<V>>` returned from a live-query method (e.g. `browse.resource(id)`). Observers receive the current state and every subsequent change. |
 | **Fetch** | An async operation (via `Bus.request`) that produces a value to store. |
-| **In-flight** | The key's current fetch, until its promise settles. Each key has at most one. An invalidate replaces it (B9), and a fetch it replaced is in flight no more. |
+| **In-flight** | The key's current fetch, until its promise settles. Each key has at most one. An invalidate replaces it (B9), and a write (B13b) or a removal (B13a) lets go of it. A fetch replaced or let go of is in flight no more. |
 | **Invalidate** | A caller-initiated signal that the cache entry is out of date and must be refetched. |
 | **SWR** | Stale-while-revalidate. The entry continues to be served to observers while the refetch is in flight. When the refetch returns, observers see the new value (or keep seeing the stale one if the refetch failed). |
 
@@ -226,7 +226,7 @@ is not stored: only the key's newest fetch writes. So a late reply can
 never put back a value older than the one a newer fetch wrote, and a
 fetch that never answers holds nothing back (B17). In the orphaned case,
 only the newest fetch resolves, and it writes the correct value. A fetch
-that a removal let go of (B13a) is not stored either.
+that a write (B13b) or a removal (B13a) let go of is not stored either.
 
 Implementation detail: this is why `invalidate` and `invalidateAll`
 in `createCache` replace the key's `inflight` entry with the new fetch,
@@ -284,8 +284,9 @@ Boundaries:
    rejection and owns retry policy.
 2. The retry joins any in-flight fetch another caller has started in the
    meantime (B3 dedup); it never duplicates.
-3. An invalidate during a retry chain disowns it (B9). The chain's late
-   success answers its own callers but is not stored.
+3. An invalidate, a write or a removal during a retry chain disowns it
+   (B9). The chain's late success answers its own callers but is not
+   stored, and its failure is not retried and fails nothing.
 4. The retry is asked in the step that settles the failed fetch, so no
    reader finds the key at rest between the two asks (B17).
 
@@ -644,6 +645,38 @@ avoids the roundtrip of an invalidate-triggered refetch. It also
 ensures both related caches stay in sync when a handler has reason
 to update more than one.
 
+A write (`set`) lets go of the key's in-flight fetch, as a removal does
+(B13a), and starts none. The fetch was asked before the write, so its
+reply can carry the value the write replaced: it answers whoever awaited
+it and is not stored (B9). So a key's value is never older than the last
+thing written to it.
+
+A **patch** writes part of a value. An event that carries one annotation
+writes it into its resource's annotation list: in place of the one with
+its id, or at the end. A fetch in flight for the list can carry what the
+patch does not, such as another annotation added, so a patch lets go of
+nothing. The question that separates the two: could the fetch in flight
+still add anything? After a whole write it cannot. After a patch it can.
+
+1. The patch is applied at once to the key's value, if it has one.
+2. If a fetch is in flight, the patch is also kept with that fetch, and
+   when its reply lands, every patch kept with it is applied to the
+   reply, in the order they were made. The result is what the key stores
+   and what that fetch's awaiters (`fresh()`, `fetch()`) get. A key with a fetch in flight and no value yet keeps the
+   patch this way too: such a key is held (B20).
+3. Kept patches go with their fetch: when it is replaced (B9), let go of
+   (a write, a removal, disposal), or fails. The next fetch is asked after
+   their events arrived, and the Archivist changes its views before it
+   queues an event's fact ([ARCHIVIST.md](ARCHIVIST.md), "An append is
+   four steps in order"), so that fetch's reply holds them.
+4. A patch to a key with neither a value nor a fetch in flight does
+   nothing (B20).
+5. A patch leaves a restored value's mark (B18) in place: one entry of the
+   value is known to be current, the rest is not.
+
+Conventional cache operation: `patch(key, change)`, where `change` takes
+the value to the patched value.
+
 ### B13c — An update whose new value is not known is asked for again
 
 A `mark:body-updated` that arrives without its annotation carries no
@@ -718,7 +751,7 @@ after a gap.
 | A row says | The cache does | Behavior |
 |---|---|---|
 | `refetches` | asks again, showing what it has meanwhile | B7 |
-| `writes` | writes the value the event carries, with no request | B13b |
+| `writes` | writes the value the event carries, or patches it into a list, with no request | B13b |
 | `removes` | ends the key as `bus.not-found`, with no request | B13a |
 
 A row's `reach` is `subject`, the keys the event names, or `held`, every
