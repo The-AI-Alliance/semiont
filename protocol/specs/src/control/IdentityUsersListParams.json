@@ -1,0 +1,15 @@
+{
+  "title": "IdentityUsersListParams",
+  "type": "object",
+  "description": "List accounts in one local knowledge base's launcher-managed Keycloak realm.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json"
+    },
+    "target": {
+      "$ref": "./IdentityLocalTarget.json"
+    }
+  },
+  "required": ["apiVersion", "target"],
+  "additionalProperties": false
+}

@@ -16,6 +16,7 @@ interface Window {
   configBridge?: {
     read(): Promise<string | null>;
     write(toml: string): Promise<void>;
+    kbRoute(gatewayUrl: string): Promise<string>;
   };
   /** Electron preload bridge to the per-KB chat history (the XDG history.json file).
    *  Absent in the browser, which falls back to localStorage. */
@@ -39,6 +40,11 @@ interface Window {
   windowBridge?: {
     ensureWidth(px: number): Promise<void>;
     restoreWidth(): Promise<void>;
+  };
+  /** Electron menu actions forwarded from the main process. */
+  appMenuBridge?: {
+    onAboutRequested(listener: () => void): () => void;
+    onDocumentsReloadRequested(listener: () => void): () => void;
   };
   /** Electron preload bridge to the knowledge bases' issuers: signing in, and the stored
    *  sessions. Absent in the browser, where no sign-in is possible. */

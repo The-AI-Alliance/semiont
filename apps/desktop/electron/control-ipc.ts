@@ -1,4 +1,4 @@
-import { ipcMain, type WebContents } from 'electron';
+import { type WebContents } from 'electron';
 import { isObject } from '@semiont/core';
 import { ControlRequestError, type ControlCall, type ControlClient } from './control-client';
 import { isControlMethod } from './control-schemas';
@@ -9,6 +9,7 @@ import {
   type ControlHandle,
   type ControlOutcome,
 } from '../src/lib/launcher-bridge';
+import { handleTrustedIpc, onTrustedIpc } from './ipc-security';
 
 /** Serve the renderer's control requests (`window.launcherBridge.startControl` and
  *  `cancelControl`, src/lib/launcher-bridge.ts) through `client`. A request's notifications and
@@ -36,7 +37,7 @@ export function registerControlHandlers(client: ControlClient): void {
     return calls;
   };
 
-  ipcMain.handle('control:start', (event, handle: unknown, method: unknown, params: unknown) => {
+  handleTrustedIpc('control:start', (event, handle: unknown, method: unknown, params: unknown) => {
     if (typeof handle !== 'number' || !isControlMethod(method) || !isObject(params)) {
       throw new Error('control:start takes a request handle, a control method and its params');
     }
@@ -55,7 +56,7 @@ export function registerControlHandlers(client: ControlClient): void {
     });
   });
 
-  ipcMain.on('control:cancel', (event, handle: unknown, reason: unknown) => {
+  onTrustedIpc('control:cancel', (event, handle: unknown, reason: unknown) => {
     if (typeof handle !== 'number' || typeof reason !== 'string') {
       throw new Error('control:cancel takes a request handle and why it is given up');
     }

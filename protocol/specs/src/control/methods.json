@@ -76,6 +76,22 @@
       "docs": "End the launcher's session for a stack: semiont logout."
     },
     {
+      "name": "identity.useradd",
+      "params": "./IdentityUseraddParams.json",
+      "result": "./IdentityUseraddResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Create an account in a local knowledge base's launcher-managed Keycloak realm: semiont useradd. A supplied password is secret request data and is never narrated or persisted; a generated password is returned once in the result."
+    },
+    {
+      "name": "identity.users.list",
+      "params": "./IdentityUsersListParams.json",
+      "result": "./IdentityUsersListResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "List accounts in one local knowledge base's launcher-managed Keycloak realm. Passwords and tokens are never returned."
+    },
+    {
       "name": "logs.follow",
       "params": "./LogsFollowParams.json",
       "result": "./LogsFollowResult.json",

@@ -244,11 +244,38 @@ func Useradd(args []string) int {
 		}
 		return code
 	}
-	code, created := useraddLocal(u, o, password, target.KBRoot, target.KBDid)
-	if code == 0 && created && !o.inactive && stdoutIsTerminal() {
+	result, code := useraddLocal(u, o, password, target.KBRoot, target.KBDid)
+	if code == 0 {
+		printUseraddResult(u, result, o)
+	}
+	if code == 0 && result.created && !o.inactive && stdoutIsTerminal() {
 		printLines(useraddNextSteps(nil, target, browser))
 	}
 	return code
+}
+
+func printUseraddResult(u *UI, result useraddResult, o useraddOpts) {
+	if !result.created && o.upsert {
+		fmt.Printf("User already exists: %s\n", result.email)
+		return
+	}
+	verb := "User created"
+	if !result.created {
+		verb = "User updated"
+	}
+	fmt.Printf("%s: %s\n", verb, result.email)
+	if result.generatedPassword != "" {
+		fmt.Printf("  Password: %s  %s\n", result.generatedPassword, u.Dim("(generated — shown this once, stored nowhere)"))
+	}
+	if result.identity != "" {
+		fmt.Printf("  Identity: %s\n", result.identity)
+	}
+	if o.inactive {
+		fmt.Println("  Disabled at the identity provider")
+	}
+	if o.active {
+		fmt.Println("  Enabled at the identity provider")
+	}
 }
 
 // stdoutIsTerminal: whether a person is reading stdout, not a pipe or a file.

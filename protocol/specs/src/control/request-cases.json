@@ -96,6 +96,31 @@
       "answer": {"id": 10, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/target"]}}}
     },
     {
+      "name": "useradd accepts a generated password for one explicit local root",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"identity.useradd\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"target\":{\"kind\":\"local\",\"root\":\"/kb\"},\"email\":\"person@example.com\",\"generatePassword\":true}}",
+      "answer": {"id": 16, "result": true}
+    },
+    {
+      "name": "identity users list requires an explicit local root",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":19,\"method\":\"identity.users.list\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"target\":{\"kind\":\"local\",\"root\":\"/kb\"}}}",
+      "answer": {"id": 19, "result": true}
+    },
+    {
+      "name": "identity users list refuses to guess a local root",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"identity.users.list\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"target\":{\"kind\":\"local\"}}}",
+      "answer": {"id": 20, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/target/root"]}}}
+    },
+    {
+      "name": "useradd accepts a supplied password only when generation is off",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":18,\"method\":\"identity.useradd\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"target\":{\"kind\":\"local\",\"root\":\"/kb\"},\"email\":\"person@example.com\",\"password\":\"case-table-password\",\"generatePassword\":false}}",
+      "answer": {"id": 18, "result": true}
+    },
+    {
+      "name": "useradd requires the local root explicitly",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":17,\"method\":\"identity.useradd\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"target\":{\"kind\":\"local\"},\"email\":\"person@example.com\",\"generatePassword\":true}}",
+      "answer": {"id": 17, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/target/root"]}}}
+    },
+    {
       "name": "a setting is set to a value: an empty one is refused",
       "line": "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"settings.set\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"name\":\"runtime\",\"value\":\"\"}}",
       "answer": {"id": 11, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/value"]}}}

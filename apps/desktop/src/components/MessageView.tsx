@@ -8,6 +8,7 @@ import {
   useResourceContent,
   useResourceLoader,
   useTranslationManager,
+  useLineNumbers,
   type AnnotationsCollection,
   type ReferenceHover,
   type ShapeType,
@@ -122,6 +123,7 @@ function LoadedMessage({
   // message never touches any other (TOOLBAR-PREFS-AS-PROPS semantics).
   const [annotate, setAnnotate] = useState(false);
   const translationManager = useTranslationManager();
+  const { showLineNumbers } = useLineNumbers();
 
   const mediaType = getPrimaryMediaType(resource) || 'text/plain';
   const renderMode = capabilitiesOf(mediaType)?.render;
@@ -254,6 +256,7 @@ function LoadedMessage({
           translationManager={translationManager}
           inline
           showToolbar={false}
+          showLineNumbers={showLineNumbers}
           resource={{ ...resource, content: resolvedContent }}
           annotations={annotations}
           annotateMode={annotate}

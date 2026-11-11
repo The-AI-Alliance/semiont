@@ -23,6 +23,7 @@ async function answer<T>(pending: Promise<{ value: T } | { error: string }>): Pr
 contextBridge.exposeInMainWorld('configBridge', {
   read: (): Promise<string | null> => ipcRenderer.invoke('config:read'),
   write: (toml: string): Promise<void> => ipcRenderer.invoke('config:write', toml),
+  kbRoute: (gatewayUrl: string): Promise<string> => ipcRenderer.invoke('config:kb-route', gatewayUrl),
 });
 
 // Chat history bridge — same pattern, backed by the XDG history.json (file:// localStorage
@@ -52,6 +53,19 @@ contextBridge.exposeInMainWorld('windowBridge', {
   restoreWidth: (): Promise<void> => ipcRenderer.invoke('window:restore-width'),
 });
 
+contextBridge.exposeInMainWorld('appMenuBridge', {
+  onAboutRequested(listener: () => void): () => void {
+    const handler = () => listener();
+    ipcRenderer.on('about:requested', handler);
+    return () => ipcRenderer.removeListener('about:requested', handler);
+  },
+  onDocumentsReloadRequested(listener: () => void): () => void {
+    const handler = () => listener();
+    ipcRenderer.on('documents:reload-requested', handler);
+    return () => ipcRenderer.removeListener('documents:reload-requested', handler);
+  },
+});
+
 // Signing in, and the stored sessions: the main process talks to each knowledge base's
 // issuer and keeps the tokens (electron/auth.ts). Used via src/lib/session.ts.
 const authBridge: AuthBridge = {
@@ -68,11 +82,6 @@ contextBridge.exposeInMainWorld('authBridge', authBridge);
 let nextControlHandle: ControlHandle = 1;
 
 const launcherBridge: LauncherBridge = {
-  onStatusRequested(listener) {
-    const handler = () => listener();
-    ipcRenderer.on('launcher:status-requested', handler);
-    return () => ipcRenderer.removeListener('launcher:status-requested', handler);
-  },
   startControl<M extends ControlMethod>(
     method: M,
     params: ControlRequestParams<M>,
@@ -94,8 +103,6 @@ const launcherBridge: LauncherBridge = {
   },
   cancelControl: (handle, reason) => ipcRenderer.send('control:cancel', handle, reason),
   chooseDirectory: () => ipcRenderer.invoke('dialog:choose-directory'),
-  chooseResourceDirectory: (rootPath, suggestedDirectory) =>
-    ipcRenderer.invoke('dialog:choose-resource-directory', rootPath, suggestedDirectory),
   gitPath: () => ipcRenderer.invoke('system:git-path'),
   opPath: () => ipcRenderer.invoke('system:op-path'),
   ollamaInfo: () => ipcRenderer.invoke('system:ollama-info'),

@@ -352,8 +352,8 @@ export const MentionComposer = forwardRef<
         className="chat__editor"
         contentEditable
         role="textbox"
-        aria-label="Ask a question"
-        data-placeholder="Ask a question…"
+        aria-label="Message composer"
+        data-placeholder="Make meaning"
         onInput={() => {
           // Typing while cycling adopts the recalled text as the new draft (the old
           // stash is superseded — readline's edit-and-fork behavior, simplified).

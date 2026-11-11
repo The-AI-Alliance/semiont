@@ -1,0 +1,25 @@
+{
+  "title": "IdentityUseraddResult",
+  "type": "object",
+  "description": "The created account's sign-in identity. A generated password is present only in this one answer and is not stored by the launcher.",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "The account's email address."
+    },
+    "identity": {
+      "type": "string",
+      "description": "The identity the account acts under in Semiont."
+    },
+    "created": {
+      "type": "boolean",
+      "description": "Whether a new account was created."
+    },
+    "generatedPassword": {
+      "type": "string",
+      "description": "The generated password, returned once so the operator can share it with the user. Absent when the operator supplied the password."
+    }
+  },
+  "required": ["email", "identity", "created"],
+  "additionalProperties": false
+}

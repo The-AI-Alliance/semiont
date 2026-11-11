@@ -589,6 +589,91 @@ type ControlAuthLogoutResult struct {
 	Revoked bool `json:"revoked"`
 }
 
+// ControlIdentityUseraddParams: Create one account in the launcher-managed
+// Keycloak realm for a specific local knowledge base.
+type ControlIdentityUseraddParams struct {
+	// The group and version of the control API. Every request's params state it;
+	// a launcher refuses a version it does not speak with
+	// control.unsupported-api-version, and names the ones it does.
+	ApiVersion string `json:"apiVersion"`
+
+	// The local knowledge base whose launcher-managed identity realm an
+	// operation addresses.
+	Target ControlIdentityLocalTarget `json:"target"`
+
+	// The email address that will sign in to this knowledge base.
+	Email string `json:"email"`
+
+	// The user's password. Secret: carried only in this local control request,
+	// never in progress, diagnostics, or persistent state.
+	Password *string `json:"password,omitempty"`
+
+	// Generate a random password in the launcher and return it once in the
+	// result.
+	GeneratePassword bool `json:"generatePassword"`
+}
+
+// ControlIdentityLocalTarget: The local knowledge base whose launcher-managed
+// identity realm an operation addresses.
+type ControlIdentityLocalTarget struct {
+	// Identity administration here is limited to local stacks.
+	Kind string `json:"kind"`
+
+	// The selected knowledge base's clone path.
+	Root string `json:"root"`
+}
+
+// ControlIdentityUseraddResult: The created account's sign-in identity. A
+// generated password is present only in this one answer and is not stored by
+// the launcher.
+type ControlIdentityUseraddResult struct {
+	// The account's email address.
+	Email string `json:"email"`
+
+	// The identity the account acts under in Semiont.
+	Identity string `json:"identity"`
+
+	// Whether a new account was created.
+	Created bool `json:"created"`
+
+	// The generated password, returned once so the operator can share it with
+	// the user. Absent when the operator supplied the password.
+	GeneratedPassword *string `json:"generatedPassword,omitempty"`
+}
+
+// ControlIdentityUsersListParams: List accounts in one local knowledge base's
+// launcher-managed Keycloak realm.
+type ControlIdentityUsersListParams struct {
+	// The group and version of the control API. Every request's params state it;
+	// a launcher refuses a version it does not speak with
+	// control.unsupported-api-version, and names the ones it does.
+	ApiVersion string `json:"apiVersion"`
+
+	// The local knowledge base whose launcher-managed identity realm an
+	// operation addresses.
+	Target ControlIdentityLocalTarget `json:"target"`
+}
+
+// ControlIdentityUsersListResult: Accounts in the selected knowledge base's
+// launcher-managed identity realm.
+type ControlIdentityUsersListResult struct {
+	// Accounts, sorted by sign-in name.
+	Users []ControlIdentityUser `json:"users"`
+}
+
+// ControlIdentityUser: An account in a knowledge base's launcher-managed
+// identity realm. Passwords and tokens are never included.
+type ControlIdentityUser struct {
+	// The account's sign-in name, normally its email address.
+	Email string `json:"email"`
+
+	// The identity the account acts under in Semiont.
+	Identity string `json:"identity"`
+
+	// Whether the identity provider currently allows this account to sign in.
+	Enabled bool `json:"enabled"`
+}
+
 // ControlLogsFollowParams: logs.follow's params.
 type ControlLogsFollowParams struct {
 	// The version of the control API the request is written to.

@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -73,6 +74,13 @@ func resultOf(t *testing.T, answer controlAnswer, out any) {
 	}
 }
 
+// controlTestUI: a command UI with the refusal record a control request owns.
+func controlTestUI() *UI {
+	u := NewUI(false)
+	u.refused = &refusal{}
+	return u
+}
+
 // Each request the launcher refuses, on a machine with nothing recorded, is
 // answered with the control code its refusal names, and the error's data
 // holds to its schema.
@@ -98,6 +106,8 @@ func TestControlOperationsRefuseUnderTheirCodes(t *testing.T) {
 		{"sign in with no stack", "auth.login", `{}`, rpcOperationError, controlCodeStackNotRunning},
 		{"sign in to a root that is not one", "auth.login", `{"target":{"kind":"local","root":"no-such-root"}}`, rpcOperationError, controlCodeRootNotFound},
 		{"sign out of a root that is not one", "auth.logout", `{"target":{"kind":"local","root":"no-such-root"}}`, rpcOperationError, controlCodeRootNotFound},
+		{"useradd routes to the selected root", "identity.useradd", `{"target":{"kind":"local","root":"no-such-root"},"email":"person@example.org","generatePassword":true}`, rpcOperationError, controlCodeRootNotFound},
+		{"users list routes to the selected root", "identity.users.list", `{"target":{"kind":"local","root":"no-such-root"}}`, rpcOperationError, controlCodeRootNotFound},
 		{"follow a root that is not one", "logs.follow", `{"target":{"kind":"local","root":"no-such-root"}}`, rpcOperationError, controlCodeRootNotFound},
 		{"settings of a root that is not one", "settings.list", `{"root":"no-such-root"}`, rpcOperationError, controlCodeRootNotFound},
 		{"follow a codespace on a runtime", "logs.follow", `{"target":{"kind":"codespace","repo":"o/r"},"runtime":"docker"}`, rpcOperationError, controlCodeInvalidRequest},
@@ -220,4 +230,121 @@ func TestControlOperationThatPanicsFailsItsRequest(t *testing.T) {
 	if !strings.Contains(diag, "panicked: a test's panic") {
 		t.Errorf("stderr does not say what panicked: %q", diag)
 	}
+}
+
+func TestControlIdentityUseraddForTarget(t *testing.T) {
+	target := &StackState{KBRoot: "/kb", KBDid: "did:web:kb.example"}
+	params := ControlIdentityUseraddParams{Email: "person@example.org"}
+	run := func(_ *UI, got useraddOpts, password, root, did string) (useraddResult, int) {
+		if got.email != params.Email || password != "secret" || root != target.KBRoot || did != target.KBDid {
+			t.Fatalf("useradd arguments = %+v, %q, %q, %q", got, password, root, did)
+		}
+		return useraddResult{email: got.email, identity: "did:web:kb.example:users:1", created: true, generatedPassword: "once"}, 0
+	}
+	password := "secret"
+	params.Password = &password
+
+	t.Run("invalid email is refused", func(t *testing.T) {
+		bad := params
+		bad.Email = "not-an-email"
+		_, failure := controlIdentityUseraddForTarget(controlTestUI(), bad, target, true, run)
+		if failure == nil || failure.code != controlCodeInvalidParams {
+			t.Fatalf("failure = %+v, want invalid params", failure)
+		}
+	})
+	t.Run("missing password is refused", func(t *testing.T) {
+		missing := params
+		missing.Password = nil
+		_, failure := controlIdentityUseraddForTarget(controlTestUI(), missing, target, true, run)
+		if failure == nil || failure.code != controlCodeInvalidParams {
+			t.Fatalf("failure = %+v, want invalid params", failure)
+		}
+	})
+	t.Run("unrecorded stack is refused", func(t *testing.T) {
+		_, failure := controlIdentityUseraddForTarget(controlTestUI(), params, nil, false, run)
+		if failure == nil || failure.code != controlCodeFailed {
+			t.Fatalf("failure = %+v, want failed lookup", failure)
+		}
+	})
+	t.Run("codespace is refused", func(t *testing.T) {
+		remote := &StackState{Codespace: &codespacePlacement{Repo: "owner/kb"}}
+		_, failure := controlIdentityUseraddForTarget(controlTestUI(), params, remote, true, run)
+		if failure == nil || failure.code != controlCodeStackNotRunning {
+			t.Fatalf("failure = %+v, want local-stack refusal", failure)
+		}
+	})
+	t.Run("useradd failure is returned", func(t *testing.T) {
+		_, failure := controlIdentityUseraddForTarget(controlTestUI(), params, target, true, func(*UI, useraddOpts, string, string, string) (useraddResult, int) {
+			return useraddResult{}, 1
+		})
+		if failure == nil || failure.code != controlCodeFailed {
+			t.Fatalf("failure = %+v, want failed useradd", failure)
+		}
+	})
+	t.Run("successful result includes the one-time generated password", func(t *testing.T) {
+		params.Password = nil
+		params.GeneratePassword = true
+		result, failure := controlIdentityUseraddForTarget(controlTestUI(), params, target, true, func(_ *UI, got useraddOpts, _, _, _ string) (useraddResult, int) {
+			if !got.generate {
+				t.Fatal("the generate-password flag was not mapped")
+			}
+			return useraddResult{email: got.email, identity: "did:web:kb.example:users:1", created: true, generatedPassword: "one-time"}, 0
+		})
+		if failure != nil {
+			t.Fatalf("failure = %+v", failure)
+		}
+		got := result.(ControlIdentityUseraddResult)
+		if got.Email != params.Email || got.Identity == "" || !got.Created || got.GeneratedPassword == nil || *got.GeneratedPassword != "one-time" {
+			t.Fatalf("result = %+v", got)
+		}
+	})
+}
+
+func TestControlIdentityUsersListForTarget(t *testing.T) {
+	target := &StackState{KBRoot: "/kb", KBDid: "did:web:kb.example"}
+	admin := realmAdmin{base: "http://issuer", realm: "semiont", token: "admin", domain: "kb.example", subjectClaim: "sub"}
+	resolve := func(_ *UI, root, did string) (realmAdmin, bool) {
+		if root != target.KBRoot || did != target.KBDid {
+			t.Fatalf("resolve arguments = %q, %q", root, did)
+		}
+		return admin, true
+	}
+	list := func(base, realm, token string) ([]realmUser, error) {
+		if base != admin.base || realm != admin.realm || token != admin.token {
+			t.Fatalf("list arguments = %q, %q, %q", base, realm, token)
+		}
+		return []realmUser{{id: "123", email: "person@example.org", enabled: true}}, nil
+	}
+
+	for _, tc := range []struct {
+		name    string
+		target  *StackState
+		ok      bool
+		resolve controlRealmAdminResolver
+		list    controlRealmUserLister
+		code    string
+	}{
+		{name: "failed root lookup", target: target, ok: false, resolve: resolve, list: list, code: controlCodeFailed},
+		{name: "no local stack", ok: true, resolve: resolve, list: list, code: controlCodeStackNotRunning},
+		{name: "codespace target", target: &StackState{Codespace: &codespacePlacement{Repo: "owner/kb"}}, ok: true, resolve: resolve, list: list, code: controlCodeStackNotRunning},
+		{name: "cannot resolve realm admin", target: target, ok: true, resolve: func(*UI, string, string) (realmAdmin, bool) { return realmAdmin{}, false }, list: list, code: controlCodeFailed},
+		{name: "realm request fails", target: target, ok: true, resolve: resolve, list: func(string, string, string) ([]realmUser, error) { return nil, fmt.Errorf("issuer unavailable") }, code: controlCodeFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, failure := controlIdentityUsersListForTarget(controlTestUI(), tc.target, tc.ok, tc.resolve, tc.list)
+			if failure == nil || failure.code != tc.code {
+				t.Fatalf("failure = %+v, want %s", failure, tc.code)
+			}
+		})
+	}
+	t.Run("returns account identities and enabled state", func(t *testing.T) {
+		result, failure := controlIdentityUsersListForTarget(controlTestUI(), target, true, resolve, list)
+		if failure != nil {
+			t.Fatalf("failure = %+v", failure)
+		}
+		got := result.(ControlIdentityUsersListResult)
+		if len(got.Users) != 1 || got.Users[0].Email != "person@example.org" || got.Users[0].Identity != "did:web:kb.example:users:123" || !got.Users[0].Enabled {
+			t.Fatalf("users = %+v", got.Users)
+		}
+	})
 }

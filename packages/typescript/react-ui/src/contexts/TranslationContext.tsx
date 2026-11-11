@@ -113,9 +113,13 @@ function LocaleTranslations({
     };
   }, [locale]);
 
+  // Keep the previous locale's manager active while a newly selected locale
+  // loads. Returning the loading screen here would unmount the provider's
+  // entire application subtree on every runtime language change (discarding
+  // in-progress UI state). The loading screen is only needed on initial load.
   const manager = useMemo(
-    () => (loaded?.locale === locale ? createTranslationManager(loaded.locale, loaded.messages) : null),
-    [loaded, locale],
+    () => (loaded ? createTranslationManager(loaded.locale, loaded.messages) : null),
+    [loaded],
   );
 
   // Thrown while rendering so the nearest error boundary sees it.

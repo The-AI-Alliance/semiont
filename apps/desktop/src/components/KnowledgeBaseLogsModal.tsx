@@ -101,7 +101,7 @@ export function KnowledgeBaseLogsModal({ root, onClose }: { root: KnowledgeBaseR
           </div>
           <button type="button" className="config__close" onClick={onClose} aria-label="Close logs">×</button>
         </header>
-        <p className="knowledge-base-logs__hint">Following the launcher’s default Semiont service logs. Lines are shown live and are not saved by Desktop.</p>
+        <p className="knowledge-base-logs__hint">Following the default Semiont service logs for this knowledge base. Lines are shown live and are not saved by Desktop.</p>
         <div className="knowledge-base-logs__output" ref={outputRef} role="log" aria-live="polite" aria-relevant="additions text">
           {records.length === 0 ? (
             <p className="knowledge-base-logs__empty">{state.status === 'following' ? 'Waiting for log output…' : 'Starting log follow…'}</p>

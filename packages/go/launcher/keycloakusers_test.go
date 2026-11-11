@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -142,6 +143,79 @@ func TestFindUserByEmailReportsARefusal(t *testing.T) {
 	}
 }
 
+func TestListRealmUsersPagesAndSortsAccounts(t *testing.T) {
+	var pages []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/admin/realms/semiont/users" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+		}
+		pages = append(pages, r.URL.Query().Get("first"))
+		if r.URL.Query().Get("max") != "100" {
+			t.Errorf("max = %q, want 100", r.URL.Query().Get("max"))
+		}
+		if r.URL.Query().Get("first") == "0" {
+			accounts := make([]map[string]any, 100)
+			for i := range accounts {
+				accounts[i] = map[string]any{"id": fmt.Sprintf("id-%03d", i), "email": fmt.Sprintf("User%03d@example.org", 99-i), "enabled": i%2 == 0}
+			}
+			_ = json.NewEncoder(w).Encode(accounts)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "last", "username": "last@example.org", "enabled": true},
+			{"id": ""},
+		})
+	}))
+	defer srv.Close()
+
+	users, err := listRealmUsers(srv.URL, "semiont", "admin-token")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if !reflect.DeepEqual(pages, []string{"0", "100"}) {
+		t.Fatalf("page offsets = %v, want [0 100]", pages)
+	}
+	if len(users) != 101 {
+		t.Fatalf("got %d users, want 101 valid accounts", len(users))
+	}
+	if users[0].email != "last@example.org" || users[len(users)-1].email != "User099@example.org" {
+		t.Fatalf("users not sorted case-insensitively: first=%q last=%q", users[0].email, users[len(users)-1].email)
+	}
+	if users[0].id != "last" || !users[0].enabled {
+		t.Fatalf("username fallback account = %+v", users[0])
+	}
+}
+
+func TestListRealmUsersReportsFailures(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		if _, err := listRealmUsers("http://[::1", "semiont", "token"); err == nil {
+			t.Fatal("invalid request URL succeeded")
+		}
+	})
+	t.Run("unreachable issuer", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+		url := srv.URL
+		srv.Close()
+		if _, err := listRealmUsers(url, "semiont", "token"); err == nil || !strings.Contains(err.Error(), "listing accounts") {
+			t.Fatalf("error = %v, want transport error", err)
+		}
+	})
+	t.Run("HTTP refusal", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) }))
+		defer srv.Close()
+		if _, err := listRealmUsers(srv.URL, "semiont", "token"); err == nil || !strings.Contains(err.Error(), "HTTP 403") {
+			t.Fatalf("error = %v, want HTTP 403", err)
+		}
+	})
+	t.Run("invalid response", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "not-json") }))
+		defer srv.Close()
+		if _, err := listRealmUsers(srv.URL, "semiont", "token"); err == nil || !strings.Contains(err.Error(), "returned no list") {
+			t.Fatalf("error = %v, want decode error", err)
+		}
+	})
+}
+
 func TestCreateUserSetsTheClaimsSignInRequires(t *testing.T) {
 	// emailVerified: a token whose email_verified is false is refused at
 	// sign-in, so an unverified account could never reach the KB an
@@ -241,7 +315,7 @@ func TestUserCallsReportARefusedPut(t *testing.T) {
 
 func applyAgainst(t *testing.T, s *stubUsers, o useraddOpts, password string) int {
 	t.Helper()
-	code, _ := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, o, password)
+	_, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, o, password)
 	return code
 }
 
@@ -255,19 +329,12 @@ func TestUseraddNamesTheIdentityItCreated(t *testing.T) {
 		{"preferred_username", "did:web:kb.example:users:sam%40x.co"},
 	} {
 		s := newStubUsers(t, "semiont", []map[string]any{})
-		var code int
-		var created bool
-		out := harness.CaptureStdout(t, func() {
-			code, created = applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: c.claim}, useraddOpts{email: "sam@x.co"}, "hunter2hunter2")
-		})
-		if code != 0 || !created {
-			t.Fatalf("%s: create: exit %d, created %v\n%s", c.claim, code, created, out)
+		result, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: c.claim}, useraddOpts{email: "sam@x.co"}, "hunter2hunter2")
+		if code != 0 || !result.created {
+			t.Fatalf("%s: create: exit %d, created %v", c.claim, code, result.created)
 		}
-		if !strings.Contains(out, "Identity: "+c.want) {
-			t.Errorf("%s: the output does not name %s:\n%s", c.claim, c.want, out)
-		}
-		if strings.Contains(out, "Subject:") {
-			t.Errorf("%s: the output still shows the realm's account id as Subject:\n%s", c.claim, out)
+		if result.identity != c.want {
+			t.Errorf("%s: identity is %q, want %q", c.claim, result.identity, c.want)
 		}
 	}
 }
@@ -321,10 +388,8 @@ func TestUseraddInactiveCreatesDisabled(t *testing.T) {
 // refuse every such call with "Password required".
 func TestUseraddGeneratesAPasswordForACreate(t *testing.T) {
 	s := newStubUsers(t, "semiont", []map[string]any{})
-	code := 0
-	out := harness.CaptureStdout(t, func() {
-		code = applyAgainst(t, s, useraddOpts{email: "sam@x.co", generate: true}, "")
-	})
+	result, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, useraddOpts{email: "sam@x.co", generate: true}, "")
+	out := harness.CaptureStdout(t, func() { printUseraddResult(NewUI(false), result, useraddOpts{email: "sam@x.co", generate: true}) })
 	if code != 0 {
 		t.Fatalf("create --generate-password: exit %d\n%s", code, out)
 	}
@@ -343,10 +408,9 @@ func TestUseraddGeneratesAPasswordForACreate(t *testing.T) {
 
 func TestUseraddGeneratesAPasswordForAnUpdate(t *testing.T) {
 	s := newStubUsers(t, "semiont", []map[string]any{{"id": "abc-123", "email": "sam@x.co"}})
-	code := 0
-	out := harness.CaptureStdout(t, func() {
-		code = applyAgainst(t, s, useraddOpts{email: "sam@x.co", update: true, generate: true}, "")
-	})
+	o := useraddOpts{email: "sam@x.co", update: true, generate: true}
+	result, code := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, o, "")
+	out := harness.CaptureStdout(t, func() { printUseraddResult(NewUI(false), result, o) })
 	if code != 0 {
 		t.Fatalf("update --generate-password: exit %d\n%s", code, out)
 	}
@@ -429,5 +493,51 @@ func TestUseraddActiveRestoresADisabledAccount(t *testing.T) {
 	}
 	if _, wrote := s.puts["/admin/realms/semiont/users/abc-123/reset-password"]; wrote {
 		t.Error("an update with no password reset one anyway")
+	}
+}
+
+func TestPrintUseraddResultStatesChangesAndUpsert(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result useraddResult
+		opts   useraddOpts
+		want   []string
+		omit   []string
+	}{
+		{
+			name:   "updated and enabled",
+			result: useraddResult{email: "person@example.org", created: false, identity: "did:web:example.org:users:1"},
+			opts:   useraddOpts{email: "person@example.org", active: true},
+			want:   []string{"User updated: person@example.org", "Identity: did:web:example.org:users:1", "Enabled at the identity provider"},
+			omit:   []string{"Password:"},
+		},
+		{
+			name:   "created disabled without identity",
+			result: useraddResult{email: "person@example.org", created: true},
+			opts:   useraddOpts{email: "person@example.org", inactive: true},
+			want:   []string{"User created: person@example.org", "Disabled at the identity provider"},
+			omit:   []string{"Identity:", "Password:"},
+		},
+		{
+			name:   "upsert reports existing account only",
+			result: useraddResult{email: "person@example.org", created: false, identity: "ignored"},
+			opts:   useraddOpts{email: "person@example.org", upsert: true},
+			want:   []string{"User already exists: person@example.org"},
+			omit:   []string{"Identity:", "User updated"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := harness.CaptureStdout(t, func() { printUseraddResult(NewUI(false), tc.result, tc.opts) })
+			for _, text := range tc.want {
+				if !strings.Contains(out, text) {
+					t.Errorf("output missing %q:\n%s", text, out)
+				}
+			}
+			for _, text := range tc.omit {
+				if strings.Contains(out, text) {
+					t.Errorf("output contains %q:\n%s", text, out)
+				}
+			}
+		})
 	}
 }

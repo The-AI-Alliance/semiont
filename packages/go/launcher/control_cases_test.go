@@ -34,18 +34,46 @@ func (l *lockedBuffer) lines() []string {
 	return strings.Split(text, "\n")
 }
 
-// codecServer: a control server whose answers go to a buffer, for requests
-// that take no turn: those refused before an operation runs, and
-// launcher.about's, which is not exclusive.
+// codecServer: a control server whose answers go to a buffer. Its operation
+// handlers are inert: this table tests request validation and response framing,
+// not the machine state or side effects of each command.
 func codecServer(t *testing.T) (*controlServer, *lockedBuffer) {
 	t.Helper()
 	schemas, err := compileControlSchemas()
 	if err != nil {
 		t.Fatalf("the control schemas do not compile: %v", err)
 	}
+	home, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
 	protocol := &lockedBuffer{}
-	return &controlServer{protocol: protocol, diag: &lockedBuffer{}, schemas: schemas, home: t.TempDir(),
+	return &controlServer{protocol: protocol, diag: &lockedBuffer{}, schemas: schemas, home: home,
 		inFlight: map[string]*controlRequest{}, drained: map[string]chan struct{}{}}, protocol
+}
+
+// validationServer: codecServer with harmless, schema-valid answers in place
+// of command handlers. Request cases assert the protocol envelope, not command
+// behavior or machine state.
+func validationServer(t *testing.T) (*controlServer, *lockedBuffer) {
+	t.Helper()
+	s, protocol := codecServer(t)
+	s.drainOutput = func() {}
+	s.handlerFor = func(method string) controlHandler {
+		return func(*controlRequest, *UI) (any, *controlFailure) {
+			switch method {
+			case "launcher.about":
+				return ControlAboutResult{Development: true, ApiVersions: []string{controlAPIVersion}, ImageRegistry: imageRegistry, Runtimes: []ControlRuntimeState{}}, nil
+			case "identity.useradd":
+				return ControlIdentityUseraddResult{Email: "person@example.com", Identity: "did:web:example.com:users:1", Created: true}, nil
+			case "identity.users.list":
+				return ControlIdentityUsersListResult{Users: []ControlIdentityUser{}}, nil
+			default:
+				return map[string]any{}, nil
+			}
+		}
+	}
+	return s, protocol
 }
 
 type requestCase struct {
@@ -84,7 +112,7 @@ func TestControlRequestCases(t *testing.T) {
 	}
 	for _, c := range table.Cases {
 		t.Run(c.Name, func(t *testing.T) {
-			s, protocol := codecServer(t)
+			s, protocol := validationServer(t)
 			s.receive([]byte(c.Line))
 			s.handlers.Wait()
 			lines := protocol.lines()

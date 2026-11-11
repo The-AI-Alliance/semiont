@@ -61,7 +61,7 @@ export interface ResourceComposePageProps {
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
   onCancel: () => void;
-  /** Native shells may offer a folder picker and return a directory relative to the KB root. */
+  /** Choose a destination directory and return its path relative to the KB root. */
   onChooseStorageDirectory?: (suggestedDirectory: string) => Promise<string | null>;
 
   /**

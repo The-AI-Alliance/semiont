@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   HOVER_DELAY_MS,
-  LineNumbersProvider,
   ResourceComposePage,
   useObservable,
   type ResourceComposePageProps,
@@ -9,35 +8,53 @@ import {
 import { extensionForMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 import type { ChatSession } from '../lib/session';
+import { KbLocationPickerModal } from './KbLocationPickerModal';
 
 const NoToolbarPanels: ResourceComposePageProps['ToolbarPanels'] = () => null;
 const NoToolbar: ResourceComposePageProps['Toolbar'] = () => null;
 
 export function ResourceComposeModal({
   session,
-  storageRoot,
   onClose,
   onCreated,
 }: {
   session: ChatSession;
-  /** Local filesystem root for the KB; null for a remote KB without a host path. */
-  storageRoot: string | null;
   onClose: () => void;
   onCreated: (resourceId: string, name: string) => void;
 }) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [locationPickerDirectory, setLocationPickerDirectory] = useState<string | null>(null);
+  const pendingDirectory = useRef<((directory: string | null) => void) | null>(null);
   const entityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
   const availableEntityTypes = entityTypesState?.status === 'ready' ? entityTypesState.value : [];
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && uploadProgress === null) closeRef.current();
+      if (event.key === 'Escape' && uploadProgress === null && locationPickerDirectory === null) closeRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [uploadProgress]);
+  }, [uploadProgress, locationPickerDirectory]);
+
+  useEffect(() => () => {
+    pendingDirectory.current?.(null);
+    pendingDirectory.current = null;
+  }, []);
+
+  const chooseStorageDirectory = (suggestedDirectory: string): Promise<string | null> => new Promise((resolve) => {
+    pendingDirectory.current?.(null);
+    pendingDirectory.current = resolve;
+    setLocationPickerDirectory(suggestedDirectory);
+  });
+
+  const finishChoosingStorageDirectory = (directory: string | null) => {
+    setLocationPickerDirectory(null);
+    const resolve = pendingDirectory.current;
+    pendingDirectory.current = null;
+    resolve?.(directory);
+  };
 
   const saveResource: ResourceComposePageProps['onSaveResource'] = async (params) => {
     const mediaType = params.format ?? 'text/markdown';
@@ -85,8 +102,7 @@ export function ResourceComposeModal({
         >
           ×
         </button>
-        <LineNumbersProvider>
-          <ResourceComposePage
+        <ResourceComposePage
             mode="new"
             availableEntityTypes={availableEntityTypes}
             initialLocale="en"
@@ -95,14 +111,7 @@ export function ResourceComposeModal({
             activePanel={null}
             onSaveResource={saveResource}
             onCancel={onClose}
-            {...(storageRoot === null ? {} : {
-              onChooseStorageDirectory: (suggestedDirectory) => {
-                const bridge = window.launcherBridge;
-                return bridge === undefined
-                  ? Promise.reject(new Error('The native folder dialog is available in Semiont Desktop only.'))
-                  : bridge.chooseResourceDirectory(storageRoot, suggestedDirectory);
-              },
-            })}
+            onChooseStorageDirectory={chooseStorageDirectory}
             uploadProgress={uploadProgress}
             translations={{
               title: 'New Resource',
@@ -136,9 +145,15 @@ export function ResourceComposeModal({
             }}
             ToolbarPanels={NoToolbarPanels}
             Toolbar={NoToolbar}
-          />
-        </LineNumbersProvider>
+        />
       </section>
+      {locationPickerDirectory !== null && (
+        <KbLocationPickerModal
+          session={session}
+          initialDirectory={locationPickerDirectory}
+          onChoose={finishChoosingStorageDirectory}
+        />
+      )}
     </div>
   );
 }
