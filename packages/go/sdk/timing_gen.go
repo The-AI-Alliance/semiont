@@ -177,6 +177,15 @@ type Timing struct {
 	// of a job that has been silent for `jobSilenceMs`, until the job says
 	// something or its status is an end.
 	JobStatusPoll time.Duration
+	// JobPoll is jobPollMs: How often a job's `pollUntilComplete` asks for its
+	// status (`job:status-requested`) until the status is an end, when its
+	// caller names no interval of its own.
+	JobPoll time.Duration
+	// JobPollTimeout is jobPollTimeoutMs: How long a job's `pollUntilComplete`
+	// goes on asking for its status before it fails as timed out, when its
+	// caller names no limit of its own: from its first ask, its asks and the
+	// waits between them included.
+	JobPollTimeout time.Duration
 	// GenerationStallFloor is generationStallFloorMs: The shortest a client
 	// waits, with a generation it follows saying nothing, before it asks for the
 	// job to be cancelled and gives up on it. A floor, so a job that never says
@@ -293,6 +302,8 @@ func DefaultTiming() Timing {
 		MaxStoredBytesCount:               2097152,
 		JobSilence:                        10000 * time.Millisecond,
 		JobStatusPoll:                     5000 * time.Millisecond,
+		JobPoll:                           1000 * time.Millisecond,
+		JobPollTimeout:                    60000 * time.Millisecond,
 		GenerationStallFloor:              120000 * time.Millisecond,
 		GenerationStallPerToken:           75 * time.Millisecond,
 		GenerationStallAssumedTokensCount: 500,
