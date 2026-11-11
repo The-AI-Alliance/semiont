@@ -85,7 +85,52 @@ func knowledgeBaseStatus(v stackView, ss *StackSet, cwd kbRoot, published []publ
 	}
 	kb.Services = append(kb.Services, signsIn)
 	kb.Healthy = healthy
+	if st != nil && st.KBDid != "" {
+		kb.Workload = workloadStatus(v, st.KBDid, kb.Services)
+	}
 	return kb
+}
+
+// workloadStatus: the same knowledge-base-scoped Collector readings
+// semiont status prints under Gateway and Dispatcher. Missing Prometheus
+// series stay absent; a scrape that has not reported is not a zero.
+func workloadStatus(v stackView, did string, services []ControlServiceStatus) *ControlWorkloadStatus {
+	hasGateway := serviceHealthy(services, "gateway")
+	hasDispatcher := serviceHealthy(services, "dispatcher")
+	if !hasGateway && !hasDispatcher {
+		return nil
+	}
+	readout := collectorReadout(v.at).get()
+	var out ControlWorkloadStatus
+	if hasGateway {
+		if claims, capacity, ok := ledgerOccupancy(readout, did); ok {
+			out.Ledger = &ControlWorkloadStatusLedger{Claims: claims, Capacity: capacity}
+		}
+	}
+	if hasDispatcher {
+		pending, running, ok := queueDepth(readout, did)
+		if ok {
+			queue := &ControlWorkloadStatusQueue{Pending: pending, Running: running}
+			if completed, failed, found := jobsConcluded(readout, did); found {
+				queue.Completed = &completed
+				queue.Failed = &failed
+			}
+			out.Queue = queue
+		}
+	}
+	if out.Ledger == nil && out.Queue == nil {
+		return nil
+	}
+	return &out
+}
+
+func serviceHealthy(services []ControlServiceStatus, role string) bool {
+	for _, service := range services {
+		if service.Role == role {
+			return service.Healthy
+		}
+	}
+	return false
 }
 
 // codespaceStatus: a codespace's knowledge base, as this machine reaches it

@@ -4,6 +4,7 @@ import type {
   ControlServiceGroup,
   ControlServiceStatus,
   ControlTarget,
+  ControlWorkloadStatus,
 } from '../../electron/control-types.gen';
 import type { ControlAnswerState, ControlEvent, ControlFailure } from '../lib/launcher-bridge';
 import { controlFailureText } from '../lib/launcher-bridge';
@@ -168,6 +169,14 @@ function SnapshotServices({
 }) {
   const rows = rowsForGroup(snapshot, group, selectedRootPath);
   const knowledgeBaseServiceModal = isKnowledgeBaseScopedServiceModal(group);
+  const selectedKb = snapshot.knowledgeBases.find((item) => item.root === selectedRootPath);
+  const workloadPanel = group === 'dispatcher-messaging' && selectedRootPath !== null
+    ? <WorkloadOverview
+        workload={selectedKb?.workload}
+        gatewayHealthy={selectedKb?.services.some((service) => service.role === 'gateway' && service.healthy) ?? false}
+        dispatcherHealthy={selectedKb?.services.some((service) => service.role === 'dispatcher' && service.healthy) ?? false}
+      />
+    : null;
   if (knowledgeBaseServiceModal && selectedRootPath === null) {
     return (
       <>
@@ -180,6 +189,7 @@ function SnapshotServices({
     if (knowledgeBaseServiceModal) {
       return (
         <>
+          {workloadPanel}
           <p className="service-group__empty">No {GROUP_TITLES[group]} services are reported.</p>
           {group === 'gateway-archivist' && <GitStatusSection check={gitCheck} />}
         </>
@@ -190,6 +200,7 @@ function SnapshotServices({
 
   return (
     <>
+      {workloadPanel}
       {(group === 'index' || group === 'knowledge-workers' || group === 'browser') && selectedRootPath === null && (
         <p className="service-group__empty">Open a local Knowledge Base tab to control these shared services.</p>
       )}
@@ -263,6 +274,79 @@ function SnapshotServices({
         </table>
       </div>
     </>
+  );
+}
+
+function WorkloadOverview({
+  workload,
+  gatewayHealthy,
+  dispatcherHealthy,
+}: {
+  workload: ControlWorkloadStatus | undefined;
+  gatewayHealthy: boolean;
+  dispatcherHealthy: boolean;
+}) {
+  const ledger = workload?.ledger;
+  const queue = workload?.queue;
+  const ledgerPercent = ledger === undefined || ledger.capacity <= 0 ? 0 : Math.min(100, Math.round((ledger.claims / ledger.capacity) * 100));
+  const ledgerTone = ledgerPercent >= 90 ? 'critical' : ledgerPercent >= 75 ? 'high' : 'normal';
+  const waitingForMetrics = (gatewayHealthy && ledger === undefined)
+    || (dispatcherHealthy && (queue === undefined || queue.completed === undefined || queue.failed === undefined));
+
+  return (
+    <section className="service-group__workload" aria-labelledby="workload-title">
+      <div className="service-group__workload-head">
+        <h2 id="workload-title">Workload</h2>
+        <span>Live operational readings for this knowledge base</span>
+      </div>
+      <div className="service-group__workload-grid">
+        <article className={`service-group__metric-card service-group__metric-card--${ledgerTone}`}>
+          <div className="service-group__metric-label">Gateway ledger <span>Live</span></div>
+          {ledger === undefined ? (
+            <p className="service-group__metric-unavailable">{gatewayHealthy ? 'Waiting for a ledger reading' : 'Unavailable while Gateway is unhealthy'}</p>
+          ) : (
+            <>
+              <strong>{ledger.claims}<span> / {ledger.capacity} claims</span></strong>
+              <div className="service-group__capacity" role="meter" aria-label="Gateway ledger capacity" aria-valuemin={0} aria-valuemax={ledger.capacity} aria-valuenow={Math.min(ledger.capacity, ledger.claims)}>
+                <span style={{ width: `${ledgerPercent}%` }} />
+              </div>
+              <small>{ledgerPercent}% of reported capacity</small>
+            </>
+          )}
+        </article>
+        <article className="service-group__metric-card">
+          <div className="service-group__metric-label">Job queue <span>Current depth</span></div>
+          {queue === undefined ? (
+            <p className="service-group__metric-unavailable">{dispatcherHealthy ? 'Waiting for queue readings' : 'Unavailable while Dispatcher is unhealthy'}</p>
+          ) : (
+            <>
+              <div className="service-group__queue-values">
+                <MetricValue label="Pending" value={queue.pending} />
+                <MetricValue label="Running" value={queue.running} />
+              </div>
+              <div className="service-group__queue-history">
+                <span>Since worker start</span>
+                <MetricValue label="Completed" value={queue.completed} />
+                <MetricValue label="Failed" value={queue.failed} />
+              </div>
+            </>
+          )}
+        </article>
+      </div>
+      {waitingForMetrics && (
+        <p className="service-group__metric-note" role="status">Some readings are not available yet. The Collector publishes metrics after its first scrape; refresh to check again.</p>
+      )}
+      <p className="service-group__metric-note">Queue depth is a live snapshot. Completed and failed counts reset when the worker starts; cancelled jobs are counted separately.</p>
+    </section>
+  );
+}
+
+function MetricValue({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div className="service-group__metric-value">
+      <strong>{value ?? '—'}</strong>
+      <span>{label}</span>
+    </div>
   );
 }
 

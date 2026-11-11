@@ -346,6 +346,11 @@ type ControlKnowledgeBaseStatus struct {
 	// Its own services, group by group, then the issuer it signs in at. Empty
 	// for a codespace's, whose services its own launcher reports.
 	Services []ControlServiceStatus `json:"services"`
+
+	// The ledger and job queue readings the launcher can attribute to this
+	// knowledge base. A missing reading means the Collector has not reported
+	// that metric, not that its value is zero.
+	Workload *ControlWorkloadStatus `json:"workload,omitempty"`
 }
 
 // ControlSession: The launcher's own stored sign-in for a stack (semiont
@@ -415,6 +420,48 @@ type ControlServiceStatus struct {
 	// For a service several knowledge bases share: the name of each it serves,
 	// as knowledgeBases names them.
 	Serves []string `json:"serves,omitempty"`
+}
+
+// ControlWorkloadStatus: A knowledge base's operational readings from
+// Collector metrics. Ledger occupancy and queue depth are current gauges;
+// completed and failed are worker counters since that worker process started.
+// Missing readings are unknown, never zero.
+type ControlWorkloadStatus struct {
+	// Live claims held in the Gateway's correlation ledger and its configured
+	// capacity.
+	Ledger *ControlWorkloadStatusLedger `json:"ledger,omitempty"`
+
+	// Current Dispatcher depth and, when the worker has emitted counters,
+	// completed and failed work since worker start. These are different
+	// measurements and time windows.
+	Queue *ControlWorkloadStatusQueue `json:"queue,omitempty"`
+}
+
+// ControlWorkloadStatusLedger: Live claims held in the Gateway's correlation
+// ledger and its configured capacity.
+type ControlWorkloadStatusLedger struct {
+	// Current live correlation claims.
+	Claims int `json:"claims"`
+
+	// The Gateway's reported maximum number of live claims.
+	Capacity int `json:"capacity"`
+}
+
+// ControlWorkloadStatusQueue: Current Dispatcher depth and, when the worker
+// has emitted counters, completed and failed work since worker start. These
+// are different measurements and time windows.
+type ControlWorkloadStatusQueue struct {
+	// Jobs currently waiting for a worker.
+	Pending int `json:"pending"`
+
+	// Jobs currently claimed by workers.
+	Running int `json:"running"`
+
+	// Jobs completed since worker start.
+	Completed *int `json:"completed,omitempty"`
+
+	// Jobs finally failed since worker start.
+	Failed *int `json:"failed,omitempty"`
 }
 
 // ControlStackStartParams: stack.start's params: what semiont start takes,
