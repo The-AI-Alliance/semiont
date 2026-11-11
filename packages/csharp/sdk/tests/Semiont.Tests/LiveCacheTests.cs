@@ -674,8 +674,150 @@ public sealed partial class TransportTests
         Assert.False(await next);
     }
 
+    // B13b: a write lets go of the key's fetch, as a removal does, and asks for nothing. The fetch answers whoever
+    // awaited it with its own reply, and stores nothing.
+    [Fact]
+    public async Task AWriteLetsGoOfTheKeysFetch()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var key = fetches.Cache.Observe("key");
+        await using var reader = key.GetAsyncEnumerator(deadline.Token);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.IsType<CacheState<int>.Pending>(reader.Current);
+        var asked = await fetches.AskedAsync(deadline.Token);
+        var awaited = key.FreshAsync(deadline.Token);
+
+        fetches.Cache.Set("key", 5);
+        Assert.False(fetches.Cache.Fetching);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(5, Assert.IsType<CacheState<int>.Ready>(reader.Current).Value);
+        Assert.Equal(1, fetches.Changes);
+
+        asked.SetResult(0);
+        Assert.Equal(0, await awaited);
+        var next = reader.MoveNextAsync().AsTask();
+        Assert.False(next.IsCompleted, "the fetch a write let go of reached an observer");
+        Assert.Equal(5, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
+        Assert.Equal(1, fetches.Changes);
+        Assert.True(fetches.Unasked);
+        fetches.Cache.Dispose();
+        Assert.False(await next);
+    }
+
+    // B13b: a patch to a key whose first fetch is in flight is kept with that fetch, and its reply is stored, and
+    // answered, patched.
+    [Fact]
+    public async Task APatchToAKeyWithNoValueYetRidesOnItsFetch()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var awaited = fetches.Cache.FetchAsync("key", deadline.Token);
+        var asked = await fetches.AskedAsync(deadline.Token);
+
+        fetches.Cache.Entry("key").Patch(value => value + 1);
+        Assert.Null(fetches.Cache.Get("key"));
+        Assert.Equal(0, fetches.Changes);
+
+        asked.SetResult(5);
+        Assert.Equal(6, await awaited);
+        Assert.Equal(6, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
+        Assert.Equal(1, fetches.Changes);
+        Assert.True(fetches.Unasked);
+    }
+
+    // B13b: patches apply at once to the value the key holds, and again to its fetch's reply, in the order made.
+    [Fact]
+    public async Task PatchesApplyAtOnceAndToTheFetchsReplyInTheOrderMade()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        fetches.Cache.Set("key", 5);
+        var awaited = fetches.Cache.FetchAsync("key", deadline.Token);
+        var asked = await fetches.AskedAsync(deadline.Token);
+
+        var entry = fetches.Cache.Entry("key");
+        entry.Patch(value => value + 1);
+        entry.Patch(value => value * 10);
+        Assert.Equal(60, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
+        Assert.Equal(3, fetches.Changes);
+        Assert.True(fetches.Cache.Fetching);
+
+        asked.SetResult(7);
+        Assert.Equal(80, await awaited);
+        Assert.Equal(80, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
+        Assert.Equal(4, fetches.Changes);
+        Assert.True(fetches.Unasked);
+    }
+
+    // B13b: patches kept with a fetch go with it. The fetch that replaced it is stored as it answers, and the replaced
+    // one's reply changes nothing.
+    [Fact]
+    public async Task AReplacedFetchsPatchesGoWithIt()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var key = fetches.Cache.Observe("key");
+        var older = key.FreshAsync(deadline.Token);
+        var replaced = await fetches.AskedAsync(deadline.Token);
+        fetches.Cache.Entry("key").Patch(value => value + 1);
+        key.Invalidate();
+        var current = await fetches.AskedAsync(deadline.Token);
+        var newer = key.FreshAsync(deadline.Token);
+
+        current.SetResult(7);
+        Assert.Equal(7, await newer);
+        var held = Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key"));
+        Assert.Equal(7, held.Value);
+        Assert.Equal(1, fetches.Changes);
+
+        replaced.SetResult(5);
+        Assert.Equal(5, await older);
+        Assert.Same(held, fetches.Cache.Get("key"));
+        Assert.Equal(1, fetches.Changes);
+        Assert.True(fetches.Unasked);
+    }
+
+    // B13b, B20: a patch to a key with neither a value nor a fetch changes nothing, owes no save, and is kept for no
+    // later fetch.
+    [Fact]
+    public async Task APatchToAKeyWithNeitherValueNorFetchDoesNothing()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        fetches.Cache.Entry("key").Patch(value => value + 1);
+        Assert.Null(fetches.Cache.Get("key"));
+        Assert.False(fetches.Cache.Fetching);
+        Assert.Equal(0, fetches.Changes);
+        Assert.True(fetches.Unasked);
+
+        var awaited = fetches.Cache.FetchAsync("key", deadline.Token);
+        (await fetches.AskedAsync(deadline.Token)).SetResult(5);
+        Assert.Equal(5, await awaited);
+    }
+
+    // B13b, B18: a patch leaves a restored value marked, so the key's first observation still asks for it again.
+    [Fact]
+    public async Task APatchLeavesARestoredValueMarkedForRevalidation()
+    {
+        using var fetches = new AnsweredFetches();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var entry = fetches.Cache.Entry("key");
+        entry.Rehydrate(5);
+        entry.Patch(value => value + 1);
+        Assert.Equal(6, Assert.IsType<CacheState<int>.Ready>(fetches.Cache.Get("key")).Value);
+        Assert.True(fetches.Unasked);
+
+        await using var reader = entry.GetAsyncEnumerator(deadline.Token);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(6, Assert.IsType<CacheState<int>.Ready>(reader.Current).Value);
+        (await fetches.AskedAsync(deadline.Token)).SetResult(9);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(9, Assert.IsType<CacheState<int>.Ready>(reader.Current).Value);
+    }
+
     /// <summary>A cache whose every fetch waits for the test to answer it, and which counts each change it owes a save
-    /// for: a value it stores, or a removal.</summary>
+    /// for: a value it stores, a patch it applies, or a removal.</summary>
     private sealed class AnsweredFetches : IDisposable
     {
         private readonly Channel<TaskCompletionSource<int>> asked = Channel.CreateUnbounded<TaskCompletionSource<int>>();

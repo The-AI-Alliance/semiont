@@ -58,9 +58,9 @@ internal sealed class CacheEntry<T> : Cached<T>
     private readonly HashSet<ChannelWriter<CacheState<T>>> readers = [];
     private CacheState<T> state = new CacheState<T>.Pending();
     // The key's current fetch, until it settles: the one fetch whose answer is stored.
-    private Task<T>? flight;
+    private Flight? flight;
     // The flight a validation waits on, which is the current one, and whether it is the validation's second ask.
-    private Task<T>? validation;
+    private Flight? validation;
     private bool revalidated;
     private bool rehydrated;
     private bool windowOpen;
@@ -87,7 +87,7 @@ internal sealed class CacheEntry<T> : Cached<T>
         lock (gate)
         {
             if (closed) throw ClosedError();
-            work = Fetch();
+            work = Fetch().Answer;
         }
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellation, stopped);
         try { return await Spawning.WaitAsync(work, waiting.Token).ConfigureAwait(Spawning.Captures); }
@@ -126,15 +126,19 @@ internal sealed class CacheEntry<T> : Cached<T>
         }
     }
 
-    internal void UpdateIfReady(Func<T, T> update)
+    /// <summary>
+    /// Writes part of the key's value (B13b): <paramref name="change"/> takes the value to the patched one. It applies at
+    /// once to the value the key holds, and is kept with the key's current fetch, whose reply is stored, and given to its
+    /// awaiters, through every change kept with it in the order made. A patch lets go of nothing, and leaves a restored
+    /// value marked for revalidation. A key with neither a value nor a fetch is not changed.
+    /// </summary>
+    internal void Patch(Func<T, T> change)
     {
         lock (gate)
         {
-            if (!closed && state is CacheState<T>.Ready(var value))
-            {
-                ForgetPreviousValue();
-                Ready(update(value));
-            }
+            if (closed) return;
+            if (state is CacheState<T>.Ready(var value)) Ready(change(value));
+            if (flight is { } current) current.Keep(change);
         }
     }
 
@@ -229,20 +233,21 @@ internal sealed class CacheEntry<T> : Cached<T>
     /// <summary>The key's B19 window is open and holds an invalidation it has not yet run.</summary>
     internal bool RefetchOwed { get { lock (gate) return windowOpen && owed; } }
 
-    private Task<T> Fetch()
+    /// <summary>The key's current fetch, asked if it has none.</summary>
+    private Flight Fetch()
     {
-        if (flight is not null) return flight;
-        var result = new TaskCompletionSource<T>(Spawning.CompletionOptions);
-        flight = result.Task;
+        if (flight is { } current) return current;
+        var asked = new Flight();
+        flight = asked;
         rehydrated = false;
-        _ = Spawning.Run(() => LoadAsync(result));
-        _ = ObserveFailureAsync(result.Task);
-        return result.Task;
+        _ = Spawning.Run(() => LoadAsync(asked));
+        _ = ObserveFailureAsync(asked.Answer);
+        return asked;
     }
 
     private static async Task ObserveFailureAsync(Task work) => await work.ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
 
-    private async Task LoadAsync(TaskCompletionSource<T> result)
+    private async Task LoadAsync(Flight mine)
     {
         try
         {
@@ -250,27 +255,29 @@ internal sealed class CacheEntry<T> : Cached<T>
             var value = await fetch(stopped).ConfigureAwait(Spawning.Captures);
             Finish(current =>
             {
-                if (closed) result.TrySetException(ClosedError());
-                else
+                if (closed) mine.Result.TrySetException(ClosedError());
+                else if (current)
                 {
-                    if (current) Ready(value);
-                    result.TrySetResult(value);
+                    var patched = mine.Patched(value);
+                    Ready(patched);
+                    mine.Result.TrySetResult(patched);
                 }
+                else mine.Result.TrySetResult(value);
             }, null);
         }
-        catch (OperationCanceledException error) { Finish(_ => result.TrySetCanceled(error.CancellationToken), null); }
-        catch (Exception error) { Finish(_ => result.TrySetException(error), error); }
+        catch (OperationCanceledException error) { Finish(_ => mine.Result.TrySetCanceled(error.CancellationToken), null); }
+        catch (Exception error) { Finish(_ => mine.Result.TrySetException(error), error); }
 
-        // Only the key's current fetch writes. One that an invalidate, a write, a removal or the closing let go of
-        // answers whoever awaited it, and stores nothing.
+        // Only the key's current fetch writes, through the patches kept with it. One that an invalidate, a write, a
+        // removal or the closing let go of answers whoever awaited it with its own reply, and stores nothing.
         void Finish(Action<bool> settle, Exception? failure)
         {
             lock (gate)
             {
-                var current = flight == result.Task;
+                var current = flight == mine;
                 if (current) flight = null;
                 settle(current);
-                if (validation == result.Task) Validated(failure);
+                if (validation == mine) Validated(failure);
             }
         }
     }
@@ -340,4 +347,15 @@ internal sealed class CacheEntry<T> : Cached<T>
     }
 
     private static BusRequestError ClosedError() => new(ProtocolFacts.BusError("closed"), "The cache is closed.");
+
+    /// <summary>One fetch of the key, and the patches made while it is the key's current fetch, in the order made. They
+    /// go with it: a fetch replaced, let go of or failed applies none.</summary>
+    private sealed class Flight
+    {
+        private readonly List<Func<T, T>> patches = [];
+        internal TaskCompletionSource<T> Result { get; } = new(Spawning.CompletionOptions);
+        internal Task<T> Answer => Result.Task;
+        internal void Keep(Func<T, T> change) => patches.Add(change);
+        internal T Patched(T reply) => patches.Aggregate(reply, (value, change) => change(value));
+    }
 }
