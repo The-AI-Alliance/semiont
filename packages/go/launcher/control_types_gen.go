@@ -346,6 +346,11 @@ type ControlKnowledgeBaseStatus struct {
 	// Its own services, group by group, then the issuer it signs in at. Empty
 	// for a codespace's, whose services its own launcher reports.
 	Services []ControlServiceStatus `json:"services"`
+
+	// The ledger and job queue readings the launcher can attribute to this
+	// knowledge base. A missing reading means the Collector has not reported
+	// that metric, not that its value is zero.
+	Workload *ControlWorkloadStatus `json:"workload,omitempty"`
 }
 
 // ControlSession: The launcher's own stored sign-in for a stack (semiont
@@ -415,6 +420,53 @@ type ControlServiceStatus struct {
 	// For a service several knowledge bases share: the name of each it serves,
 	// as knowledgeBases names them.
 	Serves []string `json:"serves,omitempty"`
+}
+
+// ControlWorkloadStatus: A knowledge base's operational readings from
+// Collector metrics. Request-tracking occupancy and queue depth are current
+// gauges; completed and failed are worker counters since that worker process
+// started. Missing readings are unknown, never zero.
+type ControlWorkloadStatus struct {
+	// The Gateway's request tracking: correlation IDs it currently holds so
+	// replies can be routed to the app client that sent each request, and the
+	// tracking capacity.
+	Ledger *ControlWorkloadStatusLedger `json:"ledger,omitempty"`
+
+	// Current Dispatcher depth and, when the worker has emitted counters,
+	// completed and failed work since worker start. These are different
+	// measurements and time windows.
+	Queue *ControlWorkloadStatusQueue `json:"queue,omitempty"`
+}
+
+// ControlWorkloadStatusLedger: The Gateway's request tracking: correlation
+// IDs it currently holds so replies can be routed to the app client that sent
+// each request, and the tracking capacity.
+type ControlWorkloadStatusLedger struct {
+	// Number of request IDs currently held to route replies to their requesting
+	// app clients. Includes requests still waiting for a reply and recently
+	// answered requests still within the tracking window.
+	Claims int `json:"claims"`
+
+	// The maximum number of IDs held in this Gateway's local tracking
+	// projection.
+	Capacity int `json:"capacity"`
+}
+
+// ControlWorkloadStatusQueue: Current Dispatcher depth and, when the worker
+// has emitted counters, completed and failed work since worker start. These
+// are different measurements and time windows.
+type ControlWorkloadStatusQueue struct {
+	// Jobs currently waiting for a worker.
+	Pending int `json:"pending"`
+
+	// Jobs currently claimed by workers.
+	Running int `json:"running"`
+
+	// Jobs completed since worker start.
+	Completed *int `json:"completed,omitempty"`
+
+	// Jobs finally failed since worker start.
+	Failed *int `json:"failed,omitempty"`
 }
 
 // ControlStackStartParams: stack.start's params: what semiont start takes,

@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type {
   ControlKnowledgeBaseStatus,
   ControlServiceGroup,
   ControlServiceStatus,
   ControlTarget,
+  ControlWorkloadStatus,
 } from '../../electron/control-types.gen';
 import type { ControlAnswerState, ControlEvent, ControlFailure } from '../lib/launcher-bridge';
 import { controlFailureText } from '../lib/launcher-bridge';
@@ -13,9 +14,10 @@ import { GitStatusSection, type GitCheck } from './GitStatusSection';
 import { KnowledgeBaseServiceControls } from './KnowledgeBaseServiceControls';
 import type { KnowledgeBaseRow } from './KnowledgeBasesModal';
 
-type KnowledgeBaseServiceModal = 'gateway-archivist' | 'dispatcher-messaging';
-export type DesktopServiceGroup = Extract<ControlServiceGroup, 'index' | 'knowledge-workers' | 'issuer'> | 'browser' | KnowledgeBaseServiceModal;
+type KnowledgeBaseServiceModal = 'gateway-archivist' | 'dispatcher-messaging' | 'index';
+export type DesktopServiceGroup = Extract<ControlServiceGroup, 'knowledge-workers' | 'issuer'> | 'browser' | KnowledgeBaseServiceModal;
 type Action = 'start' | 'stop';
+const STATUS_REFRESH_INTERVAL_MS = 30_000;
 interface ServiceRow {
   key: string;
   kbName?: string;
@@ -35,7 +37,7 @@ const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
 const GROUP_DESCRIPTIONS: Record<DesktopServiceGroup, string> = {
   'gateway-archivist': 'Gateway and Archivist status, stack controls, logs, and Git for this knowledge base.',
   'dispatcher-messaging': 'Dispatcher and Messaging status for this knowledge base.',
-  index: 'Index services for search, extraction, graph, and vector data.',
+  index: 'Services configured to build and query this knowledge base’s index.',
   'knowledge-workers': 'Shared workers that process jobs for knowledge bases on this machine.',
   browser: 'The shared Browser service for knowledge bases on this machine.',
   issuer: 'Identity services and their stores, listed for each knowledge base.',
@@ -67,6 +69,15 @@ export function ServiceGroupModal({
   const [pending, setPending] = useState<{ key: string; action: Action } | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = window.setInterval(() => onRefreshRef.current(), STATUS_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [autoRefresh]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -144,7 +155,21 @@ export function ServiceGroupModal({
         </div>
 
         <footer className="service-group__footer">
-          <button type="button" className="kb__connect" onClick={onRefresh} disabled={pending !== null}>Refresh</button>
+          <div className="service-group__auto-refresh">
+            <span>Auto-refresh</span>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Automatically refresh service status"
+              aria-checked={autoRefresh}
+              onClick={() => setAutoRefresh((enabled) => !enabled)}
+              className={`service-group__switch${autoRefresh ? ' service-group__switch--on' : ''}`}
+            >
+              <span className="service-group__switch-thumb" />
+            </button>
+            <span className="service-group__auto-refresh-state">{autoRefresh ? 'On' : 'Off'}</span>
+            {autoRefresh && <span className="service-group__auto-refresh-interval">Every 30 seconds</span>}
+          </div>
         </footer>
       </section>
     </div>
@@ -167,7 +192,15 @@ function SnapshotServices({
   pending: { key: string; action: Action } | null;
 }) {
   const rows = rowsForGroup(snapshot, group, selectedRootPath);
-  const knowledgeBaseServiceModal = isKnowledgeBaseServiceModal(group);
+  const knowledgeBaseServiceModal = isKnowledgeBaseScopedServiceModal(group);
+  const selectedKb = snapshot.knowledgeBases.find((item) => item.root === selectedRootPath);
+  const workloadPanel = group === 'dispatcher-messaging' && selectedRootPath !== null
+    ? <WorkloadOverview
+        workload={selectedKb?.workload}
+        gatewayHealthy={selectedKb?.services.some((service) => service.role === 'gateway' && service.healthy) ?? false}
+        dispatcherHealthy={selectedKb?.services.some((service) => service.role === 'dispatcher' && service.healthy) ?? false}
+      />
+    : null;
   if (knowledgeBaseServiceModal && selectedRootPath === null) {
     return (
       <>
@@ -180,6 +213,7 @@ function SnapshotServices({
     if (knowledgeBaseServiceModal) {
       return (
         <>
+          {workloadPanel}
           <p className="service-group__empty">No {GROUP_TITLES[group]} services are reported.</p>
           {group === 'gateway-archivist' && <GitStatusSection check={gitCheck} />}
         </>
@@ -190,6 +224,7 @@ function SnapshotServices({
 
   return (
     <>
+      {workloadPanel}
       {(group === 'index' || group === 'knowledge-workers' || group === 'browser') && selectedRootPath === null && (
         <p className="service-group__empty">Open a local Knowledge Base tab to control these shared services.</p>
       )}
@@ -266,18 +301,98 @@ function SnapshotServices({
   );
 }
 
+function WorkloadOverview({
+  workload,
+  gatewayHealthy,
+  dispatcherHealthy,
+}: {
+  workload: ControlWorkloadStatus | undefined;
+  gatewayHealthy: boolean;
+  dispatcherHealthy: boolean;
+}) {
+  const ledger = workload?.ledger;
+  const queue = workload?.queue;
+  const ledgerPercent = ledger === undefined || ledger.capacity <= 0 ? 0 : Math.min(100, Math.round((ledger.claims / ledger.capacity) * 100));
+  const ledgerTone = ledgerPercent >= 90 ? 'critical' : ledgerPercent >= 75 ? 'high' : 'normal';
+  const waitingForMetrics = (gatewayHealthy && ledger === undefined)
+    || (dispatcherHealthy && (queue === undefined || queue.completed === undefined || queue.failed === undefined));
+
+  return (
+    <section className="service-group__workload" aria-labelledby="workload-title">
+      <div className="service-group__workload-head">
+        <h2 id="workload-title">Workload</h2>
+        <span>Live operational readings for this knowledge base</span>
+      </div>
+      <div className="service-group__workload-grid">
+        <article className={`service-group__metric-card service-group__metric-card--${ledgerTone}`}>
+          <div className="service-group__metric-label">Request tracking <span>Gateway</span></div>
+          {ledger === undefined ? (
+            <p className="service-group__metric-unavailable">{gatewayHealthy ? 'Waiting for request-tracking data' : 'Unavailable while Gateway is unhealthy'}</p>
+          ) : (
+            <>
+              <strong>{ledger.claims.toLocaleString()}<span> / {ledger.capacity.toLocaleString()} tracked request IDs</span></strong>
+              <div className="service-group__capacity" role="meter" aria-label="Request tracking capacity" aria-valuemin={0} aria-valuemax={ledger.capacity} aria-valuenow={Math.min(ledger.capacity, ledger.claims)}>
+                <span style={{ width: `${ledgerPercent}%` }} />
+              </div>
+              <small>{ledgerPercent}% of tracking capacity</small>
+            </>
+          )}
+          <p className="service-group__metric-detail">Tracks app requests so each reply returns to its caller. Entries can remain for up to 15 minutes after a request is sent.</p>
+        </article>
+        <article className="service-group__metric-card">
+          <div className="service-group__metric-label">Job queue <span>Current depth</span></div>
+          {queue === undefined ? (
+            <p className="service-group__metric-unavailable">{dispatcherHealthy ? 'Waiting for queue readings' : 'Unavailable while Dispatcher is unhealthy'}</p>
+          ) : (
+            <>
+              <div className="service-group__queue-values">
+                <MetricValue label="Pending" value={queue.pending} />
+                <MetricValue label="Running" value={queue.running} />
+              </div>
+              <div className="service-group__queue-history">
+                <span>Since worker start</span>
+                <MetricValue label="Completed" value={queue.completed} />
+                <MetricValue label="Failed" value={queue.failed} />
+              </div>
+            </>
+          )}
+        </article>
+      </div>
+      {waitingForMetrics && (
+        <p className="service-group__metric-note" role="status">Some readings are not available yet. The Collector publishes metrics after its first scrape; refresh to check again.</p>
+      )}
+      <p className="service-group__metric-note">Queue depth is a live snapshot. Completed and failed counts reset when the worker starts; cancelled jobs are counted separately.</p>
+    </section>
+  );
+}
+
+function MetricValue({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div className="service-group__metric-value">
+      <strong>{value ?? '—'}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 function rowsForGroup(
   snapshot: ControlStatusSnapshotResult,
   group: DesktopServiceGroup,
   selectedRootPath: string | null,
 ): ServiceRow[] {
-  if (isKnowledgeBaseServiceModal(group)) {
+  if (isKnowledgeBaseScopedServiceModal(group)) {
     const kb = snapshot.knowledgeBases.find((item) => item.root === selectedRootPath);
     if (kb === undefined) return [];
-    const roles: readonly string[] = group === 'gateway-archivist'
-      ? ['gateway', 'archivist']
-      : ['dispatcher', 'messaging'];
-    return kb.services.filter((service) => service.group === 'record' && roles.includes(service.role)).map((service) => {
+    const services = group === 'index'
+      ? servicesForKnowledgeBase(snapshot, kb)
+        .filter((service) => service.group === 'index' && service.state !== 'not-configured')
+      : kb.services.filter((service) => {
+        const roles: readonly string[] = group === 'gateway-archivist'
+          ? ['gateway', 'archivist']
+          : ['dispatcher', 'messaging'];
+        return service.group === 'record' && roles.includes(service.role);
+      });
+    return services.map((service) => {
       const target = targetFor(kb);
       return {
         key: `${kb.key}/${service.role}`,
@@ -321,8 +436,17 @@ function rowsForGroup(
     }));
 }
 
-function isKnowledgeBaseServiceModal(group: DesktopServiceGroup): group is KnowledgeBaseServiceModal {
-  return group === 'gateway-archivist' || group === 'dispatcher-messaging';
+function isKnowledgeBaseScopedServiceModal(group: DesktopServiceGroup): group is KnowledgeBaseServiceModal {
+  return group === 'gateway-archivist' || group === 'dispatcher-messaging' || group === 'index';
+}
+
+function servicesForKnowledgeBase(
+  snapshot: ControlStatusSnapshotResult,
+  kb: ControlKnowledgeBaseStatus,
+): ControlServiceStatus[] {
+  const ownRoles = new Set(kb.services.map((service) => service.role));
+  const shared = snapshot.shared.filter((service) => service.serves?.includes(kb.name) && !ownRoles.has(service.role));
+  return [...kb.services, ...shared];
 }
 
 function targetFor(kb: ControlKnowledgeBaseStatus): ControlTarget | undefined {

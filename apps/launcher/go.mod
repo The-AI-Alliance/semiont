@@ -3,11 +3,11 @@ module github.com/The-AI-Alliance/semiont/apps/launcher
 go 1.27.0
 
 // Pinned to the patch, not the minor: `go 1.27` alone lets CI resolve to
-// whatever 1.27.x it happens to have, and a stdlib CVE fixed in a later patch
+// whatever 1.27.x it happens to have, and a stdlib vulnerability fixed in a later patch
 // then fails govulncheck on a compiler nobody chose. actions/setup-go reads
 // this line from go-version-file, so the scan and the build agree on one
 // compiler.
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/The-AI-Alliance/semiont/packages/go/launcher v0.0.0-00010101000000-000000000000
