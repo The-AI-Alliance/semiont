@@ -2239,7 +2239,7 @@ button.kb-location-picker__entry:hover {
   color: var(--danger);
 }
 
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .service-group__workload-grid {
     grid-template-columns: 1fr;
   }
