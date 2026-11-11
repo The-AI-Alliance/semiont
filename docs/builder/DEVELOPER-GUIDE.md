@@ -656,8 +656,9 @@ Constructing a client directly (no factory)? Opt in explicitly:
 
 ```ts
 import { SemiontClient, HttpTransport, HttpContentTransport, baseUrl as brandBaseUrl, personKey } from '@semiont/sdk';
+import { BRIDGED_CHANNELS } from '@semiont/core';
 
-const raw = new HttpTransport({ baseUrl: brandBaseUrl('http://localhost:4000'), token$ });
+const raw = new HttpTransport({ baseUrl: brandBaseUrl('http://localhost:4000'), channels: BRIDGED_CHANNELS, token$ });
 const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
   cachePersistence: { storage, kbId, personKey: personKey(did) },
 });

@@ -122,15 +122,16 @@ The session factory owns the load-bearing "same `BehaviorSubject` instance flows
 
 ### Manual construction (advanced)
 
-When you need direct control of `token$`, an alternate transport, or to inject a `tokenRefresher` callback at the transport level (it is told the token the gateway refused), construct each piece by hand:
+When you need direct control of `token$`, an alternate transport, or to inject a `tokenRefresher` callback at the transport level (it is told the token the gateway refused), construct each piece by hand. A transport assumes no channels of its own: a full client gives it `BRIDGED_CHANNELS`.
 
 ```typescript
 import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
 import { baseUrl, accessToken, type AccessToken } from '@semiont/sdk';
+import { BRIDGED_CHANNELS } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('your-jwt'));
-const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), token$ });
+const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), channels: BRIDGED_CHANNELS, token$ });
 // HttpTransport implements both ITransport and IGatewayOperations; passing it
 // as the third arg wires `client.auth` and `client.system`. Non-HTTP transports
 // implement only ITransport — omit the third arg and `client.auth` / `.system`
@@ -810,10 +811,12 @@ if (error instanceof APIError) {
 import { HttpTransport, HttpContentTransport } from '@semiont/sdk';
 import { SemiontClient } from '@semiont/sdk';
 import { baseUrl, type AccessToken } from '@semiont/sdk';
+import { BRIDGED_CHANNELS } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 
 const transport = new HttpTransport({
   baseUrl: baseUrl('http://localhost:4000'),
+  channels: BRIDGED_CHANNELS,
   token$: new BehaviorSubject<AccessToken | null>(null),
   logger,    // Logger instance: winston / pino / etc.
 });
