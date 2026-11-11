@@ -318,7 +318,10 @@ public sealed class CensusAnalyzer : DiagnosticAnalyzer
             IsType(owner, "System.Threading.Tasks", "Parallel") ||
             IsType(owner, "System.Threading", "CancellationTokenSource") && method.Name == "CancelAsync" ||
             IsType(owner, "System.Threading.Channels", "ChannelReader") && method.Name == "ReadAllAsync" ||
-            IsType(owner, "System.Threading.Tasks", "ValueTask") && method.Name == "AsTask")
+            IsType(owner, "System.Threading.Tasks", "ValueTask") && method.Name == "AsTask" ||
+            // A semaphore's WaitAsync() hands back the waiter itself, which the release completes. With a token or a
+            // timeout, the BCL waits for the release through the thread pool.
+            IsType(owner, "System.Threading", "SemaphoreSlim") && method.Name == "WaitAsync" && method.Parameters.Length > 0)
         {
             ReportSpawning(context, spawning);
         }

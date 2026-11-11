@@ -129,7 +129,7 @@ public static class LauncherDiscovery
 
         public async Task<DiscoveryRead> ReadAsync(CancellationToken cancellation = default)
         {
-            await turn.WaitAsync(cancellation).ConfigureAwait(Spawning.Captures);
+            await Spawning.WaitAsync(turn, cancellation).ConfigureAwait(Spawning.Captures);
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);

@@ -85,6 +85,15 @@ internal static class Spawning
     internal static Task<T> WaitAsync<T>(Task<T> task, CancellationToken cancellation) =>
         Captures ? WaitOnCase(task, cancellation) : task.WaitAsync(cancellation);
 
+    /// <summary>
+    /// A turn of <paramref name="turn"/>, or its cancellation by <paramref name="cancellation"/> if that comes first. The
+    /// BCL waits out a contended turn with a token that can be cancelled through the thread pool. On a case, the wait
+    /// takes the uncancellable form, which is completed by the release that grants the turn and is awaited there. A
+    /// turn granted before the cancellation is kept, as the BCL keeps it, and one granted after is given back.
+    /// </summary>
+    internal static Task WaitAsync(SemaphoreSlim turn, CancellationToken cancellation) =>
+        Captures ? TurnOnCase(turn, cancellation) : turn.WaitAsync(cancellation);
+
     /// <summary>Parallel.ForEachAsync, whose workers, on a case, are scheduled on the case's context.</summary>
     internal static Task ForEachAsync<T>(IEnumerable<T> source, ParallelOptions options, Func<T, CancellationToken, ValueTask> body)
     {
@@ -162,6 +171,27 @@ internal static class Spawning
             await Ended(task);
             registration.Dispose();
             waited.TrySetFromTask(task);
+        }
+    }
+
+    private static Task TurnOnCase(SemaphoreSlim turn, CancellationToken cancellation)
+    {
+        if (cancellation.IsCancellationRequested) return Task.FromCanceled(cancellation);
+        var granted = turn.WaitAsync();
+        if (granted.IsCompleted || !cancellation.CanBeCanceled) return granted;
+        var waited = new TaskCompletionSource();
+        var registration = cancellation.Register(() =>
+        {
+            if (!granted.IsCompleted) waited.TrySetCanceled(cancellation);
+        });
+        _ = Relay(turn, granted, waited, registration);
+        return waited.Task;
+
+        static async Task Relay(SemaphoreSlim turn, Task granted, TaskCompletionSource waited, CancellationTokenRegistration registration)
+        {
+            await Ended(granted);
+            registration.Dispose();
+            if (!waited.TrySetResult()) turn.Release();
         }
     }
 

@@ -122,7 +122,8 @@ public sealed class CensusTests
     [InlineData("public static System.Threading.Tasks.Task Both(System.Threading.Tasks.Task one, System.Threading.Tasks.Task other) => Semiont.Spawning.WhenAll(one, other);")]
     [InlineData("public static System.Threading.Tasks.Task Wait(System.Threading.Tasks.Task work, System.Threading.CancellationToken cancellation) => Semiont.Spawning.WaitAsync(work, cancellation);")]
     [InlineData("public static System.Threading.Tasks.TaskCompletionSource Completion() => new(Semiont.Spawning.CompletionOptions);")]
-    [InlineData("public static System.Threading.Tasks.Task Turn(System.Threading.SemaphoreSlim turn, System.Threading.CancellationToken cancellation) => turn.WaitAsync(cancellation);")]
+    [InlineData("public static System.Threading.Tasks.Task Turn(System.Threading.SemaphoreSlim turn, System.Threading.CancellationToken cancellation) => Semiont.Spawning.WaitAsync(turn, cancellation);")]
+    [InlineData("public static System.Threading.Tasks.Task Turn(System.Threading.SemaphoreSlim turn) => turn.WaitAsync();")]
     public async Task SpawningFormsHaveNoCensusDiagnostic(string member) => Assert.Empty(await BesideTheSeamAsync(member));
 
     [Fact]

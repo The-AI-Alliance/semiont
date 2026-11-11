@@ -285,7 +285,7 @@ public sealed partial class HttpTransport : IDisposable
         var ownsTurn = false;
         try
         {
-            await sendOrder.WaitAsync(linked.Token).ConfigureAwait(Spawning.Captures);
+            await Spawning.WaitAsync(sendOrder, linked.Token).ConfigureAwait(Spawning.Captures);
             ownsTurn = true;
             Task open;
             lock (gate) { open = attached.Task; }

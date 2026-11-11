@@ -243,7 +243,7 @@ public abstract class HeldJob : IHeldJob
 
     private async Task WhileHeldAsync(Func<Task> action, CancellationToken cancellation)
     {
-        await turn.WaitAsync(cancellation).ConfigureAwait(Spawning.Captures);
+        await Spawning.WaitAsync(turn, cancellation).ConfigureAwait(Spawning.Captures);
         try
         {
             RequireHeld();

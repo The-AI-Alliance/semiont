@@ -190,7 +190,7 @@ internal sealed class KeptSession : IDisposable
 
     private async Task StartAsync()
     {
-        await operations.WaitAsync(lifetime.Token).ConfigureAwait(Spawning.Captures);
+        await Spawning.WaitAsync(operations, lifetime.Token).ConfigureAwait(Spawning.Captures);
         try
         {
             var found = await kept.HeldAsync(lifetime.Token).ConfigureAwait(Spawning.Captures);
@@ -230,7 +230,7 @@ internal sealed class KeptSession : IDisposable
     private async Task<string?> RefusedAsync(string? refused)
     {
         await ready.ConfigureAwait(Spawning.Captures);
-        await operations.WaitAsync(lifetime.Token).ConfigureAwait(Spawning.Captures);
+        await Spawning.WaitAsync(operations, lifetime.Token).ConfigureAwait(Spawning.Captures);
         try
         {
             if (ended) return null;
@@ -273,7 +273,7 @@ internal sealed class KeptSession : IDisposable
                 await Spawning.CancelAsync(waiting).ConfigureAwait(Spawning.Captures);
                 if (completed != timer) continue;
                 await timer.ConfigureAwait(Spawning.Captures);
-                await operations.WaitAsync(lifetime.Token).ConfigureAwait(Spawning.Captures);
+                await Spawning.WaitAsync(operations, lifetime.Token).ConfigureAwait(Spawning.Captures);
                 try
                 {
                     if (ended) return;
