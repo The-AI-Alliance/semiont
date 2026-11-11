@@ -63,7 +63,7 @@ table refreshes only the client's caches, so a host invalidates its own.
 | **Entry** | The current value (or absence) associated with a key. |
 | **Observer** | A caller who holds the `Observable<CacheState<V>>` returned from a live-query method (e.g. `browse.resource(id)`). Observers receive the current state and every subsequent change. |
 | **Fetch** | An async operation (via `Bus.request`) that produces a value to store. |
-| **In-flight** | A fetch whose promise has not settled. Each key may have at most one in-flight fetch at a time. |
+| **In-flight** | The key's current fetch, until its promise settles. Each key has at most one. An invalidate replaces it (B9), and a fetch it replaced is in flight no more. |
 | **Invalidate** | A caller-initiated signal that the cache entry is out of date and must be refetched. |
 | **SWR** | Stale-while-revalidate. The entry continues to be served to observers while the refetch is in flight. When the refetch returns, observers see the new value (or keep seeing the stale one if the refetch failed). |
 
@@ -185,9 +185,11 @@ EMISSION, not absorbed into eternal `pending`.
 
 `invalidate(key)` MUST:
 
-1. Clear the in-flight guard for `key` (so an orphaned fetch doesn't
-   block the refetch; see B9).
-2. Trigger a fresh fetch.
+1. Let go of the key's in-flight fetch, so an orphaned fetch doesn't
+   block the refetch (B9).
+2. Trigger a fresh fetch. From that same step on, it is the key's in-flight
+   fetch, so a reader of whether the key is fetching finds the one or the
+   other, never neither (B17).
 3. NOT write to the store. The existing value (if any) remains
    visible to observers until the refetch resolves.
 
@@ -218,16 +220,17 @@ old value until the request's 30-second timeout fired: a
 retention makes orphaned in-flight replies rare; B9 holds
 regardless, because it is about not trusting an in-flight guard.)
 
-The cost is that two in-flight fetches for the same key can exist
-briefly. Semantics: whichever resolves first writes its result;
-whichever resolves second overwrites. "Last-write-wins" for two
-legitimate fetches, which is acceptable because either value is
-at least as fresh as what was cached before. In the orphaned case,
-only the second fetch resolves, and it writes the correct value.
+The fetch an invalidate replaces is let go of. It is in flight no more,
+and its reply, whenever it comes, answers whoever awaited that fetch but
+is not stored: only the key's newest fetch writes. So a late reply can
+never put back a value older than the one a newer fetch wrote, and a
+fetch that never answers holds nothing back (B17). In the orphaned case,
+only the newest fetch resolves, and it writes the correct value. A fetch
+that a removal let go of (B13a) is not stored either.
 
 Implementation detail: this is why `invalidate` and `invalidateAll`
-in `createCache` delete the key's `inflight` entry before starting the
-fetch.
+in `createCache` replace the key's `inflight` entry with the new fetch,
+and a fetch writes its value only while it is still that entry.
 
 ### B10 — Multiple keys are independent
 
@@ -281,8 +284,10 @@ Boundaries:
    rejection and owns retry policy.
 2. The retry joins any in-flight fetch another caller has started in the
    meantime (B3 dedup); it never duplicates.
-3. An invalidate during a retry chain disowns it (B9) — the chain's
-   late success may still write (last-write-wins, same as B9).
+3. An invalidate during a retry chain disowns it (B9). The chain's late
+   success answers its own callers but is not stored.
+4. The retry is asked in the step that settles the failed fetch, so no
+   reader finds the key at rest between the two asks (B17).
 
 Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
 (`assertLivenessAxioms` from `@semiont/core/testing/axioms`) — L2's settlement bound on the swallowed
@@ -603,7 +608,7 @@ Some bus events say the underlying entity no longer exists
 (`mark:removed`, `mark:delete-ok`). For these the key is **ended**, not
 invalidated:
 
-1. Clear the in-flight guard.
+1. Let go of the key's in-flight fetch. Its reply is not stored (B9).
 2. The key's state becomes `failed`, with the code `bus.not-found`, for
    every observer of it. It goes there straight from `ready`: there is no
    `pending` between, because no request stands behind a removal.

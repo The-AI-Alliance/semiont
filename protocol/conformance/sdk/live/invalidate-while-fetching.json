@@ -1,5 +1,5 @@
 {
-  "about": "an invalidation while a request for the key is unanswered makes a new request rather than waiting on the old; each answer that comes is written, the later over the earlier (B9)",
+  "about": "an invalidation while a request for the key is unanswered makes a new request rather than waiting on the old; only the new request's answer is written, and the old one's, coming later, is not (B9)",
   "source": "protocol/contract/CACHE-SEMANTICS.md B9",
   "tier": "parity",
   "steps": [
@@ -15,7 +15,7 @@
     {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"resource": {"$var": "two"}, "lastSequence": 1}}}},
     {"reaches": "a", "state": {"status": "ready", "value": {"$var": "two"}}},
     {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "lastSequence": 1}}}},
-    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "one"}}},
-    {"quiet": 300}
+    {"quiet": 300},
+    {"holds": "a", "state": {"status": "ready", "value": {"$var": "two"}}}
   ]
 }
