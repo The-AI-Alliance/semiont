@@ -13,8 +13,8 @@ import { GitStatusSection, type GitCheck } from './GitStatusSection';
 import { KnowledgeBaseServiceControls } from './KnowledgeBaseServiceControls';
 import type { KnowledgeBaseRow } from './KnowledgeBasesModal';
 
-type KnowledgeBaseServiceModal = 'gateway-archivist' | 'dispatcher-messaging';
-export type DesktopServiceGroup = Extract<ControlServiceGroup, 'index' | 'knowledge-workers' | 'issuer'> | 'browser' | KnowledgeBaseServiceModal;
+type KnowledgeBaseServiceModal = 'gateway-archivist' | 'dispatcher-messaging' | 'index';
+export type DesktopServiceGroup = Extract<ControlServiceGroup, 'knowledge-workers' | 'issuer'> | 'browser' | KnowledgeBaseServiceModal;
 type Action = 'start' | 'stop';
 interface ServiceRow {
   key: string;
@@ -35,7 +35,7 @@ const GROUP_TITLES: Record<DesktopServiceGroup, string> = {
 const GROUP_DESCRIPTIONS: Record<DesktopServiceGroup, string> = {
   'gateway-archivist': 'Gateway and Archivist status, stack controls, logs, and Git for this knowledge base.',
   'dispatcher-messaging': 'Dispatcher and Messaging status for this knowledge base.',
-  index: 'Index services for search, extraction, graph, and vector data.',
+  index: 'Services configured to build and query this knowledge base’s index.',
   'knowledge-workers': 'Shared workers that process jobs for knowledge bases on this machine.',
   browser: 'The shared Browser service for knowledge bases on this machine.',
   issuer: 'Identity services and their stores, listed for each knowledge base.',
@@ -167,7 +167,7 @@ function SnapshotServices({
   pending: { key: string; action: Action } | null;
 }) {
   const rows = rowsForGroup(snapshot, group, selectedRootPath);
-  const knowledgeBaseServiceModal = isKnowledgeBaseServiceModal(group);
+  const knowledgeBaseServiceModal = isKnowledgeBaseScopedServiceModal(group);
   if (knowledgeBaseServiceModal && selectedRootPath === null) {
     return (
       <>
@@ -271,13 +271,19 @@ function rowsForGroup(
   group: DesktopServiceGroup,
   selectedRootPath: string | null,
 ): ServiceRow[] {
-  if (isKnowledgeBaseServiceModal(group)) {
+  if (isKnowledgeBaseScopedServiceModal(group)) {
     const kb = snapshot.knowledgeBases.find((item) => item.root === selectedRootPath);
     if (kb === undefined) return [];
-    const roles: readonly string[] = group === 'gateway-archivist'
-      ? ['gateway', 'archivist']
-      : ['dispatcher', 'messaging'];
-    return kb.services.filter((service) => service.group === 'record' && roles.includes(service.role)).map((service) => {
+    const services = group === 'index'
+      ? servicesForKnowledgeBase(snapshot, kb)
+        .filter((service) => service.group === 'index' && service.state !== 'not-configured')
+      : kb.services.filter((service) => {
+        const roles: readonly string[] = group === 'gateway-archivist'
+          ? ['gateway', 'archivist']
+          : ['dispatcher', 'messaging'];
+        return service.group === 'record' && roles.includes(service.role);
+      });
+    return services.map((service) => {
       const target = targetFor(kb);
       return {
         key: `${kb.key}/${service.role}`,
@@ -321,8 +327,17 @@ function rowsForGroup(
     }));
 }
 
-function isKnowledgeBaseServiceModal(group: DesktopServiceGroup): group is KnowledgeBaseServiceModal {
-  return group === 'gateway-archivist' || group === 'dispatcher-messaging';
+function isKnowledgeBaseScopedServiceModal(group: DesktopServiceGroup): group is KnowledgeBaseServiceModal {
+  return group === 'gateway-archivist' || group === 'dispatcher-messaging' || group === 'index';
+}
+
+function servicesForKnowledgeBase(
+  snapshot: ControlStatusSnapshotResult,
+  kb: ControlKnowledgeBaseStatus,
+): ControlServiceStatus[] {
+  const ownRoles = new Set(kb.services.map((service) => service.role));
+  const shared = snapshot.shared.filter((service) => service.serves?.includes(kb.name) && !ownRoles.has(service.role));
+  return [...kb.services, ...shared];
 }
 
 function targetFor(kb: ControlKnowledgeBaseStatus): ControlTarget | undefined {

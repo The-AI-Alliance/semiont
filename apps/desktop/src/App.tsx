@@ -55,7 +55,7 @@ import {
   type McpProcessStatus,
 } from './lib/launcher-bridge';
 import type { OllamaInfo } from './lib/ollama-info';
-import type { ControlMethod, ControlProgress, ControlServiceStatus } from '../electron/control-types.gen';
+import type { ControlMethod, ControlProgress, ControlServiceGroup, ControlServiceStatus } from '../electron/control-types.gen';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -234,7 +234,7 @@ export function App() {
 
   const openServiceGroup = useCallback((group: DesktopServiceGroup, selectedRootPath: string | null) => {
     setServiceGroup(group);
-    askSnapshot((group === 'gateway-archivist' || group === 'dispatcher-messaging') && selectedRootPath !== null
+    askSnapshot((group === 'gateway-archivist' || group === 'dispatcher-messaging' || group === 'index') && selectedRootPath !== null
       ? { target: { kind: 'local', root: selectedRootPath } }
       : {});
     if (group === 'gateway-archivist') {
@@ -251,7 +251,7 @@ export function App() {
     }
   }, [askSnapshot]);
   const refreshServiceStatus = useCallback((selectedRootPath: string | null) => {
-    askSnapshot((serviceGroup === 'gateway-archivist' || serviceGroup === 'dispatcher-messaging') && selectedRootPath !== null
+    askSnapshot((serviceGroup === 'gateway-archivist' || serviceGroup === 'dispatcher-messaging' || serviceGroup === 'index') && selectedRootPath !== null
       ? { target: { kind: 'local', root: selectedRootPath } }
       : {});
   }, [askSnapshot, serviceGroup]);
@@ -942,6 +942,11 @@ export function App() {
       ? null
       : knowledgeBaseRows.find((root) => [root.configuredUri, root.gatewayUrl].some((uri) => uri !== undefined && normalizeGatewayUri(uri) === normalizeGatewayUri(activeKbUri))) ?? null;
   const activeLocalRootPath = activeKnowledgeBaseRoot?.path ?? null;
+  const configuredServiceGroups = new Set<ControlServiceGroup>(
+    activeKnowledgeBaseRoot?.services
+      ?.filter((service) => service.state !== 'not-configured')
+      .map((service) => service.group) ?? [],
+  );
   const activeKbConnected = activeRootPath !== null
     ? activeKnowledgeBaseRoot?.activeSessionUri !== undefined
     : activeConn?.opened !== undefined;
@@ -975,6 +980,7 @@ export function App() {
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
             hasActiveKbTab={activeKbTabUri !== null}
+            hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
             connections={connections}
             sessions={sessions}
             // doc and chat coexist now — both rows light up when both are live

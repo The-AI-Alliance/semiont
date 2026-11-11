@@ -16,6 +16,7 @@ export interface KbNavProps {
   kbs: KbEntry[];
   hasLocalRootTab: boolean;
   hasActiveKbTab: boolean;
+  hasConfiguredIndex: boolean;
   connections: Record<string, KbConnection>;
   sessions: AppChatSession[];
   activeSessionId: string | null;
@@ -66,12 +67,12 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
+      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} hasConfiguredIndex={props.hasConfiguredIndex} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
     </nav>
   );
 }
 
-function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
+function SemiontMenu({ hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'hasConfiguredIndex' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -122,12 +123,12 @@ function SemiontMenu({ hasActiveKbTab, onOpenKnowledgeBase, onOpenKnowledgeBaseU
                   <button type="button" onClick={() => choose(onOpenKnowledgeBaseUsers)}><WorkersIcon /><span>Users</span></button>
                   <button type="button" onClick={() => choose(() => onOpenServiceGroup('gateway-archivist'))}><RecordIcon /><span>Gateway &amp; Archivist</span></button>
                   <button type="button" onClick={() => choose(() => onOpenServiceGroup('dispatcher-messaging'))}><RecordIcon /><span>Dispatcher &amp; Messaging</span></button>
+                  {hasConfiguredIndex && <button type="button" onClick={() => choose(() => onOpenServiceGroup('index'))}><IndexIcon /><span>Index</span></button>}
                 </section>
               )}
               <section className="semiont-menu__group" aria-labelledby="semiont-menu-shared">
                 <h2 id="semiont-menu-shared">Shared, Local Services</h2>
                 <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
-                <button type="button" onClick={() => choose(() => onOpenServiceGroup('index'))}><IndexIcon /><span>Index</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('browser'))}><BrowserIcon /><span>Browser</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('issuer'))}><IdentityIcon /><span>Identity &amp; Stores</span></button>
