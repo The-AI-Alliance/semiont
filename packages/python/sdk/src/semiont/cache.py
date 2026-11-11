@@ -339,6 +339,15 @@ class Cache[K: Hashable, V](StateUnit):
         """
         return self._persister is not None and (self._owed or self._fetch_in_flight())
 
+    @property
+    def kept_fetching(self) -> bool:
+        """Whether a cache that keeps its values has a fetch in flight: what a disposal drops.
+
+        A fetch is in flight from when it is asked for, before its first turn,
+        until its answer is written, in the same turn, or it fails.
+        """
+        return self._persister is not None and self._fetch_in_flight()
+
     def invalidate(self, key: K) -> None:
         """The key's value is out of date: ask again, showing what there is meanwhile.
 

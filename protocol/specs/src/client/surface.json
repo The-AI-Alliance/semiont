@@ -922,6 +922,19 @@
           "member": "persistencePending"
         },
         {
+          "member": "keptFetching",
+          "absent": {
+            "typescript": "TypeScript's is PersistableCache.fetching, which the SDK does not export: the client that makes a cache reads it as its disposal seals the stream's places.",
+            "rust": "Rust's is pub(crate), the fetching of the persistence a cache reports: the client reads it as its close seals the stream's places.",
+            "go": "Go's is unexported: the client reads it as its Close seals the stream's places.",
+            "kotlin": "Kotlin's is internal (keptFetchInFlight): the client reads it as its close seals the stream's places.",
+            "swift": "A Swift cache counts each fetch in the work under way of what keeps its values, given when it is made, and its client reads that count.",
+            "csharp": "C#'s is internal (Cache.Fetching): its client's CachePersistence reads it as it seals the stream's places.",
+            "haskell": "Haskell's is in the internal library (Semiont.Internal.Cache.fetching): the client reads it as its close seals the stream's places.",
+            "ocaml": "OCaml's client keeps no stream places beside its caches, so its close asks no cache whether it is fetching."
+          }
+        },
+        {
           "member": "attach",
           "absent": {
             "typescript": "TypeScript's client gives a cache what keeps its values through createPersistableCache, which the SDK does not export.",

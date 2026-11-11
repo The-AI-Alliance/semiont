@@ -8,15 +8,14 @@ What each query's cache holds is the type `protocol/specs/src/client/refresh.jso
 `value` names for it (`CACHE_VALUES`), and what a kept query's document keeps.
 """
 
-import asyncio
-from collections.abc import Coroutine, Hashable, Mapping
+from collections.abc import Hashable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Final, NamedTuple, TypeAliasType, final, override
+from typing import Final, NamedTuple, TypeAliasType, final
 
 from pydantic import TypeAdapter
 
-from semiont.cache import Cache, Runs
+from semiont.cache import Cache
 from semiont.cached import Cached, Source
 from semiont.errors import BusRequestError, SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
@@ -35,7 +34,7 @@ from semiont.operations import (
 )
 from semiont.refresh import CacheQuery, CacheRefreshWhen
 from semiont.storage import SessionStorage, StoragePersister
-from semiont.stored import KEPT_QUERIES, WHOLE_KEY, KeptQuery, WholeKey, cache_key
+from semiont.stored import WHOLE_KEY, KeptQuery, WholeKey, cache_key
 from semiont.timing import MAX_STORED_BYTES_COUNT
 from semiont.transport import ContentTransport
 from semiont.types import (
@@ -156,29 +155,6 @@ class KeptPersisters:
         self.tag_schemas: Final = _persister(persistence, "tagSchemas", _WHOLE_KEY, TypeAdapter[TagSchemasValue](TagSchemasValue))
 
 
-@final
-class _Counted(Runs):
-    """What runs the fetches of the caches a client keeps, and how many of its tasks have not ended.
-
-    A task is counted from when a cache starts it, before its first turn: a
-    fetch just asked for is running, though it has not yet begun.
-    """
-
-    def __init__(self, links: Links) -> None:
-        self._links: Final = links
-        self.running = 0
-
-    @override
-    def run[T](self, work: Coroutine[object, object, T]) -> asyncio.Task[T]:
-        task = self._links.run(work)
-        self.running += 1
-        task.add_done_callback(self._ended)
-        return task
-
-    def _ended(self, _: asyncio.Task[object]) -> None:
-        self.running -= 1
-
-
 class ResourceFilters(NamedTuple):
     """Which resources a list, or a search, is of, and which page of them."""
 
@@ -219,26 +195,22 @@ class Live:
         self._content: Final = content
         self._kept_true = False
         self._disposed = False
-        self._keeping = False
-        """Whether the kept queries' caches were given their persisters (`attach`)."""
-        self._kept_tasks: Final = _Counted(links)
-        """What runs the kept queries' caches' fetches."""
         self.annotation_of: Final[dict[AnnotationId, ResourceId]] = {}
         """The resource each annotation that was asked for is of: an annotation
         is kept by its own id, and a request for it names its resource too."""
 
-        self.resource: Final = Cache[ResourceId, ResourceValue](self._resource, tasks=self._runs("resource"))
-        self.lists: Final = Cache[ResourceFilters, ResourcesValue](self._list, tasks=self._runs("resources"))
-        self.annotations: Final = Cache[ResourceId, AnnotationsValue](self._annotations, tasks=self._runs("annotations"))
-        self.annotation: Final = Cache[AnnotationId, AnnotationValue](self._annotation, tasks=self._runs("annotation"))
-        self.entity_types: Final = Cache[WholeKey, EntityTypesValue](self._entity_types, tasks=self._runs("entityTypes"))
-        self.tag_schemas: Final = Cache[WholeKey, TagSchemasValue](self._tag_schemas, tasks=self._runs("tagSchemas"))
-        self.engines: Final = Cache[WholeKey, EnginesValue](self._engines, tasks=self._runs("engines"))
+        self.resource: Final = Cache[ResourceId, ResourceValue](self._resource, tasks=links)
+        self.lists: Final = Cache[ResourceFilters, ResourcesValue](self._list, tasks=links)
+        self.annotations: Final = Cache[ResourceId, AnnotationsValue](self._annotations, tasks=links)
+        self.annotation: Final = Cache[AnnotationId, AnnotationValue](self._annotation, tasks=links)
+        self.entity_types: Final = Cache[WholeKey, EntityTypesValue](self._entity_types, tasks=links)
+        self.tag_schemas: Final = Cache[WholeKey, TagSchemasValue](self._tag_schemas, tasks=links)
+        self.engines: Final = Cache[WholeKey, EnginesValue](self._engines, tasks=links)
         self.limits: Final = Cache[str, list[EngineLimits]](self._limits, tasks=links)
         """Each key holder's report of its engines' limits, by the operation that asks it."""
-        self.events: Final = Cache[ResourceId, EventsValue](self.events_of, tasks=self._runs("events"))
-        self.referenced_by: Final = Cache[ResourceId, ReferencedByValue](self._referenced_by, tasks=self._runs("referencedBy"))
-        self.searches: Final = Cache[ResourceSearch, MatchedResourcesValue](self._search, tasks=self._runs("matchedResources"))
+        self.events: Final = Cache[ResourceId, EventsValue](self.events_of, tasks=links)
+        self.referenced_by: Final = Cache[ResourceId, ReferencedByValue](self._referenced_by, tasks=links)
+        self.searches: Final = Cache[ResourceSearch, MatchedResourcesValue](self._search, tasks=links)
         self._caches: Final = (
             self.resource,
             self.lists,
@@ -264,11 +236,6 @@ class Live:
         self.annotation.attach(kept.annotation)
         self.entity_types.attach(kept.entity_types)
         self.tag_schemas.attach(kept.tag_schemas)
-        self._keeping = True
-
-    def _runs(self, query: CacheQuery) -> Runs:
-        """What runs the fetches of `query`'s cache: the counted tasks (`_kept_tasks`) for a query a client keeps."""
-        return self._kept_tasks if query in KEPT_QUERIES else self._links
 
     def query[T](self, source: Source[T]) -> Cached[T]:
         """A live query of this client, answered from `source`."""
@@ -390,13 +357,8 @@ class Live:
 
     @property
     def fetching_what_it_keeps(self) -> bool:
-        """Whether a cache the client keeps is fetching: what it would keep of that fetch, a disposal drops.
-
-        Read by the tasks those caches run, each counted from when it is
-        started until it has ended: a fetch let go of by an `invalidate`
-        still writes its answer, and is fetching too.
-        """
-        return self._keeping and self._kept_tasks.running > 0
+        """Whether a cache the client keeps has a fetch in flight, which a disposal drops (`Cache.kept_fetching`)."""
+        return any(cache.kept_fetching for cache in self._caches)
 
     def dispose(self) -> None:
         """End the queries: every watcher's states end, and what was owed to storage is saved."""
