@@ -49,7 +49,7 @@ import Testing
 @Test func dedupEvictsOnlyOutsideTheConfiguredWindow() {
   var ids = SeenEventIDs(capacity: 3)
   var actual: [Bool] = []
-  for id in ["e-a", "e-b", "p-c", "e-a", "e-d", "e-a"] { actual.append(ids.remember(id)) }
+  for id in ["e-a", "e-b", "p-c-3", "e-a", "e-d", "e-a"] { actual.append(ids.remember(id)) }
   #expect(actual == [true, true, true, false, true, true])
   var disabled = SeenEventIDs(capacity: 0)
   let first = disabled.remember("e-a")

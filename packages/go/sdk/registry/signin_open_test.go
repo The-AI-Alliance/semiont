@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -754,21 +755,97 @@ func denied(browser *registry.SemiontBrowser) *semiont.PermissionDenied {
 	return nil
 }
 
+// startedSessions is a factory written here, which reads none of its
+// sessions' errors: the registry is their one reader. Each session is over a
+// test client of its own; the gateway says who its token is as who says, and
+// cannot say when who is nil; each renewal gives renewed, and the token each
+// was handed is recorded. A session is handed back once it has started, so
+// what its start met is said before the registry reads it.
+type startedSessions struct {
+	who     *api.UserResponse
+	renewed string
+
+	mu         sync.Mutex
+	handed     []string
+	transports []*semionttest.FaultyTransport
+}
+
+func (f *startedSessions) Session(ctx context.Context, options registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
+	made := semionttest.NewTestClient(semionttest.TestClientConfig{Timing: semiont.DefaultTiming()})
+	f.mu.Lock()
+	f.transports = append(f.transports, made.Transport)
+	f.mu.Unlock()
+	session, err := semiont.StartSession(ctx, semiont.SessionConfig{
+		Kb:     api.KbTarget{Endpoint: options.Kb.Endpoint, Id: options.Kb.Id, Label: options.Kb.Label},
+		Client: made.Client,
+		Token:  semiont.NewVariable(""),
+		Kept:   registry.KeptIn(options.Storage, options.Kb.Id),
+		Refresh: func(_ context.Context, renewing string) (string, error) {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			f.handed = append(f.handed, renewing)
+			return f.renewed, nil
+		},
+		Validate: func(context.Context, string) (api.UserResponse, error) {
+			if f.who == nil {
+				return api.UserResponse{}, errors.New("the gateway cannot say who the token is")
+			}
+			return *f.who, nil
+		},
+		OnAuthFailed: options.Signals.NotifySessionEnded,
+		Timing:       semiont.DefaultTiming(),
+	})
+	if err != nil {
+		made.Client.Close()
+		made.Transport.Close()
+		return nil, nil, err
+	}
+	end := func() {
+		made.Client.Close()
+		session.Close()
+		made.Transport.Close()
+	}
+	if err := session.Ready(ctx); err != nil {
+		end()
+		return nil, nil, err
+	}
+	return session, end, nil
+}
+
+func (*startedSessions) Revoke(context.Context, registry.StoredSession) {}
+
+// renewals is the token each renewal was handed, in order.
+func (f *startedSessions) renewals() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.handed)
+}
+
+// last is the transport of the session built last.
+func (f *startedSessions) last() *semionttest.FaultyTransport {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.transports[len(f.transports)-1]
+}
+
+// A refusal for want of a valid token that a renewal answers leaves the
+// session signed in, on the renewed token, with its credential still stored.
+// That the renewal is handed the token the session held is the case table's
+// (registry_errors_cases_test.go).
 func TestARefusalForWantOfATokenRenewsTheSessionQuietlyWhenItCan(t *testing.T) {
 	bubble(t, func(t *testing.T, w *world) {
 		w.with(kbOfA())
-		renewed := jwt(2 * time.Hour)
-		w.factory.sessions.QueueRenewals(semionttest.Renewal{Token: renewed})
-		browser := w.browser()
+		person := alice()
+		sessions := &startedSessions{who: &person, renewed: jwt(2 * time.Hour)}
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: sessions})
+		must(t, err)
+		closedAtTheEnd(t, browser)
 		session := live(t, browser)
 
-		w.factory.sessions.Transports(kbA)[0].Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
+		sessions.last().Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
 		settle()
 
-		if renewals := w.factory.sessions.Renewed(); renewals != 1 {
-			t.Errorf("%d renewals were asked for", renewals)
-		}
-		if session.Token().Value() != renewed || sessionEnded(browser) != nil {
+		if session.Token().Value() != sessions.renewed || sessionEnded(browser) != nil {
 			t.Error("the session was not renewed quietly")
 		}
 		if _, ok := registry.StoredSessionOf(w.storage, kbA); !ok {
@@ -831,23 +908,62 @@ func TestARefusalWithNothingStoredIsBeingSignedOutAndNotAnExpiry(t *testing.T) {
 	})
 }
 
-func TestARefusalForLackOfPermissionIsSaidAndAnyOtherFailureIsNot(t *testing.T) {
+// What the case table's rows do not say of a session's transport failures
+// (registry_errors_cases_test.go holds what they do): a conflict is acted on
+// in no way, and no failure but a refusal of the session's token ends the
+// session, a refusal for lack of permission among them.
+func TestAConflictIsNotActedOnAndNoOtherFailureEndsTheSession(t *testing.T) {
 	bubble(t, func(t *testing.T, w *world) {
 		browser := w.with(kbOfA()).browser()
 		live(t, browser)
 		transport := w.factory.sessions.Transports(kbA)[0]
 
-		transport.Fail(refusal(semiont.TransportErrorCodeNotFound, 404))
 		transport.Fail(refusal(semiont.TransportErrorCodeConflict, 409))
-		transport.Fail(refusal(semiont.TransportErrorCodeError, 500))
-		transport.Fail(refusal(semiont.TransportErrorCodeUnavailable, 503))
 		settle()
 		if denied(browser) != nil || sessionEnded(browser) != nil || w.factory.sessions.Renewed() != 0 {
-			t.Error("a failure that is no refusal of a token or of permission was acted on")
+			t.Error("a conflict was acted on")
 		}
 
+		transport.Fail(refusal(semiont.TransportErrorCodeNotFound, 404))
+		transport.Fail(refusal(semiont.TransportErrorCodeError, 500))
+		transport.Fail(refusal(semiont.TransportErrorCodeUnavailable, 503))
 		transport.Fail(refusal(semiont.TransportErrorCodeForbidden, 403))
 		settle()
+		if denied(browser) == nil {
+			t.Fatal("the failures were not read: the refusal for lack of permission after them is not said")
+		}
+		if sessionEnded(browser) != nil {
+			t.Error("a failure that is no refusal of the session's token ended the session")
+		}
+	})
+}
+
+// forbiddenAtTheStart is a factory whose every session's transport is refused
+// for lack of permission before the session is handed back: at its start,
+// before the registry reads what it says.
+type forbiddenAtTheStart struct{ *semionttest.ScriptedSessions }
+
+func (f forbiddenAtTheStart) Session(ctx context.Context, options registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
+	session, end, err := f.ScriptedSessions.Session(ctx, options)
+	if err == nil {
+		transports := f.Transports(options.Kb.Id)
+		transports[len(transports)-1].Fail(refusal(semiont.TransportErrorCodeForbidden, 403))
+	}
+	return session, end, err
+}
+
+// A refusal for lack of permission that a session's start meets is said: the
+// registry is the one reader of its session's errors, and hears them from the
+// start.
+func TestARefusalForLackOfPermissionAtASessionsStartIsSaid(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: forbiddenAtTheStart{w.factory.sessions}})
+		must(t, err)
+		closedAtTheEnd(t, browser)
+		live(t, browser)
+		settle()
+
 		if got := denied(browser); got == nil || got.Detail == nil || *got.Detail != "HTTP 403" {
 			t.Errorf("the refusal said is %+v", got)
 		}
@@ -913,7 +1029,8 @@ func TestAKnowledgeBaseWhoseTokensTheStorageWillNotForgetIsNotRemoved(t *testing
 		storage := &refusing{SharedStorage: w.storage}
 		browser := w.browserOver(storage)
 		live(t, browser)
-		storage.deletes.Store(true)
+		// A stored sign-in is forgotten by one update of its key.
+		storage.updates.Store(true)
 
 		if err := browser.RemoveKb(kbA); !errors.Is(err, errFull) {
 			t.Fatalf("removing A says %v", err)
@@ -937,7 +1054,8 @@ func TestASignOutTheStorageWillNotKeepLeavesTheSessionAsItWas(t *testing.T) {
 		storage := &refusing{SharedStorage: w.storage}
 		browser := w.browserOver(storage)
 		live(t, browser)
-		storage.deletes.Store(true)
+		// A stored sign-in is forgotten by one update of its key.
+		storage.updates.Store(true)
 
 		if err := browser.SignOut(kbA); !errors.Is(err, errFull) {
 			t.Fatalf("signing out says %v", err)

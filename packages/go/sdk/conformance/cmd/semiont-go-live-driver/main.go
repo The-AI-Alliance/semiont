@@ -269,6 +269,11 @@ func timing(args protocol.Arguments) (semiont.Timing, error) {
 	return timing, nil
 }
 
+// conformancePerson is the person a client the suite opens keeps its caches
+// for: the suite asks no gateway who its token is, so every driver keeps them
+// for this one.
+const conformancePerson = "did:web:conformance.example:users:driver"
+
 // live is one client, and what the suite asked it to report.
 type live struct {
 	// storage is what a cache is kept in, across close and the next open: a
@@ -419,7 +424,7 @@ func (l *live) open(args protocol.Arguments) error {
 	failures := transport.Failures()
 	config := semiont.ClientConfig{Transport: transport, Content: semiont.NewHTTPContentTransport(transport), Gateway: transport, Timing: timing}
 	if persist {
-		config.Persistence = &semiont.CachePersistence{Storage: l.storage, KeyPrefix: "conformance"}
+		config.Persistence = &semiont.CachePersistence{Storage: l.storage, KbID: "conformance", PersonKey: semiont.PersonKey(conformancePerson)}
 	}
 	c := semiont.NewClient(config)
 	l.mu.Lock()

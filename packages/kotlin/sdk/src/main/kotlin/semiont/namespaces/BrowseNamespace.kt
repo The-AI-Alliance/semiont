@@ -21,6 +21,7 @@ import semiont.cache.shown
 import semiont.channels.Channels
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.registry.WHOLE_KEY
 import semiont.resources.decodeRepresentation
 import semiont.transport.Content
 import semiont.transport.ContentStream
@@ -65,13 +66,13 @@ private fun joined(engines: List<EngineEntry>, reported: List<EngineLimits>): Li
  */
 private class Engines(private val live: Live) : Source<List<EngineWithLimits>> {
     override suspend fun fresh(): List<EngineWithLimits> = coroutineScope {
-        val engines = async(start = CoroutineStart.UNDISPATCHED) { live.engines.fetch(WHOLE) }
+        val engines = async(start = CoroutineStart.UNDISPATCHED) { live.engines.fetch(WHOLE_KEY) }
         val reports = LIMITS_HOLDERS.map { async(start = CoroutineStart.UNDISPATCHED) { live.limits.fetch(it) } }
         joined(engines.await(), reports.awaitAll().flatten())
     }
 
     override fun watch(): Flow<CacheState<List<EngineWithLimits>>> {
-        val engines = live.engines.observe(WHOLE)
+        val engines = live.engines.observe(WHOLE_KEY)
         // A holder's report is pending, then what it reported: it never fails (`Live`).
         val reports = LIMITS_HOLDERS.map { holder ->
             live.limits.observe(holder).runningFold(emptyList<EngineLimits>()) { reported, state -> (state as? CacheState.Ready)?.value ?: reported }
@@ -105,7 +106,7 @@ public class BrowseNamespace internal constructor(private val links: Links, priv
      */
     @JvmOverloads
     public fun resources(limit: Long = LIST_LIMIT, offset: Long = 0, archived: Boolean? = null, entityType: String? = null): Cached<ListResourcesResponse> =
-        live.query(Keyed(live.lists, ResourceFilters(limit, offset, archived, entityType), { it }))
+        live.query(Keyed(live.resources, ResourceFilters(limit, offset, archived, entityType), { it }))
 
     /** A resource's annotations: a live query. */
     @JvmExposeBoxed
@@ -119,10 +120,10 @@ public class BrowseNamespace internal constructor(private val links: Links, priv
     }
 
     /** The knowledge base's entity types: a live query. */
-    public fun entityTypes(): Cached<List<String>> = live.query(Keyed(live.entityTypes, WHOLE, { it }))
+    public fun entityTypes(): Cached<List<String>> = live.query(Keyed(live.entityTypes, WHOLE_KEY, { it }))
 
     /** The knowledge base's tag schemas: a live query. */
-    public fun tagSchemas(): Cached<List<TagSchema>> = live.query(Keyed(live.tagSchemas, WHOLE, { it }))
+    public fun tagSchemas(): Cached<List<TagSchema>> = live.query(Keyed(live.tagSchemas, WHOLE_KEY, { it }))
 
     /** The knowledge base's engines, with each engine's limits as the services holding its provider's credentials report them: a live query. */
     public fun engines(): Cached<List<EngineWithLimits>> = live.query(Engines(live))

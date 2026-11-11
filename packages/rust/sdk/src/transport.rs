@@ -105,9 +105,22 @@ pub struct TraceCarrier {
     pub tracestate: Option<String>,
 }
 
-/// A frame as a transport delivers it: its envelope, its payload, and the
-/// trace it was sent under, when it carried one. The payload carries no
-/// routing and no trace.
+/// Where on the stream a frame was delivered: the resource scope it came
+/// on, and the id the stream gave it. A recorded event's id
+/// (`crate::resume::is_persisted_event_id`) is the scope's place, which a
+/// client notes once it has taken the frame in (`crate::resume`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamId {
+    pub scope: ResourceId,
+    pub event_id: String,
+}
+
+/// A frame as a transport delivers it: its envelope, its payload, the trace
+/// it was sent under, when it carried one, and where on the stream it was
+/// delivered, when the stream gave it an id on a resource's scope. The
+/// payload carries no routing and no trace. A frame a transport publishes
+/// into a client's own bus keeps its `stream_id`, though it is published
+/// there globally.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Frame {
     pub channel: String,
@@ -115,6 +128,7 @@ pub struct Frame {
     pub correlation_id: Option<String>,
     pub scope: Option<ResourceId>,
     pub trace: Option<TraceCarrier>,
+    pub stream_id: Option<StreamId>,
 }
 
 /// Why a value is refused at a member, as every SDK finds a value's first
@@ -759,6 +773,7 @@ mod tests {
             correlation_id: correlation_id.map(str::to_owned),
             scope: None,
             trace: None,
+            stream_id: None,
         }
     }
 

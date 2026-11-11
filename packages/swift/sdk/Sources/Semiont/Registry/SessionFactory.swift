@@ -4,7 +4,6 @@ public struct SessionFactoryOptions: Sendable {
   public let kb: KnowledgeBase
   public let storage: any SessionStorage
   public let signals: SessionSignals
-  public let onError: @Sendable (SessionError) -> Void
 }
 
 public protocol SessionFactory: Sendable {
@@ -31,8 +30,7 @@ public struct HttpSessionFactory: SessionFactory {
     return try await sessionFromKept(
       kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label),
       kept: keptIn(options.storage, kbId: kb.id), httpClient: httpClient,
-      onAuthFailed: options.signals.notifySessionEnded, onError: options.onError,
-      persistence: CachePersistence(storage: options.storage, keyPrefix: kb.id), clock: clock,
+      onAuthFailed: options.signals.notifySessionEnded, storage: options.storage, clock: clock,
       random: random)
   }
 

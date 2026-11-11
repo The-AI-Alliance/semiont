@@ -3,25 +3,37 @@
 
 """What a registry of knowledge bases keeps in a `SessionStorage` (`protocol/specs/src/session/stored.json`):
 the key each thing it keeps is kept under, the shape of a knowledge base's
-stored session, and the shape of a resource open in one.
+stored session, and the shape of a resource open in one. And what the
+sessions it makes keep there: which queries, and the stream's places.
 """
 
-from typing import Annotated, Final, final
+from typing import Annotated, Final, Literal, final
 
 from pydantic import Field
 
+from semiont._digest import base64url_sha256
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel
+from semiont.types import PersistedEventId
 
 __all__ = [
     "ACTIVE_KEY",
+    "CACHE_DOCUMENT_VERSION",
+    "KEPT_QUERIES",
     "KNOWLEDGE_BASES_KEY",
     "LAST_VIEWED_RESOURCE_BY_KB_KEY",
     "OPEN_RESOURCES_BY_KB_KEY",
     "PENDING_AUTHORIZATION_KEY",
+    "WHOLE_KEY",
+    "KeptQuery",
+    "LastEventIds",
     "OpenResource",
     "StoredSession",
+    "WholeKey",
+    "cache_key",
     "kb_of_session_key",
+    "last_event_id_key",
+    "person_key",
     "session_key",
 ]
 
@@ -59,26 +71,79 @@ def kb_of_session_key(key: str) -> str | None:
     return key.removeprefix(_SESSION_KEY_PREFIX) if key.startswith(_SESSION_KEY_PREFIX) else None
 
 
-# Where a knowledge base's stream was is kept under this followed by the knowledge base's id: a
-# JSON object from a scope, a resource's id, to the id of the last recorded event delivered on
-# it. It is written only with a write of the caches kept beside it, so it never leads them.
+# Where a knowledge base's stream was, for one person, is kept under this followed by the
+# knowledge base's id, a dot and the person's key: the unpadded base64url SHA-256 of the UTF-8
+# of the did the gateway answers for the person's token (components/schemas/UserResponse.json),
+# never the did itself. What is kept is `lastEventIds`. It is written in the same call as a
+# write of one of the caches kept beside it, and only while every kept cache has no fetch in
+# flight and owes no save, and the refresher owes no refetch (a window of B19,
+# protocol/contract/CACHE-SEMANTICS.md, that holds an invalidation it has not yet run); so it
+# never leads them. Its own write is never a reason to write a cache. At disposal this is read
+# once, before any kept cache or the refresher is disposed. Nothing is kept for a token whose
+# person the gateway has not named, and forgetting the knowledge base's stored sign-in, however
+# it is forgotten, deletes it.
 _LAST_EVENT_ID_KEY_PREFIX: Final = "semiont.lastEventId."
 
 
-def last_event_id_key(kb_id: str) -> str:
-    """The key a knowledge base's stream's places are kept under."""
-    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}"
+def person_key(did: str) -> str:
+    """The key of the person whose did the gateway answered: what their caches and stream's places are kept under."""
+    return base64url_sha256(did)
 
 
-# What a client keeps of a query is kept under this followed by its persistence's key prefix, a
-# dot and the query's name. A registry's session takes the knowledge base's id for its key
-# prefix.
+def last_event_id_key(kb_id: str, person_key: str) -> str:
+    """The key a person's stream's places in a knowledge base are kept under, as `LastEventIds`."""
+    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}.{person_key}"
+
+
+# Where a knowledge base's stream was: for each scope, a resource's id, the id of the last
+# recorded event delivered on it.
+type LastEventIds = dict[ResourceId, PersistedEventId]
+
+
+# What a client keeps of a query, for one person, is kept under this followed by the knowledge
+# base's id, a dot, the person's key as `lastEventIdKeyPrefix` makes it, a dot and the query's
+# name: one `cacheDocument` for each query protocol/specs/src/client/refresh.json marks
+# `persisted`. Nothing is kept for a token whose person the gateway has not named, and
+# forgetting the knowledge base's stored sign-in, however it is forgotten, deletes the key of
+# every kept query.
 _CACHE_KEY_PREFIX: Final = "semiont.cache."
 
+# The queries a client keeps across a restart, each by its name in
+# protocol/specs/src/client/refresh.json, and each as one document under `cache_key`.
+type KeptQuery = Literal[
+    # Keyed by ResourceId; its value is ResourceDescriptor.
+    "resource",
+    # Keyed by ResourceId; its value is GetAnnotationsResponse.
+    "annotations",
+    # Keyed by AnnotationId; its value is Annotation.
+    "annotation",
+    # Keyed by WHOLE_KEY alone; its value is GetEntityTypesResponse's `entityTypes`.
+    "entityTypes",
+    # Keyed by WHOLE_KEY alone; its value is GetTagSchemasResponse's `tagSchemas`.
+    "tagSchemas",
+]
 
-def cache_key(key_prefix: str, name: str) -> str:
-    """The key the query `name` is kept under, by a persistence whose key prefix is `key_prefix`."""
-    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{name}"
+KEPT_QUERIES: Final[tuple[KeptQuery, ...]] = (
+    "resource",
+    "annotations",
+    "annotation",
+    "entityTypes",
+    "tagSchemas",
+)
+
+
+def cache_key(kb_id: str, person_key: str, query: KeptQuery) -> str:
+    """The key what a person's client keeps of `query` in a knowledge base is kept under."""
+    return f"{_CACHE_KEY_PREFIX}{kb_id}.{person_key}.{query}"
+
+
+# The key a kept query that is per nothing (a `queries` row of
+# protocol/specs/src/client/refresh.json with no `per`) keeps its one entry under.
+type WholeKey = Literal["_"]
+WHOLE_KEY: Final[WholeKey] = "_"
+
+# The form of the document. A document of another version is read as none.
+CACHE_DOCUMENT_VERSION: Final = 1
 
 
 @final
@@ -104,6 +169,14 @@ class StoredSession(WireModel, frozen=True):
     # The issuer's revocation endpoint (RFC 7009), where a sign-out tells it to forget the
     # refresh token. Absent when the issuer has none.
     revocation_endpoint: Annotated[str | None, Field(alias="revocationEndpoint")] = None
+
+    # Who the gateway said the sign-in's person is, as the key their caches and stream position
+    # are kept under (`lastEventIdKeyPrefix`), never the did itself. Written once the gateway
+    # names the person, on the sign-in whose token it was asked about; a renewal keeps it, a new
+    # sign-in starts without it, and forgetting the sign-in, however it is forgotten, reads it
+    # first to delete what is kept under it. Absent for a sign-in whose gateway has not yet
+    # named its person.
+    person_key: Annotated[str | None, Field(alias="personKey")] = None
 
 
 @final

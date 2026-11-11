@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module IssuerCases (issuerCases, serviceTokenCases, deviceClockCases, peer, httpPeer, route, form) where
+module IssuerCases (issuerCases, serviceTokenCases, deviceClockCases, peer, httpPeer, streamingPeer, jsonReply, route, bodyOf, form) where
 
 import Control.Concurrent.Async (async, cancel, wait, poll, replicateConcurrently)
 import Control.Concurrent.STM
@@ -14,6 +14,7 @@ import qualified Data.UUID.Types as UUID
 import qualified Data.ByteString as Bytes
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Either (lefts)
 import Data.Foldable (toList)
 import Data.List (find)
 import Data.IORef
@@ -29,17 +30,19 @@ import qualified Semiont.ClientAssertion as Assertion
 import qualified Semiont.ServiceToken as Service
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Session as Session
+import qualified Semiont.SignIn as SignIn
 import qualified Semiont.StateValue as State
 import qualified Semiont.Transport as Transport
 import qualified Semiont.Issuer as Issuer
 import qualified Semiont.ErrorCodes as Code
-import Semiont.Errors (SignInError(..), TransportError(..), SessionError(..))
+import Semiont.Errors (SignInError(..), TransportError(..))
 import qualified Semiont.Retry as Retry
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Timing as Budget
 import Semiont.Types
+import qualified Streaming.Prelude as Stream
 import qualified ControlledTime as Time
 -- Runs protocol/specs/src/client/clock-cases.json through the shared clock runner.
 import ClockCases (clockCasesFor, Scenario(..))
@@ -55,25 +58,33 @@ values :: Value -> [Value]
 values (Array rows) = toList rows
 values _ = error "issuer answers are not a list"
 
--- A real http-client connection, driven byte for byte. The peer waits for
--- the complete declared body before replying, and closes every connection.
+-- An issuer over a peer that answers each request with one JSON reply.
 peer :: Time.ControlledTime -> (Bytes.ByteString -> IO (Int,Value)) -> IO Issuer.IssuerOptions
 peer time answer = do
-  pool <- httpPeer $ \request -> do
-    (status,body) <- answer request
-    let content=Lazy.toStrict (encode body)
-    pure ("HTTP/1.1 "<>Char8.pack (show status)<>" reply\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
-      <>Char8.pack (show (Bytes.length content))<>"\r\n\r\n"<>content)
+  pool <- httpPeer (fmap (uncurry jsonReply) . answer)
   pure (Issuer.IssuerOptions pool (Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pure 0)) Timing.protocolSettings)
 
+-- | A JSON reply that closes its connection.
+jsonReply :: Int -> Value -> Bytes.ByteString
+jsonReply status body = let content=Lazy.toStrict (encode body) in
+  "HTTP/1.1 "<>Char8.pack (show status)<>" reply\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
+    <>Char8.pack (show (Bytes.length content))<>"\r\n\r\n"<>content
+
+-- | Each request answered with one reply.
 httpPeer :: (Bytes.ByteString -> IO Bytes.ByteString) -> IO Http.HttpClient
-httpPeer answer = do
+httpPeer answer = streamingPeer (\request write _ -> answer request >>= atomically . write)
+
+-- | A real http-client connection, driven byte for byte. Once the request's declared body is in, answer is handed
+-- it, what writes the reply's bytes, at once or later, and what hangs up; a connection the client closes reads no more.
+streamingPeer :: (Bytes.ByteString -> (Bytes.ByteString -> STM ()) -> STM () -> IO ()) -> IO Http.HttpClient
+streamingPeer answer = do
   let connect _ _ _ = do
         accumulated <- newIORef Bytes.empty
         sent <- newIORef False
         output <- newTQueueIO
         closed <- newTVarIO False
         let readBytes = atomically (readTQueue output `orElse` (readTVar closed >>= check >> pure Bytes.empty))
+            hangUp = writeTVar closed True
             writeBytes bytes = do
               request <- atomicModifyIORef' accumulated (\before -> let after=before<>bytes in (after,after))
               already <- readIORef sent
@@ -83,9 +94,8 @@ httpPeer answer = do
                   fromRead=maybe (error "invalid HTTP content length") Prelude.id
               when (not already && not (Bytes.null rest) && Bytes.length (Bytes.drop 4 rest)>=lengthValue) $ do
                 writeIORef sent True
-                response <- answer request
-                atomically (writeTQueue output response)
-        makeConnection readBytes writeBytes (atomically (writeTVar closed True))
+                answer request (writeTQueue output) hangUp
+        makeConnection readBytes writeBytes (atomically hangUp)
   Http.newHttpClient noProxy defaultManagerSettings { managerRawConnection=pure connect }
 
 -- The generated endpoint's tag and protocol are explicit nominal constructors.
@@ -100,8 +110,10 @@ discovery = object ["issuer" .= String "http://issuer.test", "authorization_endp
   ,"revocation_endpoint" .= String "http://issuer.test/revoke"]
 route :: Bytes.ByteString -> Bytes.ByteString
 route request = case Char8.words (Char8.takeWhile (/='\r') request) of [_,path,_] -> path; _ -> error "invalid HTTP request line"
+bodyOf :: Bytes.ByteString -> Bytes.ByteString
+bodyOf = Bytes.drop 4 . snd . Bytes.breakSubstring "\r\n\r\n"
 form :: Bytes.ByteString -> [(Bytes.ByteString,Maybe Bytes.ByteString)]
-form = parseQuery . Bytes.drop 4 . snd . Bytes.breakSubstring "\r\n\r\n"
+form = parseQuery . bodyOf
 
 issuerCases :: Map.Map Text Value -> IO ()
 issuerCases fixtures = do
@@ -161,7 +173,7 @@ issuerCases fixtures = do
   atomically (writeTVar tokenBody (object ["access_token" .= String "next"]))
   issued <- Issuer.refreshAtIssuer options "http://issuer.test/token" "client" "original"
   require "nonrotating issuer lost the refresh token" (issuedTokensRefresh issued=="original")
-  let stored=StoredSession "before" "client" "original" Nothing "http://issuer.test/token" KM.empty
+  let stored=StoredSession "before" "client" Nothing "original" Nothing "http://issuer.test/token" KM.empty
   Stored.storeSession storage "kb" stored
   entered <- newEmptyTMVarIO
   release <- newEmptyTMVarIO
@@ -186,13 +198,22 @@ issuerCases fixtures = do
   atomically (writeTVar status 200 >> writeTVar tokenBody (object ["access_token" .= String "fresh"]))
   let targetKb=KbTarget (KbEndpointBranch1 endpoint) "http-factory" "HTTP factory" KM.empty
       sessionOptions=Session.SessionOptions "http-factory" targetKb (Stored.keptIn storage (kbTargetId targetKb)) Nothing Nothing Nothing
-        (const (ioError (userError "factory unexpectedly ended sign-in")))
-        (const (ioError (userError "factory reported a startup failure"))) (pure 1800000000)
+        (const (ioError (userError "factory unexpectedly ended sign-in"))) (pure 1800000000)
       http=Http.HttpOptions "http://unused.test:1" (Issuer.issuerHttpClient options)
         (ioError (userError "factory did not replace the original token reader"))
         (const (ioError (userError "factory did not replace the original renewer")))
         (Issuer.issuerTime options) Timing.protocolSettings (pure (UUID.fromWords 0 0 0 1)) Set.empty
         (pure Map.empty) (\_ _ -> pure ())
+  revocable <- SignIn.newMemorySignIn
+  SignIn.keep revocable stored { storedSessionRefresh="signed-out", storedSessionRevocationEndpoint=Just "http://issuer.test/revoke" }
+  require "sign-out did not say the issuer revoked the sign-in" =<< Session.signOut http revocable
+  require "sign-out kept the sign-in it revoked" . (==Nothing) =<< SignIn.held revocable
+  require "sign-out did not revoke the sign-in's refresh token at its endpoint" . any (\request -> route request=="/revoke"
+    && ("token","signed-out") `elem` [(name,value) | (name,Just value) <- form request]) =<< readTVarIO seen
+  unrevocable <- SignIn.newMemorySignIn
+  SignIn.keep unrevocable stored
+  require "sign-out said a sign-in that names no revocation endpoint was revoked" . not =<< Session.signOut http unrevocable
+  require "sign-out kept a sign-in that names no revocation endpoint" . (==Nothing) =<< SignIn.held unrevocable
   bracket (Session.fromIssuedSession http Nothing sessionOptions stored) Session.closeOpenedSession $ \opened -> do
     let session=Session.openedSession opened
     require "issued-session factory did not renew its expired grant" . (==Just "fresh")
@@ -209,11 +230,12 @@ issuerCases fixtures = do
     Session.closeOpenedSession opened
     require "opened session closer left the client open" . (==Transport.Closed)
       =<< atomically (State.current (Client.state (Session.client session)))
+    require "factory said a startup failure" . null . lefts =<< Session.errors session Stream.toList_
   let agentKb=targetKb { kbTargetId="agent-factory" }
-      agentOptions=sessionOptions { Session.sessionKb=agentKb, Session.sessionOnError=const (pure ()) }
+      agentOptions=sessionOptions { Session.sessionKb=agentKb }
   atomically (writeTVar identities [503,200])
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service -> do
-    opening <- async (Session.signInAgent http Nothing agentOptions (Budget.RetryBudget 2 10 20) service)
+    opening <- async (Session.signInAgent http agentOptions (Budget.RetryBudget 2 10 20) service)
     Time.settle
     Time.advance time 4000000
     waitingForRetry <- poll opening
@@ -240,13 +262,11 @@ issuerCases fixtures = do
     require "agent disposal disposed its borrowed service account" . (=="fresh") =<< Service.token service
   atomically (writeTVar identities [401])
   ended <- newTVarIO []
-  errors <- newTVarIO []
   beforeRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
   let refusedOptions=agentOptions {
-        Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[reason])),
-        Session.sessionOnError = \failure -> atomically (modifyTVar' errors (<>[sessionErrorCode failure])) }
+        Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[reason])) }
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service ->
-    bracket (async (try (Session.signInAgent http Nothing refusedOptions (Budget.RetryBudget 2 10 20) service)
+    bracket (async (try (Session.signInAgent http refusedOptions (Budget.RetryBudget 2 10 20) service)
       :: IO (Either TransportError Session.OpenedSession))) cancel $ \attempt -> do
       Time.settle
       result <- poll attempt
@@ -256,7 +276,6 @@ issuerCases fixtures = do
   afterRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
   require "agent refusal caused extra account grants" (afterRefusal==beforeRefusal+1)
   require "agent refusal was not reported as a refused session" . (==[SessionEndReasonRefused]) =<< readTVarIO ended
-  require "agent refusal lost the session diagnostic" . (==[Code.SessionCredentialRefused]) =<< readTVarIO errors
   putStrLn "PASS issuer discovery, RFC PKCE, one-shot redirect, atomic rotation, explicit credentials and agent startup over real HTTP parsing"
 
 deviceClockCases :: FilePath -> IO [Text]

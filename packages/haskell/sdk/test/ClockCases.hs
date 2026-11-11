@@ -217,7 +217,7 @@ cacheClockCases :: FilePath -> IO [Text]
 cacheClockCases root = clockCasesFor root ["saveDebounce"] $ \clock _ -> do
   saves <- newTVarIO 0
   values <- newIORef (0::Int)
-  let persister = Cache.CachePersister (pure []) (\_ -> atomically (modifyTVar' saves (+1)))
+  let persister = Cache.CachePersister (pure []) (\_ -> atomically (modifyTVar' saves (+1))) (pure ())
       options = Cache.CacheOptions (Time.now clock) (Time.waitUntil clock)
         (Timing.saveDebounceMs Timing.protocolSettings) (Just persister) (const (pure (pure ())))
   cache <- Cache.newCache (pure :: Int -> IO Int) options

@@ -2,7 +2,7 @@
 
 import asyncio
 import heapq
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import AsyncIterable, Awaitable, Callable, Coroutine
 from contextvars import Context
 from typing import Final, final, override
 
@@ -119,6 +119,33 @@ async def pass_time(seconds: float, *, step: float = 1.0) -> None:
         loop.move(ahead)
         passed += ahead
         await turns()
+
+
+@final
+class Heard[T]:
+    """What a stream gives, read as it is given, from the moment it is held here until it ends.
+
+    Its reader is a task of its own, which ends when the stream does: `run`
+    fails a scenario whose stream never ended.
+    """
+
+    def __init__(self, items: AsyncIterable[T]) -> None:
+        self._given: Final[list[T]] = []
+        self._reading: Final = asyncio.create_task(self._read(items))
+
+    async def _read(self, items: AsyncIterable[T]) -> None:
+        async for item in items:
+            self._given.append(item)
+
+    async def so_far(self) -> list[T]:
+        """What it has given until now: the reader is let take what was delivered first."""
+        await turns()
+        return list(self._given)
+
+    async def ended(self, within: float = 5.0) -> list[T]:
+        """Everything it gave, once it has ended, which it is to do within `within` seconds."""
+        await soon(self._reading, within)
+        return list(self._given)
 
 
 async def settle() -> None:

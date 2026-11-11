@@ -13,7 +13,39 @@ public closed record CacheState<T>
 }
 
 /// <summary>A live view of a cache key. FreshAsync asks the source for a current answer.</summary>
-public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
+public abstract class Cached<T> : IAsyncEnumerable<CacheState<T>>
+{
+    private protected Cached() { }
+
+    public abstract IAsyncEnumerator<CacheState<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default);
+    public abstract Task<T> FreshAsync(CancellationToken cancellation = default);
+    public abstract void Invalidate();
+}
+
+/// <summary>A part of another key's live view: the annotations of a resource's annotations answer.</summary>
+internal sealed class CachedPart<TWhole, T>(Cached<TWhole> whole, Func<TWhole, T> part) : Cached<T>
+{
+    public override async IAsyncEnumerator<CacheState<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+    {
+        await foreach (var state in whole.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            yield return state switch
+            {
+                CacheState<TWhole>.Pending => new CacheState<T>.Pending(),
+                CacheState<TWhole>.Ready(var value) => new CacheState<T>.Ready(part(value)),
+                CacheState<TWhole>.Failed(var error) => new CacheState<T>.Failed(error),
+            };
+        }
+    }
+
+    public override async Task<T> FreshAsync(CancellationToken cancellation = default) =>
+        part(await whole.FreshAsync(cancellation).ConfigureAwait(false));
+
+    public override void Invalidate() => whole.Invalidate();
+}
+
+/// <summary>A cache's entry for one key.</summary>
+internal sealed class CacheEntry<T> : Cached<T>
 {
     private readonly object gate = new();
     private readonly Func<CancellationToken, Task<T>> fetch;
@@ -28,14 +60,13 @@ public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
     private Task<T>? flight;
     private object? validation;
     private long writeEpoch;
-    private long written;
     private int activeLoads;
     private bool rehydrated;
     private bool windowOpen;
     private bool owed;
     private bool closed;
 
-    internal Cached(Func<CancellationToken, Task<T>> fetch, Func<IDisposable?> hold, TimeProvider clock, TimeSpan window, Action? changed)
+    internal CacheEntry(Func<CancellationToken, Task<T>> fetch, Func<IDisposable?> hold, TimeProvider clock, TimeSpan window, Action? changed)
     {
         this.fetch = fetch;
         this.hold = hold;
@@ -45,10 +76,10 @@ public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
         stopped = lifetime.Token;
     }
 
-    public IAsyncEnumerator<CacheState<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
+    public override IAsyncEnumerator<CacheState<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
         ReadAsync(cancellationToken).GetAsyncEnumerator();
 
-    public async Task<T> FreshAsync(CancellationToken cancellation = default)
+    public override async Task<T> FreshAsync(CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
         Task<T> work;
@@ -65,7 +96,7 @@ public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
         }
     }
 
-    public void Invalidate()
+    public override void Invalidate()
     {
         lock (gate)
         {
@@ -179,31 +210,24 @@ public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
 
     private void Ready(T value)
     {
-        written = clock.GetUtcNow().UtcTicks;
         changed?.Invoke();
         Publish(new CacheState<T>.Ready(value));
     }
 
-    internal void Rehydrate(T value, long savedAt)
+    internal void Rehydrate(T value)
     {
         lock (gate)
         {
-            if (closed) return;
+            if (closed || Held()) return;
             state = new CacheState<T>.Ready(value);
-            written = savedAt;
             rehydrated = true;
         }
     }
 
-    internal bool Snapshot(bool requireIdle, out CacheState<T>.Ready? value, out long savedAt)
-    {
-        lock (gate)
-        {
-            value = state as CacheState<T>.Ready;
-            savedAt = written;
-            return !requireIdle || activeLoads == 0 && validation is null && !owed;
-        }
-    }
+    internal bool Fetching { get { lock (gate) return activeLoads > 0 || validation is not null; } }
+
+    /// <summary>The key's B19 window is open and holds an invalidation it has not yet run.</summary>
+    internal bool RefetchOwed { get { lock (gate) return windowOpen && owed; } }
 
     private Task<T> Fetch()
     {

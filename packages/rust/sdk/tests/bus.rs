@@ -92,6 +92,7 @@ async fn a_failure_reply_fails_under_the_code_its_own_code_becomes() {
             correlation_id,
             scope: None,
             trace: None,
+            stream_id: None,
         });
         let error = asked.await.expect("the request ran").expect_err("it fails");
         assert_eq!(error.code(), expected);
@@ -130,6 +131,7 @@ async fn a_failure_reply_that_is_not_its_channels_is_refused_naming_its_fault() 
             correlation_id,
             scope: None,
             trace: None,
+            stream_id: None,
         });
         let error = asked.await.expect("the request ran").expect_err("it fails");
         let SemiontError::Transport(refusal) = error else {
@@ -254,6 +256,7 @@ async fn a_reply_buried_under_its_channels_traffic_is_still_delivered() {
         correlation_id,
         scope: None,
         trace: None,
+        stream_id: None,
     };
     transport.deliver(frame(correlation_id, json!("the reply")));
     for n in 0..(STREAM_BACKLOG * 3) {

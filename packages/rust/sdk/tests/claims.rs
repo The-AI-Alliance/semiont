@@ -270,6 +270,7 @@ impl World {
             correlation_id: None,
             scope: None,
             trace: None,
+            stream_id: None,
         });
     }
 
@@ -1923,6 +1924,7 @@ async fn a_held_job_states_the_trace_its_reply_arrived_in_and_none_when_it_arriv
         correlation_id: claim.correlation_id,
         scope: None,
         trace: Some(arrived_in.clone()),
+        stream_id: None,
     });
     let first = reading.await.expect("the reader");
     assert_eq!(first.trace(), Some(&arrived_in));

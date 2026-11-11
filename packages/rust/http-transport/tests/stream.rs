@@ -272,7 +272,6 @@ impl Gateway {
             ),
             http: reqwest::Client::new(),
             timing,
-            bookmarks: None,
             random: None,
         })
     }

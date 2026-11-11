@@ -13,7 +13,7 @@ A watcher listens to the bus and reacts. A daemon that claims queued jobs and re
 ## What a session does
 
 - **Keeps the token fresh.** An access token is short-lived (five minutes from the Keycloak a launcher stack runs). The session renews it before it expires, half its lifetime ahead and never more than five minutes, and writes the new token where the transport reads it. A request the gateway refuses is answered with one renewal as well. Your calls never see the change.
-- **Stores the tokens.** The access and refresh tokens are kept through a `SessionStorage` you supply. `InMemorySessionStorage` ships in `@semiont/sdk`.
+- **Keeps the sign-in where you say.** The access and refresh tokens are read, renewed into and forgotten through the `SignInKept` you build it over: a `MemorySignIn` for the life of the process, `keptIn(storage, kb.id)` for a `SessionStorage` you supply, or an entry of the `SignInStore` that `semiont login` keeps.
 - **Reads the bus through its client.** `session.client.bus.on(channel)` is an `Observable` of one channel's payloads: subscribe to listen, unsubscribe to stop. Channels are typed: each value is that channel's payload, or, in place of one that is not, a `FrameRefusal` naming the channel, the frame's first fault (`member`, the way to it from the frame, as `payload.resourceId`, and `reason`, `'lacks'` or `'malformed'`) and the payload as it came. A channel of one resource's events reaches the script only while it holds that resource's scope (below).
 - **Reports its own state.** `session.token$`, `session.user$`, `session.streamState$` (the event stream's connection: `connecting`, `open`, `reconnecting`, `degraded`, `unauthenticated`, `closed`) and `session.errors$` (each transport error, just before it is thrown to its caller).
 
@@ -21,46 +21,50 @@ A script that already holds an access token and finishes before it expires can u
 
 ## Sign in
 
-`SemiontSession.signInDevice(...)` runs the device authorization grant (RFC 8628) against the knowledge base's issuer: the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. It stores the tokens the grant returned and renews the access token at the issuer's token endpoint with the refresh token, so there is no refresh callback for you to write.
-
-`kb.id` is the key the session's tokens are stored under. Two scripts that share one storage must use different ids.
+`SemiontSession.signInDevice(...)` runs the device authorization grant (RFC 8628) against the knowledge base's issuer: the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. It keeps the tokens the grant returned in `kept`, and returns nothing. `SemiontSession.fromKept(...)` then opens the session over `kept`, and renews the access token at the issuer's token endpoint with the refresh token, keeping each renewal in `kept`, so there is no refresh callback for you to write.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+import { SemiontSession, MemorySignIn, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({
-    id: 'watcher', label: 'Long-running watcher',
-    host: url.hostname, port: Number(url.port || 4000),
-    protocol: url.protocol === 'https:' ? 'https' : 'http',
-  }),
-  storage: new InMemorySessionStorage(),
+const kb = httpKb({
+  id: 'watcher', label: 'Long-running watcher',
+  host: url.hostname, port: Number(url.port || 4000),
+  protocol: url.protocol === 'https:' ? 'https' : 'http',
+});
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
     console.error(`Approve this session at ${verificationUriComplete ?? verificationUri}`);
     if (!verificationUriComplete) console.error(`Code: ${userCode}`);
   },
+});
+const opened = await SemiontSession.fromKept({
+  kb,
+  kept,
   onAuthFailed: (reason) => console.error(`The session ended: ${reason}`),
-  onError: (err) => console.error('session error:', err.code, err.message),
 });
 const { session } = opened;
+session.errors$.subscribe((err) => console.error('session error:', err.code, err.message));
 
 const me = await session.client.auth?.me();
 console.error(`Signed in as ${me?.email}`);
 ```
 
-`signInDevice` gives an `OpenedSession`: the session, and the client it was built with. The session only uses its client, so the two end together: `opened.dispose()` ends the session, then closes the client.
+`fromKept` gives an `OpenedSession`: the session, and the client it was built with. The session only uses its client, so the two end together: `opened.dispose()` closes the client, then ends the session.
 
 `onAuthFailed` is called once, when the session ends: `expired` when the issuer would not renew it, `refused` when the gateway would not accept a token the issuer had just issued. Neither is a prompt to retry, because the session already did. Signing in again is what is left.
 
 Every verb is on `session.client`: `session.client.mark.delegate(...)`, `session.client.gather.annotation(...)` and so on.
 
-A script that gets its token some other way, such as a service account's client-credentials grant, opens the session with `SemiontSession.fromHttp({ kb, storage, baseUrl, token, refresh })`, which gives an `OpenedSession` too, and supplies `refresh` itself. The session gives `refresh` the token it holds, the one refused or the one due, and takes the token it returns.
+A script that gets its token some other way, such as a service account's client-credentials grant, opens the session with `SemiontSession.fromHttp({ kb, kept: new MemorySignIn(), baseUrl, token, refresh })`, which gives an `OpenedSession` too, and supplies `refresh` itself. The session gives `refresh` the token it holds, the one refused or the one due, and takes the token it returns.
 
 ## Keeping tokens across restarts
 
-With `InMemorySessionStorage` the script signs in again every time it starts. To keep the tokens, implement `SessionStorage` over a file. It is five methods:
+With a `MemorySignIn` the script signs in again every time it starts. To keep the tokens, keep the sign-in in a `SessionStorage` over a file, with `keptIn(storage, kb.id)`. A storage is five methods:
 
 ```typescript
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -101,9 +105,25 @@ class FileSessionStorage implements SessionStorage {
 
 const stateHome = process.env.XDG_STATE_HOME ?? `${process.env.HOME}/.local/state`;
 const storage = new FileSessionStorage(`${stateHome}/semiont/watcher.json`);
+const kept = keptIn(storage, kb.id);
+// Sign in only when nothing is kept, or the issuer refused to renew what was.
+if (kept.held() === null) {
+  await SemiontSession.signInDevice({
+    kb,
+    kept,
+    onCode: ({ verificationUri, verificationUriComplete }) => console.error(`Approve at ${verificationUriComplete ?? verificationUri}`),
+  });
+}
+const opened = await SemiontSession.fromKept({ kb, kept });
 ```
 
-The file holds a refresh token, so keep it readable by its owner only. `update` changes a value as one step: `change` is given what is stored and says what is stored next, so no other writer's change falls between the read and the write. `subscribe` tells a session that another process changed the file, and answers null where nothing else writes it, as here. Several processes sharing one file would read it afresh in `update`, under a lock, and watch it in `subscribe`.
+`kb.id` is the key the sign-in is kept under. Two scripts that share one storage must use different ids.
+
+The file holds a refresh token, so keep it readable by its owner only. `update` changes a value as one step: `change` is given what is stored and says what is stored next, so no other writer's change falls between the read and the write. `subscribe` tells a registry that another process changed the file, and answers null where nothing else writes it, as here. Several processes sharing one file would read it afresh in `update`, under a lock.
+
+A person who has run `semiont login` has a sign-in kept already: `new SignInStore(signInFiles).entry(stackKey)` is where, and `fromKept` opens a session over it with nothing to approve.
+
+To sign out, `signOut(kept)` revokes the refresh token at the issuer, when the issuer says where, and forgets the sign-in whatever the issuer answers.
 
 ## Which channels reach a script
 
@@ -166,31 +186,37 @@ This daemon detects references in every resource as it is created.
 
 ```typescript
 import {
-  SemiontSession, InMemorySessionStorage, httpKb, entityType, type ResourceId,
+  SemiontSession, MemorySignIn, httpKb, entityType, type ResourceId,
 } from '@semiont/sdk';
 
 const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Person').split(',').map((t) => entityType(t.trim()));
 
 async function main(): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const opened = await SemiontSession.signInDevice({
-    kb: httpKb({
-      id: 'watcher', label: 'Long-running watcher',
-      host: url.hostname, port: Number(url.port || 4000),
-      protocol: url.protocol === 'https:' ? 'https' : 'http',
-    }),
-    storage: new InMemorySessionStorage(),
+  const kb = httpKb({
+    id: 'watcher', label: 'Long-running watcher',
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  });
+  const kept = new MemorySignIn();
+  await SemiontSession.signInDevice({
+    kb,
+    kept,
     onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
       console.error(`Approve this session at ${verificationUriComplete ?? verificationUri}`);
       if (!verificationUriComplete) console.error(`Code: ${userCode}`);
     },
+  });
+  const opened = await SemiontSession.fromKept({
+    kb,
+    kept,
     onAuthFailed: (reason) => {
       console.error(`The session ended: ${reason}`);
       process.exit(1);
     },
-    onError: (err) => console.error('session error:', err.code, err.message),
   });
   const { session } = opened;
+  session.errors$.subscribe((err) => console.error('session error:', err.code, err.message));
 
   async function detect(rId: ResourceId): Promise<void> {
     const done = await session.client.mark.delegate(rId, { motivation: 'linking', entityTypes: ENTITY_TYPES });
@@ -222,16 +248,16 @@ main().catch((e) => {
 });
 ```
 
-`opened.dispose()` ends the session, which stops its renewal, then closes its client, which closes the event stream. Without it the open stream keeps the process alive. `session.dispose()` alone ends the session and leaves its client, and the stream, open.
+`opened.dispose()` closes its client, which makes what its caches owe and closes the event stream, then ends the session, which stops its renewal. Without it the open stream keeps the process alive. `session.dispose()` alone ends the session and leaves its client, and the stream, open.
 
 ## Guidance for the AI assistant
 
 - **Check the channel's audience before you subscribe.** A channel delivered to a resource's scope is read on the wire for its resource, `session.client.wire.frames(channel, rId)`, which holds the scope while it is read. `session.client.bus.on(channel)` does not compile for such a channel, and is refused when called.
-- **End what you opened.** `opened.dispose()` ends the session and then its client. `session.dispose()` ends only the session.
+- **End what you opened.** `opened.dispose()` closes the client and then ends the session. `session.dispose()` ends only the session.
 - **A watcher hears its own writes.** A daemon that creates resources in response to `yield:created` hears those too. Decide what stops the loop: an entity type it skips, or a check on who created the resource.
 - **Nothing awaits a handler.** Start the work, attach a `.catch`, and return. A rejection from an `async` handler goes unhandled.
-- **`signInDevice` handles renewal.** Write a `refresh` callback only when the token comes from somewhere other than the device grant, and then open the session with `fromHttp`.
-- **Choose storage by what a restart should do.** In memory, the script signs in again at every start. On disk, it resumes.
+- **`fromKept` handles renewal.** Write a `refresh` callback only when the token comes from somewhere other than a kept sign-in, and then open the session with `fromHttp`.
+- **Choose where the sign-in is kept by what a restart should do.** In a `MemorySignIn`, the script signs in again at every start. In a storage on disk (`keptIn`), or the sign-in store `semiont login` keeps, it resumes.
 - **Prefer a namespace method to a channel.** `mark.delegate`, `yield.delegate` and the others follow their own jobs and replies. Subscribe to a channel only for what no method covers.
-- **Two kinds of error.** A call rejects with a `SemiontError`: catch it and route on its `code`, narrowing to `BusRequestError` or `JobFailedError` where that helps. A failure of the session itself (`session.refresh-exhausted`, `session.credential-refused`) arrives at `onError` as a `SemiontSessionError`, and the session's end at `onAuthFailed`. See [Error Handling](../../Usage.md#error-handling).
+- **Two kinds of error.** A call rejects with a `SemiontError`: catch it and route on its `code`, narrowing to `BusRequestError` or `JobFailedError` where that helps. A failure of the session itself (`session.refresh-exhausted`, `session.credential-refused`, `session.keep-failed`, `session.save-refused`) is a `SemiontSessionError` the session says on its `errors$`, beside its transport's failures, and the session's end reaches `onAuthFailed`. See [Error Handling](../../Usage.md#error-handling).
 - **From the command line.** `semiont listen --channel <name>` prints a channel's events, and `--scope <resourceId>` joins a resource's scope. Use it to see what a channel carries before writing the handler.

@@ -1,9 +1,9 @@
 import Foundation
-import SemiontTesting
 import Synchronization
 import Testing
 
 @testable import Semiont
+@testable import SemiontTesting
 
 private actor SessionScript {
   let kept: MemorySignIn
@@ -11,6 +11,8 @@ private actor SessionScript {
   let gateway: [String]
   var asks = 0
   var renewals = 0
+  /// What each renewal was handed, in order.
+  var handed: [String?] = []
   init(kept: MemorySignIn, issuer: [String], gateway: [String]) {
     self.kept = kept
     self.issuer = issuer
@@ -19,6 +21,7 @@ private actor SessionScript {
   func renew(_ holding: String?) async throws -> String? {
     let reply = issuer[min(renewals, issuer.count - 1)]
     renewals += 1
+    handed.append(holding)
     switch reply {
     case "refuses": throw SignInError(.exchange, "refused", status: 400)
     case "unreachable": throw SignInError(.exchange, "unreachable")
@@ -83,7 +86,7 @@ private func status(_ session: SemiontSession) -> String {
       let reconnectMs = 200
       let session = SemiontSession(
         kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
-        kept: kept, renew: { try await script.renew($0) },
+        kept: kept, forget: { await kept.forget() }, renew: { try await script.renew($0) },
         validate: { try await script.validate($0) }, reconnectMs: reconnectMs,
         random: RandomSource(SystemRandomNumberGenerator()),
         onAuthFailed: { reason in told.withLock { $0.append(reason.rawValue) } })
@@ -158,6 +161,12 @@ private func status(_ session: SemiontSession) -> String {
         let after = await script.counts()
         #expect(after == counts)
       }
+      // Every renewal is handed the token it renews: the token the row stored, the one its session
+      // started on, held or expired, and on the backoff the one whose renewal got no answer.
+      let handed = await script.handed
+      #expect(
+        handed.allSatisfy { $0 == held?.access },
+        "\(row["why"] ?? .null): renewals handed \(handed)")
       session.dispose()
       _ = try await observing.value
     }
@@ -172,6 +181,7 @@ private func status(_ session: SemiontSession) -> String {
   let calls = Mutex(0)
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    forget: { await kept.forget() },
     renew: { _ in
       calls.withLock { $0 += 1 }
       try await Task.sleep(for: .milliseconds(80))
@@ -211,6 +221,7 @@ private func status(_ session: SemiontSession) -> String {
   let entered = Watched(false)
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    forget: { await kept.forget() },
     renew: { _ in
       entered.set(true)
       try await Task.sleep(for: .milliseconds(10_000))
@@ -242,6 +253,9 @@ private struct UnwritableSignIn: SignInKept {
   func renewed(read: HeldSignIn, access: String, refresh: String) async throws -> String? {
     throw RefusedWrite()
   }
+  func recordPersonKey(holding access: String, _ personKey: String) async throws -> Bool {
+    throw RefusedWrite()
+  }
   func forget() async throws { throw RefusedWrite() }
 }
 @Test func aQuietStartupForgetStillRaisesTheStoresFailure() async throws {
@@ -251,6 +265,7 @@ private struct UnwritableSignIn: SignInKept {
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    forget: { try await kept.forget() },
     renew: { _ in throw SignInError(.exchange, "refused", status: 400) },
     validate: { _ in throw SpecFailure.shape("Must not validate") },
     random: RandomSource(SystemRandomNumberGenerator()))
@@ -265,7 +280,7 @@ private struct UnwritableSignIn: SignInKept {
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
-    renew: { _ in "renewed" },
+    forget: { await kept.forget() }, renew: { _ in "renewed" },
     validate: { _ in
       try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
@@ -287,7 +302,7 @@ private struct UnwritableSignIn: SignInKept {
   let release = Watched(false)
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
-    renew: { _ in "new-token" },
+    forget: { await kept.forget() }, renew: { _ in "new-token" },
     validate: { token in
       if token == old {
         asked.set(true)
@@ -307,7 +322,23 @@ private struct UnwritableSignIn: SignInKept {
   try await session.ready()
   #expect(session.user.value?.name == "new-token")
 }
-@Test func changingCredentialsCannotMakeStartupAskForeverAndItsCallbackHearsTheFailure()
+/// What `session` says on its errors stream until it ends: each SessionError's code, and anything
+/// else as itself.
+private func errorsOf(_ session: SemiontSession) -> (Watched<[String]>, Task<Void, any Error>) {
+  let said = Watched<[String]>([])
+  let errors = session.errors()
+  let hearing = Task {
+    for try await error in errors {
+      if let error = error as? SessionError {
+        said.set(said.value + [error.code])
+      } else {
+        said.set(said.value + ["\(error)"])
+      }
+    }
+  }
+  return (said, hearing)
+}
+@Test func changingCredentialsCannotMakeStartupAskForeverAndItsErrorsSayTheFailure()
   async throws
 {
   let access = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
@@ -317,9 +348,9 @@ private struct UnwritableSignIn: SignInKept {
   let gate = SessionGate()
   let asks = Mutex(0)
   let renewals = Mutex(0)
-  let errors = Mutex<[String]>([])
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    forget: { await kept.forget() },
     renew: { _ in
       let count = renewals.withLock { count in
         count += 1
@@ -337,13 +368,213 @@ private struct UnwritableSignIn: SignInKept {
       return try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: token)
     },
-    random: RandomSource(SystemRandomNumberGenerator()),
-    onError: { error in errors.withLock { $0.append(error.code) } })
+    random: RandomSource(SystemRandomNumberGenerator()))
   defer { session.dispose() }
+  let (said, hearing) = errorsOf(session)
   await gate.set(session)
   await session.start()
   try await withinTestDeadline { try await session.ready() }
   #expect(asks.withLock { $0 } == 2)
   #expect(session.user.value == nil)
-  #expect(errors.withLock { $0 } == ["session.auth-failed"])
+  session.dispose()
+  try await withinTestDeadline { try await hearing.value }
+  #expect(said.value == ["session.auth-failed"])
+}
+
+// ── A renewal whose sign-in cannot be read ──────────────────────────────
+
+private struct UnreadableStore: Error {}
+
+/// What holds a sign-in in this process, as `memory` does, except that once `readable` reads of
+/// it have been made (nil: no limit) it cannot be read, until it is made readable again.
+private final class ReadLimitedSignIn: SignInKept {
+  private struct Reads: Sendable {
+    var made = 0
+    var readable: Int?
+  }
+  private let memory: MemorySignIn
+  private let reads: Mutex<Reads>
+
+  init(_ memory: MemorySignIn, readable: Int?) {
+    self.memory = memory
+    reads = Mutex(Reads(readable: readable))
+  }
+
+  /// Every later read succeeds (true), or fails (false).
+  func setReadable(_ value: Bool) {
+    reads.withLock { reads in reads.readable = value ? nil : reads.made }
+  }
+
+  func held() async throws -> HeldSignIn? {
+    let refused = reads.withLock { reads in
+      reads.made += 1
+      guard let readable = reads.readable else { return false }
+      return reads.made > readable
+    }
+    if refused { throw UnreadableStore() }
+    return await memory.held()
+  }
+  func keep(_ signIn: HeldSignIn) async { await memory.keep(signIn) }
+  func renewed(read: HeldSignIn, access: String, refresh: String) async -> String? {
+    await memory.renewed(read: read, access: access, refresh: refresh)
+  }
+  func recordPersonKey(holding access: String, _ personKey: String) async -> Bool {
+    await memory.recordPersonKey(holding: access, personKey)
+  }
+  func forget() async { await memory.forget() }
+}
+
+/// When a session renews, as protocol/specs/src/session/cases.json names it: at its start, on its
+/// schedule, or when the gateway refuses the token it holds.
+private enum Renews: String, CaseIterable, Sendable { case atStart, onSchedule, onRefusal }
+
+// A renewal whose sign-in cannot be read got no answer: it says so on the session's errors, as
+// `session.auth-failed` at the start and `session.refresh-exhausted` later, keeps what is stored,
+// tells onAuthFailed nothing, and renews again on the reconnect backoff.
+@Test func aRenewalWhoseSignInCannotBeReadIsARenewalWithNoAnswer() async throws {
+  for when in Renews.allCases {
+    do { try await renewsOverAnUnreadableSignIn(when) } catch {
+      Issue.record("\(when.rawValue): \(error)")
+    }
+  }
+}
+
+private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
+  let why = when.rawValue
+  let reconnectMs = 200
+  let now = Date().timeIntervalSince1970
+  // An unexpired token falls due for renewal minRefreshDelayMs after the session starts.
+  let claims: [String: JSONValue] =
+    when == .atStart
+    ? ["exp": .number(now - 3600)] : ["exp": .number(now + 20), "iat": .number(now)]
+  let stored = try jwt(.object(claims))
+  let memory = MemorySignIn(
+    HeldSignIn(
+      access: stored, clientId: scriptClientID, refresh: "refresh",
+      tokenEndpoint: "http://issuer/token"))
+  // The start reads the sign-in once; at the start, the renewal's read is the next.
+  let kept = ReadLimitedSignIn(memory, readable: when == .atStart ? 1 : nil)
+  let clock = TestClock()
+  let renewals = Mutex(0)
+  let told = Mutex<[SessionEndReason]>([])
+  let session = SemiontSession(
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
+    kept: kept, forget: { await kept.forget() },
+    renew: { holding in
+      renewals.withLock { $0 += 1 }
+      return try await renewKept(kept, holding: holding) { _ in
+        IssuedTokens(
+          access: try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)])),
+          refresh: "renewed")
+      }
+    },
+    validate: { _ in
+      try UserResponse(
+        did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
+    }, reconnectMs: reconnectMs, random: RandomSource(SystemRandomNumberGenerator()),
+    onAuthFailed: { reason in told.withLock { $0.append(reason) } })
+  defer { session.dispose() }
+  let (said, hearing) = errorsOf(session)
+  await session.start()
+  // A start whose renewal got no answer has started, with no token.
+  try await withinTestDeadline { try await session.ready() }
+  switch when {
+  case .atStart: #expect(session.token.value == nil, "\(why): a token")
+  case .onSchedule:
+    kept.setReadable(false)
+    clock.advance(by: .milliseconds(Timings.minRefreshDelayMs))
+  case .onRefusal:
+    kept.setReadable(false)
+    let given = try await withinTestDeadline { try await session.refresh(stored) }
+    #expect(given == nil, "\(why): a renewal with no answer gives a token")
+  }
+  let expected = [when == .atStart ? "session.auth-failed" : "session.refresh-exhausted"]
+  try await withinTestDeadline {
+    for await heard in said where !heard.isEmpty { return }
+    throw SpecFailure.shape("The errors ended before anything was said")
+  }
+  #expect(said.value == expected, "\(why)")
+  try await withinTestDeadline {
+    for await token in session.token where token == nil { return }
+    throw SpecFailure.shape("The token readout ended while the session held a token")
+  }
+  #expect(await memory.held() != nil, "\(why): the stored sign-in is forgotten")
+  #expect(told.withLock { $0 }.isEmpty, "\(why): the session ended")
+  // The backoff goes on: the next renewal falls due within reconnectMs, and the sign-in can be
+  // read by then.
+  kept.setReadable(true)
+  let latest = clock.now.advanced(by: .milliseconds(reconnectMs))
+  try await withinTestDeadline {
+    while !clock.wakes.contains(where: { $0 <= latest }) {
+      try await Task.sleep(for: .milliseconds(1))
+    }
+  }
+  clock.advance(by: .milliseconds(reconnectMs * 6 / 5))
+  try await withinTestDeadline {
+    while renewals.withLock({ $0 }) < 2 { try await Task.sleep(for: .milliseconds(1)) }
+  }
+  session.dispose()
+  try await withinTestDeadline { try await hearing.value }
+  #expect(said.value == expected, "\(why): the renewal on the backoff")
+}
+
+// ── What a renewal is handed ────────────────────────────────────────────
+
+// A renewal on the reconnect backoff is handed the token whose renewal got no answer, so the kept
+// sign-in's renewal asks the issuer for it: handed none, it would give back the kept token, which
+// has not expired, and is the one the gateway refused.
+@Test func aRenewalOnTheBackoffIsHandedTheTokenTheGatewayRefused() async throws {
+  let reconnectMs = 200
+  let stored = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
+  let renewed = try jwt(
+    .object(["exp": .number(Date().timeIntervalSince1970 + 3600), "name": .string("renewed")]))
+  let kept = MemorySignIn(
+    HeldSignIn(
+      access: stored, clientId: scriptClientID, refresh: "refresh",
+      tokenEndpoint: "http://issuer/token"))
+  let clock = TestClock()
+  let handed = Mutex<[String?]>([])
+  let grants = Mutex(0)
+  let session = SemiontSession(
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
+    kept: kept, forget: { await kept.forget() },
+    renew: { holding in
+      handed.withLock { $0.append(holding) }
+      return try await renewKept(kept, holding: holding) { _ in
+        let grant = grants.withLock { grants in
+          grants += 1
+          return grants
+        }
+        // The issuer does not answer the first grant.
+        if grant == 1 { throw SignInError(.exchange, "The issuer did not answer") }
+        return IssuedTokens(access: renewed, refresh: "renewed")
+      }
+    },
+    validate: { _ in
+      try UserResponse(
+        did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
+    }, reconnectMs: reconnectMs, random: RandomSource(SystemRandomNumberGenerator()))
+  defer { session.dispose() }
+  let (said, hearing) = errorsOf(session)
+  await session.start()
+  try await withinTestDeadline { try await session.ready() }
+  // The gateway refuses the token the session holds, and its renewal gets no answer.
+  let given = try await withinTestDeadline { try await session.refresh(stored) }
+  #expect(given == nil, "a renewal with no answer gives a token")
+  let latest = clock.now.advanced(by: .milliseconds(reconnectMs))
+  try await withinTestDeadline {
+    while !clock.wakes.contains(where: { $0 <= latest }) {
+      try await Task.sleep(for: .milliseconds(1))
+    }
+  }
+  clock.advance(by: .milliseconds(reconnectMs * 6 / 5))
+  try await withinTestDeadline {
+    for await token in session.token where token == renewed { return }
+    throw SpecFailure.shape("The token readout ended before the backoff renewed the token")
+  }
+  #expect(handed.withLock { $0 } == [stored, stored])
+  #expect(grants.withLock { $0 } == 2, "the issuer was not asked on the backoff")
+  session.dispose()
+  try await withinTestDeadline { try await hearing.value }
+  #expect(said.value == ["session.refresh-exhausted"])
 }

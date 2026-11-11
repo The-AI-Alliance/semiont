@@ -141,13 +141,16 @@ Plain `Observable<T>` does not appear on the public verb-namespace surface. (It 
 ### What this looks like at the call site
 
 ```ts
-import { SemiontSession, InMemorySessionStorage, httpKb, isReady, readyValue } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession, httpKb, isReady, readyValue } from '@semiont/sdk';
 
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'demo', label: 'Demo', host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new InMemorySessionStorage(),
+const kb = httpKb({ id: 'demo', label: 'Demo', host: 'localhost', port: 4000, protocol: 'http' });
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 const semiont = opened.session.client;
 
 // 1. Just want a value once? Streams await; live queries spell it .fresh().

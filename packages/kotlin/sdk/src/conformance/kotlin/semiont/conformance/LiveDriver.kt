@@ -39,6 +39,7 @@ import semiont.http.Timing
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
 import semiont.namespaces.EngineWithLimits
+import semiont.registry.personKey
 import semiont.storage.CachePersistence
 import semiont.storage.MemoryStorage
 import semiont.transport.ConnectionState
@@ -123,6 +124,9 @@ private class LiveDriver : Driver {
     /** What a client given `persist` keeps, across the `close` and the `open` that follows, as storage keeps it across a reload. */
     private val storage = MemoryStorage()
 
+    /** Whom a client given `persist` keeps what it holds for: one fixed person, on a knowledge base the driver calls `conformance`. */
+    private val keptFor = CachePersistence(storage, "conformance", personKey("did:web:conformance.example:users:driver"))
+
     private var opened: Opened? = null
     private val observers = mutableMapOf<String, Job>()
     private val unobserved = mutableSetOf<String>()
@@ -199,7 +203,7 @@ private class LiveDriver : Driver {
         // Taken at once, so every failure from the first request on is heard.
         val failures = transport.failures()
         val content = HttpContentTransport(transport)
-        val persistence = if (persist) CachePersistence(storage, "conformance") else null
+        val persistence = if (persist) keptFor else null
         val client = SemiontClient(transport, content, transport, clientTiming, persistence)
         synchronized(this) {
             opened = Opened(client, transport, content)

@@ -15,8 +15,18 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
-// whole is the key of a query the knowledge base has one of.
+// whole is the key of a query the knowledge base has one of. It is written,
+// and read, as wholeKey alone.
 type whole struct{}
+
+func (whole) MarshalText() ([]byte, error) { return []byte(wholeKey), nil }
+
+func (*whole) UnmarshalText(text []byte) error {
+	if string(text) != wholeKey {
+		return fmt.Errorf("%q is not the whole key %q", text, wholeKey)
+	}
+	return nil
+}
 
 // filterKey is which resources a list, or a search, is of: the values of
 // ResourceFilters, so two lists of the same filters are one key.
@@ -82,43 +92,41 @@ type live struct {
 	askedMu      sync.Mutex
 	enginesAsked chan struct{}
 
-	resource     *Cache[api.ResourceId, api.ResourceDescriptor]
-	lists        *Cache[filterKey, api.ListResourcesResponse]
-	annotations  *Cache[api.ResourceId, api.GetAnnotationsResponse]
-	annotation   *Cache[api.AnnotationId, api.Annotation]
-	entityTypes  *Cache[whole, []string]
-	tagSchemas   *Cache[whole, []api.TagSchema]
-	engines      *Cache[whole, []api.EngineEntry]
-	limits       *Cache[bus.Channel, []api.EngineLimits]
-	events       *Cache[api.ResourceId, []api.AttributedEvent]
-	referencedBy *Cache[api.ResourceId, []api.GetReferencedByResponseReferencedByItem]
-	searches     *Cache[searchKey, api.MatchResourcesResponse]
+	// Each live query's cache, named as the query is, holding the value the
+	// refresh table's `value` names (refresh_gen.go).
+	resource         *Cache[api.ResourceId, resourceValue]
+	resources        *Cache[filterKey, resourcesValue]
+	annotations      *Cache[api.ResourceId, annotationsValue]
+	annotation       *Cache[api.AnnotationId, annotationValue]
+	entityTypes      *Cache[whole, entityTypesValue]
+	tagSchemas       *Cache[whole, tagSchemasValue]
+	engines          *Cache[whole, enginesValue]
+	events           *Cache[api.ResourceId, eventsValue]
+	referencedBy     *Cache[api.ResourceId, referencedByValue]
+	matchedResources *Cache[searchKey, matchedResourcesValue]
+
+	// limits is what each inference key holder reports, joined with the
+	// engines when they are shown.
+	limits *Cache[bus.Channel, []api.EngineLimits]
 }
 
-// keptBy is what keeps the cache named name, when the client keeps its
-// caches; nil when it keeps nothing.
-func keptBy[K comparable, V any](persistence *CachePersistence, name string, maxBytes int) CachePersister[K, V] {
-	if persistence == nil {
-		return nil
-	}
-	return NewStoragePersister[K, V](persistence.Storage, cacheStorageKey(persistence.KeyPrefix, name), maxBytes)
-}
-
-func newLive(l *links, content ContentTransport, persistence *CachePersistence) *live {
+// newLive is a client's caches, keeping nothing until they are attached to a
+// persistence.
+func newLive(l *links, content ContentTransport) *live {
 	v := &live{links: l, annotationOf: map[api.AnnotationId]api.ResourceId{}, enginesAsked: make(chan struct{})}
-	save, most := l.timing.SaveDebounce, l.timing.MaxStoredBytesCount
+	save := l.timing.SaveDebounce
 	v.resource = NewCache(func(ctx context.Context, id api.ResourceId) (api.ResourceDescriptor, error) {
 		answer, err := ask(ctx, l, bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: id})
 		return answer.Response.Resource, err
-	}, l.run, keptBy[api.ResourceId, api.ResourceDescriptor](persistence, "resource", most), save)
-	v.lists = NewCache(func(ctx context.Context, key filterKey) (api.ListResourcesResponse, error) {
+	}, l.run, nil, save)
+	v.resources = NewCache(func(ctx context.Context, key filterKey) (api.ListResourcesResponse, error) {
 		limit, offset, archived, entityType := key.request()
 		answer, err := ask(ctx, l, bus.BrowseResourcesRequested, api.BrowseResourcesRequest{Limit: &limit, Offset: &offset, Archived: archived, EntityType: entityType})
 		return answer.Response, err
 	}, l.run, nil, 0)
 	v.annotations = NewCache(func(ctx context.Context, id api.ResourceId) (api.GetAnnotationsResponse, error) {
 		return content.GetAnnotations(ctx, id)
-	}, l.run, keptBy[api.ResourceId, api.GetAnnotationsResponse](persistence, "annotations", most), save)
+	}, l.run, nil, save)
 	v.annotation = NewCache(func(ctx context.Context, id api.AnnotationId) (api.Annotation, error) {
 		v.annotationMu.Lock()
 		resource, named := v.annotationOf[id]
@@ -128,15 +136,15 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 		}
 		answer, err := ask(ctx, l, bus.BrowseAnnotationRequested, api.BrowseAnnotationRequest{ResourceId: resource, AnnotationId: id})
 		return answer.Response.Annotation, err
-	}, l.run, keptBy[api.AnnotationId, api.Annotation](persistence, "annotation-detail", most), save)
+	}, l.run, nil, save)
 	v.entityTypes = NewCache(func(ctx context.Context, _ whole) ([]string, error) {
 		answer, err := ask(ctx, l, bus.BrowseEntityTypesRequested, api.BrowseEntityTypesRequest{})
 		return answer.Response.EntityTypes, err
-	}, l.run, keptBy[whole, []string](persistence, "entity-types", most), save)
+	}, l.run, nil, save)
 	v.tagSchemas = NewCache(func(ctx context.Context, _ whole) ([]api.TagSchema, error) {
 		answer, err := ask(ctx, l, bus.BrowseTagSchemasRequested, api.BrowseTagSchemasRequest{})
 		return answer.Response.TagSchemas, err
-	}, l.run, keptBy[whole, []api.TagSchema](persistence, "tag-schemas", most), save)
+	}, l.run, nil, save)
 	v.engines = NewCache(func(ctx context.Context, _ whole) ([]api.EngineEntry, error) {
 		answer, err := requestAsking(ctx, l.wire, bus.BrowseEnginesRequested, api.BrowseEnginesRequest{}, l.timing.BusRequestTimeout, v.askedForTheEngines)
 		return answer.Response.Engines, err
@@ -152,12 +160,18 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 		answer, err := ask(ctx, l, bus.GatherReferencedByRequested, api.GatherReferencedByRequest{ResourceId: id})
 		return answer.Response.ReferencedBy, err
 	}, l.run, nil, 0)
-	v.searches = NewCache(func(ctx context.Context, key searchKey) (api.MatchResourcesResponse, error) {
+	v.matchedResources = NewCache(func(ctx context.Context, key searchKey) (api.MatchResourcesResponse, error) {
 		limit, offset, archived, entityType := key.filters.request()
 		answer, err := ask(ctx, l, bus.MatchResourcesRequested, api.MatchResourcesRequest{Search: key.search, Limit: &limit, Offset: &offset, Archived: archived, EntityType: entityType})
 		return answer.Response, err
 	}, l.run, nil, 0)
 	return v
+}
+
+// keepIn attaches cache to a persister of what it holds, under query's key,
+// telling persistence's refused each write its storage refuses.
+func keepIn[K comparable, V any](cache *Cache[K, V], persistence *CachePersistence, query CacheQuery, timing Timing) {
+	cache.attach(NewStoragePersister[K, V](persistence.Storage, CacheKey(persistence.KbID, persistence.PersonKey, query), timing.MaxStoredBytesCount), persistence.refused)
 }
 
 // limitsOf is the engines one key holder reports the limits of. A holder
@@ -432,25 +446,45 @@ func (v *live) removeAnnotation(subject cacheSubject) {
 	v.annotation.Remove(subject.annotation, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: fmt.Sprintf("Annotation %s was removed", subject.annotation)})
 }
 
+// liveCache is what the client asks of each of its caches as a whole.
+type liveCache interface {
+	PersistencePending() bool
+	keptFetching() bool
+	Close()
+}
+
+// caches is every cache of the client's.
+func (v *live) caches() []liveCache {
+	return []liveCache{v.resource, v.resources, v.annotations, v.annotation, v.entityTypes, v.tagSchemas, v.engines, v.limits, v.events, v.referencedBy, v.matchedResources}
+}
+
 // persistenceSettled reports whether every cache the client keeps is at
-// rest: none is fetching, and none owes a save.
+// rest: none is fetching, and none owes a save. A cache that keeps nothing is
+// always at rest.
 func (v *live) persistenceSettled() bool {
-	return !(v.resource.PersistencePending() || v.annotations.PersistencePending() || v.annotation.PersistencePending() ||
-		v.entityTypes.PersistencePending() || v.tagSchemas.PersistencePending())
+	for _, cache := range v.caches() {
+		if cache.PersistencePending() {
+			return false
+		}
+	}
+	return true
+}
+
+// keptFetching reports whether a cache the client keeps has a fetch in
+// flight.
+func (v *live) keptFetching() bool {
+	for _, cache := range v.caches() {
+		if cache.keptFetching() {
+			return true
+		}
+	}
+	return false
 }
 
 // dispose ends the queries: every watcher's states end, what was owed to
 // storage is saved, and nothing is fetched after.
 func (v *live) dispose() {
-	v.resource.Close()
-	v.lists.Close()
-	v.annotations.Close()
-	v.annotation.Close()
-	v.entityTypes.Close()
-	v.tagSchemas.Close()
-	v.engines.Close()
-	v.limits.Close()
-	v.events.Close()
-	v.referencedBy.Close()
-	v.searches.Close()
+	for _, cache := range v.caches() {
+		cache.Close()
+	}
 }

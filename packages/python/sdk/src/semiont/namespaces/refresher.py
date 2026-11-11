@@ -13,6 +13,10 @@ is answered here.
 An event acts only on a key its cache holds, and the refetches one key is
 asked for inside a window are one refetch (`protocol/contract/CACHE-SEMANTICS.md`
 B12 to B13b, B19, B20).
+
+The refresher takes each frame as the transport delivers it, before the
+client's bus publishes it (`take`): by the time a delivery returns, what the
+event asks again for is in flight or owed (B17).
 """
 
 import asyncio
@@ -24,10 +28,9 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 from semiont.bus import decoded
 from semiont.cache import Cache
 from semiont.channels import CHANNELS
-from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
-from semiont.namespaces.live import WHOLE, Live, Subject
+from semiont.namespaces.live import Live, Subject
 from semiont.refresh import (
     CACHE_REFRESH,
     CACHE_REFRESH_CHANNELS,
@@ -38,6 +41,7 @@ from semiont.refresh import (
     CacheRefreshWay,
     CacheRefreshWhen,
 )
+from semiont.stored import WHOLE_KEY
 from semiont.transport import ConnectionState, Frame, FrameRefusal
 from semiont.types import Annotation
 from semiont.watched import Watched
@@ -83,6 +87,11 @@ class _Windows:
             return
         self._open[key] = _Window(refetch, asyncio.get_running_loop().call_later(self._lasting, self._close, key))
         refetch()
+
+    @property
+    def owed(self) -> bool:
+        """Whether a window holds a refetch it has not yet run."""
+        return any(window.owed for window in self._open.values())
 
     def _close(self, key: str) -> None:
         window = self._open.pop(key)
@@ -170,22 +179,22 @@ def _subject_of(frame: Frame | FrameRefusal) -> tuple[CacheRefreshTrigger, Subje
 
 @final
 class Refresher:
-    """See the module's documentation. It listens from `start` until its client closes."""
+    """See the module's documentation. It takes frames from `start` until it is disposed."""
 
     def __init__(self, links: Links, live: Live, *, invalidation_window_ms: int) -> None:
         self._links: Final = links
         self._live: Final = live
         self._windows: Final = _Windows(invalidation_window_ms)
+        self._taking = False
 
     def start(self) -> None:
-        """Listen, from now on. A client starts it once: when it is held."""
-        # Listening before the task that reads has had its first turn: nothing said meanwhile is missed.
-        self._links.run(self._listen(self._links.own.frames_among(CACHE_REFRESH_CHANNELS)))
+        """Take frames, and watch for the stream's reopening, from now on. A client starts it once: when it is held."""
+        self._taking = True
         self._links.run(self._reopenings(self._links.transport.state))
 
-    async def _listen(self, events: Events[Frame | FrameRefusal]) -> None:
-        # Its reader is given the frames of the table's channels and no others.
-        async for frame in events:
+    def take(self, frame: Frame | FrameRefusal) -> None:
+        """A frame the transport delivered: one on a channel of the table acts on the caches now."""
+        if self._taking and frame.channel in _CHANNELS:
             trigger, subject = _subject_of(frame)
             self._refresh(trigger, subject)
 
@@ -206,6 +215,11 @@ class Refresher:
                 opened, left = True, False
             else:
                 left = opened
+
+    @property
+    def owes_a_refetch(self) -> bool:
+        """Whether a window (B19) holds a refetch it has not yet run: a cache it would ask again for is not yet asked."""
+        return self._windows.owed
 
     def _refresh(self, trigger: CacheRefreshTrigger, subject: Subject) -> None:
         (row,) = (candidate for candidate in CACHE_REFRESH[trigger] if candidate.when == subject.when)
@@ -265,15 +279,16 @@ class Refresher:
             case "matchedResources":
                 self._windows.run("matched-resources", live.searches.invalidate_all)
             case "entityTypes":
-                self._again(live.entity_types, WHOLE, "entity-types")
+                self._again(live.entity_types, WHOLE_KEY, "entity-types")
             case "tagSchemas":
-                self._again(live.tag_schemas, WHOLE, "tag-schemas")
+                self._again(live.tag_schemas, WHOLE_KEY, "tag-schemas")
             case "engines":
-                if live.engines.known(WHOLE):
+                if live.engines.known(WHOLE_KEY):
                     self._windows.run("engines", live.invalidate_engines)
             case _:
                 assert_never(query)
 
     def dispose(self) -> None:
-        """Stop: what a window owed is dropped, and no window opens after. The client's close ends the listening."""
+        """Stop: what a window owed is dropped, no frame is taken after, and no window opens after. The client's close ends the watching."""
+        self._taking = False
         self._windows.dispose()

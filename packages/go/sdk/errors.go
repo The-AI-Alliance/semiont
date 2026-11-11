@@ -75,8 +75,9 @@ func (e *BusRequestError) ErrorCode() string { return string(e.Code) }
 // Status is never stated: a bus request's failure is a peer's, or this side's.
 func (e *BusRequestError) Status() (int, bool) { return 0, false }
 
-// SessionError is a failure that makes a session itself unusable. A request's
-// own failure stays with its caller.
+// SessionError is a failure that makes a session itself unusable, or that
+// stops its client keeping what it holds (SessionErrorCodeKeepFailed). A
+// request's own failure stays with its caller.
 type SessionError struct {
 	Code    SessionErrorCode
 	Message string

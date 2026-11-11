@@ -23,6 +23,7 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, GATHER_REQUESTED, GATHER_RESOURCE_REQUESTED, MARK_DELETE, MATCH_SEARCH_REQUESTED
 from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.storage import MemoryStorage
+from semiont.stored import cache_key, person_key
 from semiont.testing import (
     Delay,
     Deliver,
@@ -618,11 +619,12 @@ def test_a_test_client_is_a_real_client_over_the_doubles_it_is_given_or_makes() 
 
         # And its persistence: what the client's small queries hold is kept where the test says.
         storage = MemoryStorage()
-        keeping = create_test_client(persistence=CachePersistence(storage=storage, key_prefix="kb"))
+        alice = person_key("did:web:example.org:users:alice")
+        keeping = create_test_client(persistence=CachePersistence(storage=storage, kb_id="kb", person_key=alice))
         keeping.transport.queue_reply(ASK, [{"resource": DESCRIBED, "lastSequence": 1}])
         async with keeping.client as client:
             await soon(client.browse.resource(RESOURCE).fresh())
-        assert storage.get("semiont.cache.kb.resource") is not None
+        assert storage.get(cache_key("kb", alice, "resource")) is not None
         await keeping.transport.close()
 
     run(scenario())
@@ -638,7 +640,8 @@ def test_a_test_session_is_a_real_session_over_a_test_client_ready_at_once_and_h
         assert TestSession.__test__ is False
         assert isinstance(made.session, SemiontSession)
         assert (made.session.client, made.client.transport, made.session.kb.id) == (made.client, made.transport, "test-kb")
-        async with made.client, made.session as session:
+        # Left client first, then the session.
+        async with made.session as session, made.client:
             await soon(session.ready())
             assert (session.token.value, session.user.value) == (None, None)
             # The token is the test's to set, and what the session holds.
@@ -661,7 +664,7 @@ def test_a_test_session_is_a_real_session_over_a_test_client_ready_at_once_and_h
             client.gateway,
             kept,
         )
-        async with given.client, given.session as session:
+        async with given.session as session, given.client:
             await soon(session.ready())
             # A sign-in kept there is the session's at its start.
             assert (session.kb, session.token.value, given.token.value) == (kb, access, access)

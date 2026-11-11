@@ -121,18 +121,18 @@ let store () =
       assert (
         Store.renew store ~key
           ~http:(fun _ -> assert false)
-          ~refused:(Some "old")
+          ~holding:(Some "old")
         = Session.Renewed (token "first"));
       assert (
         Store.renew store ~key
-          ~refused:(Some (token "first"))
+          ~holding:(Some (token "first"))
           ~http:(fun _ ->
             save "other-writer";
             token_response "discarded")
         = Session.Renewed (token "other-writer"));
       assert (
         Store.renew store ~key
-          ~refused:(Some (token "other-writer"))
+          ~holding:(Some (token "other-writer"))
           ~http:(fun _ ->
             Store.remove store ~key;
             token_response "discarded")
@@ -246,7 +246,7 @@ let renewals () =
         in
         let actual =
           Store.renew store ~key:"local:test" ~http
-            ~refused:(optional "holding" row)
+            ~holding:(optional "holding" row)
         in
         let actual =
           match actual with

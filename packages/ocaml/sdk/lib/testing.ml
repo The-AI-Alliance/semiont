@@ -285,7 +285,7 @@ let factory script (options : Registry.session_factory_options) =
 
 let queue_renewal script renewal = Queue.add renewal script.grants
 
-let renew script ~refused:_ =
+let renew script ~holding:_ =
   Option.value (Queue.take_opt script.grants) ~default:Session.Refused
 
 type shared_storage = {

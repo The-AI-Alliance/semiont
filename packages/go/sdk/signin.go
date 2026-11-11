@@ -84,12 +84,12 @@ type ResumeConfig struct {
 	// Random is what the jitter of the session's renewals tried again is
 	// drawn from, as EqualJitter draws it.
 	Random *rand.Rand
-	// AskWhoTokenIs is whether the gateway is asked who the token is, at the
-	// start and after each renewal a refusal asked for.
-	AskWhoTokenIs bool
-	// OnAuthFailed and OnError are the session's (SessionConfig).
+	// SkipAskingWhoTokenIs is whether the gateway is not asked who the token
+	// is. Left false, it is asked at the start and after each renewal a
+	// refusal asked for.
+	SkipAskingWhoTokenIs bool
+	// OnAuthFailed is the session's (SessionConfig).
 	OnAuthFailed func(SessionEndReason)
-	OnError      func(*SessionError)
 }
 
 // ResumeSession starts a session over the sign-in config.Kept holds, renewed
@@ -102,6 +102,12 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	return StartSession(ctx, resumed(config, baseURL))
+}
+
+// resumed is what a session resumed over config is, with the gateway at
+// baseURL.
+func resumed(config ResumeConfig, baseURL string) SessionConfig {
 	issuer := Issuer{HTTP: config.HTTP, Timing: config.Timing, Random: config.Random}
 	renewals := &renewing{}
 	session := SessionConfig{
@@ -115,14 +121,13 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 			})
 		},
 		OnAuthFailed: config.OnAuthFailed,
-		OnError:      config.OnError,
 		Timing:       config.Timing,
 		Random:       config.Random,
 	}
-	if config.AskWhoTokenIs {
+	if !config.SkipAskingWhoTokenIs {
 		session.Validate = asking(baseURL, config.HTTP, config.Timing, config.Random)
 	}
-	return StartSession(ctx, session)
+	return session
 }
 
 // gatewayOf is the origin of the gateway kb's HTTP endpoint names; a
@@ -161,26 +166,41 @@ type SessionFromKeptConfig struct {
 	// Random is what the jitter of every backoff of the transport and the
 	// session is drawn from, as EqualJitter draws it.
 	Random *rand.Rand
-	// AskWhoTokenIs is whether the gateway is asked who the token is.
-	AskWhoTokenIs bool
+	// SkipAskingWhoTokenIs is whether the gateway is not asked who the token
+	// is. Left false, it is asked, and so names the person whose things
+	// Storage keeps when the kept sign-in names nobody yet.
+	SkipAskingWhoTokenIs bool
 	// Channels is the global channels the transport's stream names
 	// (bus.BridgedChannels for every channel a client hears).
 	Channels []bus.Channel
-	// Storage keeps what the client's small queries hold, under Kb's Id, and
-	// the stream's place in each scope with it: the next session over the
-	// same storage shows what was kept at once, and is sent what was recorded
-	// since. Nil keeps nothing.
+	// Storage keeps what the client's small queries hold, and the stream's
+	// place in each scope with it, for the person the gateway names, under
+	// Kb's Id and their key (PersonKey): the next session over the same
+	// storage, for the same person, shows what was kept at once, and is sent
+	// what was recorded since. The person is the one the kept sign-in names
+	// as the session is made, whether or not the session asks who its token
+	// is; when it names nobody, nothing is kept until the gateway names them
+	// and the sign-in records it (SignInKept.RecordPersonKey), and a session
+	// that does not ask keeps for nobody. Each is written only while the kept
+	// sign-in names that person, checked and written as one step: once a write
+	// finds it forgotten, or naming nobody or another person, the session
+	// writes nothing more there, so nothing it writes puts back what
+	// forgetting the sign-in deleted. The session's own forget of its sign-in
+	// (its expiry, its refusal) waits for a write being made. Each write the
+	// storage refuses is said among the session's errors, once, as
+	// session.save-refused, and stays owed: the client's next change, or its
+	// closing, writes it again. Nil keeps nothing.
 	Storage SessionStorage
-	// OnAuthFailed and OnError are the session's (SessionConfig).
+	// OnAuthFailed is the session's (SessionConfig).
 	OnAuthFailed func(SessionEndReason)
-	OnError      func(*SessionError)
 }
 
 // SessionFromKept is a session with config.Kb over the sign-in config.Kept
 // holds, with the transport and client it is over: open, and ready. A token
 // the gateway refuses is renewed through the session, so the transport and
-// the session never hold different ones. end ends the session, then the
-// client and the transport, as whoever made them must. A knowledge base that
+// the session never hold different ones. end closes the client, waiting for
+// its closing flush, then ends the session, whose errors end then, and then
+// closes the transport, as whoever made them must. A knowledge base that
 // is not reached over HTTP, or whose host is no host's name, is refused
 // before anything is asked (session.construct-failed).
 func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session *Session, end func(), err error) {
@@ -188,31 +208,38 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	if err != nil {
 		return nil, nil, err
 	}
+	var held HeldSignIn
+	var has bool
+	keepsForAPerson := config.Storage != nil
+	if keepsForAPerson {
+		if held, has, err = config.Kept.Held(ctx); err != nil {
+			return nil, nil, err
+		}
+	}
 	token := NewVariable("")
 	renewer := newRefresherToCome()
-	var places *CoupledBookmarks
-	var persistence *CachePersistence
-	transportConfig := HTTPTransportConfig{
+	transport := NewHTTPTransport(HTTPTransportConfig{
 		BaseURL: baseURL, Token: token, Refresher: renewer,
 		Channels: config.Channels, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
-	}
-	if config.Storage != nil {
-		// The stream's place rides the caches' writes, and only when every
-		// cache is at rest: a place kept ahead of a cache still taking in the
-		// event it names would have the next session skip that event.
-		places = NewCoupledBookmarks(config.Storage, lastEventIDKey(config.Kb.Id))
-		persistence = &CachePersistence{Storage: places.Storage(), KeyPrefix: config.Kb.Id}
-		transportConfig.Bookmarks = places
-	}
-	transport := NewHTTPTransport(transportConfig)
-	client := NewClient(ClientConfig{Transport: transport, Content: NewHTTPContentTransport(transport), Gateway: transport, Timing: config.Timing, Persistence: persistence})
-	if places != nil {
-		places.SetFlushGate(client.PersistenceSettled)
-	}
-	session, err = ResumeSession(ctx, ResumeConfig{
-		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
-		AskWhoTokenIs: config.AskWhoTokenIs, OnAuthFailed: config.OnAuthFailed, OnError: config.OnError,
 	})
+	client := NewClient(ClientConfig{Transport: transport, Content: NewHTTPContentTransport(transport), Gateway: transport, Timing: config.Timing})
+	sessionConfig := resumed(ResumeConfig{
+		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
+		SkipAskingWhoTokenIs: config.SkipAskingWhoTokenIs, OnAuthFailed: config.OnAuthFailed,
+	}, baseURL)
+	failures := newFailureStream[Error]()
+	var keeps *keptFor
+	if keepsForAPerson {
+		keeps = &keptFor{SignInKept: config.Kept, storage: config.Storage, kbID: config.Kb.Id, client: client, transport: transport, failures: failures}
+		if has && held.PersonKey != nil {
+			keeps.attach(*held.PersonKey)
+		}
+		sessionConfig.Kept = keeps
+		if !config.SkipAskingWhoTokenIs {
+			sessionConfig.Validate = keeps.recording(sessionConfig.Validate)
+		}
+	}
+	session, err = startSession(ctx, sessionConfig, failures)
 	if err != nil {
 		// No session is to come: closing the transport ends the wait of a
 		// refusal that arrived first.
@@ -222,15 +249,205 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	}
 	renewer.is(session)
 	end = func() {
-		session.Close()
 		client.Close()
+		session.Close()
 		transport.Close()
+		if keepsForAPerson {
+			// A save whose wait was over as the client closed may still be
+			// being written: it lands before end returns, so whoever ended
+			// the session may delete what was kept of its person then.
+			keeps.stop()
+		}
 	}
 	if err := session.Ready(ctx); err != nil {
 		end()
 		return nil, nil, err
 	}
 	return session, end, nil
+}
+
+// keptFor is what a session's client keeps in a storage for the person the
+// session's gateway names: nothing until it is attached for them. It is the
+// session's sign-in too, kept where it is kept, so that the session's forget
+// of it stops what the client keeps first (Forget).
+type keptFor struct {
+	SignInKept
+	storage   SessionStorage
+	kbID      string
+	client    *Client
+	transport *HTTPTransport
+	// failures is the session's errors: what stops the client keeping, and
+	// each write the storage refuses, are said there.
+	failures *failureStream[Error]
+
+	mu sync.Mutex
+	// keeping is where the client keeps the person's things: nil until it is
+	// attached.
+	keeping *whileNamed
+	// stopped holds once the session has forgotten its sign-in, or ended, or
+	// the client keeps nothing more: nothing is attached after that.
+	stopped bool
+	// keepFailed holds once what stops the client keeping has been said:
+	// after that the client keeps nothing, and nothing more is said of it.
+	keepFailed bool
+}
+
+// attach has the client keep its caches, and its stream's places, for the
+// person whose key is personKey: each begins with what was kept for them,
+// and keeps what it holds from now on. The places ride the caches' writes,
+// and only when what the client keeps is at rest (CoupledBookmarks.CoupleTo):
+// a place kept ahead of a cache still taking in the event it names would have
+// the next session skip that event.
+func (k *keptFor) attach(personKey string) {
+	k.keeping = &whileNamed{SessionStorage: k.storage, kept: k.SignInKept, personKey: personKey, unreadable: k.unreadable}
+	places := NewCoupledBookmarks(k.keeping, LastEventIDKey(k.kbID, personKey))
+	places.CoupleTo(k.client)
+	k.transport.takeUpPlaces(places)
+	k.client.live.attach(&CachePersistence{Storage: places.Storage(), KbID: k.kbID, PersonKey: personKey, refused: k.refused})
+}
+
+// refused says, as session.save-refused, a write of what the client keeps
+// that the storage refused: of a cache, or of the places its write carries.
+func (k *keptFor) refused(err error) {
+	k.failures.report(&SessionError{Code: SessionErrorCodeSaveRefused, Message: "The storage refused a write of what the client keeps: " + err.Error(), KbID: k.kbID})
+}
+
+// Forget is the session forgetting its sign-in (its expiry, its refusal).
+// What the client keeps is stopped first: a write that passed its check lands
+// before the sign-in, and what was kept of its person, is forgotten, and none
+// is made after.
+func (k *keptFor) Forget(ctx context.Context) error {
+	k.stop()
+	return k.SignInKept.Forget(ctx)
+}
+
+// unreadable says that the sign-in could not be read before the client saved
+// what it keeps, so the client keeps nothing more.
+func (k *keptFor) unreadable(err error) {
+	k.stopsKeeping("The sign-in could not be read before the client saved what it keeps: " + err.Error())
+}
+
+// stopsKeeping has the client keep nothing more, and says why as
+// session.keep-failed, the first time the client is stopped for a failure.
+// It is said under no lock a write holds: a save that says it from inside its
+// write waits for nobody to read it.
+func (k *keptFor) stopsKeeping(why string) {
+	k.stop()
+	k.mu.Lock()
+	said := k.keepFailed
+	k.keepFailed = true
+	k.mu.Unlock()
+	if !said {
+		k.failures.report(&SessionError{Code: SessionErrorCodeKeepFailed, Message: why, KbID: k.kbID})
+	}
+}
+
+// stop has the client keep nothing more, once a write being made is made:
+// every write after it is dropped, under the lock each write is checked and
+// made under, and nothing is attached after it.
+func (k *keptFor) stop() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.stopped = true
+	if k.keeping != nil {
+		k.keeping.drop()
+	}
+}
+
+// whileNamed is the storage a session keeps one person's things in, written
+// only while its kept sign-in names that person (HeldSignIn.PersonKey). Each
+// write is checked and made as one step. Once a write finds the sign-in
+// forgotten, or naming nobody or another person, or cannot read it, or the
+// session has dropped it, that write and every one after it are dropped: what
+// the session had not written of the person is discarded.
+type whileNamed struct {
+	SessionStorage
+	kept      SignInKept
+	personKey string
+	// unreadable is told why the sign-in could not be read, the one time it
+	// is found so: nothing is asked of it after.
+	unreadable func(error)
+
+	// mu is held across each write's check and the write, and by drop.
+	mu      sync.Mutex
+	dropped bool
+}
+
+// writes reports whether a write is made, with mu held, and why the sign-in
+// could not be read when this is the check that found it so. A sign-in that
+// cannot be read is not known to name the person.
+func (w *whileNamed) writes() (bool, error) {
+	if w.dropped {
+		return false, nil
+	}
+	held, has, err := w.kept.Held(context.Background())
+	w.dropped = err != nil || !has || held.PersonKey == nil || *held.PersonKey != w.personKey
+	return !w.dropped, err
+}
+
+func (w *whileNamed) Set(key, value string) error {
+	return w.made(func() error { return w.SessionStorage.Set(key, value) })
+}
+
+func (w *whileNamed) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	return w.made(func() error { return w.SessionStorage.Update(key, change) })
+}
+
+// made checks and makes write as one step, under mu. A sign-in found
+// unreadable is said once mu is let go: mu is held over the check and the
+// write, and no one's callback.
+func (w *whileNamed) made(write func() error) error {
+	w.mu.Lock()
+	writes, unreadable := w.writes()
+	var err error
+	if writes {
+		err = write()
+	}
+	w.mu.Unlock()
+	if unreadable != nil {
+		w.unreadable(unreadable)
+	}
+	return err
+}
+
+// drop has every write from now on dropped, once a write being made is made.
+func (w *whileNamed) drop() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.dropped = true
+}
+
+// recording is validate, and, once the gateway has said who a token is, the
+// person recorded on the sign-in it was asked about, and what was kept for
+// them attached, before validate's caller hears the answer.
+func (k *keptFor) recording(validate func(ctx context.Context, token string) (api.UserResponse, error)) func(ctx context.Context, token string) (api.UserResponse, error) {
+	return func(ctx context.Context, token string) (api.UserResponse, error) {
+		user, err := validate(ctx, token)
+		if err == nil {
+			k.named(ctx, token, user)
+		}
+		return user, err
+	}
+}
+
+// named records user, who the gateway said token is, on the sign-in, while it
+// still holds token and names nobody else, and attaches what is kept for them
+// once it names them. A sign-in that has moved on, or names another person,
+// or whose session has forgotten it or ended, attaches nothing. One that
+// cannot record them is not known to name anyone the client would keep for:
+// the client keeps nothing more, and that is said.
+func (k *keptFor) named(ctx context.Context, token string, user api.UserResponse) {
+	personKey := PersonKey(user.Did.String())
+	recorded, err := k.RecordPersonKey(ctx, token, personKey)
+	if err != nil {
+		k.stopsKeeping("Who the gateway named could not be recorded on the sign-in: " + err.Error())
+		return
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if recorded && k.keeping == nil && !k.stopped {
+		k.attach(personKey)
+	}
 }
 
 // refresherToCome is a TokenRefresher that asks one made after it. A

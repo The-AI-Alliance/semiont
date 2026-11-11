@@ -29,7 +29,6 @@ renewal, and the session waiting on it, for as long as the process lives.
 
 import asyncio
 import base64
-import hashlib
 import secrets
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -41,6 +40,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 from pydantic import Field, JsonValue, TypeAdapter, ValidationError
 
+from semiont._digest import base64url_sha256
 from semiont.error_codes import SignInErrorCode
 from semiont.errors import SignInError, TransportError
 from semiont.http._withheld import why_unanswered
@@ -318,7 +318,7 @@ async def revoke_at_issuer(http: httpx.AsyncClient, revocation_endpoint: str, cl
 
 def code_challenge(verifier: str) -> str:
     """RFC 7636 §4.2: BASE64URL(SHA-256(verifier))."""
-    return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    return base64url_sha256(verifier)
 
 
 @final

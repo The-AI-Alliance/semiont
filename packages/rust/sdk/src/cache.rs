@@ -25,12 +25,21 @@
 //! fetched, retried or failed after it.
 //!
 //! A cache with a `CachePersister` begins with what was kept and saves its
-//! values as they change. A value that was kept is shown at once and asked
-//! for again the first time it is observed: nothing says it is still true.
-//! Keeping its values is a convenience: a save that fails is logged as a
-//! warning, the cache goes on as it was, and its next save tries again.
+//! values as they change; one given its persister later takes in what was
+//! kept of each key it does not know yet. A value that was kept is shown at
+//! once and asked for again the first time it is observed: nothing says it
+//! is still true. Keeping its values is a convenience: a save the persister
+//! refuses is told, with what it said, to whoever the cache keeps for (the
+//! session that owns a client says it; a cache made with `persisted` logs it
+//! as a warning), and the cache goes on as it was, the save still owed: the
+//! next change, or disposal, writes its values again. Nothing tries it again
+//! before that. A save may wait, and one is made at a time. Disposal begins
+//! the save it owes, once one under way has finished, and whoever disposed
+//! of the cache may wait for it (a client's close does); none is begun
+//! after it.
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
+use crate::locked;
 use crate::state_unit::StateUnit;
 use crate::storage::SessionStorage;
 use crate::transport::BoxFuture;
@@ -42,9 +51,10 @@ use std::future::Future;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::task::{Context, Waker};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
-use tokio::task::AbortHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 use tokio_stream::wrappers::WatchStream;
 
 /// The state of a key.
@@ -104,22 +114,53 @@ impl<V: Clone + Send + Sync + 'static> CacheValue for V {}
 
 /// Where a cache keeps its values so a later one begins with them.
 pub trait CachePersister<K, V>: Send + Sync + 'static {
-    /// What was kept, asked once, when the cache is built.
+    /// What was kept, none when nothing was: asked once, when the cache is
+    /// given the persister.
     fn load(&self) -> Option<HashMap<K, V>>;
 
     /// Keep these: the cache's values, after they changed. The error when
-    /// they could not be kept.
-    fn save(&self, entries: &HashMap<K, V>)
-    -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    /// they could not be kept. A save may wait (for a sign-in it reads, for
+    /// a store it writes); the cache makes one at a time.
+    fn save<'a>(
+        &'a self,
+        entries: &'a HashMap<K, V>,
+    ) -> BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send + Sync>>>;
 }
 
-/// Save a cache's values; one that fails is a warning.
-fn saved<K: CacheKey, V: CacheValue>(
-    persister: &dyn CachePersister<K, V>,
-    entries: &HashMap<K, V>,
-) {
-    if let Err(unsaved) = persister.save(entries) {
-        log::warn!("semiont: the cache's values were not kept: {unsaved}");
+/// Told of each save a cache's persister refused, with what it said.
+pub(crate) type Refused = Arc<dyn Fn(&(dyn std::error::Error + Send + Sync)) + Send + Sync>;
+
+/// A save refused that nobody else is told of: a warning.
+pub(crate) fn warned(unsaved: &(dyn std::error::Error + Send + Sync)) {
+    log::warn!("semiont: the cache's values were not kept: {unsaved}");
+}
+
+/// Where a cache keeps its values, and who is told of a save refused there.
+struct Keeping<K, V> {
+    persister: Arc<dyn CachePersister<K, V>>,
+    refused: Refused,
+}
+
+impl<K, V> Clone for Keeping<K, V> {
+    fn clone(&self) -> Keeping<K, V> {
+        Keeping {
+            persister: self.persister.clone(),
+            refused: self.refused.clone(),
+        }
+    }
+}
+
+impl<K: CacheKey, V: CacheValue> Keeping<K, V> {
+    /// Save a cache's values; one the persister refuses is told. Whether
+    /// they were kept.
+    async fn saved(&self, entries: &HashMap<K, V>) -> bool {
+        match self.persister.save(entries).await {
+            Ok(()) => true,
+            Err(unsaved) => {
+                (self.refused)(unsaved.as_ref());
+                false
+            }
+        }
     }
 }
 
@@ -151,6 +192,14 @@ impl<V> Key<V> {
     }
 }
 
+/// A save owed.
+enum Saving {
+    /// Made once the values have stopped changing: the wait.
+    Waiting(AbortHandle),
+    /// Refused by the persister: made at the next change, or at disposal.
+    Refused,
+}
+
 struct State<K, V> {
     disposed: bool,
     keys: HashMap<K, Key<V>>,
@@ -158,8 +207,10 @@ struct State<K, V> {
     /// for by this one.
     kept: HashSet<K>,
     fetches: u64,
-    /// The wait before the next save, while one is owed.
-    saving: Option<AbortHandle>,
+    /// The save owed, while one is.
+    saving: Option<Saving>,
+    /// Where the values are kept, once the cache keeps them somewhere.
+    keeping: Option<Keeping<K, V>>,
 }
 
 struct Inner<K, V>
@@ -168,9 +219,14 @@ where
     V: CacheValue,
 {
     fetch: Box<Fetch<K, V>>,
-    persister: Option<Arc<dyn CachePersister<K, V>>>,
     save_debounce: Duration,
     state: Mutex<State<K, V>>,
+    /// Held while a save is written, so disposal's save waits for one under
+    /// way.
+    writing: tokio::sync::Mutex<()>,
+    /// The save disposal began, until whoever disposed of the cache has
+    /// waited for it.
+    closing: Mutex<Option<JoinHandle<()>>>,
 }
 
 fn closed() -> Arc<dyn std::error::Error + Send + Sync> {
@@ -219,30 +275,55 @@ where
 
     /// The values changed: save them once they have stopped changing.
     fn owe_a_save(self: &Arc<Self>, state: &mut State<K, V>) {
-        if self.persister.is_none() || state.disposed {
+        if state.keeping.is_none() || state.disposed {
             return;
         }
-        if let Some(waiting) = state.saving.take() {
+        if let Some(Saving::Waiting(waiting)) = state.saving.take() {
             waiting.abort();
         }
         let cache = Arc::downgrade(self);
         let wait = self.save_debounce;
-        state.saving = Some(
+        state.saving = Some(Saving::Waiting(
             tokio::spawn(async move {
                 tokio::time::sleep(wait).await;
                 if let Some(cache) = Weak::upgrade(&cache) {
-                    let entries = {
-                        let mut state = cache.state();
-                        state.saving = None;
-                        Inner::values(&state)
-                    };
-                    if let Some(persister) = &cache.persister {
-                        saved(persister.as_ref(), &entries);
-                    }
+                    cache.save_owed().await;
                 }
             })
             .abort_handle(),
-        );
+        ));
+    }
+
+    /// Make the save that is owed, unless disposal makes it or a later
+    /// change owes another in its place. Once it has the lock it is no
+    /// longer owed, and no longer waiting, so nothing cancels it; while it
+    /// is written no save is owed, so the write itself finds the cache at
+    /// rest and carries the stream's places (`crate::resume`). One the
+    /// persister refuses is owed again, unless a change meanwhile owes
+    /// another.
+    async fn save_owed(&self) {
+        let _writing = self.writing.lock().await;
+        let (entries, keeping) = {
+            let mut state = self.state();
+            let own = matches!(
+                &state.saving,
+                Some(Saving::Waiting(waiting)) if waiting.id() == tokio::task::id()
+            );
+            if state.disposed || !own {
+                return;
+            }
+            state.saving = None;
+            (Inner::values(&state), state.keeping.clone())
+        };
+        let Some(keeping) = keeping else {
+            return;
+        };
+        if !keeping.saved(&entries).await {
+            let mut state = self.state();
+            if state.saving.is_none() {
+                state.saving = Some(Saving::Refused);
+            }
+        }
     }
 
     /// Start a fetch for `key`, or join the one in flight.
@@ -328,19 +409,61 @@ where
     V: CacheValue,
 {
     /// A cache nobody holds any more, and nobody disposed: the save it owed
-    /// is made, as disposal makes it.
+    /// is begun, as disposal begins it. Nothing is writing: a save holds the
+    /// cache while it is written.
     fn drop(&mut self) {
         let state = self
             .state
             .get_mut()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some(waiting) = state.saving.take() {
+        let Some(saving) = state.saving.take() else {
+            return;
+        };
+        if let Saving::Waiting(waiting) = saving {
             waiting.abort();
-            if let Some(persister) = &self.persister {
-                saved(persister.as_ref(), &Inner::values(state));
-            }
         }
+        let Some(keeping) = state.keeping.clone() else {
+            return;
+        };
+        let entries = Inner::values(state);
+        begun(async move {
+            keeping.saved(&entries).await;
+        });
     }
+}
+
+/// Begin `save`, a save owed as a cache ends. A save that waits on nothing,
+/// as one to a persistence given directly does, is made before this returns
+/// (protocol/contract/CACHE-SEMANTICS.md B17), with or without a runtime;
+/// one that waits (a session's check of its sign-in) goes on on the runtime
+/// the cache ends on, and is handed back to be awaited. Where no runtime
+/// runs there is nothing to finish it on, and it is lost, which is said as a
+/// warning.
+fn begun(save: impl Future<Output = ()> + Send + 'static) -> Option<JoinHandle<()>> {
+    let mut save = Box::pin(save);
+    if save
+        .as_mut()
+        .poll(&mut Context::from_waker(Waker::noop()))
+        .is_ready()
+    {
+        return None;
+    }
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        log::warn!(
+            "semiont: the cache's values were not kept: no Tokio runtime ran to write them on"
+        );
+        return None;
+    };
+    Some(runtime.spawn(save))
+}
+
+/// What a cache is doing that what it has saved may not yet hold.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Persistence {
+    /// A fetch for some key is in flight.
+    pub(crate) fetching: bool,
+    /// A save is owed.
+    pub(crate) saving: bool,
 }
 
 /// See the module's documentation. A `Cache` is a handle: its clones are the
@@ -373,7 +496,8 @@ where
     }
 
     /// A cache that begins with what `persister` kept, and saves its values
-    /// there `save_debounce` after they last changed.
+    /// there `save_debounce` after they last changed. A save the persister
+    /// refuses is logged as a warning.
     pub fn persisted<F, Fut>(
         fetch: F,
         persister: Arc<dyn CachePersister<K, V>>,
@@ -395,29 +519,60 @@ where
         F: Fn(K) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<V, Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
     {
-        let kept = persister
-            .as_ref()
-            .and_then(|persister| persister.load())
-            .unwrap_or_default();
-        let inner = Arc::new(Inner {
-            fetch: Box::new(move |key| {
-                let fetching = fetch(key);
-                Box::pin(async move { fetching.await.map_err(Arc::from) })
+        let cache = Cache {
+            inner: Arc::new(Inner {
+                fetch: Box::new(move |key| {
+                    let fetching = fetch(key);
+                    Box::pin(async move { fetching.await.map_err(Arc::from) })
+                }),
+                save_debounce,
+                state: Mutex::new(State {
+                    disposed: false,
+                    keys: HashMap::new(),
+                    kept: HashSet::new(),
+                    fetches: 0,
+                    saving: None,
+                    keeping: None,
+                }),
+                writing: tokio::sync::Mutex::new(()),
+                closing: Mutex::new(None),
             }),
-            save_debounce,
-            state: Mutex::new(State {
-                disposed: false,
-                kept: kept.keys().cloned().collect(),
-                keys: kept
-                    .into_iter()
-                    .map(|(key, value)| (key, Key::new(CacheState::Ready(value))))
-                    .collect(),
-                fetches: 0,
-                saving: None,
-            }),
-            persister,
-        });
-        Cache { inner }
+        };
+        if let Some(persister) = persister {
+            cache.attach(persister, Arc::new(warned));
+        }
+        cache
+    }
+
+    /// Keep the cache's values with `persister` from now on, and tell
+    /// `refused` of each save it refuses. What it kept is taken in for each
+    /// key the cache does not know (`known`), and asked for again the first
+    /// time it is observed, as a value kept by an earlier cache is; nothing
+    /// is saved until a value next changes. A cache that is kept somewhere
+    /// already, or is disposed, is left as it is.
+    pub(crate) fn attach(&self, persister: Arc<dyn CachePersister<K, V>>, refused: Refused) {
+        let kept = persister.load().unwrap_or_default();
+        let mut state = self.inner.state();
+        let State {
+            disposed,
+            keys,
+            kept: unasked,
+            keeping,
+            ..
+        } = &mut *state;
+        if *disposed || keeping.is_some() {
+            return;
+        }
+        for (key, value) in kept {
+            let held = keys
+                .entry(key.clone())
+                .or_insert_with(|| Key::new(CacheState::Pending));
+            if !held.known() {
+                held.state.send_replace(CacheState::Ready(value));
+                unasked.insert(key);
+            }
+        }
+        *keeping = Some(Keeping { persister, refused });
     }
 
     /// The key's state, now and as it changes, until the cache is disposed.
@@ -566,8 +721,26 @@ where
     /// Whether what the cache holds may be ahead of what it has saved: a
     /// fetch is in flight, or a save is owed.
     pub fn persistence_pending(&self) -> bool {
+        let persistence = self.persistence();
+        persistence.fetching || persistence.saving
+    }
+
+    /// Whether a fetch is in flight, and whether a save is owed.
+    pub(crate) fn persistence(&self) -> Persistence {
         let state = self.inner.state();
-        state.saving.is_some() || state.keys.values().any(|held| held.in_flight.is_some())
+        Persistence {
+            fetching: state.keys.values().any(|held| held.in_flight.is_some()),
+            saving: state.saving.is_some(),
+        }
+    }
+
+    /// Wait for the save disposal began, when it began one: what a client's
+    /// close waits for before its transport stops.
+    pub(crate) async fn flushed(&self) {
+        let closing = locked(&self.inner.closing).take();
+        if let Some(closing) = closing {
+            let _ = closing.await;
+        }
     }
 }
 
@@ -576,56 +749,78 @@ where
     K: CacheKey,
     V: CacheValue,
 {
-    /// End the cache: a save that was owed is made now, every observer's
-    /// stream ends, and nothing is fetched or written after.
+    /// End the cache: every observer's stream ends, nothing is fetched or
+    /// written after, and the save it owes (waiting, or refused) is begun,
+    /// once a save under way has finished: one that save's persister refuses
+    /// is owed again, and made then. Whoever disposed of it may wait for
+    /// that save (`flushed`).
     fn dispose(&self) {
-        let owed = {
+        let (keeping, entries) = {
             let mut state = self.inner.state();
             if state.disposed {
                 return;
             }
             state.disposed = true;
-            let owed = state.saving.take().map(|waiting| {
+            if let Some(Saving::Waiting(waiting)) = &state.saving {
                 waiting.abort();
-                Inner::values(&state)
-            });
+            }
+            let entries = Inner::values(&state);
             state.kept.clear();
             state.keys.clear();
-            owed
+            let Some(keeping) = state.keeping.clone() else {
+                return;
+            };
+            (keeping, entries)
         };
-        if let (Some(entries), Some(persister)) = (owed, &self.inner.persister) {
-            saved(persister.as_ref(), &entries);
+        // Nothing owed, and no save under way that could leave one owed: a
+        // save takes the lock, and none begins once the cache is disposed.
+        if let Ok(_idle) = self.inner.writing.try_lock()
+            && self.inner.state().saving.is_none()
+        {
+            return;
         }
+        let inner = self.inner.clone();
+        *locked(&self.inner.closing) = begun(async move {
+            let _writing = inner.writing.lock().await;
+            let owed = inner.state().saving.take().is_some();
+            if owed {
+                keeping.saved(&entries).await;
+            }
+        });
     }
 }
 
 // ── Keeping a cache in a `SessionStorage` ───────────────────────────────
 
+/// The version of the document a `StoragePersister` writes:
+/// protocol/specs/src/session/stored.json's `cacheDocument`. A document of
+/// another reads as nothing kept.
+const VERSION: u64 = 1;
+
 /// One entry as it is stored: the key, the value, and when the value was
-/// last written, in milliseconds since the epoch.
+/// received, in milliseconds since the epoch.
 type Stored = (Value, Value, u64);
 
-#[derive(Serialize, serde::Deserialize)]
-struct Document {
+#[derive(Serialize)]
+struct Document<'a> {
     version: u64,
-    #[serde(rename = "writtenAt")]
-    written_at: u64,
-    entries: Vec<Stored>,
+    entries: &'a [Stored],
 }
 
 /// A `CachePersister` over a `SessionStorage`: the cache's values as one
-/// document under one key, `{version, writtenAt, entries}`.
+/// document under one key, stored.json's `cacheDocument`:
+/// `{"version": 1, "entries": [[key, value, stamp], …]}`.
 ///
-/// A document of another version, or one that does not parse, reads as
-/// nothing kept. A document larger than `max_bytes` loses its entries that
-/// have gone longest without a new value, until it fits.
+/// A document whose structure is not that one reads as nothing kept, and an
+/// entry whose key or value is not this cache's is skipped. A document
+/// larger than `max_bytes` loses the entries received longest ago, until it
+/// fits.
 pub struct StoragePersister<K, V> {
     storage: Arc<dyn SessionStorage>,
     storage_key: String,
-    version: u64,
     max_bytes: usize,
-    /// Each key's value as last written, and when: an entry whose value has
-    /// not changed keeps its time.
+    /// Each key's value as last written, and when it was received: an entry
+    /// whose value has not changed keeps its time.
     written: Mutex<HashMap<String, (String, u64)>>,
     of: PhantomData<fn() -> (K, V)>,
 }
@@ -634,13 +829,11 @@ impl<K, V> StoragePersister<K, V> {
     pub fn new(
         storage: Arc<dyn SessionStorage>,
         storage_key: impl Into<String>,
-        version: u64,
         max_bytes: usize,
     ) -> StoragePersister<K, V> {
         StoragePersister {
             storage,
             storage_key: storage_key.into(),
-            version,
             max_bytes,
             written: Mutex::new(HashMap::new()),
             of: PhantomData,
@@ -648,35 +841,44 @@ impl<K, V> StoragePersister<K, V> {
     }
 }
 
-fn document(raw: Option<&str>, version: u64) -> Option<Document> {
-    let document: Document = serde_json::from_str(raw?).ok()?;
-    (document.version == version).then_some(document)
+/// The whole number of at least 0 a JSON value is, however it is written:
+/// an integer is a number with no fractional part, so `1.0` and `1e3` are
+/// ones. Any other value is none.
+fn whole(value: &Value) -> Option<u64> {
+    let Value::Number(number) = value else {
+        return None;
+    };
+    match number.as_u64() {
+        Some(whole) => Some(whole),
+        None => number
+            .as_f64()
+            .filter(|number| number.fract() == 0.0 && (0.0..u64::MAX as f64).contains(number))
+            .map(|number| number as u64),
+    }
 }
 
-fn remembered(written: &Mutex<HashMap<String, (String, u64)>>, document: &Document) {
-    *written
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = document
-        .entries
-        .iter()
-        .map(|(key, value, at)| (key.to_string(), (value.to_string(), *at)))
-        .collect();
-}
-
-fn entries<K, V>(document: Document) -> HashMap<K, V>
-where
-    K: DeserializeOwned + Eq + Hash,
-    V: DeserializeOwned,
-{
-    // An entry that is not this cache's shape is one it never kept.
-    document
-        .entries
+/// The entries of a stored document whose structure is a `cacheDocument`'s:
+/// an object of this version whose `entries` are each a key, a value and a
+/// whole number of at least 0. Any other is none. A member it does not state
+/// is no part of it.
+fn entries(stored: &str) -> Option<Vec<Stored>> {
+    let Value::Object(mut document) = serde_json::from_str(stored).ok()? else {
+        return None;
+    };
+    if document.get("version").and_then(whole) != Some(VERSION) {
+        return None;
+    }
+    let Value::Array(entries) = document.remove("entries")? else {
+        return None;
+    };
+    entries
         .into_iter()
-        .filter_map(|(key, value, _)| {
-            Some((
-                serde_json::from_value(key).ok()?,
-                serde_json::from_value(value).ok()?,
-            ))
+        .map(|entry| match entry {
+            Value::Array(entry) => match <[Value; 3]>::try_from(entry) {
+                Ok([key, value, at]) => whole(&at).map(|at| (key, value, at)),
+                _ => None,
+            },
+            _ => None,
         })
         .collect()
 }
@@ -687,12 +889,37 @@ where
     V: Serialize + DeserializeOwned + 'static,
 {
     fn load(&self) -> Option<HashMap<K, V>> {
-        let document = document(self.storage.get(&self.storage_key).as_deref(), self.version)?;
-        remembered(&self.written, &document);
-        Some(entries(document))
+        let entries = entries(&self.storage.get(&self.storage_key)?)?;
+        let mut kept = HashMap::new();
+        let mut written = HashMap::new();
+        for (key, value, at) in entries {
+            let (key_text, value_text) = (key.to_string(), value.to_string());
+            // An entry whose key or value is not this cache's is one it
+            // never kept.
+            let (Ok(key), Ok(value)) = (
+                serde_json::from_value::<K>(key),
+                serde_json::from_value::<V>(value),
+            ) else {
+                continue;
+            };
+            written.insert(key_text, (value_text, at));
+            kept.insert(key, value);
+        }
+        *locked(&self.written) = written;
+        Some(kept)
     }
 
-    fn save(
+    /// Written as it is asked: a `SessionStorage` writes at once.
+    fn save<'a>(
+        &'a self,
+        entries: &'a HashMap<K, V>,
+    ) -> BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+        Box::pin(std::future::ready(self.write(entries)))
+    }
+}
+
+impl<K: Serialize, V: Serialize> StoragePersister<K, V> {
+    fn write(
         &self,
         entries: &HashMap<K, V>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -701,16 +928,10 @@ where
             .map_or(0, |since| {
                 u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
             });
-        let mut written = self
-            .written
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut written = locked(&self.written);
         let mut stored: Vec<Stored> = Vec::new();
         for (key, value) in entries {
-            let (Ok(key), Ok(value)) = (serde_json::to_value(key), serde_json::to_value(value))
-            else {
-                continue;
-            };
+            let (key, value) = (serde_json::to_value(key)?, serde_json::to_value(value)?);
             let as_text = value.to_string();
             let at = match written.get(&key.to_string()) {
                 Some((as_written, at)) if *as_written == as_text => *at,
@@ -720,18 +941,16 @@ where
         }
         let serialized = |entries: &[Stored]| {
             serde_json::to_string(&Document {
-                version: self.version,
-                written_at: now,
-                entries: entries.to_vec(),
+                version: VERSION,
+                entries,
             })
-            .unwrap_or_default()
         };
-        let mut text = serialized(&stored);
+        let mut text = serialized(&stored)?;
         if text.len() > self.max_bytes {
             stored.sort_by_key(|(_, _, at)| *at);
             while !stored.is_empty() && text.len() > self.max_bytes {
                 stored.remove(0);
-                text = serialized(&stored);
+                text = serialized(&stored)?;
             }
         }
         *written = stored

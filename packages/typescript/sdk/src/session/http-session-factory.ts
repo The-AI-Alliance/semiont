@@ -4,32 +4,35 @@
  * has none: building `HttpTransport`/`HttpContentTransport`,
  * wiring the `tokenRefresher` callback, deduplicating concurrent 401
  * refresh round trips, renewing the session at its issuer, and asking the
- * gateway who a stored token is.
+ * gateway who a stored token is. Each session's sign-in is the knowledge
+ * base's in the registry's storage, as `keptIn` keeps it.
  *
  * Returned as a closure so a single `inFlightRefreshes` map is shared
  * across every session this factory builds — the dedup is meaningful
  * across concurrent session reactivations for the same KB id.
  *
  * Every request of every session it builds, of the gateway and of the
- * issuer, is sent with `fetch`, or the runtime's own.
+ * issuer, is sent with `fetch`, or the runtime's own. It reads none of a
+ * session's errors: the registry that calls it does.
  */
 
 import { BehaviorSubject } from 'rxjs';
 import { HttpTransport, HttpContentTransport, currentUserOf } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
-import { coupledLastEventId } from '../cache-persister';
-import { SemiontSession, type UserInfo } from './semiont-session';
+import { personKeeping } from '../cache-persister';
+import { SemiontSession, sayOn, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
-import { kbGatewayUrl, lastEventIdKey } from './storage';
-import { refreshStoredSession } from './oauth';
+import { kbGatewayUrl, keptIn } from './storage';
+import { renewKept } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
 export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): SessionFactory {
   const inFlightRefreshes = new Map<string, Promise<string | null>>();
 
   return (opts: SessionFactoryOptions): SemiontSession => {
-    const { kb, storage, signals, onError } = opts;
+    const { kb, storage, signals } = opts;
+    let session!: SemiontSession;
 
     if (kb.endpoint.kind !== 'http') {
       throw new SemiontSessionError(
@@ -39,10 +42,12 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       );
     }
     const endpoint = kb.endpoint;
+    const gateway = baseUrl(kbGatewayUrl(endpoint));
+    const signIn = keptIn(storage, kb.id);
 
     /**
      * Renew `holding`, the KB's access token the session holds, at the
-     * issuer the stored session names. Concurrent calls for the same KB
+     * issuer the kept sign-in names. Concurrent calls for the same KB
      * dedup through `inFlightRefreshes`, so simultaneous 401s trigger only
      * one refresh grant.
      */
@@ -50,7 +55,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       const existing = inFlightRefreshes.get(kb.id);
       if (existing) return existing;
 
-      const promise = refreshStoredSession(storage, kb.id, holding, fetch);
+      const promise = renewKept(signIn, holding, fetch);
 
       inFlightRefreshes.set(kb.id, promise);
       try {
@@ -60,56 +65,62 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       }
     };
 
+    // B17: what the session keeps for one person, the stream's places and
+    // the caches, kept from the start when the kept sign-in names its
+    // person; until the gateway names them otherwise, nothing is kept. What
+    // goes wrong with it, the session says on its errors.
+    const keeps = personKeeping(storage, kb.id, signIn, (error) => sayOn(session, error));
+
+    // Build transport stack: factory owns token$ and threads it through
+    // transport (which reads it on every request) and session (which
+    // writes refreshed values into it). The `tokenRefresher` closure, and
+    // what the keeping says, resolve `session` lazily — `session` is
+    // defined right after, before any 401 or save could happen.
+    const token$ = new BehaviorSubject<AccessToken | null>(null);
+    const transport = new HttpTransport({
+      baseUrl: gateway,
+      token$,
+      tokenRefresher: (refused) => session.refresh(refused),
+      ...(keeps.fromStart === null ? {} : { loadLastEventIds: keeps.fromStart.places.loadLastEventIds }),
+      saveLastEventId: keeps.saveLastEventId,
+      ...(fetch ? { fetch } : {}),
+    });
+    const content = new HttpContentTransport(transport);
+    const client = new SemiontClient(transport, content, transport, keeps.fromStart === null ? {} : { cachePersistence: keeps.fromStart.persistence });
+    // B17-Q (C1): the places wait for what the client keeps to be at rest —
+    // a bystander document write must not carry an id whose event some other
+    // cache is still absorbing (mid-refetch, mid-debounce, or a refetch the
+    // refresher's window owes). Coupled after construction because the gate
+    // reads the client's own caches.
+    if (keeps.fromStart !== null) keeps.fromStart.places.coupleTo(client);
+
     /**
      * Ask the gateway who `token` is: one request, with no client behind it.
      * The session asks at startup, to populate `user$`, and decides for
      * itself what a refusal means. A client built for the asking would open
      * a bus stream each time it is built, with the token being asked about.
+     *
+     * The answer names the person, recorded on the kept sign-in only while
+     * it still holds `token` (a renewal or another context's sign-in in
+     * between records nothing). Recorded for a session keeping nothing yet,
+     * it starts keeping before the answer is handed back, so before the
+     * session is `ready`: the kept caches fill what this life has not asked
+     * for, and the kept places what the stream has not seen.
      */
-    const performValidate = (token: AccessToken): Promise<UserInfo> =>
-      currentUserOf(baseUrl(kbGatewayUrl(endpoint)), token, fetch);
+    const performValidate = async (token: AccessToken): Promise<UserInfo> => {
+      const user = await currentUserOf(gateway, token, fetch);
+      keeps.named(token, user.did, client, transport);
+      return user;
+    };
 
-    // Build transport stack: factory owns token$ and threads it through
-    // transport (which reads it on every request) and session (which
-    // writes refreshed values into it). The `tokenRefresher` closure
-    // resolves `session` lazily — `session` is defined right after,
-    // before any 401 could fire.
-    const token$ = new BehaviorSubject<AccessToken | null>(null);
-    let session!: SemiontSession;
-    // B17: resume from the last persisted SSE id across reloads, so
-    // rehydrated caches reconcile by replay instead of gapping. The id is
-    // COUPLED to the cache flush (stashed in memory, written only alongside
-    // cache-document writes) so the persisted bookmark can lag the caches
-    // but never lead them.
-    const coupled = coupledLastEventId(storage, lastEventIdKey(kb.id));
-    const transport = new HttpTransport({
-      baseUrl: baseUrl(kbGatewayUrl(endpoint)),
-      token$,
-      tokenRefresher: (refused) => session.refresh(refused),
-      loadLastEventIds: coupled.loadLastEventIds,
-      saveLastEventId: coupled.saveLastEventId,
-      ...(fetch ? { fetch } : {}),
-    });
-    const content = new HttpContentTransport(transport);
-    // B17: the session's client persists its browse caches through the
-    // environment's storage adapter, scoped by KB.
-    const client = new SemiontClient(transport, content, transport, {
-      cachePersistence: { storage: coupled.storage, keyPrefix: kb.id },
-    });
-    // B17-Q (C1): the bookmark flush waits for persisted-cache quiescence —
-    // a bystander document write must not carry an id whose event some other
-    // cache is still absorbing (mid-refetch or mid-debounce). Wired after
-    // construction because the gate reads the client's own caches.
-    coupled.setFlushGate(() => client.browse.persistenceSettled());
     session = new SemiontSession({
       kb,
-      storage,
+      kept: signIn,
       client,
       token$,
       refresh: performRefresh,
       validate: performValidate,
       onAuthFailed: (reason) => signals.notifySessionEnded(reason),
-      onError,
     });
     return session;
   };

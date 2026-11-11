@@ -922,6 +922,32 @@
           "member": "persistencePending"
         },
         {
+          "member": "keptFetching",
+          "absent": {
+            "typescript": "TypeScript's is PersistableCache.fetching, which the SDK does not export: the client that makes a cache reads it as its disposal seals the stream's places.",
+            "rust": "Rust's is pub(crate), the fetching of the persistence a cache reports: the client reads it as its close seals the stream's places.",
+            "go": "Go's is unexported: the client reads it as its Close seals the stream's places.",
+            "kotlin": "Kotlin's is internal (keptFetchInFlight): the client reads it as its close seals the stream's places.",
+            "swift": "A Swift cache counts each fetch in the work under way of what keeps its values, given when it is made, and its client reads that count.",
+            "csharp": "C#'s is internal (Cache.Fetching): its client's CachePersistence reads it as it seals the stream's places.",
+            "haskell": "Haskell's is in the internal library (Semiont.Internal.Cache.fetching): the client reads it as its close seals the stream's places.",
+            "ocaml": "OCaml's client keeps no stream places beside its caches, so its close asks no cache whether it is fetching."
+          }
+        },
+        {
+          "member": "attach",
+          "absent": {
+            "typescript": "TypeScript's client gives a cache what keeps its values through createPersistableCache, which the SDK does not export.",
+            "rust": "Rust's is pub(crate): the client that makes a cache gives it what keeps its values.",
+            "go": "Go's is unexported: the client that makes a cache gives it what keeps its values.",
+            "kotlin": "Kotlin's is internal: the client that makes a cache gives it what keeps its values.",
+            "swift": "A Swift cache is given what keeps its values when it is made.",
+            "csharp": "A C# cache keeps nothing itself: its client's CachePersistence keeps what its caches hold.",
+            "haskell": "A Haskell cache is given what keeps its values when it is made, in its CacheOptions.",
+            "ocaml": "An OCaml cache is given what keeps its values when it is made, as its restore and save."
+          }
+        },
+        {
           "member": "query",
           "absent": {
             "ocaml": "The OCaml cache observes a key directly; Client.query provides the public client query.",
@@ -938,9 +964,9 @@
     },
     {
       "unit": "session",
-      "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
+      "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. Its `errors` are its one stream of what went wrong: its own errors (a SessionError: its sign-in could not be checked or renewed, the gateway refused a token just issued, what its client keeps could not be kept, its storage refused a write of it) and its transport's failures, each said once; a session takes no callback for them. They end when the session ends. Whoever ends both closes the client first, waiting for its closing flush, and then ends the session, so what that flush meets is said before the errors end; what the client meets once its session has ended is said nowhere. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
       "made": {"ocaml": "Session", "csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
-      "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "haskell": "newSession"},
+      "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "csharp": "FromKeptAsync", "haskell": "newSession"},
       "members": [
         { "member": "id" },
         { "member": "kb" },
@@ -1489,7 +1515,7 @@
     },
     {
       "module": "storagePersister",
-      "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
+      "docs": "Where a client keeps its queries' values: a session storage, one key for each query it keeps for the person signed in, each kept within a size.",
       "where": {
         "ocaml": ["packages/ocaml/sdk/lib/storage_persister.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/StoragePersister.hs"],
@@ -1606,7 +1632,7 @@
     },
     {
       "module": "registry",
-      "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
+      "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered. The registry is the one reader of each session's errors, from the first thing the session said: each of the session's own it says on its own errors; a refusal for want of a valid token renews the session, handed the token it holds as the refusal is read; a refusal for lack of permission is said through the session's signals. A factory reads none of them, so a session built by a factory a host writes is read the same way.",
       "where": {
         "ocaml": ["packages/ocaml/sdk/lib/registry.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Registry"],
@@ -1711,7 +1737,7 @@
         {
           "member": "SessionFactoryOptions",
           "kind": "type",
-          "fields": ["kb", "storage", "signals", "onError"]
+          "fields": ["kb", "storage", "signals"]
         },
         {
           "member": "HttpSessionFactory",
@@ -1813,11 +1839,7 @@
         },
         {
           "member": "keptIn",
-          "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's session reads and writes its tokens in the registry's storage itself.",
-            "rust": "Rust's session reads and writes its tokens in the registry's storage itself."
-          }
+          "kind": "function"
         },
         {
           "member": "beginSignIn",
@@ -2066,6 +2088,87 @@
             "haskell": "Haskell reads, writes and locks the file itself, through its directory and file libraries and the C library.",
             "ocaml": "The OCaml store uses Unix file operations and a native flock binding."
           }
+        }
+      ]
+    },
+    {
+      "module": "keptSignIn",
+      "notYetReached": {
+        "ocaml": "OCaml keeps a sign-in only in the launcher's store (Sign_in_store), with OAuth's device grant beside it: it is to have a SignInKept a session holds and renews wherever it is kept, a MemorySignIn, and signInDevice, sessionFromKept, renewKept and signOut over one."
+      },
+      "docs": "A sign-in a session holds and renews wherever it is kept (a registry's storage, through the registry's keptIn; the sign-ins `semiont login` keeps; memory; a host's own), and what a script does with one: signs a person in to it by the device grant, opens a session over it, renews it at the issuer, and signs out of it. A session opened over one asks the gateway who its token is unless it is told not to (`validate`, true when it is left out). Its client keeps for the person the kept sign-in names from the start, whether or not it asks (protocol/specs/src/session/persisted-cases.json, `startup`); asking is how it learns the person when the sign-in names nobody yet, and a session that does not ask then keeps for nobody. docs/builder/SIGN-IN.md says which to use when.",
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/session/sign-in-kept.ts",
+          "packages/typescript/sdk/src/session/oauth.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/session/kept.rs",
+          "packages/rust/http-transport/src/session.rs",
+          "packages/rust/http-transport/src/oauth.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/session.py",
+          "packages/python/sdk/src/semiont/http/session.py",
+          "packages/python/sdk/src/semiont/http/oauth.py"
+        ],
+        "go": ["packages/go/sdk"],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/signin",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/SignIn/Kept.swift",
+          "packages/swift/sdk/Sources/Semiont/SignIn/Issuer.swift",
+          "packages/swift/sdk/Sources/Semiont/Session/SessionFromKept.swift"
+        ],
+        "csharp": ["packages/csharp/sdk/src/Semiont/SignIn"],
+        "haskell": [
+          "packages/haskell/sdk/src/Semiont/SignIn.hs",
+          "packages/haskell/sdk/src/Semiont/Session.hs"
+        ]
+      },
+      "members": [
+        {
+          "member": "SignInKept",
+          "kind": "type",
+          "named": { "csharp": "ISignInKept", "haskell": "KeptSignIn" }
+        },
+        {
+          "member": "MemorySignIn",
+          "kind": "type",
+          "absent": { "haskell": "Haskell makes one with newMemorySignIn, a KeptSignIn held in memory, and names no type for it." }
+        },
+        {
+          "member": "signInDevice",
+          "kind": "function",
+          "named": { "go": "SignInWithDevice" },
+          "absent": {
+            "typescript": "TypeScript's is SemiontSession.signInDevice, a static method of the session.",
+            "csharp": "C#'s is Issuer.SignInDeviceAsync, a method of the issuer."
+          }
+        },
+        {
+          "member": "sessionFromKept",
+          "kind": "function",
+          "named": { "haskell": "fromKeptSession" },
+          "absent": {
+            "typescript": "TypeScript's is SemiontSession.fromKept, a static method of the session.",
+            "csharp": "C#'s is SemiontSession.FromKeptAsync, a static method of the session."
+          }
+        },
+        {
+          "member": "renewKept",
+          "kind": "function",
+          "absent": {
+            "go": "Go's is Issuer.RenewKept, a method of the issuer.",
+            "csharp": "C#'s is Issuer.RenewAsync, a method of the issuer."
+          }
+        },
+        {
+          "member": "signOut",
+          "kind": "function",
+          "absent": { "csharp": "C#'s is Issuer.SignOutAsync, a method of the issuer." }
         }
       ]
     },
@@ -2492,7 +2595,7 @@
           "Issuer": ["TimeProvider"],
           "ServiceToken": ["TimeProvider"],
           "AgentToken": ["TimeProvider"],
-          "KeptSession": ["TimeProvider"],
+          "FromKeptAsync": ["TimeProvider"],
           "SignInStore": ["TimeProvider"],
           "Cache": ["TimeProvider"],
           "HoverDwell": ["TimeProvider"],
@@ -2528,13 +2631,10 @@
           "HttpTransportConfig": ["Rng"],
           "SemiontSessionConfig": ["Rng"],
           "retry_with_backoff": ["Rng"],
-          "refresh_stored_session": ["Rng"],
+          "SessionFromKept": ["Rng"],
           "AgentToken::sign_in": ["Rng"],
           "equal_jitter": ["Rng"],
           "HttpSession": ["Rng"],
-          "IssuedSession": ["Rng"],
-          "StoredSignIn": ["Rng"],
-          "SignInDevice": ["Rng"],
           "HttpSessionFactory::new": ["Rng"],
           "describe_connection": ["Rng"],
           "complete_sign_in": ["Rng"],
@@ -2590,7 +2690,7 @@
           "HttpTransport": ["Random"],
           "Issuer": ["Random"],
           "ServiceToken": ["Random"],
-          "KeptSession": ["Random"],
+          "FromKeptAsync": ["Random"],
           "SignInStore": ["Random"],
           "HttpSessionFactory": ["Random"],
           "SemiontBrowserConfig": ["Random"],

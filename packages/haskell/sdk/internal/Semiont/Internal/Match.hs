@@ -16,7 +16,7 @@ import qualified Semiont.Internal.Transport as LocalBus
 import qualified Semiont.Timing.Settings as Timing
 import Semiont.Types
 
-data MatchNamespace = MatchNamespace Bus.Bus LocalBus.EventBus Timing.Settings (Cache.Cache MatchResourcesRequest MatchResourcesResponse)
+data MatchNamespace = MatchNamespace Bus.Bus LocalBus.EventBus Timing.Settings (Cache.Cache MatchResourcesRequest Fact.MatchedResourcesValue)
 newMatch :: Bus.Bus -> LocalBus.EventBus -> Bus.BusOptions -> Timing.Settings -> IO MatchNamespace
 newMatch wire local clock timing = MatchNamespace wire local timing <$> Cache.newCache
   (\input -> matchResourcesResultResponse <$> Bus.request wire MatchResourcesRequestedOperation input (Timing.busRequestTimeoutMs timing))

@@ -40,6 +40,10 @@ type Session struct {
 	// session, and its stream can be refused, and ask Refresh for a token,
 	// while that session is still being resumed.
 	resumed chan struct{}
+	// heard is closed once everything the SDK's session said has been taken
+	// in: its errors have ended, which they do when it is closed. Set before
+	// resumed is closed.
+	heard <-chan struct{}
 
 	// ended is done once the session is over for this command, with a
 	// *SessionRejected as its cause.
@@ -116,43 +120,62 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 	// the SDK's.
 	s.client = s.openClient(channels)
 	s.sdk, err = semiont.ResumeSession(context.Background(), semiont.ResumeConfig{
-		Kb:            target,
-		Client:        s.client.Client,
-		Kept:          store.Entry(key),
-		Token:         s.token,
-		HTTP:          &http.Client{Transport: launcherTransport},
-		Timing:        semiont.DefaultTiming(),
-		AskWhoTokenIs: true,
-		OnError:       s.failed,
+		Kb:     target,
+		Client: s.client.Client,
+		Kept:   store.Entry(key),
+		Token:  s.token,
+		HTTP:   &http.Client{Transport: launcherTransport},
+		Timing: semiont.DefaultTiming(),
 	})
 	if err != nil {
-		s.client.close()
+		s.client.closeClient()
+		s.client.closeTransports()
 		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
 	}
+	s.heard = s.hear()
 	close(s.resumed)
 	if err := s.sdk.Ready(context.Background()); err != nil {
 		s.Close()
 		return nil, fmt.Errorf("the session for %s was not ready: %w", key, err)
 	}
-	// A session whose token expired and that the issuer would not renew
-	// ended at its start with nothing said: there was no session to end. Its
-	// sign-in is forgotten; the command says why it cannot go on. One whose
-	// renewal the issuer did not refuse kept its sign-in and said why: the
-	// command cannot go on now, and logging in again is not what puts it
-	// right.
-	if s.ended.Err() == nil && s.token.Value() == "" {
-		if why := s.whyUnconfirmed(); why != "" {
-			s.end(&SessionRejected{refresh: errors.New(why), kept: true})
-		} else {
-			s.end(&SessionRejected{refresh: errExpired})
+	if s.ended.Err() == nil && s.token.Value() != "" {
+		s.noteRenewal(signIn.Token)
+		return s, nil
+	}
+	// A session that holds no token once it is ready cannot go on, and every
+	// failure that ends it leaves it none. It is closed, and its errors are
+	// read to their end, so that everything it said at its start is taken in
+	// before the command says why. One ended by what it said stands. One
+	// whose renewal the issuer did not refuse kept its sign-in and said why:
+	// logging in again is not what puts it right. One whose token expired and
+	// that the issuer would not renew said nothing, as there was no session to
+	// end: its sign-in is forgotten.
+	s.Close()
+	<-s.heard
+	if why := s.whyUnconfirmed(); why != "" {
+		s.end(&SessionRejected{refresh: errors.New(why), kept: true})
+	} else {
+		s.end(&SessionRejected{refresh: errExpired})
+	}
+	return nil, context.Cause(s.ended).(*SessionRejected)
+}
+
+// hear takes what the SDK's session says, its own failures read from its
+// errors, as each is said, until they end when the SDK's session is closed:
+// the returned channel is closed then.
+func (s *Session) hear() <-chan struct{} {
+	errs := s.sdk.Errors()
+	heard := make(chan struct{})
+	go func() {
+		defer close(heard)
+		for failure := range errs {
+			var own *semiont.SessionError
+			if errors.As(failure, &own) {
+				s.failed(own)
+			}
 		}
-	}
-	if rejected, over := context.Cause(s.ended).(*SessionRejected); over {
-		s.Close()
-		return nil, rejected
-	}
-	s.noteRenewal(signIn.Token)
-	return s, nil
+	}()
+	return heard
 }
 
 // noteRenewal says the session was renewed, when the token it holds is not
@@ -225,11 +248,13 @@ func (s *Session) Signee(ctx context.Context) (api.UserResponse, error) {
 	return s.client.Auth.Me(ctx)
 }
 
-// Close ends the SDK's session, so it renews nothing more, and then the
-// command's client.
+// Close closes the command's client, waiting for its closing flush, then
+// ends the SDK's session, so it renews nothing more and its errors end, and
+// then closes the client's transports.
 func (s *Session) Close() {
+	s.client.closeClient()
 	s.sdk.Close()
-	s.client.close()
+	s.client.closeTransports()
 }
 
 // kbTarget is the knowledge base key names, at the gateway whose origin is
@@ -273,11 +298,26 @@ func (s *Session) Refresh(ctx context.Context, refused string) (token string, ok
 		if s.signIn.RefreshToken != "" {
 			why = errors.New("the stack was signed out while its session was being renewed")
 		}
-		s.end(&SessionRejected{refresh: why})
+		s.over(&SessionRejected{refresh: why})
 		return "", false
 	}
 	s.noteRenewal(before)
 	return renewed, true
+}
+
+// over ends the session, once the SDK's session can give it no token, for
+// why: unless what the SDK's session said ended it first. That session says
+// why it holds no token before it answers so, but its errors are read on
+// their own, so it is closed and they are read to their end before why is
+// given. Its transports are left no token to offer first: once the SDK's
+// session is closed, its token changes no more. The command's client keeps
+// nothing, so no closing flush of it has anything to say: the SDK's session
+// can end before it.
+func (s *Session) over(why *SessionRejected) {
+	s.token.Set("")
+	s.sdk.Close()
+	<-s.heard
+	s.end(why)
 }
 
 // unauthorized: the gateway refused the token a call bore.

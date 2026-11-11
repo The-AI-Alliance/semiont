@@ -312,7 +312,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     defer { received.end() }
     wire.payload = payload
     let frame = ReceivedFrame(wire, trace: trace, eventId: eventId)
-    if let id = eventId, id.hasPrefix("p-"), let scope = frame.scope { watermarks[scope] = id }
+    if let id = eventId, isPersistedEventId(id), let scope = frame.scope { watermarks[scope] = id }
     BusLog.line(
       "RECV", channel: frame.channel, payload: frame.payload, scope: frame.scope,
       correlationID: frame.correlationId, traceID: received.context.traceId.hexString)

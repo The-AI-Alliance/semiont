@@ -79,6 +79,8 @@ data HttpOptions = HttpOptions
   -- ^ A fresh UUID on each call for routing and idempotency keys.
   , httpGlobalChannels :: Set.Set Text
   , httpLoadPositions :: IO (Map.Map ResourceId Text)
+  -- ^ The places kept: read each time the stream opens, for each scope it
+  -- holds no place in yet.
   , httpSavePosition :: ResourceId -> Text -> IO ()
   }
 
@@ -116,9 +118,8 @@ newHttp configuration receives actor = do
   let send frame = readMVar holder >>= \http -> emit http frame
   (wire, source) <- Transport.newTransport (Transport.TransportOptions address receives send (Lifetime.close life))
   identity <- UUID.toText <$> httpNewId configuration
-  saved <- httpLoadPositions configuration
   logging <- BusLog.environmentLogger
-  http <- Http configuration wire source life base <$> newTVarIO Nothing <*> newTVarIO Set.empty <*> newMVar () <*> pure identity <*> newTVarIO saved <*> pure logging
+  http <- Http configuration wire source life base <$> newTVarIO Nothing <*> newTVarIO Set.empty <*> newMVar () <*> pure identity <*> newTVarIO Map.empty <*> pure logging
   putMVar holder http
   void (spawn http (actor http))
   pure http

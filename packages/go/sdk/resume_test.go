@@ -19,9 +19,11 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
-const (
-	keptPlacesKey = "semiont.lastEventId.kb-a"
-	keptCacheKey  = "semiont.cache.kb-a.resource"
+var (
+	keptPerson         = PersonKey("did:web:example.org:users:alice")
+	keptPlacesKey      = LastEventIDKey("kb-a", keptPerson)
+	keptCacheKey       = CacheKey("kb-a", keptPerson, CacheQueryResource)
+	keptAnnotationsKey = CacheKey("kb-a", keptPerson, CacheQueryAnnotations)
 )
 
 func placesOf(t *testing.T, kept map[string]string) map[api.ResourceId]string {
@@ -42,9 +44,9 @@ func TestAPlaceIsWrittenWithTheNextWriteOfACacheAndNotBefore(t *testing.T) {
 	}
 
 	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
-	kept.Save(resource, "p-7")
-	kept.Save(resource, "p-8")
-	kept.Save(other, "p-3")
+	kept.Save(resource, "p-res-1-7")
+	kept.Save(resource, "p-res-1-8")
+	kept.Save(other, "p-res-2-3")
 	if _, ok := storage.Get(keptPlacesKey); ok {
 		t.Fatal("a place was written when it was reached")
 	}
@@ -66,20 +68,20 @@ func TestAPlaceIsWrittenWithTheNextWriteOfACacheAndNotBefore(t *testing.T) {
 	if read, _ := caches.Get(keptCacheKey); read != "{}" {
 		t.Fatalf("the cache reads back %q", read)
 	}
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-8", "res-2": "p-3"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-8", "res-2": "p-res-2-3"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 
 	// A later place of one scope leaves the other's as it was.
-	kept.Save(other, "p-4")
+	kept.Save(other, "p-res-2-4")
 	caches.Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-8", "res-2": "p-4"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-8", "res-2": "p-res-2-4"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 	// With nothing reached since, a cache's write writes no places: what another client kept meanwhile stays.
-	storage.Set(keptPlacesKey, `{"res-9": "p-1"}`)
+	storage.Set(keptPlacesKey, `{"res-9": "p-res-9-1"}`)
 	caches.Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-9": "p-1"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-9": "p-res-9-1"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 	if err := caches.Delete(keptCacheKey); err != nil {
@@ -105,7 +107,7 @@ func TestAPlaceIsWrittenAfterTheCachesOwnWriteSoOneThatFailsLeavesNoPlaceAheadOf
 	storage := full{NewMemoryStorage()}
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	caches := kept.Storage()
-	kept.Save(mustResource(t, "res-1"), "p-7")
+	kept.Save(mustResource(t, "res-1"), "p-res-1-7")
 	if err := caches.Set(keptCacheKey, "{}"); err == nil || err.Error() != "the storage is full" {
 		t.Fatalf("the cache's failed write said %v", err)
 	}
@@ -113,10 +115,10 @@ func TestAPlaceIsWrittenAfterTheCachesOwnWriteSoOneThatFailsLeavesNoPlaceAheadOf
 	if _, ok := storage.Get(keptPlacesKey); ok {
 		t.Fatal("a place was written though the cache's write failed")
 	}
-	if err := caches.Set("semiont.cache.kb-a.annotations", "{}"); err != nil {
+	if err := caches.Set(keptAnnotationsKey, "{}"); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-7"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-7"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
@@ -126,9 +128,9 @@ func TestAPlaceWaitsForTheCachesToBeAtRest(t *testing.T) {
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	caches := kept.Storage()
 	atRest := false
-	kept.SetFlushGate(func() bool { return atRest })
+	kept.gatedBy(func() bool { return atRest })
 
-	kept.Save(mustResource(t, "res-1"), "p-7")
+	kept.Save(mustResource(t, "res-1"), "p-res-1-7")
 	caches.Set(keptCacheKey, "{}")
 	// Late, which is safe: the cache that was written may not be the one still taking the event in.
 	if _, ok := storage.Get(keptPlacesKey); ok {
@@ -136,15 +138,15 @@ func TestAPlaceWaitsForTheCachesToBeAtRest(t *testing.T) {
 	}
 
 	atRest = true
-	caches.Set("semiont.cache.kb-a.annotations", "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-7"}); !maps.Equal(got, want) {
+	caches.Set(keptAnnotationsKey, "{}")
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-7"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
 
-func TestWhatIsKeptUnderTheKeyAndIsNotPlacesIsNothingKept(t *testing.T) {
+func TestWhatIsKeptUnderTheKeyAndIsNoObjectIsNoPlaces(t *testing.T) {
 	storage := NewMemoryStorage()
-	for _, stored := range []string{"not json", "[1, 2]", `{"res-1": 7}`, `{"not an id": "p-1"}`, "null"} {
+	for _, stored := range []string{"not json", "[1, 2]", `"p-res-1-1"`, "null"} {
 		storage.Set(keptPlacesKey, stored)
 		if got := NewCoupledBookmarks(storage, keptPlacesKey).Load(); len(got) != 0 {
 			t.Errorf("%s reads as places %v", stored, got)
@@ -152,25 +154,58 @@ func TestWhatIsKeptUnderTheKeyAndIsNotPlacesIsNothingKept(t *testing.T) {
 	}
 	// And is written over by the first places that are.
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
-	kept.Save(mustResource(t, "res-1"), "p-1")
+	kept.Save(mustResource(t, "res-1"), "p-res-1-1")
 	kept.Storage().Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-1"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-1"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
 
-// recordingGateway records each subscription it is sent, and gives the
-// newest stream what a test sends.
+// A pair that is not a resource's id and a PersistedEventId is no place,
+// and the places beside it are kept; one reached is written only if it is a
+// PersistedEventId.
+func TestAPlaceThatIsNotAResourcesIdAndAPersistedEventsIdIsSkipped(t *testing.T) {
+	storage := NewMemoryStorage()
+	storage.Set(keptPlacesKey, `{"res-1": 7, "not an id": "p-x-1", "res-3": "p-7", "res-4": "e-res-4-1", "res-2": "p-res-2-3"}`)
+	kept := NewCoupledBookmarks(storage, keptPlacesKey)
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-2": "p-res-2-3"}); !maps.Equal(got, want) {
+		t.Fatalf("places kept %v, want %v", got, want)
+	}
+	kept.Save(mustResource(t, "res-5"), "p-5")
+	kept.Save(mustResource(t, "res-6"), "p-res-6-2")
+	kept.Storage().Set(keptCacheKey, "{}")
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-2": "p-res-2-3", "res-6": "p-res-6-2"}); !maps.Equal(got, want) {
+		t.Fatalf("places kept %v, want %v", got, want)
+	}
+}
+
+// recordingGateway records each subscription and each emit it is sent,
+// answers no emit, and gives the newest stream what a test sends.
 type recordingGateway struct {
 	*httptest.Server
 	mu            sync.Mutex
 	subscriptions []api.BusSubscribeRequest
+	emits         []api.BusEmitRequest
 	streams       []chan string
 }
 
 func newRecordingGateway(t *testing.T) *recordingGateway {
 	g := &recordingGateway{}
 	g.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bus/emit" {
+			var emit api.BusEmitRequest
+			if err := json.NewDecoder(r.Body).Decode(&emit); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			g.mu.Lock()
+			g.emits = append(g.emits, emit)
+			g.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
 		if r.URL.Path != "/bus/subscribe" {
 			http.NotFound(w, r)
 			return
@@ -242,7 +277,9 @@ func (g *recordingGateway) sendData(id, data string) {
 	newest <- fmt.Sprintf("event: bus-event\nid: %s\ndata: %s\n\n", id, data)
 }
 
-func (g *recordingGateway) transport(bookmarks Bookmarks) *HTTPTransport {
+// transport is a transport to the gateway whose stream names channels
+// globally, and begins each scope where bookmarks say.
+func (g *recordingGateway) transport(bookmarks Bookmarks, channels []bus.Channel) *HTTPTransport {
 	timing := DefaultTiming()
 	timing.Reconnect = 10 * time.Millisecond
 	timing.LazyRemove = 10 * time.Millisecond
@@ -251,19 +288,168 @@ func (g *recordingGateway) transport(bookmarks Bookmarks) *HTTPTransport {
 	return NewHTTPTransport(HTTPTransportConfig{
 		BaseURL:   g.URL,
 		Token:     NewVariable("t"),
+		Channels:  channels,
 		HTTP:      &http.Client{Transport: &http.Transport{}},
 		Timing:    timing,
 		Bookmarks: bookmarks,
 	})
 }
 
-func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEventItDelivered(t *testing.T) {
-	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
+// emittedOn is the emits the gateway was sent on channel, in order.
+func (g *recordingGateway) emittedOn(channel bus.Channel) []api.BusEmitRequest {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	var on []api.BusEmitRequest
+	for _, emit := range g.emits {
+		if emit.Channel == string(channel) {
+			on = append(on, emit)
+		}
+	}
+	return on
+}
+
+// heldBridge is a transport whose frames reach the client's bus only once the
+// test lets them: what the stream delivered waits here, in order, where the
+// client's refresher cannot take it.
+type heldBridge struct {
+	*HTTPTransport
+	mu      sync.Mutex
+	sink    FrameSink
+	holding bool
+	held    []func(FrameSink)
+}
+
+var _ FrameSink = (*heldBridge)(nil)
+
+// holdingFrames is transport, holding every frame it delivers until release.
+func holdingFrames(transport *HTTPTransport) *heldBridge {
+	return &heldBridge{HTTPTransport: transport, holding: true}
+}
+
+func (h *heldBridge) BridgeInto(sink FrameSink) {
+	h.mu.Lock()
+	h.sink = sink
+	h.mu.Unlock()
+	h.HTTPTransport.BridgeInto(h)
+}
+
+func (h *heldBridge) Deliver(frame Frame) {
+	h.pass(func(sink FrameSink) { sink.Deliver(frame) })
+}
+
+func (h *heldBridge) DeliverRefusal(refusal *FrameRefusal) {
+	h.pass(func(sink FrameSink) { sink.DeliverRefusal(refusal) })
+}
+
+// pass hands one delivery to the client's bus, or holds it.
+func (h *heldBridge) pass(deliver func(FrameSink)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.holding {
+		h.held = append(h.held, deliver)
+		return
+	}
+	deliver(h.sink)
+}
+
+// holds is how many deliveries are held.
+func (h *heldBridge) holds() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.held)
+}
+
+// release hands what was held to the client's bus, in order, and each
+// delivery after it at once.
+func (h *heldBridge) release() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.holding = false
+	for _, deliver := range h.held {
+		deliver(h.sink)
+	}
+	h.held = nil
+}
+
+// A place is noted only once the refresher has taken its event (B17). While
+// the event waits to be taken, no cache has begun to take it in, so another
+// cache's write carries no place for it; once it is taken, the refetch it
+// starts holds the place back while it is in flight; and once what the
+// refetch answered is kept, the place is written.
+func TestAPlaceIsNotWrittenBeforeTheRefresherHasTakenItsEvent(t *testing.T) {
+	resource := mustResource(t, "res-1")
 	storage := NewMemoryStorage()
-	storage.Set(keptPlacesKey, `{"res-1":"p-41"}`)
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	gateway := newRecordingGateway(t)
-	transport := gateway.transport(kept)
+	// A refetch whose replies the stream does not carry is never sent.
+	asked := bus.BrowseResourceRequested.Request().Channel()
+	transport := holdingFrames(gateway.transport(kept, bus.ReplyChannelsFor(asked)))
+	defer transport.Close()
+	client := NewClient(ClientConfig{Transport: transport, Timing: DefaultTiming(), Persistence: &CachePersistence{Storage: kept.Storage(), KbID: "kb-a", PersonKey: keptPerson}})
+	kept.CoupleTo(client)
+	defer client.Close()
+	write := func() {
+		t.Helper()
+		if err := kept.Storage().Set(keptAnnotationsKey, "{}"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// The client holds the resource, and has kept it; the stream holds its scope.
+	client.live.resource.Set(resource, readJSON[api.ResourceDescriptor](t, `{"@context":"https://schema.org","@id":"res-1","name":"One","representations":[]}`))
+	until(t, "the resource kept", client.PersistenceSettled)
+	defer transport.SubscribeToResource(resource)()
+	until(t, "a subscription of the resource's scope", func() bool { _, ok := gateway.asked(1); return ok })
+
+	// A recorded event of the resource, then a passing frame no row of the
+	// refresh table reads: once the second is held, the stream has done all it
+	// does with the first.
+	gateway.send("p-res-1-42", map[string]any{"channel": "yield:updated", "scope": "res-1", "payload": map[string]any{
+		"id": "evt-1", "type": "yield:updated", "timestamp": "2026-10-06T00:00:00.000Z", "userId": "did:web:example.org:users:alice",
+		"version": 1, "resourceId": "res-1", "payload": map[string]any{}, "metadata": map[string]any{"sequenceNumber": 1},
+	}})
+	gateway.send("e-1", map[string]any{"channel": "beckon:hover", "payload": map[string]any{}})
+	until(t, "both frames held", func() bool { return transport.holds() == 2 })
+
+	// Not yet taken: nothing is fetching and nothing is owed, and the place is
+	// not written.
+	if !client.PersistenceSettled() {
+		t.Fatal("the client is not at rest while the event waits to be taken")
+	}
+	write()
+	if place, written := kept.Load()[resource]; written {
+		t.Fatalf("the place %s was written before the refresher took its event", place)
+	}
+
+	// Taken: the refetch it starts is in flight, unanswered, and the place is
+	// held back.
+	transport.release()
+	until(t, "the refetch asked", func() bool { return len(gateway.emittedOn(asked)) == 1 })
+	write()
+	if place, written := kept.Load()[resource]; written {
+		t.Fatalf("the place %s was written while the refetch its event started was in flight", place)
+	}
+
+	// Answered and kept: the place is written with the resource's save.
+	refetch := gateway.emittedOn(asked)[0]
+	if refetch.CorrelationId == nil {
+		t.Fatal("the refetch was asked with no correlation id")
+	}
+	gateway.send("e-2", map[string]any{"channel": string(bus.BrowseResourceRequested.Result().Channel()), "correlationId": *refetch.CorrelationId, "payload": map[string]any{
+		"response": map[string]any{"resource": map[string]any{"@context": "https://schema.org", "@id": "res-1", "name": "One, updated", "representations": []any{}}, "lastSequence": 2},
+	}})
+	until(t, "the place written once the refetch was kept", func() bool { return kept.Load()[resource] == "p-res-1-42" })
+}
+
+// A stream begins each scope where its bookmarks say, and notes no place in
+// them itself: the client's refresher does, once it has taken the event (B17).
+func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndNotesNoPlaceInThem(t *testing.T) {
+	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
+	storage := NewMemoryStorage()
+	storage.Set(keptPlacesKey, `{"res-1":"p-res-1-41"}`)
+	kept := NewCoupledBookmarks(storage, keptPlacesKey)
+	gateway := newRecordingGateway(t)
+	transport := gateway.transport(kept, nil)
 	defer transport.Close()
 
 	heard, err := transport.Frames(context.Background(), bus.MarkAdded.Channel())
@@ -286,12 +472,12 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEvent
 
 	// The scope it kept a place in resumes from it; the other begins at the present.
 	until(t, "a subscription of both scopes", func() bool { _, ok := gateway.asked(2); return ok })
-	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-41", "res-2": ""}) {
+	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-res-1-41", "res-2": ""}) {
 		t.Fatalf("the scopes begin at %v", begins)
 	}
 
-	// A recorded event's id is its scope's place, once it has been delivered. A passing frame's is no place.
-	gateway.send("p-42", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-1"})
+	// A recorded event delivered, and a passing frame: the stream notes neither.
+	gateway.send("p-res-1-42", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-1"})
 	gateway.send("e-9", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 2}, "scope": "res-2"})
 	for _, want := range []string{`{"n":1}`, `{"n":2}`} {
 		select {
@@ -303,27 +489,51 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEvent
 			t.Fatalf("timed out waiting for %s", want)
 		}
 	}
-	until(t, "the place reached", func() bool {
-		kept.mu.Lock()
-		defer kept.mu.Unlock()
-		return kept.pending[resource] == "p-42"
-	})
-	if stored, _ := storage.Get(keptPlacesKey); stored != `{"res-1":"p-41"}` {
-		t.Fatalf("a place was written before a cache's write: %s", stored)
-	}
 	kept.Storage().Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-42"}); !maps.Equal(got, want) {
-		t.Fatalf("places kept %v, want %v", got, want)
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-41"}); !maps.Equal(got, want) {
+		t.Fatalf("places kept %v, want %v: the stream noted a place", got, want)
 	}
 }
 
 func TestAStreamWithNoBookmarksBeginsEveryScopeAtThePresent(t *testing.T) {
 	gateway := newRecordingGateway(t)
-	transport := gateway.transport(nil)
+	transport := gateway.transport(nil, nil)
 	defer transport.Close()
 	defer transport.SubscribeToResource(mustResource(t, "res-1"))()
 	until(t, "a subscription of the scope", func() bool { _, ok := gateway.asked(1); return ok })
 	if begins, _ := gateway.asked(1); !maps.Equal(begins, map[string]string{"res-1": ""}) {
+		t.Fatalf("the scope begins at %v", begins)
+	}
+}
+
+// Places kept elsewhere, given to a stream that has begun, are taken up only
+// for the scopes it holds no place in.
+func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testing.T) {
+	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
+	storage := NewMemoryStorage()
+	storage.Set(keptPlacesKey, `{"res-1":"p-res-1-41"}`)
+	elsewhere := NewMemoryStorage()
+	elsewhere.Set(keptPlacesKey, `{"res-1":"p-res-1-99","res-2":"p-res-2-3"}`)
+
+	gateway := newRecordingGateway(t)
+	transport := gateway.transport(NewCoupledBookmarks(storage, keptPlacesKey), nil)
+	defer transport.Close()
+	transport.takeUpPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
+	defer transport.SubscribeToResource(resource)()
+	defer transport.SubscribeToResource(other)()
+	until(t, "a subscription of both scopes", func() bool { _, ok := gateway.asked(2); return ok })
+	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-res-1-41", "res-2": "p-res-2-3"}) {
+		t.Fatalf("the scopes begin at %v", begins)
+	}
+
+	// A stream made with no bookmarks takes up the places it is given all the same.
+	bare := newRecordingGateway(t)
+	unkept := bare.transport(nil, nil)
+	defer unkept.Close()
+	unkept.takeUpPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
+	defer unkept.SubscribeToResource(other)()
+	until(t, "a subscription of the scope", func() bool { _, ok := bare.asked(1); return ok })
+	if begins, _ := bare.asked(1); !maps.Equal(begins, map[string]string{"res-2": "p-res-2-3"}) {
 		t.Fatalf("the scope begins at %v", begins)
 	}
 }

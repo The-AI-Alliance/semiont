@@ -30,7 +30,7 @@ import kotlin.coroutines.CoroutineContext
 
 /** Where a cache keeps its values, so a later one begins with them. */
 public interface CachePersister<K : Any, V : Any> {
-    /** What was kept, asked once, when the cache is built: none when nothing was. */
+    /** What was kept, asked once, when the cache is given this persister: none when nothing was. */
     public fun load(): Map<K, V>?
 
     /** Keep these: the cache's values, after they changed. */
@@ -72,12 +72,15 @@ private class Key<V : Any>(state: CacheState<V>) {
  * cache's own on the context it is given, for one a host makes. With a
  * `persister`, the cache begins with what was kept, shows a kept value at once
  * and asks for it again the first time it is observed, and saves its values
- * once they have stopped changing for `saveDebounceMs`.
+ * once they have stopped changing for `saveDebounceMs`. A save the persister
+ * refuses (it throws) is owed still: the cache's next change, or its closing,
+ * saves them again. One a client gives its persister later (`attach`) does the
+ * same from then on.
  */
 public class Cache<K : Any, V : Any> internal constructor(
     private val ask: suspend (K) -> V,
     private val scope: CoroutineScope,
-    private val persister: CachePersister<K, V>? = null,
+    persister: CachePersister<K, V>? = null,
     private val saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
 ) : StateUnit {
     /** A cache of a host's own, whose fetches ask `fetch` and run, and whose save debounce waits, on `context`. */
@@ -98,8 +101,14 @@ public class Cache<K : Any, V : Any> internal constructor(
     ) : this({ key: K -> fetch.apply(key).await() }, ownScope(context), persister, saveDebounceMs)
 
     private val lock = Any()
+    private var keeping: CachePersister<K, V>? = null
     private var disposed = false
     private var fetches = 0
+
+    /** Whether the values changed since the persister last took them: a save waits for them to stop changing, or the persister refused the last. */
+    private var owed = false
+
+    /** The wait for the values to stop changing, once they have changed, before they are saved. */
     private var saving: Job? = null
     private val keys = LinkedHashMap<K, Key<V>>()
 
@@ -107,25 +116,49 @@ public class Cache<K : Any, V : Any> internal constructor(
     private val kept = mutableSetOf<K>()
 
     init {
-        persister?.load()?.forEach { (key, value) -> keys[key] = Key(CacheState.Ready(value)) }
-        kept += keys.keys
+        if (persister != null) attach(persister)
+    }
+
+    /**
+     * Keep the cache's values with `persister` from now on, beginning with what
+     * it kept: a kept value fills only a key the cache holds nothing for, is
+     * shown at once, and is asked for anew the first time it is observed. What
+     * the cache holds is saved there from its next change. A closed cache, and
+     * one that keeps its values already, are left as they are.
+     */
+    internal fun attach(persister: CachePersister<K, V>): Unit = synchronized(lock) {
+        if (disposed || keeping != null) return
+        keeping = persister
+        persister.load()?.forEach { (key, value) ->
+            if (keys[key]?.known() != true) {
+                held(key).state.value = CacheState.Ready(value)
+                kept += key
+            }
+        }
     }
 
     private fun held(key: K): Key<V> = keys.getOrPut(key) { Key(CacheState.Pending) }
 
     private fun values(): Map<K, V> = keys.mapNotNull { (key, held) -> (held.state.value as? CacheState.Ready)?.let { key to it.value } }.toMap()
 
-    /** The values changed: save them once they have stopped changing. Called under the lock. */
+    /** The values changed: save them once they have stopped changing. A save the persister refuses stays owed, for the next change or the closing to save. Called under the lock. */
     private fun oweASave() {
-        val keeping = persister ?: return
+        val persister = keeping ?: return
+        owed = true
         saving?.cancel()
         saving = scope.launch {
             delay(saveDebounceMs)
             val entries = synchronized(lock) {
                 saving = null
+                owed = false
                 values()
             }
-            keeping.save(entries)
+            try {
+                persister.save(entries)
+            } catch (refused: Exception) {
+                synchronized(lock) { if (!disposed) owed = true }
+                throw refused
+            }
         }
     }
 
@@ -283,7 +316,14 @@ public class Cache<K : Any, V : Any> internal constructor(
 
     /** Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed. */
     public val persistencePending: Boolean
-        get() = synchronized(lock) { persister != null && (saving != null || keys.values.any { it.inFlight != null }) }
+        get() = synchronized(lock) { keeping != null && (owed || fetchInFlight()) }
+
+    /** Whether a cache that keeps its values has a fetch in flight: what closing it drops. */
+    internal val keptFetchInFlight: Boolean
+        get() = synchronized(lock) { keeping != null && fetchInFlight() }
+
+    /** Called under the lock. */
+    private fun fetchInFlight(): Boolean = keys.values.any { it.inFlight != null }
 
     /** The key's value is out of date: ask again, showing what there is meanwhile. A fetch in flight is not waited on. */
     public fun invalidate(key: K): Unit = synchronized(lock) {
@@ -314,21 +354,20 @@ public class Cache<K : Any, V : Any> internal constructor(
         oweASave()
     }
 
-    /** End the cache: a save that was owed is made now, every observer's states end, and nothing is fetched or written after. Closing twice is closing once. */
+    /** End the cache: a save that was owed, or refused, is made now, every observer's states end, and nothing is fetched or written after. Closing twice is closing once. */
     override fun close() {
-        val (owed, ended) = synchronized(lock) {
-            val owed = saving?.let {
-                it.cancel()
-                saving = null
-                values()
-            }
+        val (unsaved, ended) = synchronized(lock) {
+            saving?.cancel()
+            saving = null
+            val unsaved = if (owed) values() else null
+            owed = false
             disposed = true
             val ended = keys.values.toList()
             keys.clear()
             kept.clear()
-            owed to ended
+            unsaved to ended
         }
-        owed?.let { persister?.save(it) }
+        unsaved?.let { keeping?.save(it) }
         ended.forEach { it.state.value = null }
     }
 }

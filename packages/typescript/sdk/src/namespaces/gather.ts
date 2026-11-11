@@ -1,4 +1,4 @@
-import type { AnnotationId, CacheQuery, components, ResourceId, EventBus, GatheredContext } from '@semiont/core';
+import type { AnnotationId, CacheQuery, CacheValues, components, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
 import { Bus } from '@semiont/core';
@@ -15,7 +15,7 @@ type GatherQuery = (typeof GATHER_QUERIES)[number];
 
 export class GatherNamespace implements IGatherNamespace {
   /** In memory only: an answer of the graph, asked again on each session. */
-  private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
+  private readonly referencedByCache: Cache<ResourceId, CacheValues['referencedBy']>;
   private readonly scoped: ScopedSources;
   private readonly refresher: CacheRefresher<GatherQuery>;
 
@@ -34,7 +34,7 @@ export class GatherNamespace implements IGatherNamespace {
     this.wire = new Bus(transport);
     this.scoped = new ScopedSources(this.transport);
 
-    this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
+    this.referencedByCache = createCache<ResourceId, CacheValues['referencedBy']>(async (resourceId) => {
       const result = await this.wire.request(
         'gather:referenced-by-requested',
         { resourceId },

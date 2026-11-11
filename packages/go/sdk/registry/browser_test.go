@@ -16,6 +16,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"sync"
@@ -797,4 +799,88 @@ func TestASessionThatCannotBeBuiltIsSaidAndThereIsNone(t *testing.T) {
 			t.Error("a session that could not be built left something")
 		}
 	})
+}
+
+// ── What is open when a session becomes active ──────────────────────────
+
+// openResourceCases is protocol/specs/src/session/open-resource-cases.json:
+// what a registry does with the resources open in a knowledge base when a
+// session with it becomes active.
+type openResourceCases struct {
+	Cases []struct {
+		Why       string            `json:"why"`
+		Kb        string            `json:"kb"`
+		Open      []string          `json:"open"`
+		Resources map[string]string `json:"resources"`
+		Asked     []string          `json:"asked"`
+		StillOpen []string          `json:"stillOpen"`
+	} `json:"cases"`
+}
+
+func readOpenResourceCases(t *testing.T) openResourceCases {
+	t.Helper()
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "protocol", "specs", "src", "session", "open-resource-cases.json"))
+	must(t, err)
+	var table openResourceCases
+	must(t, json.Unmarshal(text, &table))
+	if len(table.Cases) == 0 {
+		t.Fatal("the table states no cases: it was not read")
+	}
+	return table
+}
+
+// asSet is ids sorted, each once.
+func asSet(ids []string) []string {
+	return slices.Compact(slices.Sorted(slices.Values(ids)))
+}
+
+func TestWhatIsOpenWhenASessionBecomesActiveIsCheckedAsTheCaseTableSays(t *testing.T) {
+	for _, c := range readOpenResourceCases(t).Cases {
+		t.Run(c.Why, func(t *testing.T) {
+			bubble(t, func(t *testing.T, w *world) {
+				w.with(kbOfA()).opened(kbA, c.Open...)
+				switch c.Kb {
+				case "itself":
+					w.factory.says(kbA, description("KB A", "example.org:kb-a", ""))
+				case "unanswered":
+					// No description: asked who it is, it does not answer.
+				default:
+					t.Fatalf("the case's knowledge base answers %q, which the table does not name", c.Kb)
+				}
+				var gone, unanswered []string
+				for resource, answer := range c.Resources {
+					switch answer {
+					case "ready":
+					case "gone":
+						gone = append(gone, resource)
+					case "unanswered":
+						unanswered = append(unanswered, resource)
+					default:
+						t.Fatalf("the case answers %q for %s, which the table does not name", answer, resource)
+					}
+				}
+				w.factory.behind.mu.Lock()
+				for _, resource := range gone {
+					w.factory.behind.gone[resource] = true
+				}
+				for _, resource := range unanswered {
+					w.factory.behind.failing[resource] = true
+				}
+				w.factory.behind.mu.Unlock()
+
+				browser := w.browser()
+				live(t, browser)
+
+				if got, want := asSet(w.factory.askedAbout(kbA)), asSet(c.Asked); !equalStrings(got, want) {
+					t.Errorf("asked about %v, want %v", got, want)
+				}
+				if got, want := asSet(open(browser)), asSet(c.StillOpen); !equalStrings(got, want) {
+					t.Errorf("still open %v, want %v", got, want)
+				}
+				if got, want := asSet(w.storedOpen(kbA)), asSet(c.StillOpen); !equalStrings(got, want) {
+					t.Errorf("stored as open %v, want %v", got, want)
+				}
+			})
+		})
+	}
 }

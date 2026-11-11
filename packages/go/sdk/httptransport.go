@@ -47,9 +47,11 @@ type HTTPTransportConfig struct {
 	Refresher TokenRefresher
 	// Channels is the global channels the stream names.
 	Channels []bus.Channel
-	// Bookmarks is where the stream's place in each scope is kept: with
+	// Bookmarks is where the stream's place in each scope was kept: with
 	// them, each scope's stream begins where they say the client's last life
-	// left it; nil, at the present.
+	// left it; nil, at the present. The places reached from now on are noted
+	// by the client's refresher, on the places coupled to the client
+	// (CoupledBookmarks.CoupleTo), never by the transport.
 	Bookmarks Bookmarks
 	// HTTP is what the requests are made with.
 	HTTP *http.Client
@@ -66,7 +68,6 @@ type transportShared struct {
 	http      *http.Client
 	token     *Variable[string]
 	refresher TokenRefresher
-	bookmarks Bookmarks
 	// clientID is this client's address for correlated replies: one per
 	// transport, not per connection, so both streams of a handoff present the
 	// same one.
@@ -76,7 +77,7 @@ type transportShared struct {
 	random   *rand.Rand
 	hub      *FrameHub
 	router   *ReplyRouter
-	failures *failureStream
+	failures *failureStream[*TransportError]
 }
 
 // HTTPTransport is the Transport over HTTP. Its stream opens in the
@@ -102,17 +103,16 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		http:      config.HTTP,
 		token:     config.Token,
 		refresher: config.Refresher,
-		bookmarks: config.Bookmarks,
 		clientID:  uuid.NewString(),
 		global:    slices.Clone(config.Channels),
 		timing:    config.Timing,
 		random:    config.Random,
 		hub:       NewFrameHub(),
 		router:    NewReplyRouter(),
-		failures:  newFailureStream(),
+		failures:  newFailureStream[*TransportError](),
 	}
 	state := NewVariable(ConnectionStateInitial)
-	s := newStream(shared, state)
+	s := newStream(shared, state, config.Bookmarks)
 	stopped := make(chan struct{})
 	go s.run(stopped)
 	return &HTTPTransport{
@@ -129,6 +129,12 @@ func (t *HTTPTransport) BaseURL() string { return t.shared.baseURL }
 
 // ClientID is the address this client's correlated replies are routed to.
 func (t *HTTPTransport) ClientID() string { return t.shared.clientID }
+
+// takeUpPlaces has the stream begin each scope it holds no place in where
+// bookmarks say.
+func (t *HTTPTransport) takeUpPlaces(bookmarks Bookmarks) {
+	t.send(command{kind: commandTakeUpPlaces, bookmarks: bookmarks})
+}
 
 // send gives the stream a command; nothing, once the stream has stopped.
 func (t *HTTPTransport) send(c command) {

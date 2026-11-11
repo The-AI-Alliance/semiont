@@ -43,14 +43,27 @@ HTTP pool and controlled clock. The client ids and scope come from the shared
 OAuth registration table.
 
 `Semiont.Session.signInDevice` opens a client/session from a device grant.
+`Session.signOut http kept` signs out of a kept sign-in: it revokes the refresh
+token at the issuer where the sign-in names a revocation endpoint, forgets the
+sign-in however that went, and says whether the issuer revoked it.
 `fromIssuedSession` persists an already issued grant and installs its rotating
 refresh callback. `SessionOptions` carries the knowledge base, typed kept grant, wall
 clock and host callbacks; provide `sessionValidate` to confirm a person with
 the supplied client and token. A service can omit that callback. `ready` waits for startup;
 `token`, `user` and `streamState` are read-only observations. Refusals that arrive
 together share one renewal. An issuer refusal forgets the grant; an outage
-keeps it and retries with reconnect backoff. Disposing a session joins its
-work and leaves its client open; `closeOpenedSession` closes both.
+keeps it and retries with reconnect backoff. What goes wrong, the session's
+own errors and its transport's failures, is said once each on `errors`; what
+is said before anyone reads is kept for the first reader. Disposing a session
+joins its work, ends `errors` and leaves its client open, and once its client
+has closed, ends `errors` after what that client's transport said;
+`closeOpenedSession` closes the client first, its closing flush done, then
+ends the session, so what the flush meets is said before `errors` ends. A
+registry reads each session's `errors` itself: a refusal for want of a valid
+token renews the session, handed the token it holds as the refusal is read.
+Closing a registry closes its sessions before the rest of its work, reading
+each one's `errors` to their end, so what a closing flush meets is said on
+the registry's `errors` before they end.
 
 ```haskell
 module DeviceSignIn where
@@ -101,11 +114,13 @@ withAccount options authority clientId pem wallNow use = do
     Service.dispose use
 ```
 
-`Session.signInAgent http Nothing options budget service` opens a session for that
-account and keeps the DID the gateway actually returned. Supply its startup
+`Session.signInAgent http options budget service` opens a session for that
+account and keeps the DID the gateway actually returned; it keeps no caches. Supply its startup
 `RetryBudget` explicitly: unreachable peers and boot-transient responses retry,
 and a refused freshly issued credential ends the attempt. The service token
-remains owned by its caller. Session renewal callbacks receive the token held;
+remains owned by its caller. Each renewal is handed the token it renews: the
+one held, expired or not, at the start the stored one though it has expired,
+and after a renewal that got no answer, the one that renewal was for;
 `Auth.me auth (Just token)` validates an explicit credential in one attempt,
 without renewing or quarantining the inherited token. `Auth.me auth Nothing`
 uses the client's own token and retry policy.
@@ -346,18 +361,36 @@ withResourceSearch client clock = bracket
 Use `Search.setQuery` as input changes and observe `Search.state`. This example
 also needs `streaming` in its `build-depends`.
 
-Cache persistence is opt-in: pass `Just (Client.CachePersistence storage
-"kb-id" wallMilliseconds)` to the client or session factory in place of
-`Nothing`. Give each principal a separate storage namespace, or include the
-principal and KB in the prefix. Close the old client before switching profiles;
-persisted values are available before gateway revalidation. Resource details,
-annotation lists and details, entity types and tag
-schemas rehydrate immediately. The first observation revalidates each restored
-key. Cache documents are versioned and bounded by the shared UTF-8 byte cap;
-unchanged entries retain their write times for eviction. Replay bookmarks advance
-only after a cache-document write and after every persisted view and refresh
-window has settled. Disposal freezes bookmark advancement before final cache
-saves, so a reload may replay extra events and cannot skip an unfinished update.
+Cache persistence is opt-in, and kept for a person. Give a session builder
+such as `Session.fromKeptSession` `Just storage` in place of `Nothing`, and its
+client keeps under `session/stored.json`'s keys for the knowledge base and the
+person the kept sign-in names (their key is the unpadded base64url SHA-256 of
+their DID): from the start when the sign-in names them already, or, with a
+validate callback, once the gateway has said who the token is and the sign-in
+has recorded it. Each write is checked against the sign-in and made in
+one step: once the sign-in is forgotten, or names nobody or another person,
+nothing more is written, so no write puts back what forgetting deleted.
+Forgetting a sign-in, or replacing it, deletes what was kept for the person it
+named. A sign-in that cannot be read for that check, or cannot record the
+person, is said once on the session's errors as `session.keep-failed`, and
+nothing more is kept. Each write the storage refuses is said there as
+`session.save-refused`, and stays owed to the next change or the closing flush.
+A client you build yourself keeps for one person once given
+`Client.CachePersistence storage kbId personKey wallMilliseconds`, at
+construction or later with `Client.keepIn`; persisted values are available
+before gateway revalidation.
+The queries `session/stored.json` keeps (resource details, annotation lists and
+details, entity types and tag schemas) rehydrate immediately, each from one
+cache document that every SDK writes and reads alike. The first observation
+revalidates each restored key. Each entry's stamp is the wall clock rounded to a
+whole millisecond, kept while its value is unchanged; a document over the shared
+UTF-8 byte cap loses its oldest entries. Where the stream was is written in the
+same call as a cache document, and only while every kept view has no fetch in
+flight and owes no save and no refresh window owes an invalidation. Disposal
+reads that gate once, before anything is disposed: a fetch in flight or an owed
+invalidation holds the places back from the final cache saves, and an owed save
+does not, since those saves are it. So a reload may replay extra events and
+cannot skip an unfinished update.
 
 ## Building annotations
 

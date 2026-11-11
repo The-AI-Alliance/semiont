@@ -35,8 +35,9 @@ type TestSession struct {
 
 // NewTestSession is a real semiont.Session over a test client. It renews
 // nothing and asks nobody who it is, so it is ready as soon as it has read its
-// sign-in, and holds a token only if one was kept. The caller ends the session
-// and then the client, and then the transport: the session only uses them.
+// sign-in, and holds a token only if one was kept. The caller closes the
+// client, then the session, and then the transport: the session only uses
+// them.
 func NewTestSession(config TestSessionConfig) (TestSession, error) {
 	client := NewTestClient(config.Client)
 	kb := api.KbTarget{Id: "test-kb", Label: "Test KB"}

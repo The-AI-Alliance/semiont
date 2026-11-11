@@ -27,9 +27,10 @@ use futures::StreamExt;
 use semiont::bus_log::{bus_log, bus_note};
 use semiont::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
 use semiont::errors::{TransportError, TransportErrorCode};
+use semiont::resume::is_persisted_event_id;
 use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
-use semiont::transport::{ConnectionState, Envelope, Frame, FrameRefusal, TraceCarrier};
+use semiont::transport::{ConnectionState, Frame, FrameRefusal, StreamId, TraceCarrier};
 use semiont::types::ResourceId;
 use semiont::types::{BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem};
 use serde_json::Value;
@@ -44,6 +45,8 @@ pub(crate) enum Command {
     AddScope(ResourceId),
     /// A resource's scope lost its last hold.
     RemoveScope(ResourceId),
+    /// Places kept elsewhere, for the scopes the stream holds none for.
+    Restore(HashMap<ResourceId, String>),
     Close(oneshot::Sender<()>),
 }
 
@@ -158,13 +161,13 @@ fn allowed(from: ConnectionState, to: ConnectionState) -> bool {
 }
 
 impl Actor {
-    /// The stream's task, not yet running, each scope to begin at its place
-    /// in `watermarks`.
+    /// The stream's task, not yet running, holding no place: each scope
+    /// begins at the present, or at a place restored to it
+    /// (`Command::Restore`).
     fn new(
         shared: Arc<Shared>,
         state: watch::Sender<ConnectionState>,
         events: mpsc::Sender<Event>,
-        watermarks: HashMap<ResourceId, String>,
     ) -> Actor {
         Actor {
             seen: SeenIds {
@@ -177,7 +180,7 @@ impl Actor {
             events,
             running: false,
             scoped: BTreeMap::new(),
-            watermarks,
+            watermarks: HashMap::new(),
             next_conn: 0,
             connections: HashMap::new(),
             live: None,
@@ -406,37 +409,43 @@ impl Actor {
             // A frame an abort at the moment of handoff would have discarded.
             bus_note("LINGER", &channel, "delivered on superseded connection");
         }
+        let stream_id = match (id, &scope) {
+            (Some(event_id), Some(scope)) => Some(StreamId {
+                scope: scope.clone(),
+                event_id,
+            }),
+            _ => None,
+        };
         let frame = Frame {
             trace: semiont_telemetry::bus_recv(&channel, scope.as_deref(), trace),
             channel,
             payload,
             correlation_id,
             scope,
+            stream_id,
         };
 
         self.shared.router.route(Ok(&frame));
+        // The client's own bus is given the frame globally, with where on
+        // the stream it was delivered: its client notes the place once it
+        // has taken the frame in (`semiont::resume`).
         if self.bridged(&frame.channel) {
             for bus in locked(&self.shared.bridges).iter() {
-                bus.emit(
-                    &frame.channel,
-                    frame.payload.clone(),
-                    Envelope {
-                        correlation_id: frame.correlation_id.clone(),
-                        scope: None,
-                    },
-                );
+                bus.emit_frame(Frame {
+                    scope: None,
+                    trace: None,
+                    ..frame.clone()
+                });
             }
         }
         // A scope's position is the last recorded event delivered on it:
-        // only a recorded event's id (`p-…`) is one, and it always comes on
-        // its scope.
-        if let (Some(id), Some(scope)) = (&id, &frame.scope)
-            && id.starts_with("p-")
+        // only a recorded event's id is one, and it always comes on its
+        // scope.
+        if let Some(at) = &frame.stream_id
+            && is_persisted_event_id(&at.event_id)
         {
-            self.watermarks.insert(scope.clone(), id.clone());
-            if let Some(bookmarks) = &self.shared.bookmarks {
-                bookmarks.save(scope, id);
-            }
+            self.watermarks
+                .insert(at.scope.clone(), at.event_id.clone());
         }
         self.shared.hub.deliver(Ok(frame));
     }
@@ -584,6 +593,11 @@ impl Actor {
                     // a client that brushes past scopes would otherwise
                     // reopen its stream at each.
                     self.lazy_at = Some(Instant::now() + self.shared.timing.lazy_remove);
+                }
+            }
+            Command::Restore(places) => {
+                for (scope, place) in places {
+                    self.watermarks.entry(scope).or_insert(place);
                 }
             }
             Command::Close(_) => {}
@@ -815,14 +829,7 @@ pub(crate) async fn run(
 ) {
     let (events, mut reported) = mpsc::channel(256);
     let mut token = shared.token.clone();
-    // Each scope begins where the client's last life left it, when that
-    // was kept.
-    let watermarks = shared
-        .bookmarks
-        .as_ref()
-        .map(|bookmarks| bookmarks.load())
-        .unwrap_or_default();
-    let mut actor = Actor::new(shared, state, events, watermarks);
+    let mut actor = Actor::new(shared, state, events);
     // The stream starts when there is a token to open it with.
     token.borrow_and_update();
     actor.token_changed();
@@ -940,7 +947,6 @@ mod tests {
             channels: None,
             http: reqwest::Client::new(),
             timing: Timing::default(),
-            bookmarks: None,
             random: None,
         }))
     }
@@ -951,7 +957,6 @@ mod tests {
             shared,
             watch::channel(ConnectionState::Open).0,
             mpsc::channel(1).0,
-            HashMap::new(),
         );
         actor.connections.insert(
             0,

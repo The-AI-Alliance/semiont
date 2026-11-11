@@ -1,3 +1,5 @@
+import Synchronization
+
 /// The page and filters for browsing or searching a knowledge base's resources.
 public struct ResourceFilters: Hashable, Sendable {
   public var archived: Bool?
@@ -22,7 +24,27 @@ public struct EngineWithLimits: Encodable, Sendable {
   public let limits: InferenceLimits?
 }
 
-func browseEngines(_ wire: Bus) async throws -> [EngineWithLimits] {
+/// What the key holders reported of their engines' limits when the engines were last asked for.
+final class ReportedLimits: Sendable {
+  private let reported = Mutex<[EngineLimits]>([])
+
+  func keep(_ limits: [EngineLimits]) { reported.withLock { $0 = limits } }
+
+  /// `engines`, in their order, each with the limits reported for its provider and model.
+  func joined(_ engines: [EngineEntry]) -> [EngineWithLimits] {
+    let reports = reported.withLock { $0 }
+    return engines.map { entry in
+      let limits = reports.first {
+        $0.engine.provider == entry.engine.provider && $0.engine.model == entry.engine.model
+      }?.limits
+      return EngineWithLimits(engine: entry.engine, jobs: entry.jobs, limits: limits)
+    }
+  }
+}
+
+/// The knowledge base's engines, asked for first, and each key holder's report of its engines'
+/// limits after it, which `limits` keeps.
+func browseEngines(_ wire: Bus, keeping limits: ReportedLimits) async throws -> [EngineEntry] {
   let (queued, sent) = AsyncStream<Void>.makeStream()
   async let catalog: BrowseEnginesResult = {
     defer { sent.finish() }
@@ -39,12 +61,8 @@ func browseEngines(_ wire: Bus) async throws -> [EngineWithLimits] {
   let entries = try await catalog.response.engines
   let reported = await reports
   try Task.checkCancellation()
-  return entries.map { entry in
-    let limits = reported.first {
-      $0.engine.provider == entry.engine.provider && $0.engine.model == entry.engine.model
-    }?.limits
-    return EngineWithLimits(engine: entry.engine, jobs: entry.jobs, limits: limits)
-  }
+  limits.keep(reported)
+  return entries
 }
 
 private func engineLimits(_ wire: Bus) async -> [EngineLimits] {

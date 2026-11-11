@@ -7,8 +7,10 @@ import java.util.concurrent.CompletableFuture
 
 /**
  * What is kept of a sign-in: the tokens an issuer issued, the client they
- * were issued to, and the issuer's endpoints a renewal and a sign-out need,
- * learned once at sign-in so no session asks again.
+ * were issued to, the issuer's endpoints a renewal and a sign-out need,
+ * learned once at sign-in so no session asks again, and the key of the person
+ * a gateway said the tokens are (`semiont.registry.personKey`), null until one
+ * has.
  */
 public data class HeldSignIn(
     public val access: String,
@@ -16,6 +18,7 @@ public data class HeldSignIn(
     public val clientId: String,
     public val tokenEndpoint: String,
     public val revocationEndpoint: String?,
+    public val personKey: String?,
 )
 
 /**
@@ -43,6 +46,16 @@ public interface SignInKept {
     /** Keep the sign-in no more. */
     public suspend fun forget()
 
+    /**
+     * Record `personKey`, the key of the person a gateway said `access` is, on
+     * the sign-in kept now, as one step: only when it still holds `access` and
+     * names nobody yet. True when it then names that person, recorded now or
+     * before; false when nothing is kept, what is kept holds another token, or
+     * names another person, or where it is kept has no place for a person.
+     * What a session's caches and stream places are kept under follows it.
+     */
+    public suspend fun recordPersonKey(access: String, personKey: String): Boolean
+
     /** `held`, for Java. */
     public fun heldFuture(): CompletableFuture<HeldSignIn?> = CoroutineScope(Dispatchers.Unconfined).futureOf { held() }
 
@@ -55,6 +68,10 @@ public interface SignInKept {
 
     /** `forget`, for Java. */
     public fun forgetFuture(): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Unconfined).futureOf { forget() }
+
+    /** `recordPersonKey`, for Java. */
+    public fun recordPersonKeyFuture(access: String, personKey: String): CompletableFuture<Boolean> =
+        CoroutineScope(Dispatchers.Unconfined).futureOf { recordPersonKey(access, personKey) }
 }
 
 /** A sign-in kept for as long as the process lives, and no longer. */
@@ -73,4 +90,11 @@ public class MemorySignIn(signIn: HeldSignIn? = null) : SignInKept {
     }
 
     override suspend fun forget(): Unit = synchronized(this) { signIn = null }
+
+    override suspend fun recordPersonKey(access: String, personKey: String): Boolean = synchronized(this) {
+        val kept = signIn ?: return false
+        if (kept.access != access) return false
+        if (kept.personKey == null) signIn = kept.copy(personKey = personKey)
+        kept.personKey == null || kept.personKey == personKey
+    }
 }

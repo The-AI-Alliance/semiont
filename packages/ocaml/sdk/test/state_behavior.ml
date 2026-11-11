@@ -214,7 +214,7 @@ let run_case row =
   in
   let session =
     Session.start ~sw ~clock ~initial_token:(Some "state-token")
-      ~renew:(fun ~refused:_ -> Session.Refused)
+      ~renew:(fun ~holding:_ -> Session.Refused)
       ()
   in
   let serial = ref 0 in

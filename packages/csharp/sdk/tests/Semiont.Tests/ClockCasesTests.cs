@@ -11,6 +11,7 @@ using Semiont.Jobs;
 using Semiont.Protocol;
 using Semiont.Session;
 using Semiont.SignIn;
+using Semiont.Storage;
 using Semiont.Testing;
 using Semiont.Types;
 using Xunit;
@@ -391,17 +392,16 @@ public sealed class ClockCasesTests
 
     private static Task<Subject> SaveDebounceAsync(JsonElement given, Case play)
     {
-        var saves = 0;
-        var http = play.Keep(new HttpClient(new Gateway(StreamAnswer.Holds, null)) { Timeout = Timeout.InfiniteTimeSpan });
-        var transport = play.Keep(new HttpTransport(GatewayUrl, "a-token", [], httpClient: http, timeProvider: play.Clock, random: play.Random));
-        var storage = play.Keep(new LiveCacheStorage(new CachePersistence(() => null, _ => Interlocked.Increment(ref saves)), play.Clock));
-        var cache = play.Keep(new Cache<string, int>((key, _) => throw new CaseFailed($"a cache that is only written fetched {key}"), null,
-            play.Clock, TimeSpan.FromMilliseconds(ProtocolFacts.Timing("invalidationWindowMs").GetInt32()), storage.Changed, () => storage.Pending));
-        storage.Start(transport, [cache.PersistAs("values")]);
+        var saves = new Saves();
+        var person = Registry.RegistryStorage.PersonKey(UserId.Parse("did:web:example.org:users:alice"));
+        var storage = play.Keep(new LiveCacheStorage(new CachePersistence(saves, "kb-a", person), play.Clock, () => false));
+        var cache = play.Keep(new Cache<ResourceId, ResourceDescriptor>((key, _) => throw new CaseFailed($"a cache that is only written fetched {key}"), null,
+            play.Clock, TimeSpan.FromMilliseconds(ProtocolFacts.Timing("invalidationWindowMs").GetInt32()), storage.Changed("resource")));
+        storage.Start([storage.Keep("resource", cache, KeptKeys.ByResource<ResourceDescriptor>())], _ => { });
         var changes = 0;
-        return Task.FromResult(new Subject(() => Volatile.Read(ref saves), () =>
+        return Task.FromResult(new Subject(() => saves.Count, () =>
         {
-            cache.Set("a key", ++changes);
+            cache.Set(Resource, Read<ResourceDescriptor>($$"""{"@context":"https://schema.org/","@id":"res-1","name":"{{++changes}}","representations":[]}"""));
             return Task.CompletedTask;
         }));
     }
@@ -441,6 +441,18 @@ public sealed class ClockCasesTests
     private sealed record Subject(Func<int> Counted, Func<Task>? Act);
 
     private sealed class CaseFailed(string message) : Exception(message);
+
+    /// <summary>A storage that holds nothing and counts each save set in it.</summary>
+    private sealed class Saves : ISessionStorage
+    {
+        private int count;
+        internal int Count => Volatile.Read(ref count);
+        public string? Get(string key) => null;
+        public void Set(string key, string value) => Interlocked.Increment(ref count);
+        public void Delete(string key) => throw new CaseFailed($"a cache that only saves deleted {key}");
+        public void Update(string key, Func<string?, string?> change) => throw new CaseFailed($"a cache that only saves updated {key}");
+        public IDisposable? Subscribe(Action<string, string?> onChange) => null;
+    }
 
     /// <summary>A case's clock, random source and what is to be closed once it is over.</summary>
     private sealed class Case : IAsyncDisposable

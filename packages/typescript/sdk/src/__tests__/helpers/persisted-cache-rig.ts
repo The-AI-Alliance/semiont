@@ -1,82 +1,110 @@
 /**
- * The persisted-cache rig the cache property suites drive: two real persisted
- * caches over one storage, with the resumption bookmark coupled to their
- * document writes the way the session factory couples it.
+ * The persisted-cache rig the cache property suites drive: a real client whose kept caches persist
+ * through one storage, with the stream's places carried by their document writes and, when `coupled`,
+ * coupled to the client, as the session factory couples them.
  *
- * Cache A answers a fetch only when the suite resolves it (`resolvers`), so
- * the suite decides when a refetch completes. Cache B is the bystander: its
- * document write is what can flush a stashed bookmark.
+ * Cache A is the client's annotations of one resource. Its fetch answers only when the suite resolves it
+ * (`resolvers`), so the suite decides when a refetch completes; its content, "the effect of every event
+ * ≤ upTo is present", is held as that many annotations. Cache B is the bystander, the client's entity
+ * types: its document write is what can flush a noted place.
  */
 
-import type { ResourceId } from '@semiont/core';
-import { createCache, type Cache } from '../../cache';
-import { coupledLastEventId, sessionStoragePersister } from '../../cache-persister';
+import { resourceId, type ResourceId, type components } from '@semiont/core';
+import { coupledLastEventId } from '../../cache-persister';
+import { cacheKey, lastEventIdKey, personKey } from '../../session/storage';
 import type { InMemorySessionStorage } from '../../session/session-storage';
+import { createTestClient, inMemoryContent, refuseUnscriptedOperation } from '../../testing';
+import { mockAnnotation } from '../fixtures/annotation';
 
-/** The one key cache A holds content under. */
-export const KEY = 'res-1';
-const A_DOC_KEY = 'semiont.cache.test.annotations';
-const B_DOC_KEY = 'semiont.cache.test.entity-types';
-export const BOOKMARK_KEY = 'semiont.lastEventId.test';
-export const DEBOUNCE_MS = 50;
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
+
+/** The knowledge base and the person the rig's client keeps for. */
+const KB_ID = 'kb-rig';
+const PERSON = personKey('did:web:example.org:users:jo');
+
+/** The resource whose annotations cache A holds. */
+const A_KEY = resourceId('res-1');
+const A_DOC_KEY = cacheKey(KB_ID, PERSON, 'annotations');
+export const BOOKMARK_KEY = lastEventIdKey(KB_ID, PERSON);
 
 /** Content model: "the effect of every event ≤ upTo is present". */
 export interface Content { upTo: number }
 
+/** A's value holding the effect of every event ≤ upTo: that many annotations. */
+function annotationsUpTo({ upTo }: Content): GetAnnotationsResponse {
+  const annotations = Array.from({ length: upTo }, (_, i) => mockAnnotation(`ann-${i + 1}`));
+  return { annotations, total: annotations.length };
+}
+
 export interface Rig {
-  cacheA: Cache<string, Content>;
-  cacheB: Cache<string, Content>;
+  /** Observe A, as a resource open in a page does. */
+  observeA: () => void;
+  /** What A renders: the last event whose effect it shows; 0 before it shows any. */
+  renderedA: () => number;
+  /** An event's effect on A: its key invalidated, and its refetch asked. */
+  invalidateA: () => void;
+  /** The bystander changes: B is asked again and answered with a new value, whose save it then owes. */
+  changeB: () => void;
   saveLastEventId: (scope: ResourceId, id: string) => void;
   resolvers: Array<(c: Content) => void>;
   dispose: () => void;
 }
 
 /**
- * Build a client rig over (shared) storage — mirrors the factory wiring.
- * `gated` wires the quiescence gate (B17-Q) as the session factory does: the
- * bookmark may flush only when every persisted cache is quiet.
+ * Build a client rig over (shared) storage, wired as the session factory wires one. `coupled` couples the
+ * places to the client (B17-Q): a place is written only while every kept cache is quiet and the refresher
+ * owes nothing. Uncoupled, every cache-document write carries the places noted.
  */
-export function buildRig(storage: InMemorySessionStorage, gated: boolean): Rig {
-  const coupled = coupledLastEventId(storage, BOOKMARK_KEY);
+export function buildRig(storage: InMemorySessionStorage, coupled: boolean): Rig {
+  const places = coupledLastEventId(storage, BOOKMARK_KEY);
   const resolvers: Array<(c: Content) => void> = [];
-
-  const cacheA = createCache<string, Content>(
-    () => new Promise<Content>((resolve) => { resolvers.push(resolve); }),
-    {
-      persister: sessionStoragePersister<string, Content>({
-        storage: coupled.storage, storageKey: A_DOC_KEY, version: 1,
+  let bAnswers = 0;
+  const { client } = createTestClient({
+    content: {
+      ...inMemoryContent(),
+      getAnnotations: () => new Promise<GetAnnotationsResponse>((resolve) => {
+        resolvers.push((c) => resolve(annotationsUpTo(c)));
       }),
-      saveDebounceMs: DEBOUNCE_MS,
     },
-  );
-  const cacheB = createCache<string, Content>(
-    async () => ({ upTo: 0 }),
-    {
-      persister: sessionStoragePersister<string, Content>({
-        storage: coupled.storage, storageKey: B_DOC_KEY, version: 1,
-      }),
-      saveDebounceMs: DEBOUNCE_MS,
+    transport: {
+      makeResponse: (operation) => {
+        if (operation !== 'browse:entity-types-requested') return refuseUnscriptedOperation(operation);
+        bAnswers += 1;
+        return { entityTypes: [`answer-${bAnswers}`] };
+      },
     },
-  );
+    cachePersistence: { storage: places.storage, kbId: KB_ID, personKey: PERSON },
+  });
+  if (coupled) places.coupleTo(client);
 
-  if (gated) {
-    coupled.setFlushGate(() => !cacheA.persistencePending() && !cacheB.persistencePending());
-  }
+  // B is observed from the start, so asking it again refetches it.
+  client.browse.entityTypes().subscribe({ next: () => {}, error: () => {} });
 
+  let rendered = 0;
   return {
-    cacheA, cacheB,
-    saveLastEventId: coupled.saveLastEventId,
+    observeA: () => {
+      client.browse.annotations(A_KEY).subscribe({
+        next: (state) => {
+          if (state.status === 'ready') rendered = state.value.length;
+        },
+        error: () => {},
+      });
+    },
+    renderedA: () => rendered,
+    invalidateA: () => client.browse.invalidateAnnotationList(A_KEY),
+    changeB: () => client.browse.invalidateEntityTypes(),
+    saveLastEventId: places.saveLastEventId,
     resolvers,
-    dispose: () => { cacheA.dispose(); cacheB.dispose(); },
+    dispose: () => client.dispose(),
   };
 }
 
-/** Read the persisted content document for A straight off storage. */
+/** The event whose effect A's persisted document holds; 0 when none is persisted. */
 export function persistedAUpTo(storage: InMemorySessionStorage): number {
   const raw = storage.get(A_DOC_KEY);
   if (raw === null) return 0;
-  const doc = JSON.parse(raw) as { entries: Array<[string, Content, number]> };
-  return doc.entries.find(([k]) => k === KEY)?.[1].upTo ?? 0;
+  const doc = JSON.parse(raw) as { entries: Array<[string, GetAnnotationsResponse, number]> };
+  return doc.entries.find(([k]) => k === A_KEY)?.[1].total ?? 0;
 }
 
 /** The sequence number of scope `r1`'s persisted bookmark; 0 when none is persisted. */

@@ -14,12 +14,8 @@ KEY = "semiont.cache.kb.resource"
 _JSON = TypeAdapter[JsonValue](JsonValue)
 
 
-def persister(
-    storage: MemoryStorage, version: int = 1, max_bytes: int = MAX_STORED_BYTES_COUNT
-) -> StoragePersister[ResourceId, ResourceDescriptor]:
-    return StoragePersister(
-        storage, KEY, key=TypeAdapter(ResourceId), value=TypeAdapter(ResourceDescriptor), version=version, max_bytes=max_bytes
-    )
+def persister(storage: MemoryStorage, max_bytes: int = MAX_STORED_BYTES_COUNT) -> StoragePersister[ResourceId, ResourceDescriptor]:
+    return StoragePersister(storage, KEY, key=TypeAdapter(ResourceId), value=TypeAdapter(ResourceDescriptor), max_bytes=max_bytes)
 
 
 def at(monkeypatch: pytest.MonkeyPatch, milliseconds: int) -> None:
@@ -50,7 +46,7 @@ def test_a_caches_values_are_kept_as_one_document_as_the_wire_had_them_and_come_
     persister(storage).save({RESOURCE: resource})
     stored = storage.get(KEY)
     assert stored is not None
-    assert _JSON.validate_json(stored) == {"version": 1, "writtenAt": 1_000, "entries": [[RESOURCE, said, 1_000]]}
+    assert _JSON.validate_json(stored) == {"version": 1, "entries": [[RESOURCE, said, 1_000]]}
 
     kept = persister(storage).load()
     assert kept is not None
@@ -61,7 +57,7 @@ def test_a_caches_values_are_kept_as_one_document_as_the_wire_had_them_and_come_
     assert kept[RESOURCE].model_dump(mode="json", exclude_unset=True) == said
 
 
-def test_an_entry_keeps_the_time_its_value_was_last_written(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_an_entry_keeps_the_time_its_value_was_received(monkeypatch: pytest.MonkeyPatch) -> None:
     storage = MemoryStorage()
     keeping = persister(storage)
     other = ResourceId("res-2")
@@ -72,25 +68,25 @@ def test_an_entry_keeps_the_time_its_value_was_last_written(monkeypatch: pytest.
         assert stored is not None
         document = _JSON.validate_json(stored)
         assert isinstance(document, dict)
-        return [document["writtenAt"], document["entries"]]
+        return document["entries"]
 
     at(monkeypatch, 1_000)
     keeping.save({RESOURCE: one})
     at(monkeypatch, 2_000)
     keeping.save({RESOURCE: one, other: two})
-    assert entries() == [2_000, [[RESOURCE, descriptor(RESOURCE), 1_000], [other, descriptor(other), 2_000]]]
+    assert entries() == [[RESOURCE, descriptor(RESOURCE), 1_000], [other, descriptor(other), 2_000]]
     # A value that changed is written now; one that is gone is gone.
     at(monkeypatch, 3_000)
     renamed = ResourceDescriptor.model_validate(descriptor(other, "Renamed"))
     keeping.save({other: renamed})
-    assert entries() == [3_000, [[other, descriptor(other, "Renamed"), 3_000]]]
+    assert entries() == [[other, descriptor(other, "Renamed"), 3_000]]
 
-    # The next life's persister knows when each was written from the document, not from having written it.
+    # The next life's persister knows when each was received from the document, not from having written it.
     at(monkeypatch, 4_000)
     later = persister(storage)
     assert later.load() == {other: renamed}
     later.save({other: renamed, RESOURCE: one})
-    assert entries() == [4_000, [[other, descriptor(other, "Renamed"), 3_000], [RESOURCE, descriptor(RESOURCE), 4_000]]]
+    assert entries() == [[other, descriptor(other, "Renamed"), 3_000], [RESOURCE, descriptor(RESOURCE), 4_000]]
 
 
 @pytest.mark.parametrize(
@@ -98,21 +94,20 @@ def test_an_entry_keeps_the_time_its_value_was_last_written(monkeypatch: pytest.
     [
         "not json",
         "[1, 2]",
-        '{"version": 2, "writtenAt": 1, "entries": []}',
-        '{"version": "1", "writtenAt": 1, "entries": []}',
-        '{"writtenAt": 1, "entries": []}',
-        '{"version": 1, "writtenAt": 1}',
-        '{"version": 1, "writtenAt": 1, "entries": {"res-1": {}}}',
+        '{"version": 2, "entries": []}',
+        '{"version": "1", "entries": []}',
+        '{"entries": []}',
+        '{"version": 1}',
+        '{"version": 1, "entries": {"res-1": {}}}',
+        # Python finds the integer 1 equal to `True`, and holds a bool to be an int: a bool is no number here.
+        '{"version": true, "entries": []}',
+        '{"version": 1, "entries": [["res-1", {}, true]]}',
     ],
 )
-def test_a_document_of_another_version_or_that_does_not_parse_reads_as_nothing_kept(stored: str) -> None:
+def test_a_document_whose_structure_is_not_a_cache_documents_reads_as_nothing_kept(stored: str) -> None:
     storage = MemoryStorage()
     storage.set(KEY, stored)
     assert persister(storage).load() is None
-    # And a persister of another version reads this one's as nothing kept.
-    storage.set(KEY, '{"version": 1, "writtenAt": 1, "entries": []}')
-    assert persister(storage).load() == {}
-    assert persister(storage, version=2).load() is None
 
 
 def test_an_entry_that_is_not_this_caches_shape_is_one_it_never_kept() -> None:
@@ -121,17 +116,13 @@ def test_an_entry_that_is_not_this_caches_shape_is_one_it_never_kept() -> None:
     entries = [
         '["not an id", {"@context": "https://schema.org", "@id": "res-9", "name": "n", "representations": []}, 5]',
         '["res-3", {"name": "a description with no id"}, 5]',
-        '["res-4", {"@context": "https://schema.org", "@id": "res-4", "name": "n", "representations": []}]',
-        '["res-5", {"@context": "https://schema.org", "@id": "res-5", "name": "n", "representations": []}, "when"]',
-        '["res-6", {"@context": "https://schema.org", "@id": "res-6", "name": "n", "representations": []}, true]',
-        '"res-7"',
         good,
     ]
-    storage.set(KEY, '{"version": 1, "writtenAt": 9, "entries": [' + ", ".join(entries) + "]}")
+    storage.set(KEY, '{"version": 1, "entries": [' + ", ".join(entries) + "]}")
     assert persister(storage).load() == {RESOURCE: ResourceDescriptor.model_validate(descriptor(RESOURCE))}
 
 
-def test_a_document_too_large_loses_the_entries_that_have_gone_longest_without_a_new_value_until_it_fits(
+def test_a_document_too_large_loses_the_entries_received_longest_ago_until_it_fits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ids = [ResourceId(f"res-{n}") for n in range(1, 5)]

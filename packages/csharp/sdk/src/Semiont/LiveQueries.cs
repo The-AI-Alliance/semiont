@@ -17,6 +17,8 @@ internal sealed class LiveQueries : IDisposable
     internal readonly record struct AnnotationKey(ResourceId Resource, AnnotationId Annotation);
 
     private static readonly JsonDocument Table = JsonDocument.Parse(ProtocolTables.CacheRefresh);
+    internal static readonly IReadOnlyList<string> PersistedQueries = Array.AsReadOnly(Table.RootElement.GetProperty("queries").EnumerateArray()
+        .Where(row => row.TryGetProperty("persisted", out var persisted) && persisted.GetBoolean()).Select(row => Text(row, "name")).ToArray());
     private static readonly string[] RowMembers = ["on", "when", "reach", "names", "carries", "refetches", "writes", "removes", "docs"];
     private static readonly string[] NamedSlots = ["resource", "annotation"];
     private const string Reopened = "reopened";
@@ -24,37 +26,41 @@ internal sealed class LiveQueries : IDisposable
     private readonly EventBus.Subscription events;
     private readonly Dictionary<string, Query> queries;
     private readonly ILookup<string, JsonElement> refresh;
-    private readonly IDisposable[] caches;
+    private readonly IRefreshedCache[] caches;
     private readonly LiveCacheStorage? persistence;
+    private IReadOnlyList<EngineLimits> reportedLimits = [];
 
     internal Cache<ResourceId, ResourceDescriptor> ResourcesById { get; }
     internal Cache<Filters, ListResourcesResponse> Resources { get; }
-    internal Cache<ResourceId, IReadOnlyList<Annotation>> Annotations { get; }
+    internal Cache<ResourceId, GetAnnotationsResponse> Annotations { get; }
     internal Cache<AnnotationKey, Annotation> Annotation { get; }
     internal Cache<ResourceId, IReadOnlyList<AttributedEvent>> Events { get; }
     internal Cache<ResourceId, IReadOnlyList<GetReferencedByResponseReferencedByItem>> ReferencedBy { get; }
     internal Cache<Search, MatchResourcesResponse> MatchedResources { get; }
-    internal Cached<IReadOnlyList<string>> EntityTypes { get; }
-    internal Cached<IReadOnlyList<TagSchema>> TagSchemas { get; }
-    internal Cached<IReadOnlyList<EngineWithLimits>> Engines { get; }
+    internal CacheEntry<IReadOnlyList<string>> EntityTypes { get; }
+    internal CacheEntry<IReadOnlyList<TagSchema>> TagSchemas { get; }
+    internal CacheEntry<IReadOnlyList<EngineEntry>> Engines { get; }
+
+    /// <summary>The engines as the live query shows them: each joined, as it is shown, with the limits last reported for
+    /// it.</summary>
+    internal Cached<IReadOnlyList<EngineWithLimits>> EnginesWithLimits { get; }
 
     internal LiveQueries(Bus wire, EventBus bus, HttpTransport transport, HttpContentTransport content, CachePersistence? storage)
     {
         var clock = transport.Clock;
-        persistence = storage is null ? null : new LiveCacheStorage(storage, clock);
-        Action? changed = persistence is { } persisted ? persisted.Changed : null;
-        Func<bool>? pending = persistence is { } storageState ? () => storageState.Pending : null;
+        persistence = storage is null ? null : new LiveCacheStorage(storage, clock, RefetchOwed);
         var window = TimeSpan.FromMilliseconds(transport.Settings.InvalidationWindowMs);
         ResourcesById = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseResourceRequested,
-            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Resource, transport.SubscribeToResource, clock, window, changed, pending);
+            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Resource, transport.SubscribeToResource, clock, window,
+            persistence?.Changed("resource"));
         Resources = new(async (filters, token) => (await wire.RequestAsync(BusOperations.BrowseResourcesRequested,
             new BrowseResourcesRequest { Limit = filters.Limit, Offset = filters.Offset, Archived = filters.Archived, EntityType = filters.EntityType },
             cancellation: token).ConfigureAwait(false)).Response, null, clock, window);
-        Annotations = new(async (id, token) => (await content.GetAnnotationsAsync(id, token).ConfigureAwait(false)).Annotations,
-            transport.SubscribeToResource, clock, window, changed, pending);
+        Annotations = new(content.GetAnnotationsAsync, transport.SubscribeToResource, clock, window, persistence?.Changed("annotations"));
         Annotation = new(async (key, token) => (await wire.RequestAsync(BusOperations.BrowseAnnotationRequested,
             new BrowseAnnotationRequest { ResourceId = key.Resource, AnnotationId = key.Annotation }, cancellation: token)
-            .ConfigureAwait(false)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window, changed, pending);
+            .ConfigureAwait(false)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window,
+            persistence?.Changed("annotation"));
         Events = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseEventsRequested,
             new BrowseEventsRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Events, transport.SubscribeToResource, clock, window);
         ReferencedBy = new(async (id, token) => (await wire.RequestAsync(BusOperations.GatherReferencedByRequested,
@@ -69,13 +75,14 @@ internal sealed class LiveQueries : IDisposable
         }, cancellation: token).ConfigureAwait(false)).Response, null, clock, window);
 
         var entityTypes = Singleton<IReadOnlyList<string>>(async token => (await wire.RequestAsync(BusOperations.BrowseEntityTypesRequested,
-            new BrowseEntityTypesRequest(), cancellation: token).ConfigureAwait(false)).Response.EntityTypes, out var types, changed);
+            new BrowseEntityTypesRequest(), cancellation: token).ConfigureAwait(false)).Response.EntityTypes, out var types, persistence?.Changed("entityTypes"));
         EntityTypes = types;
         var tagSchemas = Singleton<IReadOnlyList<TagSchema>>(async token => (await wire.RequestAsync(BusOperations.BrowseTagSchemasRequested,
-            new BrowseTagSchemasRequest(), cancellation: token).ConfigureAwait(false)).Response.TagSchemas, out var tags, changed);
+            new BrowseTagSchemasRequest(), cancellation: token).ConfigureAwait(false)).Response.TagSchemas, out var tags, persistence?.Changed("tagSchemas"));
         TagSchemas = tags;
         var engines = Singleton(token => LoadEnginesAsync(wire, token), out var listed);
         Engines = listed;
+        EnginesWithLimits = new CachedPart<IReadOnlyList<EngineEntry>, IReadOnlyList<EngineWithLimits>>(listed, WithLimits);
 
         caches = [ResourcesById, Resources, Annotations, Annotation, Events, ReferencedBy, MatchedResources, entityTypes, tagSchemas, engines];
         queries = new(StringComparer.Ordinal)
@@ -97,30 +104,47 @@ internal sealed class LiveQueries : IDisposable
         var channels = refresh.Select(group => group.Key).Where(BusChannels.Readings.ContainsKey);
         if (persistence is not null) channels = channels.Concat(ProtocolFacts.Channels("scoped")).Distinct(StringComparer.Ordinal);
         events = bus.Listen(channels.ToArray());
-        persistence?.Start(transport, [ResourcesById.PersistAs("resource"), Annotations.PersistAs("annotations"),
-            Annotation.PersistAs("annotation"), entityTypes.PersistAs("entityTypes"), tagSchemas.PersistAs("tagSchemas")]);
+        if (persistence is not null)
+        {
+            IKeptQuery[] kept =
+            [
+                persistence.Keep("resource", ResourcesById, KeptKeys.ByResource<ResourceDescriptor>()),
+                persistence.Keep("annotations", Annotations, KeptKeys.ByResource<GetAnnotationsResponse>()),
+                persistence.Keep("annotation", Annotation, KeptKeys.ByAnnotation),
+                persistence.Keep("entityTypes", entityTypes, KeptKeys.Whole<IReadOnlyList<string>>()),
+                persistence.Keep("tagSchemas", tagSchemas, KeptKeys.Whole<IReadOnlyList<TagSchema>>()),
+            ];
+            if (!kept.Select(query => query.Name).ToHashSet(StringComparer.Ordinal).SetEquals(PersistedQueries))
+                throw new InvalidOperationException("The live cache does not keep the queries client/refresh.json marks persisted.");
+            persistence.Start(kept, transport.RestoreWatermarks);
+        }
         _ = ReadEventsAsync();
         _ = ReadReopensAsync(transport);
 
-        Cache<bool, T> Singleton<T>(Func<CancellationToken, Task<T>> fetch, out Cached<T> query, Action? saved = null)
+        Cache<bool, T> Singleton<T>(Func<CancellationToken, Task<T>> fetch, out CacheEntry<T> query, Action? changed = null)
         {
-            var cache = new Cache<bool, T>((_, token) => fetch(token), null, clock, window, saved, saved is not null ? pending : null);
-            query = cache.Observe(true);
+            var cache = new Cache<bool, T>((_, token) => fetch(token), null, clock, window, changed);
+            query = cache.Entry(true);
             return cache;
         }
     }
 
-    private static async Task<IReadOnlyList<EngineWithLimits>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
+    private bool RefetchOwed() => caches.Any(cache => cache.RefetchOwed);
+
+    /// <summary>Complete once the persistence's closing flush has written what it could; a client that keeps nothing has
+    /// nothing to flush.</summary>
+    internal Task Flushed => persistence is null ? Task.CompletedTask : persistence.Flushed;
+
+    /// <summary>The engines the knowledge base names, once the services that hold the inference credentials have reported
+    /// their limits too; those reports are kept beside them, to be joined as the engines are shown.</summary>
+    private async Task<IReadOnlyList<EngineEntry>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
     {
         var inventory = wire.RequestAsync(BusOperations.BrowseEnginesRequested, new BrowseEnginesRequest(), cancellation: cancellation);
         var reportsTask = Task.WhenAll(BusOperations.Limits.Select(ReadLimitsAsync));
         await Task.WhenAll(inventory, reportsTask).ConfigureAwait(false);
         var result = await inventory.ConfigureAwait(false);
-        var reports = await reportsTask.ConfigureAwait(false);
-        var limits = new Dictionary<Engine, InferenceLimits>();
-        foreach (var report in reports)
-            foreach (var entry in report) limits[entry.Engine] = entry.Limits;
-        return result.Response.Engines.Select(entry => new EngineWithLimits(entry, limits.GetValueOrDefault(entry.Engine))).ToArray();
+        Volatile.Write(ref reportedLimits, (await reportsTask.ConfigureAwait(false)).SelectMany(report => report).ToArray());
+        return result.Response.Engines;
 
         async Task<IReadOnlyList<EngineLimits>> ReadLimitsAsync(BusOperation<InferenceLimitsRequest, InferenceLimitsResult, CommandError> operation)
         {
@@ -131,6 +155,14 @@ internal sealed class LiveQueries : IDisposable
             }
             catch (SemiontError) { return []; }
         }
+    }
+
+    /// <summary>Each engine with the limits last reported for it; an engine no report names shows none.</summary>
+    private IReadOnlyList<EngineWithLimits> WithLimits(IReadOnlyList<EngineEntry> engines)
+    {
+        var limits = new Dictionary<Engine, InferenceLimits>();
+        foreach (var entry in Volatile.Read(ref reportedLimits)) limits[entry.Engine] = entry.Limits;
+        return engines.Select(entry => new EngineWithLimits(entry, limits.GetValueOrDefault(entry.Engine))).ToArray();
     }
 
     private static bool ResourceMatches(ResourceId resource, Subject subject) => subject.Resource == resource;
@@ -149,13 +181,13 @@ internal sealed class LiveQueries : IDisposable
     private void WriteAnnotations(Subject subject)
     {
         if (subject.Resource is not { } resource || subject.Written is not { } written) return;
-        Annotations.Find(resource)?.UpdateIfReady(items =>
+        Annotations.Find(resource)?.UpdateIfReady(answer =>
         {
-            var values = items.ToList();
+            var values = answer.Annotations.ToList();
             var index = values.FindIndex(item => item.Id == written.Id);
             if (index < 0) values.Add(written);
             else values[index] = written;
-            return values.ToArray();
+            return answer with { Annotations = values.ToArray() };
         });
     }
 

@@ -156,8 +156,8 @@ const (
 	JobErrorCodeStalled JobErrorCode = "job.stalled"
 )
 
-// Why a session itself is unusable. Per-request failures stay with their
-// caller.
+// Why a session itself is unusable, or what its client keeps could not be
+// kept or written. Per-request failures stay with their caller.
 type SessionErrorCode string
 
 const (
@@ -174,6 +174,19 @@ const (
 	// about who may sign in, and renewing again cannot change the answer: the
 	// session is over, and signing in again is what is left.
 	SessionErrorCodeCredentialRefused SessionErrorCode = "session.credential-refused"
+	// The sign-in the session holds could not be read before its client saved
+	// what it keeps, or could not record the person the gateway named, so it is
+	// not known to name the person that is kept for: the client keeps nothing
+	// more for the rest of its life. The session itself goes on, and says so
+	// once on its errors stream.
+	SessionErrorCodeKeepFailed SessionErrorCode = "session.keep-failed"
+	// The storage refused a write of what the session's client keeps. The save
+	// stays owed: the client's next change, or its closing, writes it again, and
+	// what its closing cannot write is lost. The session says so on its errors
+	// stream once for each write the storage refuses, with what the storage
+	// said, a refusal of its closing among them, before the stream ends. The
+	// session itself goes on.
+	SessionErrorCodeSaveRefused SessionErrorCode = "session.save-refused"
 )
 
 // Why a person could not be signed in at the issuer a knowledge base trusts,

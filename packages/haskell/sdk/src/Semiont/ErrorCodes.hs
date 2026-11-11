@@ -112,18 +112,22 @@ parseKbIdentityCode value = case value of
 instance ToJSON KbIdentityCode where toJSON = String . kbIdentityCode
 instance FromJSON KbIdentityCode where parseJSON = withText "KbIdentityCode" (\value -> maybe (fail "unknown error code") pure (parseKbIdentityCode value))
 
-data SessionCode = SessionConstructFailed | SessionAuthFailed | SessionRefreshExhausted | SessionCredentialRefused deriving (Eq, Ord, Show, Enum, Bounded)
+data SessionCode = SessionConstructFailed | SessionAuthFailed | SessionRefreshExhausted | SessionCredentialRefused | SessionKeepFailed | SessionSaveRefused deriving (Eq, Ord, Show, Enum, Bounded)
 sessionCode :: SessionCode -> Text
 sessionCode SessionConstructFailed = "session.construct-failed"
 sessionCode SessionAuthFailed = "session.auth-failed"
 sessionCode SessionRefreshExhausted = "session.refresh-exhausted"
 sessionCode SessionCredentialRefused = "session.credential-refused"
+sessionCode SessionKeepFailed = "session.keep-failed"
+sessionCode SessionSaveRefused = "session.save-refused"
 parseSessionCode :: Text -> Maybe SessionCode
 parseSessionCode value = case value of
   "session.construct-failed" -> Just SessionConstructFailed
   "session.auth-failed" -> Just SessionAuthFailed
   "session.refresh-exhausted" -> Just SessionRefreshExhausted
   "session.credential-refused" -> Just SessionCredentialRefused
+  "session.keep-failed" -> Just SessionKeepFailed
+  "session.save-refused" -> Just SessionSaveRefused
   _ -> Nothing
 instance ToJSON SessionCode where toJSON = String . sessionCode
 instance FromJSON SessionCode where parseJSON = withText "SessionCode" (\value -> maybe (fail "unknown error code") pure (parseSessionCode value))

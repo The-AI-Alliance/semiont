@@ -103,6 +103,33 @@ internal fun generate(definitions: JsonObject, generation: Generation): Generate
     return types.finished()
 }
 
+/**
+ * The Kotlin type of the value a spec table's `$ref` names, as a generation
+ * writes it, named in full: a component schema's type (`../components/schemas/X.json`), or
+ * the type of one member of a component's own properties (`…#/properties/m`).
+ * Refused: a component the definitions lack, and a pointer that names
+ * anything but one member of one.
+ */
+internal fun valueTypeOf(definitions: JsonObject, generation: Generation, ref: String): String {
+    val component = ref.substringBefore('#').substringAfterLast('/').removeSuffix(".json")
+    val types = Types(definitions, generation)
+    val pointer = ref.substringAfter('#', "")
+    val type = if (pointer.isEmpty()) {
+        types.named(component)
+    } else {
+        val member = pointer.removePrefix("/properties/")
+        if (member == pointer || member.isEmpty() || '/' in member) refuse("$ref names no one member of $component")
+        val property = types.schema(component)["properties"]?.get(member) ?: refuse("$ref: $component has no member $member")
+        types.typeOf(component, member, property)
+    }
+    // Named in full: a schema's type may share its name with one Kotlin imports by default, as Annotation does.
+    return when (type) {
+        in generation.identifiers -> "$IDENTIFIERS_PACKAGE.$type"
+        in definitions -> "$TYPES_PACKAGE.$type"
+        else -> type
+    }
+}
+
 /** A file's start: what it is, the opt-ins its declarations need, its package and its imports. */
 internal fun header(pkg: String, kinds: Set<String>): String = buildString {
     append("// Generated from the component schemas in protocol/specs/src; do not edit.\n")

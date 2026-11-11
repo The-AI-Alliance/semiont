@@ -4322,7 +4322,9 @@ for (const [type, shape] of recordShapes) {
  * generic parameter's bound is not read: a Swift initializer generic in its
  * clock (`<C: Clock>`) takes a `C`. An SDK's
  * source is read with its testing module (the `testing` row of `modules`),
- * its tests and its conformance drivers left out.
+ * its tests and its conformance drivers left out: a Rust module's tests kept
+ * in a file of their own (`tests.rs`, which the module declares
+ * `#[cfg(test)] mod tests;`) among them.
  */
 const CLOCK_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp', 'haskell', 'ocaml'];
 const CLOCK_ROW_KEYS = ['source', 'docs', 'typeWords', 'outside', 'takes', 'notYetReached'];
@@ -4353,7 +4355,7 @@ function clockFiles(sdk) {
   return REPOSITORY.filter((path) => {
     if (!roots.some((root) => path.startsWith(`${root}/`)) || !path.endsWith(CLOCK_EXTENSIONS[sdk])) return false;
     const folders = path.split('/').slice(0, -1);
-    return !folders.includes('__tests__') && !folders.includes('conformance') && !/(?:\.test\.ts|_test\.go)$/.test(path);
+    return !folders.includes('__tests__') && !folders.includes('conformance') && !/(?:\.test\.ts|_test\.go|\/tests\.rs)$/.test(path);
   });
 }
 

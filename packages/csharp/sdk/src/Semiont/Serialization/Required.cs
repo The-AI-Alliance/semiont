@@ -32,6 +32,10 @@ internal static partial class Required
     /// rules every SDK reads the table by; null when it has none.</summary>
     internal static Fault? FaultOf(string schema, JsonElement value) => FaultAt(Component(schema), value, "");
 
+    /// <summary>Whether <paramref name="id"/> is a persisted event's id: components/schemas/PersistedEventId.json, its
+    /// pattern and not its prefix alone. Only such an id is a place a scope resumes from.</summary>
+    internal static bool IsPersistedEventId(JsonElement id) => FaultOf("PersistedEventId", id) is null;
+
     /// <summary><paramref name="schema"/>, once the table is read and found to state it.</summary>
     internal static string Stated(string schema)
     {
@@ -159,14 +163,18 @@ internal static partial class Required
     };
 
     /// <summary>A number as JSON states it, where one too great for a double is infinite.</summary>
-    private static double NumberOf(JsonElement value) => double.Parse(value.GetRawText(), NumberStyles.Float, CultureInfo.InvariantCulture);
+    internal static double NumberOf(JsonElement value) => double.Parse(value.GetRawText(), NumberStyles.Float, CultureInfo.InvariantCulture);
 
     /// <summary>Whether <paramref name="kinds"/> allow <paramref name="value"/>: none allow any, and an integer is a
     /// number with no fractional part.</summary>
-    private static bool Allows(IReadOnlyList<Kind>? kinds, JsonElement value)
+    private static bool Allows(IReadOnlyList<Kind>? kinds, JsonElement value) =>
+        kinds is null || kinds.Contains(KindOf(value)) || kinds.Contains(Kind.Integer) && IsInteger(value);
+
+    /// <summary>Whether <paramref name="value"/> is an integer: a number with no fractional part, however it is
+    /// written.</summary>
+    internal static bool IsInteger(JsonElement value)
     {
-        if (kinds is null || kinds.Contains(KindOf(value))) return true;
-        if (value.ValueKind != JsonValueKind.Number || !kinds.Contains(Kind.Integer)) return false;
+        if (value.ValueKind != JsonValueKind.Number) return false;
         var number = NumberOf(value);
         return double.IsFinite(number) && Math.Truncate(number) == number;
     }

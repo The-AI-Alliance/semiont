@@ -39,8 +39,8 @@ describe('DelegateShell', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     for (const session of sessions.splice(0)) {
-      session.dispose();
       session.client.dispose();
+      session.dispose();
     }
   });
 

@@ -849,6 +849,97 @@ func TestB17DisposingMakesASaveThatWasOwedAtOnceAndNoneIsMadeAfter(t *testing.T)
 	}
 }
 
+// stalledRefusal keeps what it is given, but its first save waits until the
+// test lets it go, and is then refused.
+type stalledRefusal struct {
+	keptBack
+	began, release chan struct{}
+	stalled        bool
+}
+
+func (s *stalledRefusal) Save(entries map[string]int) error {
+	s.mu.Lock()
+	first := !s.stalled
+	s.stalled = true
+	s.mu.Unlock()
+	if first {
+		close(s.began)
+		<-s.release
+		return errors.New("the storage refuses the save being written")
+	}
+	return s.keptBack.Save(entries)
+}
+
+// A save the persister refuses while the cache's Close waits for it stays
+// owed, and Close makes it (B17): Close does not return while a save is being
+// made, and reads what is owed once it has been answered.
+func TestB17ASaveRefusedWhileCloseWaitsForItIsMadeByClose(t *testing.T) {
+	persister := &stalledRefusal{began: make(chan struct{}), release: make(chan struct{})}
+	service := &answering{}
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := &workers{ctx: ctx, cancel: cancel}
+	t.Cleanup(func() {
+		cancel()
+		runner.wg.Wait()
+	})
+	c := NewCache[string, int](service.fetch, runner.run, persister, time.Millisecond)
+	c.Set("a", 1)
+	select {
+	case <-persister.began:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the save was never made")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		c.Close()
+		close(closed)
+	}()
+	settledFor()
+	select {
+	case <-closed:
+		t.Fatal("Close returned while a save was being made")
+	default:
+	}
+	close(persister.release)
+	select {
+	case <-closed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close never returned once the save was refused")
+	}
+	if saves := persister.saved(); len(saves) != 1 || !reflect.DeepEqual(saves[0], map[string]int{"a": 1}) {
+		t.Fatalf("Close saved %v, want the refused save made again", saves)
+	}
+}
+
+// A cache that kept nothing, attached to what another life kept, shows what
+// was kept of each key it holds nothing of, asked for anew when it is first
+// observed, and leaves every key it holds as it is; it saves from then on.
+func TestB17ACacheAttachedOnceItHasBegunTakesUpWhatWasKeptOnlyForTheKeysItHoldsNothingOf(t *testing.T) {
+	c, service, _ := cacheWorld(t, nil, time.Hour)
+	held := ready(t, c, service, 7)
+	persister := &keptBack{kept: map[string]int{cacheKeyOne: 1, "kept": 2}}
+	c.attach(persister, unsaved)
+
+	held.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 7 {
+		t.Fatalf("the key the cache held is %d, want 7", value)
+	}
+	o := watching(t, c, "kept")
+	isState(t, o.now(t), Ready[int]{Value: 2})
+	service.askedJust(t, cacheKeyOne, "kept")
+	service.answer(t, 1, 3)
+	isState(t, o.now(t), Ready[int]{Value: 3})
+
+	if saves := persister.saved(); len(saves) != 0 || !c.PersistencePending() {
+		t.Fatalf("saved %v, owing %v, after a new value", saves, c.PersistencePending())
+	}
+	c.Close()
+	if saves := persister.saved(); len(saves) != 1 || !reflect.DeepEqual(saves[0], map[string]int{cacheKeyOne: 7, "kept": 3}) {
+		t.Fatalf("closing saved %v", saves)
+	}
+}
+
 func TestACacheThatKeepsNothingOwesNothing(t *testing.T) {
 	c, _, _ := cacheWorld(t, nil, 0)
 	watching(t, c, cacheKeyOne).now(t)

@@ -30,34 +30,42 @@ For OCaml installation, sign-in, and live queries, see the [OCaml builder guide]
 
 For anything longer than a one-shot script, use **`SemiontSession`**: it refreshes the
 bearer token in the background, so long-running work doesn't die at the token TTL (a raw
-`SemiontClient` does). Supply a `SessionStorage` — `InMemorySessionStorage` for Node/scripts,
-a `localStorage`-backed one for the browser. A script's sign-in gives the session with the
-client it was built with (an `OpenedSession`), and `dispose()` on it ends both when done.
+`SemiontClient` does). A script keeps its sign-in in a `SignInKept` — a `MemorySignIn` for
+the life of the process, `keptIn(storage, kb.id)` over a `SessionStorage`, or an entry of the
+`SignInStore` that `semiont login` keeps; a browser app's is kept in the `SemiontBrowser`'s
+storage. A script's session over its kept sign-in comes with the client it was built with
+(an `OpenedSession`), and `dispose()` on it ends both when done.
 
 ```typescript
-import { SemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession, httpKb } from '@semiont/sdk';
 
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'my-app', label: 'My KB', host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new InMemorySessionStorage(),
+const kb = httpKb({ id: 'my-app', label: 'My KB', host: 'localhost', port: 4000, protocol: 'http' });
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 const { session } = opened;
 
 // … use session.client.{browse,gather,yield,mark,bind,match,frame,beckon} …
 
-opened.dispose();   // the session, then the client it was built with
+opened.dispose();   // the client it was built with, then the session
 ```
 
 Sign-in happens at the knowledge base's identity provider, never at the gateway:
 `SemiontSession.signInDevice(...)` for a script (the device grant — it prints a URL, the person
-approves in any browser) and `SemiontBrowser.beginSignIn` / `completeSignIn` for a browser app
-(authorization code with PKCE). Both give a session that refreshes at the issuer: a script's
-comes with the client it was built with, to end together, and a browser app's is the
-`SemiontBrowser`'s to end.
+approves in any browser, and the sign-in is kept where the script says) and
+`SemiontBrowser.beginSignIn` / `completeSignIn` for a browser app (authorization code with
+PKCE). Each gives a session that refreshes at the issuer: a script's, built by
+`SemiontSession.fromKept(...)`, comes with the client it was built with, to end together, and a
+browser app's is the `SemiontBrowser`'s to end. `signOut(kept)` revokes a script's sign-in at
+the issuer and forgets it.
 `SemiontClient` has no sign-in of its own: a bare token lives as long as the issuer says —
-minutes — with nothing to renew it. Already hold an access and refresh pair? `SemiontSession.fromIssuedSession(...)`. A bare
-JWT? The `fromHttp(...)` variants.
+minutes — with nothing to renew it. Already hold an access and refresh pair? Keep it in a
+`MemorySignIn` and open it with `SemiontSession.fromKept(...)`. A bare JWT? The `fromHttp(...)`
+variants.
 → [Usage § Setup](./Usage.md#setup).
 
 **Discover local KBs (launcher-managed).** Before there's a session at all: on a machine
@@ -500,7 +508,7 @@ when the session is disposed. `await` or `.catch` every call you start.
 
 ```typescript
 sub.unsubscribe();
-opened.dispose();   // the session (its refresh timer), then its client (the SSE connection and the bus)
+opened.dispose();   // its client (the SSE connection and the bus), then the session (its refresh timer)
 ```
 
 Disposal is terminal, in both directions:
@@ -591,8 +599,9 @@ made in — so a host with N viewers routes each `mark:requested` to the right o
 
 ## Headless (Node) vs. browser
 
-The same code runs in both — only the storage differs: `InMemorySessionStorage` (or your own
-file-backed `SessionStorage`) in Node; a `localStorage`-backed `SessionStorage` in the browser.
+The same code runs in both — only where the sign-in is kept differs: a `MemorySignIn`, your
+own file-backed `SessionStorage` through `keptIn`, or the `SignInStore`, in Node; a
+`localStorage`-backed `SessionStorage` in the browser.
 The verb namespaces are identical either way.
 
 Keep your orchestration framework-free (plain functions over the `session` / `session.client`
@@ -609,14 +618,29 @@ cold-starting every request. In the browser this is on by default (the react-ui
 `SemiontProvider` supplies `WebBrowserStorage`); a desktop or Node host gets it by
 supplying its own `SessionStorage` — no other wiring.
 
-What persists, per KB:
-- Five browse caches — resource descriptors, annotation lists, annotation details,
-  entity types, tag schemas — under `semiont.cache.<kbId>.<name>`. Lists, event
-  histories, and the engines deliberately stay in-memory.
+What persists, per KB and per person (`<p>` is `personKey(did)` of the did the
+gateway answers for the token, recorded on the stored sign-in once it answers):
+- Five browse caches — the queries `refresh.json` marks `persisted`: `resource`,
+  `annotations`, `annotation`, `entityTypes`, `tagSchemas` — under
+  `semiont.cache.<kbId>.<p>.<name>`. Lists, event histories, and the engines
+  deliberately stay in-memory.
 - The last **persisted** SSE event id PER SCOPE (a record under
-  `semiont.lastEventId.<kbId>`), written only alongside cache-document flushes
+  `semiont.lastEventId.<kbId>.<p>`), written only alongside cache-document flushes
   so the bookmark can never claim more than the caches contain. Ephemeral
   (`e-*`) ids are never saved: they carry no replay meaning.
+
+A session whose stored sign-in already names its person loads these as its client
+is made; one whose gateway has not yet named the person keeps nothing until it does,
+then attaches them. Forgetting the saved sign-in — signing out, removing the
+knowledge base, signing in to it again, the issuer refusing a renewal, the gateway
+refusing a renewed token — deletes every one of these keys of its person. A
+session the SDK builds checks before each write that the sign-in it holds still
+names its person: one whose sign-in is forgotten, or replaced with one that does
+not name its person, here or in another tab, discards what it has not written and
+writes nothing more. A client you assemble yourself, with a cache persistence you
+make, writes unchecked. What two programs sharing one storage can still race on,
+and what other code in the same program can, is in
+[CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) (B17, item 6).
 
 How reconciliation works — there is no reconcile code path, only the existing
 contract: rehydrated entries serve immediately (plus one background
@@ -631,11 +655,11 @@ debounced with a flush on dispose, and stored documents are version-gated
 Constructing a client directly (no factory)? Opt in explicitly:
 
 ```ts
-import { SemiontClient, HttpTransport, HttpContentTransport, baseUrl as brandBaseUrl } from '@semiont/sdk';
+import { SemiontClient, HttpTransport, HttpContentTransport, baseUrl as brandBaseUrl, personKey } from '@semiont/sdk';
 
 const raw = new HttpTransport({ baseUrl: brandBaseUrl('http://localhost:4000'), token$ });
 const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
-  cachePersistence: { storage, keyPrefix: kbId },
+  cachePersistence: { storage, kbId, personKey: personKey(did) },
 });
 ```
 

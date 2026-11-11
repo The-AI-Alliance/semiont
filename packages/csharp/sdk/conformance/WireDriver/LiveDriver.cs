@@ -4,14 +4,17 @@ using Semiont;
 using Semiont.Errors;
 using Semiont.Http;
 using Semiont.Identifiers;
+using Semiont.Registry;
+using Semiont.Storage;
 using Semiont.Types;
 
 internal sealed class LiveDriver : IDisposable
 {
     private readonly object gate = new();
     private readonly Dictionary<string, Observation> observations = new(StringComparer.Ordinal);
+    private static readonly string DriverKey = RegistryStorage.PersonKey(UserId.Parse("did:web:conformance.example:users:driver"));
+    private readonly MemoryStorage kept = new();
     private SemiontClient? client;
-    private string? saved;
     private ConnectionState? reported;
 
     private SemiontClient Client => client ?? throw new InvalidOperationException("No client is open");
@@ -59,7 +62,7 @@ internal sealed class LiveDriver : IDisposable
     {
         if (client is { State: not ConnectionState.Closed }) throw new InvalidOperationException("A client is already open");
         var persistence = args.TryGetProperty("persist", out var persist) && persist.GetBoolean()
-            ? new CachePersistence(() => saved, value => saved = value) : null;
+            ? new CachePersistence(kept, "conformance", DriverKey) : null;
         var timing = args.TryGetProperty("timing", out var values)
             ? values.Deserialize<Timing>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) : null;
         var opened = new SemiontClient(Text(args, "baseUrl"), Text(args, "token"), timing: timing, persistence: persistence);

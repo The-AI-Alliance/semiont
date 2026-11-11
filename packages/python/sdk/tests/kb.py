@@ -1,12 +1,13 @@
 """A knowledge base's answers and events, as small as their shapes allow: what a test of a client's queries scripts."""
 
 import asyncio
-from collections.abc import Mapping, Sequence
-from typing import Final, assert_never, final, override
+from collections.abc import Coroutine, Mapping, Sequence
+from typing import Final, NoReturn, assert_never, final, override
 
 from pydantic import JsonValue
 from spec import JsonObject
 
+from semiont.cache import Runs
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import OPERATIONS
 from semiont.refresh import CacheQuery, CacheRefreshChannel, CacheRefreshWhen
@@ -183,7 +184,7 @@ def event(trigger: CacheRefreshChannel, when: CacheRefreshWhen | None = None, *,
     scope = ResourceId(resource)
     match trigger:
         case "bus:resume-gap":
-            return Frame(channel=trigger, payload={"scope": resource, "lastSeenId": "p-1", "reason": "retention-exceeded"})
+            return Frame(channel=trigger, payload={"scope": resource, "lastSeenId": "p-res-1-1", "reason": "retention-exceeded"})
         case "mark:delete-ok":
             return Frame(channel=trigger, payload={"response": {"annotationId": of}}, correlation_id="cid-delete")
         case "mark:removed":
@@ -202,3 +203,18 @@ def event(trigger: CacheRefreshChannel, when: CacheRefreshWhen | None = None, *,
             return Frame(channel=trigger, payload=recorded(trigger, None))
         case _:
             assert_never(trigger)
+
+
+@final
+class NothingRuns(Runs):
+    """What runs the fetches of a cache that is only written: nothing is fetched."""
+
+    @override
+    def run[T](self, work: Coroutine[object, object, T]) -> asyncio.Task[T]:
+        work.close()
+        raise AssertionError("a cache that is only written fetched")
+
+
+async def nothing_fetched(key: object) -> NoReturn:
+    """What a cache that is only written asks for: it never asks."""
+    raise AssertionError(f"a cache that is only written fetched {key}")

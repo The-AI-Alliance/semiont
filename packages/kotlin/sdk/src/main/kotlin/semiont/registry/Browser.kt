@@ -157,12 +157,17 @@ private suspend fun checked(session: SemiontSession, resourceId: ResourceId): Ta
     TabCheck(TabVerdict.Unknown)
 }
 
-/** A live session, and what a host is shown of it: closing it ends the routing of its failures, the session and what it was opened over, then the signals. */
-private class Live(val opened: OpenedSession, val signals: SessionSignals, val routing: Job) {
+/** A live session, what a host is shown of it, and the reading of its errors (`reading`), which goes on until they end: closing it ends the session and what it was opened over, its client first, then the signals. */
+private class Live(val opened: OpenedSession, val signals: SessionSignals, val reading: Job) {
     fun close() {
-        routing.cancel()
         opened.close()
         signals.close()
+    }
+
+    /** Close it, then wait until its client writes nothing more of what it keeps: what comes before deleting what forgetting a saved sign-in deletes. */
+    suspend fun end() {
+        close()
+        opened.stopKeeping()
     }
 }
 
@@ -193,8 +198,11 @@ private class Live(val opened: OpenedSession, val signals: SessionSignals, val r
  * the storage holds, as one step, so two contexts that each open a resource
  * both keep theirs.
  *
- * A request the gateway refuses for want of a valid token renews the session;
- * one refused for lack of permission is said at once. Closing the registry
+ * The registry is the one reader of each session's errors, from the first
+ * thing the session said until they end: each of the session's own it says on
+ * its own errors; a request the gateway refuses for want of a valid token
+ * renews the session; one refused for lack of permission is said through the
+ * session's signals. A factory reads none of them. Closing the registry
  * closes its session and ends everything it holds; once what it ran in the
  * background has stopped, it throws the first failure of any of it.
  */
@@ -284,7 +292,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         if (active != null) spawn { setActive(active) }
     }
 
-    /** The failures that made a session unusable, from now on, until the registry is closed. */
+    /** Each session that could not be built, and each error a session says of its own, from now on, until the registry is closed. What is said before anyone listens is kept for the first listener. */
     public fun errors(): Events<SessionError> = failures.listen()
 
     /** Set the identity token; null for none. */
@@ -304,12 +312,22 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** `addKb`, for Java. */
     public fun addKbFuture(kb: NewKnowledgeBase, session: StoredSession): CompletableFuture<KnowledgeBase> = scope.futureOf { addKb(kb, session) }
 
-    /** Forget a knowledge base: its entry, its tokens, what was open in it and where the person was. If it was active, the first of the others becomes active. */
+    /**
+     * Forget a knowledge base: its entry, its tokens, what was open in it and
+     * where the person was. If it is active, its session is closed. Then, as
+     * forgetting a saved sign-in does, what a client kept there for the person
+     * the sign-in named is deleted: after the session closed, so nothing it
+     * wrote as it closed is left. If it was active, the first of the others
+     * becomes active.
+     */
     public suspend fun removeKb(kbId: String) {
-        clearStoredSession(storage, kbId)
-        forgetKeptOf(kbId)
-        val rest = synchronized(lock) { kbsHeld.value.filter { it.id != kbId }.also(::putKbs) }
-        if (activeKbIdHeld.value == kbId) setActive(rest.firstOrNull()?.id)
+        val wasActive = activeKbIdHeld.value == kbId
+        val rest = replaceSignIn(storage, kbId, null) {
+            forgetOpenOf(kbId)
+            if (wasActive) takeSession()?.end()
+            synchronized(lock) { kbsHeld.value.filter { it.id != kbId }.also(::putKbs) }
+        }
+        if (wasActive) setActive(rest.firstOrNull()?.id)
     }
 
     /** `removeKb`, for Java. */
@@ -333,12 +351,18 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** `setActiveKb`, for Java. */
     public fun setActiveKbFuture(kbId: String?): CompletableFuture<Unit> = scope.futureOf { setActive(kbId) }
 
-    /** Keep new tokens for a registered knowledge base and bring its session up on them. A session it already had is closed and replaced. */
+    /**
+     * Keep new tokens for a registered knowledge base and bring its session up
+     * on them. A session it already had is closed and replaced. The new
+     * sign-in names nobody until its gateway names them, so, as forgetting a
+     * saved sign-in does, what a client kept there for the person the replaced
+     * one named is deleted: after the session it already had closed, so
+     * nothing it wrote as it closed is left.
+     */
     public suspend fun signIn(kbId: String, session: StoredSession) {
         if (closing) return
-        storeSession(storage, kbId, session)
         // A session it already has is on the old tokens: it is closed, and the one built next reads the new ones.
-        if (activeKbIdHeld.value == kbId) takeSession()?.close()
+        replaceSignIn(storage, kbId, session) { if (activeKbIdHeld.value == kbId) takeSession()?.end() }
         setActive(kbId)
     }
 
@@ -382,16 +406,23 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** `signedIn`, for Java. */
     public fun signedInFuture(signedIn: SignedIn): CompletableFuture<SignInOutcome> = scope.futureOf { signedIn(signedIn) }
 
-    /** Sign out of a knowledge base: its tokens are forgotten, and the issuer is told so its refresh token is good for nothing. If it is active, its session is closed. */
+    /**
+     * Sign out of a knowledge base: its tokens are forgotten, and the issuer is
+     * told so its refresh token is good for nothing. If it is active, its
+     * session is closed. Then, as forgetting a saved sign-in does, what a
+     * client kept there for the person the sign-in named, its queries and its
+     * stream's places, is deleted: after the session closed, so nothing it
+     * wrote as it closed is left.
+     */
     public suspend fun signOut(kbId: String) {
         if (closing) return
-        val stored = storedSession(storage, kbId)
-        clearStoredSession(storage, kbId)
-        // The sign-out is the local act: an issuer that cannot be reached does not keep anyone in a session they asked to end.
-        if (stored != null) scope.launch { factory.revoke(stored) }
-        // Said again, so whoever shows each knowledge base's status reads it anew.
-        synchronized(lock) { kbsHeld.raise(kbsHeld.value) }
-        if (activeKbIdHeld.value == kbId) takeSession()?.close()
+        replaceSignIn(storage, kbId, null) { stored ->
+            // The sign-out is the local act: an issuer that cannot be reached does not keep anyone in a session they asked to end.
+            if (stored != null) scope.launch { factory.revoke(stored) }
+            // Said again, so whoever shows each knowledge base's status reads it anew.
+            synchronized(lock) { kbsHeld.raise(kbsHeld.value) }
+            if (activeKbIdHeld.value == kbId) takeSession()?.end()
+        }
     }
 
     /** `signOut`, for Java. */
@@ -452,9 +483,11 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     public fun readActiveKbFuture(): CompletableFuture<KbReadVerdict> = scope.futureOf { readActiveKb() }
 
     /**
-     * End the registry: its session is closed, what it runs in the background
-     * is ended, and everything it holds ends. It returns once that work has
-     * stopped, and throws the first failure of any of it: bringing up the
+     * End the registry: its session is closed, its client first, and its
+     * errors are read to their end, so what its client's closing flush meets
+     * is said on the registry's errors before they end; then what it runs in
+     * the background is ended, and everything it holds ends. It returns once
+     * that work has stopped, and throws the first failure of any of it: bringing up the
      * session it began with, the checks a session's arrival starts, and the
      * renewals a refused token asks for. What closing ended is no failure.
      * Called from within that work, it does not wait for the work to stop,
@@ -468,12 +501,9 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         val taken = takeSession()
         listening?.close()
         taken?.close()
+        if (!inside.get()) taken?.reading?.let(::waitFor)
         scope.cancel()
-        if (!inside.get()) {
-            val stopped = CountDownLatch(1)
-            scope.coroutineContext.job.invokeOnCompletion { stopped.countDown() }
-            stopped.await()
-        }
+        if (!inside.get()) waitFor(scope.coroutineContext.job)
         failures.close()
         for (held in listOf(kbsHeld, activeKbIdHeld, activeSessionHeld, activeSignalsHeld, activatingHeld, openResourcesHeld, lastViewedHeld, identityTokenHeld)) held.end()
         bus.destroy()
@@ -482,6 +512,13 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     // Within.
+
+    /** Wait, on this thread, until `job` has ended. */
+    private fun waitFor(job: Job) {
+        val stopped = CountDownLatch(1)
+        job.invokeOnCompletion { stopped.countDown() }
+        stopped.await()
+    }
 
     /** Run `work` for as long as the registry lives: closing ends it, waits for it to stop, and throws what it failed with. */
     private fun spawn(work: suspend () -> Unit) {
@@ -564,13 +601,13 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         val signals = SessionSignals()
         val opened = try {
             // Built on the registry's own context, whoever asked.
-            withContext(context) { factory.session(SessionFactoryOptions(kb, storage, signals, ::failed)) }
+            withContext(context) { factory.session(SessionFactoryOptions(kb, storage, signals)) }
         } catch (refused: SemiontError) {
             if (!closing) failed(constructFailed(refused, kb.id))
             signals.close()
             return
         }
-        // Heard from the moment it is held: a refusal while it starts is routed too.
+        // Read from the moment it is handed back, before it is ready: the first reader, so what it said at its start is read too.
         val heard = opened.session.errors()
         val live = Live(opened, signals, scope.launch { route(opened.session, heard, signals) })
         try {
@@ -591,24 +628,28 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     /**
-     * Route what the session's transport fails at. A refusal for want of a
-     * valid token renews the session: it heals quietly, or the session ends
-     * itself and says so once. A refusal for lack of permission has no remedy,
-     * and is said.
+     * Read the session's errors, as their one reader, until they end: each of
+     * the session's own is said on the registry's errors, and each failure of
+     * its transport is routed. A refusal for want of a valid token renews the
+     * session: it heals quietly, or the session ends itself and says so once.
+     * A refusal for lack of permission has no remedy, and is said through the
+     * session's signals.
      */
     private suspend fun route(session: SemiontSession, heard: Events<SemiontError>, signals: SessionSignals) = heard.use {
-        it.collect { failure ->
-            if (failure is TransportError) {
-                when (failure.reason) {
+        it.collect { error ->
+            when (error) {
+                is SessionError -> failed(error)
+                is TransportError -> when (error.reason) {
                     // Refusals that arrive together are answered by one renewal: the session holds them while it renews.
                     // A failure does not say which token was refused: the one the session holds as it is read is.
                     TransportErrorCode.Unauthorized -> {
                         val refused = session.token.value
                         spawn { session.refresh(refused) }
                     }
-                    TransportErrorCode.Forbidden -> signals.notifyPermissionDenied(failure.message)
+                    TransportErrorCode.Forbidden -> signals.notifyPermissionDenied(error.message)
                     else -> Unit
                 }
+                else -> Unit
             }
         }
     }
@@ -659,7 +700,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     /** Forget what was open in a knowledge base, and where the person was. */
-    private fun forgetKeptOf(kbId: String): Unit = synchronized(lock) {
+    private fun forgetOpenOf(kbId: String): Unit = synchronized(lock) {
         var committed = openByKb
         storage.update(OPEN_RESOURCES_BY_KB_KEY) { stored ->
             (storedAs(OPEN_BY_KB, stored) - kbId).also { committed = it }.let { wireJson.encodeToString(OPEN_BY_KB, it) }

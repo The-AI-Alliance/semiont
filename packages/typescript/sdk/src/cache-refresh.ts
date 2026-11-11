@@ -38,6 +38,11 @@ class InvalidationWindows {
     this.open.set(key, { owed: null, timer });
   }
 
+  /** Whether a window holds an invalidation it has not yet run. */
+  owes(): boolean {
+    return [...this.open.values()].some(({ owed }) => owed !== null);
+  }
+
   /** B16: an owed invalidation dies with its namespace. */
   dispose(): void {
     for (const { timer } of this.open.values()) clearTimeout(timer);
@@ -176,6 +181,11 @@ export class CacheRefresher<Q extends CacheQuery> {
   /** Run `invalidate` through `window` (B19), whatever the cache holds. */
   windowed(window: string, invalidate: () => void): void {
     this.windows.run(window, invalidate);
+  }
+
+  /** Whether a refetch is owed: a window (B19) holds an invalidation it has not yet run. */
+  owesRefetch(): boolean {
+    return this.windows.owes();
   }
 
   /** B16: detach from the bus, and drop what is owed. Idempotent. */

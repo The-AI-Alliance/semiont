@@ -19,13 +19,13 @@
 //! the schedule fixes the run.
 
 use crate::bus::{operation, reply_names};
-use crate::channels::{BRIDGED_CHANNELS, TRACE_FIELD};
+use crate::channels::{BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
 use crate::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, Frame, FrameHub, FrameRefusal, Frames,
-    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport,
+    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, StreamId, Transport,
 };
 use crate::types::ResourceId;
 use serde_json::{Map, Value};
@@ -111,8 +111,8 @@ struct Inner {
 
 impl Inner {
     /// A frame, or the refusal a transport delivers in its place: to the
-    /// request that awaits it, to the client's own bus, and to its channel's
-    /// readers, as a wire transport does.
+    /// request that awaits it, to the client's own bus when its channel is a
+    /// global one, and to its channel's readers, as a wire transport does.
     fn deliver(&self, carried: Result<Frame, FrameRefusal>) {
         if self.closed.load(Ordering::SeqCst) {
             return;
@@ -123,28 +123,49 @@ impl Inner {
             Err(refusal) => &refusal.channel,
         };
         if BRIDGED_CHANNELS.contains(&channel.as_str()) {
-            for bus in locked(&self.bridges).iter() {
-                match &carried {
-                    Ok(frame) => {
-                        bus.emit(
-                            &frame.channel,
-                            frame.payload.clone(),
-                            Envelope {
-                                correlation_id: frame.correlation_id.clone(),
-                                scope: None,
-                            },
-                        );
-                    }
-                    Err(refusal) => {
-                        bus.emit_refusal(FrameRefusal {
-                            scope: None,
-                            ..refusal.clone()
-                        });
-                    }
+            self.bridge(&carried);
+        }
+        self.hub.deliver(carried);
+    }
+
+    /// A frame the stream delivered on its scope: to its channel's readers,
+    /// and to the client's own bus on a resource's channel as on a global
+    /// one, as a wire transport does.
+    fn deliver_on_its_scope(&self, frame: Frame) {
+        if self.closed.load(Ordering::SeqCst) {
+            return;
+        }
+        let channel = frame.channel.as_str();
+        let bridged =
+            BRIDGED_CHANNELS.contains(&channel) || RESOURCE_SCOPED_CHANNELS.contains(&channel);
+        let carried = Ok(frame);
+        self.router.route(carried.as_ref());
+        if bridged {
+            self.bridge(&carried);
+        }
+        self.hub.deliver(carried);
+    }
+
+    /// Publish into each bus the transport is bridged into, globally: a
+    /// frame keeps where on the stream it was delivered.
+    fn bridge(&self, carried: &Result<Frame, FrameRefusal>) {
+        for bus in locked(&self.bridges).iter() {
+            match carried {
+                Ok(frame) => {
+                    bus.emit_frame(Frame {
+                        scope: None,
+                        trace: None,
+                        ..frame.clone()
+                    });
+                }
+                Err(refusal) => {
+                    bus.emit_refusal(FrameRefusal {
+                        scope: None,
+                        ..refusal.clone()
+                    });
                 }
             }
         }
-        self.hub.deliver(carried);
     }
 }
 
@@ -271,6 +292,24 @@ impl FaultyTransport {
         self.inner.deliver(Ok(frame));
     }
 
+    /// Deliver a frame as the stream delivers one on its scope, with the
+    /// event id `id` the stream gave it: it is published into the client's
+    /// own bus, on a resource's channel as on a global one, and keeps where
+    /// on the stream it was delivered (`Frame::stream_id`), as a wire
+    /// transport's does. A frame of no scope is no test of this.
+    pub fn deliver_recorded(&self, frame: Frame, id: &str) {
+        let Some(scope) = frame.scope.clone() else {
+            panic!("FaultyTransport: a recorded frame is delivered on its scope");
+        };
+        self.inner.deliver_on_its_scope(Frame {
+            stream_id: Some(StreamId {
+                scope,
+                event_id: id.to_owned(),
+            }),
+            ..frame
+        });
+    }
+
     /// Deliver a refusal as if the bus had carried a frame this transport
     /// refused that names its readers.
     pub fn deliver_refusal(&self, refusal: FrameRefusal) {
@@ -306,6 +345,7 @@ impl Transport for FaultyTransport {
                 correlation_id: envelope.correlation_id.clone(),
                 scope: envelope.scope.clone(),
                 trace: None,
+                stream_id: None,
             };
             locked(&inner.emitted).push(request.clone());
             let Some(op) = operation(channel) else {
@@ -384,6 +424,7 @@ impl Transport for FaultyTransport {
                 correlation_id: envelope.correlation_id,
                 scope: None,
                 trace: None,
+                stream_id: None,
             };
             let (copies, after) = match action {
                 FaultAction::Deliver => (1, Duration::ZERO),

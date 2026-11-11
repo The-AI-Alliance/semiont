@@ -114,6 +114,7 @@ declare global {
   const password: string;
   const baseUrl: string;
   const kbId: string;
+  const did: string;
   const kbsJsonPath: string;
   const credential: string;
   const newToken: string;

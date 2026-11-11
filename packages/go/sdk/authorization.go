@@ -62,8 +62,12 @@ type BeginAuthorizationOptions struct {
 }
 
 // CodeChallenge is RFC 7636 §4.2: BASE64URL(SHA-256(verifier)).
-func CodeChallenge(verifier string) string {
-	sum := sha256.Sum256([]byte(verifier))
+func CodeChallenge(verifier string) string { return sha256URLSafe(verifier) }
+
+// sha256URLSafe is the SHA-256 of text's UTF-8, as unpadded base64url (RFC
+// 4648 §5).
+func sha256URLSafe(text string) string {
+	sum := sha256.Sum256([]byte(text))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 

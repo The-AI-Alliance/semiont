@@ -61,7 +61,6 @@ type session_factory_options = {
   kb : knowledge_base;
   storage : storage;
   signals : Session.t option;
-  on_error : Http_wire.failure -> unit;
 }
 
 type session_factory =
@@ -72,7 +71,6 @@ type semiont_browser_config = {
   clock : Clock.t;
   fresh_id : unit -> string;
   factory : session_factory;
-  on_error : Http_wire.failure -> unit;
 }
 
 type semiont_browser
@@ -134,8 +132,23 @@ type kept_sign_in = {
 
 val kept_in : storage -> string -> kept_sign_in
 
+val renew_kept :
+  semiont_browser ->
+  http:Oauth.http ->
+  string ->
+  holding:string option ->
+  Session.renewal
+(** Renew the sign-in kept for a knowledge base, handed the token the renewal
+    renews (protocol/specs/src/sign-in-store/README.md, Renewing it). *)
+
+val forget_rejected : semiont_browser -> string -> string -> unit
+(** Forget the sign-in kept for a knowledge base while its access token is the
+    one the gateway rejected. *)
+
 val start_kept_session :
   semiont_browser -> sw:Eio.Switch.t -> http:Oauth.http -> string -> Session.t
+(** A session over the sign-in kept for a knowledge base: [renew_kept] renews it
+    and [forget_rejected] is told each token the gateway rejects. *)
 
 val begin_sign_in :
   semiont_browser ->

@@ -40,6 +40,14 @@ impl SharedStorage {
         }
     }
 
+    /// Every key the storage holds, sorted: for a test that a client wrote
+    /// the keys it should and no others.
+    pub fn keys(&self) -> Vec<String> {
+        let mut keys: Vec<String> = locked(&self.shared).stored.keys().cloned().collect();
+        keys.sort_unstable();
+        keys
+    }
+
     /// Tell the other contexts' listeners of a change, with nothing locked.
     fn tell(&self, key: &str, value: Option<&str>) {
         let others: Vec<StorageChange> = locked(&self.shared)

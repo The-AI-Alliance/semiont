@@ -206,13 +206,23 @@ impl EventBus {
     /// Publish a frame: globally, or into `envelope.scope`. How many readers
     /// its view had when it was published. A destroyed bus publishes nothing.
     pub fn emit(&self, channel: &str, payload: Map<String, Value>, envelope: Envelope) -> usize {
-        self.inner.deliver(Ok(Frame {
+        self.emit_frame(Frame {
             channel: channel.to_owned(),
             payload,
             correlation_id: envelope.correlation_id,
             scope: envelope.scope,
             trace: None,
-        }))
+            stream_id: None,
+        })
+    }
+
+    /// Publish a frame as it is: globally, or into its scope, with where on
+    /// the stream it was delivered. What a transport bridged into this bus
+    /// does with each frame it delivers, its scope cleared and its
+    /// `stream_id` kept, so a reader of the global view learns the place the
+    /// frame brings its scope to. How many readers its view had.
+    pub fn emit_frame(&self, frame: Frame) -> usize {
+        self.inner.deliver(Ok(frame))
     }
 
     /// Publish the refusal of a frame in its place, into the view its
@@ -306,6 +316,7 @@ impl ScopedEventBus {
             correlation_id,
             scope: Some(self.scope.clone()),
             trace: None,
+            stream_id: None,
         }))
     }
 

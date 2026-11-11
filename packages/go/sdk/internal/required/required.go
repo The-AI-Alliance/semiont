@@ -226,6 +226,17 @@ func Carries(payload []byte, generated reflect.Type) bool {
 	return !faulty
 }
 
+// Holds is whether value, as Go's decoding of JSON into an any gives it, has
+// no fault as a value of the spec's component schema named schema: for a
+// schema no type of package api is named for, as one an alias of a string is.
+func Holds(schema string, value any) bool {
+	if _, named := schemas()[schema]; !named {
+		panic("the spec has no component schema " + schema)
+	}
+	_, faulty := faultOf(&shape{Ref: schema}, value, "")
+	return !faulty
+}
+
 // ReadAs is payload read as T, and whether it is one: JSON with no fault as
 // a T, which Go's decoding reads.
 func ReadAs[T any](payload []byte) (T, bool) {

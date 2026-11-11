@@ -1,4 +1,4 @@
-module ControlledTime (ControlledTime, newTime, now, waitUntil, awaitDue, settle, advance) where
+module ControlledTime (ControlledTime, newTime, now, waitUntil, awaitDue, settle, advance, within) where
 
 import Control.Concurrent (myThreadId, yield)
 import Control.Concurrent.STM
@@ -63,3 +63,13 @@ advance time@(ControlledTime clock _ waiting) nanoseconds = do
           Nothing -> atomically (writeTVar clock target) >> settle
           Just due -> atomically (writeTVar clock due) >> settle >> step
   step
+
+-- | Whether probe comes to hold, tried once settled and after each of a
+-- hundred moves of the clock by step nanoseconds.
+within :: ControlledTime -> Integer -> IO Bool -> IO Bool
+within time step probe = go (100 :: Int)
+  where
+    go left = do
+      settle
+      held <- probe
+      if held || left == 0 then pure held else advance time step >> go (left - 1)

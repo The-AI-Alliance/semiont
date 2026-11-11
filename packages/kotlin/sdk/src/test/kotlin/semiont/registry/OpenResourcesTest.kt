@@ -3,16 +3,28 @@ package semiont.registry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestFactory
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import semiont.Spec
 import semiont.identifiers.ResourceId
 import semiont.session.KbIdentityConflict
 import semiont.storage.SessionStorage
 import java.io.IOException
+
+private val openResourceCases = Spec.read("session/open-resource-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
+
+/** The ids a case lists under `member`, compared as a set. */
+private fun JsonObject.idsAt(member: String): Set<String> = getValue(member).jsonArray.map { it.jsonPrimitive.content }.toSet()
 
 private fun conflict(browser: SemiontBrowser): KbIdentityConflict? = browser.activeSignals.value?.kbIdentityConflict?.value
 
@@ -323,6 +335,50 @@ class OpenResourcesTest {
         // arrival would ask the knowledge base again and record a later read over this one.
         SemiontBrowser(SemiontBrowserConfig(world.storage, HeldSessions(world.factory.sessions))).use { reopened ->
             assertEquals(entry, reopened.kbs.value[0])
+        }
+    }
+
+    /**
+     * What a session's arrival does with what is open, case by case
+     * (protocol/specs/src/session/open-resource-cases.json): a registry over a
+     * scripted knowledge base that answers who it is as the case's `kb` says,
+     * and each open resource as its `resources` say, activates; then it has
+     * asked about the resources the case says, and those it says are still
+     * open. A resource the knowledge base gives no answer about is one whose
+     * read fails here: a fault, which the table counts as no verdict, as it
+     * counts nothing said.
+     */
+    @TestFactory
+    fun aSessionsArrivalChecksWhatIsOpenAsTheTableSays(): List<DynamicTest> = openResourceCases.map { case ->
+        DynamicTest.dynamicTest(case.getValue("why").jsonPrimitive.content) {
+            runBlocking {
+                val entry = kbOfA()
+                val world = World().with(entry)
+                world.opened(KB_A, *case.getValue("open").jsonArray.map { it.jsonPrimitive.content }.toTypedArray())
+                when (val kb = case.getValue("kb").jsonPrimitive.content) {
+                    // The domain whose did is the entry's.
+                    "itself" -> world.factory.says(KB_A, description(entry.label, entry.did.removePrefix("did:web:")))
+                    "unanswered" -> Unit
+                    else -> throw AssertionError("the knowledge base answers $kb, which no case says")
+                }
+                for ((id, answer) in case.getValue("resources").jsonObject) {
+                    when (val said = answer.jsonPrimitive.content) {
+                        "ready" -> Unit
+                        "gone" -> world.factory.behind.gone += id
+                        "unanswered" -> world.factory.behind.failing += id
+                        else -> throw AssertionError("$id is answered $said, which no case says")
+                    }
+                }
+                world.browser().use { browser ->
+                    live(browser)
+                    eventually("the resources the case names were asked about") { world.factory.askedAbout(KB_A).toSet() == case.idsAt("asked") }
+                    eventually("what is open is what the case says is still open") { shown(browser).toSet() == case.idsAt("stillOpen") }
+                    // And no more is asked, and no more closes.
+                    settle()
+                    assertEquals(case.idsAt("asked"), world.factory.askedAbout(KB_A).toSet())
+                    assertEquals(case.idsAt("stillOpen"), shown(browser).toSet())
+                }
+            }
         }
     }
 

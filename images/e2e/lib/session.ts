@@ -16,8 +16,9 @@
  *
  * A session rather than a bare client: the access token lives minutes, and a
  * seed run or a long spec outlives that; the session renews it at the issuer.
- * `InMemorySessionStorage` because these processes want no persistence: each
- * run signs in fresh and takes nothing with it. What comes back is the session
+ * The pending sign-in is kept in an `InMemorySessionStorage` and the sign-in
+ * in a `MemorySignIn` because these processes want no persistence: each run
+ * signs in fresh and takes nothing with it. What comes back is the session
  * with the client it was built with, which `dispose()` ends together.
  */
 
@@ -25,6 +26,7 @@ import { chromium } from '@playwright/test';
 import {
   BROWSER_CLIENT_ID,
   InMemorySessionStorage,
+  MemorySignIn,
   SemiontSession,
   type OpenedSession,
   beginAuthorization,
@@ -39,7 +41,7 @@ export async function sessionFor(opts: {
   baseUrl: string;
   email: string;
   password: string;
-  /** KB id — only distinguishes storage keys, and storage is in-memory here. */
+  /** The session's knowledge base id: nothing is kept under it, the sign-in being in memory. */
   id?: string;
 }): Promise<OpenedSession> {
   const url = new URL(opts.baseUrl);
@@ -88,7 +90,14 @@ export async function sessionFor(opts: {
   }
 
   const { pending, tokens } = await completeAuthorization(callbackUrl, storage);
-  return SemiontSession.fromIssuedSession({
+  const kept = new MemorySignIn({
+    access: tokens.access,
+    refresh: tokens.refresh,
+    clientId: BROWSER_CLIENT_ID,
+    tokenEndpoint: pending.issuer.token,
+    ...(pending.issuer.revocation ? { revocationEndpoint: pending.issuer.revocation } : {}),
+  });
+  return SemiontSession.fromKept({
     kb: httpKb({
       id: opts.id ?? 'e2e',
       label: 'E2E',
@@ -96,14 +105,6 @@ export async function sessionFor(opts: {
       port: endpoint.port,
       protocol: endpoint.protocol,
     }),
-    storage,
-    baseUrl: opts.baseUrl,
-    session: {
-      access: tokens.access,
-      refresh: tokens.refresh,
-      clientId: BROWSER_CLIENT_ID,
-      tokenEndpoint: pending.issuer.token,
-      ...(pending.issuer.revocation ? { revocationEndpoint: pending.issuer.revocation } : {}),
-    },
+    kept,
   });
 }

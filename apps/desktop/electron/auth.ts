@@ -9,8 +9,9 @@ import {
   beginAuthorization,
   completeAuthorization,
   getStoredSession,
+  keptIn,
   parseJwtExpiry,
-  refreshStoredSession,
+  renewKept,
   revokeAtIssuer,
   setStoredSession,
   type HttpEndpoint,
@@ -61,7 +62,7 @@ function storageFor(kbId: string): FileSessionStorage {
 
 /** Whether a failed renewal is the issuer's verdict on the session (it answered, and the
  *  SDK's refresh rule says another try cannot change the answer), as opposed to the issuer
- *  not answering. `refreshStoredSession` throws a verdict as the issuer's own answer, on
+ *  not answering. `renewKept` throws a verdict as the issuer's own answer, on
  *  the first attempt; an issuer that never answered is retried and then reported as such. */
 function refusedByIssuer(err: unknown): err is SignInError {
   return (
@@ -76,7 +77,7 @@ function refusedByIssuer(err: unknown): err is SignInError {
 function renew(kbId: string, holding: string | null): Promise<string | null> {
   const underway = renewals.get(kbId);
   if (underway !== undefined) return underway;
-  const renewal = refreshStoredSession(storageFor(kbId), kbId, holding)
+  const renewal = renewKept(keptIn(storageFor(kbId), kbId), holding)
     .then((access) => {
       if (access === null) held.delete(kbId);
       else held.set(kbId, access);

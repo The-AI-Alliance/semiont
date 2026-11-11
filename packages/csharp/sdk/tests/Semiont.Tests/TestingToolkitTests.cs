@@ -48,9 +48,12 @@ public sealed partial class TransportTests
         factory.QueueRenewals(new Renewal.Token("renewed access"));
         using var signals = new SessionSignals();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using (var opened = await factory.OpenAsync(new(kb, storage, signals, error => throw error), deadline.Token))
+        var opened = await factory.OpenAsync(new(kb, storage, signals), deadline.Token);
+        var session = Assert.IsType<Session.SemiontSession>(opened.Session);
+        await using IAsyncEnumerator<SemiontError> errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        try
         {
-            var session = Assert.IsType<Session.SemiontSession>(opened.Session);
             Assert.Equal(user.Did, session.User.Value?.Did);
             Assert.Equal("renewed access", await session.RefreshAsync(stored.Access, deadline.Token));
             Assert.Equal("renewed access", RegistryStorage.StoredSession(storage, kb.Id)?.Access);
@@ -60,6 +63,10 @@ public sealed partial class TransportTests
             Assert.Equal("kb.example", reply?.GetProperty("domain").GetString());
             Assert.Single(Assert.Single(factory.Transports(kb.Id)).RequestLog);
         }
+        finally { await EndAsync(opened, told); }
+        var said = await SaidUntilEndAsync(errors, told, deadline.Token);
+        Assert.True(!said.Any(error => error is SessionError),
+            "the scripted session said its own errors: [" + string.Join(", ", said.Select(error => error.Code)) + "]");
 
         await factory.RevokeAsync(stored, deadline.Token);
         Assert.Equal(stored, Assert.Single(factory.Revoked));

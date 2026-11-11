@@ -40,6 +40,17 @@ type Frame struct {
 	// Trace is the trace the work done for the frame continues (Continuing);
 	// the zero TraceContext when it was sent under none.
 	Trace TraceContext
+	// place is the place a recorded event delivered on its scope reaches,
+	// kept when the frame is bridged into a client's bus for everyone; the
+	// zero eventPlace for any other frame.
+	place eventPlace
+}
+
+// eventPlace is a scope's place: the scope a recorded event was delivered
+// on, and the event's id, a PersistedEventId.
+type eventPlace struct {
+	scope api.ResourceId
+	id    string
 }
 
 // FrameRefusal is what a channel's readers are given in place of a frame
@@ -368,25 +379,27 @@ func (h *FrameHub) Close() {
 	h.bridged = nil
 }
 
-// failureStream is the failures a transport met. Its first listener's queue is
-// made with it and held until a listener takes it, because the stream opens
-// before the transport's constructor returns: a failure reported before anyone
-// has asked to hear failures is not lost to the first who does
-// (protocol/contract/TRANSPORT-CONTRACT.md § Failures).
-type failureStream struct {
-	b     *broadcast[*TransportError]
+// failureStream is the failures a transport met, or a session: T is what
+// each is. Its first listener's queue is made with it and held until a
+// listener takes it, because the stream opens before whatever reports to it
+// is returned to its caller: a failure reported before anyone has asked to
+// hear failures is not lost to the first who does
+// (protocol/contract/TRANSPORT-CONTRACT.md § Failures). Reporting never waits
+// for a reader.
+type failureStream[T any] struct {
+	b     *broadcast[T]
 	mu    sync.Mutex
-	first *queue[*TransportError]
+	first *queue[T]
 }
 
-func newFailureStream() *failureStream {
-	b := newBroadcast[*TransportError]()
-	return &failureStream{b: b, first: b.listen()}
+func newFailureStream[T any]() *failureStream[T] {
+	b := newBroadcast[T]()
+	return &failureStream[T]{b: b, first: b.listen()}
 }
 
 // failures is the failures reported from now on; for its first listener,
 // every one since the stream was made.
-func (f *failureStream) failures() iter.Seq[*TransportError] {
+func (f *failureStream[T]) failures() iter.Seq[T] {
 	f.mu.Lock()
 	q := f.first
 	f.first = nil
@@ -398,9 +411,9 @@ func (f *failureStream) failures() iter.Seq[*TransportError] {
 }
 
 // report hands err to every listener, and returns it for its caller.
-func (f *failureStream) report(err *TransportError) *TransportError {
+func (f *failureStream[T]) report(err T) T {
 	f.b.give(err)
 	return err
 }
 
-func (f *failureStream) close() { f.b.close() }
+func (f *failureStream[T]) close() { f.b.close() }

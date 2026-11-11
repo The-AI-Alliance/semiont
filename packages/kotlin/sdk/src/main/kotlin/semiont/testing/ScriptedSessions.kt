@@ -137,7 +137,7 @@ public class ScriptedSessions @JvmOverloads constructor(
             client,
             MutableStateFlow(null),
             keptIn(options.storage, kbId),
-            {
+            { _: String? ->
                 renewedCount += 1
                 val renewal = synchronized(renewals) {
                     renewals.removeFirstOrNull()
@@ -153,11 +153,11 @@ public class ScriptedSessions @JvmOverloads constructor(
                 saidWho ?: throw TransportError(TransportErrorCode.Error, "ScriptedSessions: not scripted: who a token of '$kbId' is. Script it with saysWho.")
             },
             options.signals::notifySessionEnded,
-            options.onError,
             random,
         )
         session.start()
-        return OpenedSession(session) { transport.close() }
+        // Its client keeps nothing, so no write is ever under way to wait for.
+        return OpenedSession(session, transport) {}
     }
 
     override suspend fun revoke(stored: StoredSession) {

@@ -58,6 +58,10 @@ public sealed class SemiontClient : IDisposable
     public AuthNamespace Auth { get; }
     public SystemNamespace System { get; }
 
+    /// <summary>What the client's closing save still writes once it is disposed: complete when that save has written what
+    /// it could.</summary>
+    internal Task Flushed => live.Flushed;
+
     private async Task CloseWithTransportAsync()
     {
         await foreach (var state in Transport.States().ConfigureAwait(false))

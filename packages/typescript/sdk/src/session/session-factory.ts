@@ -10,7 +10,11 @@
  *
  * A factory builds a client and a session over it, and its caller owns
  * both: the session only uses its client, so whoever calls the factory
- * disposes the session and then `session.client`.
+ * disposes `session.client` and then the session, so that what the client's
+ * closing flush says reaches the session's errors before they end.
+ *
+ * A factory reads none of the session's errors: the registry that calls it
+ * is their one reader, from the first thing the session said.
  *
  * The HTTP factory is provided by `createHttpSessionFactory`.
  */
@@ -19,17 +23,14 @@ import type { KnowledgeBase } from '@semiont/core';
 import type { SessionSignals } from './session-signals';
 import type { SessionStorage } from './session-storage';
 import type { SemiontSession } from './semiont-session';
-import type { SemiontSessionError } from './errors';
 
 export interface SessionFactoryOptions {
   /** The KB the session is being constructed for. */
   kb: KnowledgeBase;
   /** Persistence adapter — same one the browser uses. */
   storage: SessionStorage;
-  /** Modal-signal sink for auth-failed / permission-denied notifications. */
+  /** Modal-signal sink: the session's end is told here, and the registry says permission-denied here. */
   signals: SessionSignals;
-  /** Receives session-level errors (auth-failed, refresh-exhausted, ...). */
-  onError: (err: SemiontSessionError) => void;
 }
 
 export type SessionFactory = (opts: SessionFactoryOptions) => SemiontSession;

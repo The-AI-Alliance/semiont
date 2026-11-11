@@ -58,7 +58,7 @@ func eventOf(t *testing.T, trigger semiont.CacheRefreshTrigger, when semiont.Cac
 	case semiont.CacheRefreshUnreadable:
 		return frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, envelope)
 	case semiont.CacheRefreshBusResumeGap:
-		payload = map[string]any{"scope": resource, "lastSeenId": "p-1", "reason": "retention-exceeded"}
+		payload = map[string]any{"scope": resource, "lastSeenId": "p-" + resource + "-1", "reason": "retention-exceeded"}
 	case semiont.CacheRefreshMarkDeleteOk:
 		payload = map[string]any{"response": map[string]any{"annotationId": of}}
 		envelope.CorrelationID = "cid-delete"

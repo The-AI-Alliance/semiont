@@ -5,6 +5,11 @@ public protocol SignInKept: Sendable {
   func held() async throws -> HeldSignIn?
   func keep(_ signIn: HeldSignIn) async throws
   func renewed(read: HeldSignIn, access: String, refresh: String) async throws -> String?
+  /// Records that the gateway named `personKey`'s person as the one whose token is `access`, and
+  /// says whether the kept sign-in now names them. It records only while the sign-in still holds
+  /// `access` and names nobody, and never overwrites another person; a sign-in that already names
+  /// them is true too.
+  func recordPersonKey(holding access: String, _ personKey: String) async throws -> Bool
   func forget() async throws
 }
 public final class MemorySignIn: SignInKept {
@@ -14,14 +19,23 @@ public final class MemorySignIn: SignInKept {
   public func keep(_ signIn: HeldSignIn) async { value.withLock { $0 = signIn } }
   public func renewed(read: HeldSignIn, access: String, refresh: String) async -> String? {
     value.withLock { held in
-      guard let current = held else { return nil }
+      guard var current = held else { return nil }
       guard current.access == read.access && current.refresh == read.refresh else {
         return current.access
       }
-      held = HeldSignIn(
-        access: access, clientId: current.clientId, refresh: refresh,
-        revocationEndpoint: current.revocationEndpoint, tokenEndpoint: current.tokenEndpoint)
+      current.access = access
+      current.refresh = refresh
+      held = current
       return access
+    }
+  }
+  public func recordPersonKey(holding access: String, _ personKey: String) async -> Bool {
+    value.withLock { held in
+      guard var current = held, current.access == access else { return false }
+      guard current.personKey == nil else { return current.personKey == personKey }
+      current.personKey = personKey
+      held = current
+      return true
     }
   }
   public func forget() async { value.withLock { $0 = nil } }

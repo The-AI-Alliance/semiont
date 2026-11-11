@@ -142,7 +142,7 @@ private class Entry(private val store: SignInStore, private val key: String) : S
         val entry = signInOf(store.read()[key])
         // A sign-in with no refresh token is none: a session that cannot be renewed does not outlive its first access token.
         val refresh = entry?.refreshToken?.takeIf { it.isNotEmpty() } ?: return null
-        return HeldSignIn(entry.token, refresh, SCRIPT_CLIENT_ID, entry.tokenEndpoint, entry.revocationEndpoint)
+        return HeldSignIn(entry.token, refresh, SCRIPT_CLIENT_ID, entry.tokenEndpoint, entry.revocationEndpoint, null)
     }
 
     /** The entry a renewal leaves: who signed in, at which issuer and where it is renewed stay as the sign-in learned them. */
@@ -203,4 +203,7 @@ private class Entry(private val store: SignInStore, private val key: String) : S
     }
 
     override suspend fun forget(): Unit = withContext(Dispatchers.IO) { store.change { document -> document.remove(key) != null } }
+
+    /** The store's sign-in has no member for a person (protocol/specs/src/sign-in-store): none is recorded, and a session over it keeps nothing. */
+    override suspend fun recordPersonKey(access: String, personKey: String): Boolean = false
 }

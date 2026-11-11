@@ -1,6 +1,6 @@
 -- Generated from protocol/specs/src/openapi.json and its paths, and the reference credential classifier. Do not edit.
 {-# LANGUAGE GADTs, OverloadedStrings #-}
-module Semiont.Http.Routes (HttpRoute(..), routeName, routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, persistedScopePrefix, busEventName) where
+module Semiont.Http.Routes (HttpRoute(..), routeName, routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, busEventName) where
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Aeson (Value(..))
@@ -154,7 +154,5 @@ wireRefusesCredential :: Int -> Maybe Value -> Bool
 wireRefusesCredential status body = status == 401 || (status == 429 && maybe False matches body)
   where matches (Object fields) = KM.lookup "code" fields == Just (String "refusal-rate")
         matches _ = False
-persistedScopePrefix :: ResourceId -> Text
-persistedScopePrefix scope = "p-" <> resourceIdValue scope <> "-"
 busEventName :: Text
 busEventName = "bus-event"

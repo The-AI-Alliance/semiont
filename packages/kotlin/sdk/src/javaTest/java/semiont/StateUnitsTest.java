@@ -320,8 +320,8 @@ final class StateUnitsTest {
         }
         // Nothing is kept to renew, so a refresh gives no token.
         assertNull(session.refreshFuture(session.getToken().getValue()).get(10, SECONDS));
-        session.close();
         made.getClient().close();
+        session.close();
         made.getTransport().close();
     }
 }

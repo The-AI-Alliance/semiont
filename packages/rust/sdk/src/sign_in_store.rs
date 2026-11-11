@@ -1,25 +1,20 @@
-//! The sign-ins `semiont login` keeps (protocol/specs/src/sign-in-store), as a
-//! `SessionStorage`: one sign-in serves the launcher's verbs and an
-//! application built on this SDK.
+//! The sign-ins `semiont login` keeps (protocol/specs/src/sign-in-store):
+//! one sign-in serves the launcher's verbs and an application built on this
+//! SDK.
 //!
 //! The launcher keeps one sign-in per stack, under the stack's key (`local`,
-//! `codespace:<owner>/<name>`). A session reaches one by using that key as
-//! its knowledge base id: the session of the knowledge base `local` is the
-//! launcher's entry `local`. Everything else a client keeps, and the session
-//! of any knowledge base the launcher has no entry for, is kept in the
-//! storage this one is built over.
+//! `codespace:<owner>/<name>`). An application reaches one as a sign-in kept
+//! (`SignInStore::entry`), and builds a session from it with that key as its
+//! knowledge base's id.
 //!
 //! What is in the file was issued to the script client and is renewed as
-//! it. A session issued to another client is kept in the storage beneath,
-//! never in the file: the launcher would renew it as the wrong client. It
-//! is then this application's session of that knowledge base, read before
-//! the file's, and the launcher's entry is left as it was.
+//! it: a sign-in issued to another client is not kept there, since the
+//! launcher would renew it as the wrong client.
 //!
-//! **A session that is `set` is a sign-in**, and its entry states who signed
-//! in and at which issuer as its own access token names them, whoever the
-//! entry before it was of. **A session an `update` says in place of the
-//! file's is that sign-in renewed**, and keeps both as the sign-in learned
-//! them, whatever the renewed token names.
+//! **A sign-in kept is a new sign-in** (`SignInKept::keep`), and its entry
+//! states who signed in and at which issuer as its own access token names
+//! them, whoever the entry before it was of. **A renewal** (`renewed`)
+//! keeps both as the sign-in learned them, whatever the renewed token names.
 //!
 //! **Every change is a read, a change and a write under a lock**
 //! (`tokens.lock`, beside the file): another process renewing another stack
@@ -28,21 +23,20 @@
 //! lock, the file's directory is kept to its owner, as the launcher keeps its
 //! state home: the mode, and on Windows the access list, which what is made in
 //! it inherits, that protocol/specs/src/sign-in-store/owner-only.json states.
+//! The file is read and written off the runtime's threads.
 //!
-//! A file that cannot be read or written is said to `on_failure`, and the
-//! store then behaves as if the file held nothing, or the write was not
-//! made. So is a session whose access token does not say who it is for or
-//! who issued it: the file states both of every sign-in, and nothing is made
-//! up for one. A write the storage beneath refuses is the write's error, and
-//! the file is left as it was.
+//! A file that cannot be read or written is the error of what was asked of
+//! it, and the file is left as it was. So is a sign-in whose access token
+//! does not say who issued it: the file states that of every sign-in, and
+//! nothing is made up for one.
 
+use crate::errors::{SignInError, SignInErrorCode};
 use crate::locked;
 use crate::rfc3339;
-use crate::session::{
-    SCRIPT_CLIENT_ID, StoredSession, kb_of_session_key, text_claim, token_expiry,
-};
-use crate::storage::{SessionStorage, StorageChange, StorageSubscription};
+use crate::session::{SCRIPT_CLIENT_ID, SignInKept, StoredSession, text_claim, token_expiry};
+use crate::transport::BoxFuture;
 use serde_json::{Map, Value};
+use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -323,6 +317,8 @@ fn session_of(sign_in: &SignIn) -> Option<StoredSession> {
         client_id: SCRIPT_CLIENT_ID.to_owned(),
         token_endpoint: sign_in.token_endpoint.clone(),
         revocation_endpoint: sign_in.revocation_endpoint.clone(),
+        // The file keeps no person.
+        person_key: None,
     })
 }
 
@@ -355,14 +351,14 @@ fn entry_of(
     .unwrap_or(Value::Null)
 }
 
-/// Told that the file could not be read or written, with why.
-pub type OnFailure = Arc<dyn Fn(&str) + Send + Sync>;
-
 /// See the module's documentation.
 pub struct SignInStore {
+    file: Arc<File>,
+}
+
+/// The file, and the turn this process takes to change it.
+struct File {
     path: PathBuf,
-    rest: Arc<dyn SessionStorage>,
-    on_failure: OnFailure,
     /// One change at a time from this process: the file lock is between
     /// processes, and two handles of one process on one file do not exclude
     /// each other on every system.
@@ -371,25 +367,36 @@ pub struct SignInStore {
 
 impl SignInStore {
     /// The store in the file at `path` (`FILE_NAME` in `state_dir`, for the
-    /// launcher's), over `rest` for everything that is not one of its
-    /// sign-ins.
-    pub fn at(
-        path: impl Into<PathBuf>,
-        rest: Arc<dyn SessionStorage>,
-        on_failure: OnFailure,
-    ) -> SignInStore {
+    /// launcher's).
+    pub fn at(path: impl Into<PathBuf>) -> SignInStore {
         SignInStore {
-            path: path.into(),
-            rest,
-            on_failure,
-            turn: Mutex::new(()),
+            file: Arc::new(File {
+                path: path.into(),
+                turn: Mutex::new(()),
+            }),
         }
     }
 
-    fn failed(&self, doing: &str, error: &io::Error) {
-        (self.on_failure)(&format!("{doing} {}: {error}", self.path.display()));
+    /// The sign-in the file keeps under `key`, a stack's key (`local`,
+    /// `codespace:<owner>/<name>`), as a sign-in kept. Every entry of one
+    /// store takes its turn to change the file.
+    pub fn entry(&self, key: &str) -> Arc<dyn SignInKept> {
+        Arc::new(Entry {
+            file: self.file.clone(),
+            key: key.to_owned(),
+        })
     }
+}
 
+/// What the file could not do, and why.
+fn failure(doing: &str, path: &Path, error: &io::Error) -> Box<dyn Error + Send + Sync> {
+    Box::new(io::Error::new(
+        error.kind(),
+        format!("{doing} {}: {error}", path.display()),
+    ))
+}
+
+impl File {
     /// The document as it is now. A file that is not there holds nothing.
     fn read(&self) -> io::Result<Map<String, Value>> {
         let text = match fs::read_to_string(&self.path) {
@@ -401,27 +408,27 @@ impl SignInStore {
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
     }
 
-    fn entry(&self, kb_id: &str) -> Option<Value> {
-        match self.read() {
-            Ok(mut document) => document.remove(kb_id),
-            Err(error) => {
-                self.failed("Could not read", &error);
-                None
-            }
-        }
+    /// The sign-in the document holds under `key`, as a sign-in kept.
+    fn held(&self, key: &str) -> Result<Option<StoredSession>, Box<dyn Error + Send + Sync>> {
+        let document = self
+            .read()
+            .map_err(|error| failure("Could not read", &self.path, &error))?;
+        Ok(document
+            .get(key)
+            .and_then(sign_in_of)
+            .as_ref()
+            .and_then(session_of))
     }
 
     /// Change the document as one step: read it, change it, and write it
     /// when `change` says it changed, with the lock held throughout. What
-    /// the storage beneath refused is the error.
-    fn change(
+    /// `change` gives.
+    fn change<T>(
         &self,
-        change: impl FnOnce(
-            &mut Map<String, Value>,
-        ) -> (bool, Result<(), Box<dyn std::error::Error + Send + Sync>>),
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        change: impl FnOnce(&mut Map<String, Value>) -> (bool, T),
+    ) -> Result<T, Box<dyn Error + Send + Sync>> {
         let _turn = locked(&self.turn);
-        let changed = (|| -> io::Result<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+        (|| -> io::Result<T> {
             // A path with no directory part is in the current one, as Go and Python read it.
             let directory = match self.path.parent() {
                 Some(parent) if !parent.as_os_str().is_empty() => parent,
@@ -435,19 +442,13 @@ impl SignInStore {
             // refused.
             owner_only(directory)?;
             let mut document = self.read()?;
-            let (changed, beneath) = change(&mut document);
+            let (changed, given) = change(&mut document);
             if changed {
                 self.write(&document)?;
             }
-            Ok(beneath)
-        })();
-        match changed {
-            Ok(beneath) => beneath,
-            Err(error) => {
-                self.failed("Could not change", &error);
-                Ok(())
-            }
-        }
+            Ok(given)
+        })()
+        .map_err(|error| failure("Could not change", &self.path, &error))
     }
 
     /// Written beside the file and renamed over it: no reader sees half a
@@ -466,114 +467,113 @@ impl SignInStore {
         }
         written
     }
+}
 
-    /// Put `next` under the session key of `kb_id`: a session of the script
-    /// client in the file, any other value beneath it, and nothing in
-    /// neither. `renewed` is the sign-in a session of the script client
-    /// renews, and none when the session is a sign-in of its own: one that
-    /// is no sign-in is kept nowhere, and that is said. `document` is the
-    /// file's, held under the lock. Whether the document changed, and what
-    /// the storage beneath refused, which changes nothing.
-    fn put(
+/// One entry of the file, as a sign-in kept (`SignInStore::entry`).
+struct Entry {
+    file: Arc<File>,
+    key: String,
+}
+
+impl Entry {
+    /// Do `work` on the file off the runtime's threads: a change waits for
+    /// the lock another process holds, and the runtime turns meanwhile.
+    fn off_the_runtime<T: Send + 'static>(
         &self,
-        document: &mut Map<String, Value>,
-        key: &str,
-        kb_id: &str,
-        next: Option<&str>,
-        renewed: Option<&SignIn>,
-    ) -> (bool, Result<(), Box<dyn std::error::Error + Send + Sync>>) {
-        match (next, next.and_then(StoredSession::read)) {
-            (_, Some(session)) if session.client_id == SCRIPT_CLIENT_ID => {
-                let signed_in = match renewed {
-                    Some(sign_in) => Ok((sign_in.email.clone(), sign_in.issuer.clone())),
-                    None => named_by(&session.access),
-                };
-                match signed_in {
-                    Ok((email, issuer)) => {
-                        if let Err(refused) = self.rest.delete(key) {
-                            return (false, Err(refused));
-                        }
-                        document.insert(
-                            kb_id.to_owned(),
-                            entry_of(&session, email, issuer, SystemTime::now()),
-                        );
-                        (true, Ok(()))
-                    }
-                    Err(lacking) => {
-                        (self.on_failure)(&format!(
-                            "The sign-in to {kb_id} was not kept: {lacking}"
-                        ));
-                        (false, Ok(()))
-                    }
-                }
-            }
-            (Some(next), _) => (false, self.rest.set(key, next)),
-            (None, _) => match self.rest.delete(key) {
-                Ok(()) => (document.remove(kb_id).is_some(), Ok(())),
-                Err(refused) => (false, Err(refused)),
-            },
-        }
+        work: impl FnOnce(&File, &str) -> Result<T, Box<dyn Error + Send + Sync>> + Send + 'static,
+    ) -> BoxFuture<'static, Result<T, Box<dyn Error + Send + Sync>>> {
+        let (file, key) = (self.file.clone(), self.key.clone());
+        Box::pin(async move { tokio::task::spawn_blocking(move || work(&file, &key)).await? })
     }
 }
 
-impl SessionStorage for SignInStore {
-    fn get(&self, key: &str) -> Option<String> {
-        self.rest.get(key).or_else(|| {
-            let sign_in = sign_in_of(&self.entry(kb_of_session_key(key)?)?)?;
-            Some(session_of(&sign_in)?.written())
-        })
+impl SignInKept for Entry {
+    fn held(&self) -> BoxFuture<'_, Result<Option<StoredSession>, Box<dyn Error + Send + Sync>>> {
+        self.off_the_runtime(|file, key| file.held(key))
     }
 
-    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match kb_of_session_key(key) {
-            Some(kb_id) => {
-                self.change(|document| self.put(document, key, kb_id, Some(value), None))
-            }
-            None => self.rest.set(key, value),
-        }
-    }
-
-    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match kb_of_session_key(key) {
-            Some(kb_id) => self.change(|document| self.put(document, key, kb_id, None, None)),
-            None => self.rest.delete(key),
-        }
-    }
-
-    fn update(
+    /// Kept as `semiont login` keeps one: the entry states who signed in,
+    /// when the access token names an address, and at which issuer, whoever
+    /// the entry before it was of. What another client was issued is not
+    /// kept, and nor is a sign-in whose token names no issuer: each is the
+    /// error, and the file is left as it was.
+    fn keep(
         &self,
-        key: &str,
-        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let Some(kb_id) = kb_of_session_key(key) else {
-            return self.rest.update(key, change);
-        };
-        self.change(|document| {
-            let beneath = self.rest.get(key);
-            let sign_in = match beneath {
-                Some(_) => None,
-                None => document.get(kb_id).and_then(sign_in_of),
-            };
-            let held = sign_in
-                .as_ref()
-                .and_then(session_of)
-                .map(|session| session.written());
-            // Only a sign-in `change` is given is renewed by what it says.
-            let renewed = sign_in.filter(|_| held.is_some());
-            let current = beneath.or(held);
-            let next = change(current.as_deref());
-            if next == current {
-                return (false, Ok(()));
+        sign_in: StoredSession,
+    ) -> BoxFuture<'_, Result<(), Box<dyn Error + Send + Sync>>> {
+        self.off_the_runtime(move |file, key| {
+            if sign_in.client_id != SCRIPT_CLIENT_ID {
+                return Err(format!(
+                    "The sign-in store keeps what the client {SCRIPT_CLIENT_ID} was issued, and this was issued to {}",
+                    sign_in.client_id
+                )
+                .into());
             }
-            self.put(document, key, kb_id, next.as_deref(), renewed.as_ref())
+            let (email, issuer) = named_by(&sign_in.access).map_err(|lacking| {
+                SignInError::new(
+                    SignInErrorCode::Exchange,
+                    format!("The sign-in to {key} was not kept: {lacking}"),
+                )
+            })?;
+            file.change(|document| {
+                document.insert(
+                    key.to_owned(),
+                    entry_of(&sign_in, email, issuer, SystemTime::now()),
+                );
+                (true, ())
+            })
         })
     }
 
-    /// What another context writes to the storage beneath. The file is not
-    /// watched: what another process renewed is read the next time this
-    /// one renews, and used as it is (protocol/specs/src/sign-in-store/README.md,
-    /// Renewing it).
-    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
-        self.rest.subscribe(on_change)
+    /// Written as the launcher writes a renewal: who signed in, and where,
+    /// are kept as the sign-in learned them, whatever the renewed token names.
+    fn renewed<'a>(
+        &'a self,
+        read: &'a StoredSession,
+        access: &'a str,
+        refresh: &'a str,
+    ) -> BoxFuture<'a, Result<Option<String>, Box<dyn Error + Send + Sync>>> {
+        let (read, access, refresh) = (read.clone(), access.to_owned(), refresh.to_owned());
+        self.off_the_runtime(move |file, key| {
+            file.change(|document| {
+                let Some(sign_in) = document.get(key).and_then(sign_in_of) else {
+                    return (false, None);
+                };
+                let Some(kept) = session_of(&sign_in) else {
+                    return (false, None);
+                };
+                if kept.access != read.access || kept.refresh != read.refresh {
+                    return (false, Some(kept.access));
+                }
+                let renewed = StoredSession {
+                    access: access.clone(),
+                    refresh,
+                    ..kept
+                };
+                document.insert(
+                    key.to_owned(),
+                    entry_of(&renewed, sign_in.email, sign_in.issuer, SystemTime::now()),
+                );
+                (true, Some(access))
+            })
+        })
+    }
+
+    /// The file keeps no person: nothing is recorded, and the answer is
+    /// false.
+    fn record_person_key<'a>(
+        &'a self,
+        _access: &'a str,
+        _person_key: &'a str,
+    ) -> BoxFuture<'a, Result<bool, Box<dyn Error + Send + Sync>>> {
+        Box::pin(async { Ok(false) })
+    }
+
+    /// The entry is removed, and no other; an entry that is not there
+    /// writes nothing.
+    fn forget(&self) -> BoxFuture<'_, Result<(), Box<dyn Error + Send + Sync>>> {
+        self.off_the_runtime(|file, key| {
+            file.change(|document| (document.remove(key).is_some(), ()))
+        })
     }
 }

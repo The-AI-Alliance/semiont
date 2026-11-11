@@ -68,6 +68,8 @@ export {
 // the REAL B14/B15 semantics instead of mock subjects — mock-only coverage is
 // how a two-state consumer of a three-outcome cache shipped twice.
 export { createCache, isReady, readyValue, type CacheState, type Cache } from './cache';
+// Where a client keeps its persisted queries: `SemiontClient`'s `cachePersistence` option.
+export type { CachePersistence } from './cache-persister';
 
 // `Bus` / `BusPrimitive` live in @semiont/core (next to the bus protocol
 // they're coupled to); a client hands its out as `client.wire`.
@@ -207,7 +209,7 @@ export {
   completeAuthorization,
   signInWithDeviceGrant,
   refreshAtIssuer,
-  refreshStoredSession,
+  renewKept,
   revokeAtIssuer,
 } from './session/oauth';
 export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection } from './session/connect';
@@ -248,14 +250,21 @@ export {
   getStoredSession,
   setStoredSession,
   clearStoredSession,
+  keptIn,
   // One refresh policy for every holder of a gateway token: when a token
   // expires is the token's own claim, and how long before that to renew is
   // a single number. Sidecars outside this package schedule from both.
   parseJwtExpiry,
   refreshDelayMs,
+  // The key a person's kept caches are held under: what a client built by
+  // hand (the conformance driver) keeps them for.
+  personKey,
   type StoredSession,
 } from './session/storage';
-// The sign-ins `semiont login` keeps, over the files a caller gives.
+// Where a session's sign-in is kept: a registry's storage (`keptIn`), memory,
+// or an entry of the sign-ins `semiont login` keeps, over the files a caller
+// gives; and a script's sign-out of one.
+export { MemorySignIn, signOut, type SignInKept } from './session/sign-in-kept';
 export { SignInStore, stateDir, type SignInFiles, type System } from './session/sign-in-store';
 
 // State units — flow state machines and their RxJS substrate.

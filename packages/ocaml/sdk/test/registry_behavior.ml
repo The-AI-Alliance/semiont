@@ -162,7 +162,7 @@ let controlled () =
           ignore
             (Session.start ~sw ~clock
                ~initial_token:(Some (token ()))
-               ~renew:(fun ~refused:_ ->
+               ~renew:(fun ~holding:_ ->
                  incr count;
                  Session.Renewed (token ()))
                ())
@@ -171,7 +171,7 @@ let controlled () =
           let clock = Clock.with_jitter clock (fun () -> 0.) in
           let session =
             Session.start ~sw ~clock ~initial_token:(Some "token")
-              ~renew:(fun ~refused:_ -> Session.Refused)
+              ~renew:(fun ~holding:_ -> Session.Refused)
               ()
           in
           let never, _ = Promise.create () in
@@ -253,7 +253,7 @@ let controlled () =
       | ("heldJobStall" | "invalidationWindow" | "jobFollower") as subject -> (
           let session =
             Session.start ~sw ~clock ~initial_token:(Some "token")
-              ~renew:(fun ~refused:_ -> Session.Refused)
+              ~renew:(fun ~holding:_ -> Session.Refused)
               ()
           in
           let module Source = struct
@@ -380,7 +380,7 @@ let controlled () =
           let clock = Clock.with_jitter clock (fun () -> 0.) in
           let session =
             Session.start ~sw ~clock ~initial_token:(Some "token")
-              ~renew:(fun ~refused:_ -> Session.Refused)
+              ~renew:(fun ~holding:_ -> Session.Refused)
               ()
           in
           let transport =
@@ -421,7 +421,7 @@ let controlled () =
           let clock = Clock.with_jitter clock (fun () -> 0.) in
           let session =
             Session.start ~sw ~clock ~initial_token:(Some "token")
-              ~renew:(fun ~refused:_ -> Session.Refused)
+              ~renew:(fun ~holding:_ -> Session.Refused)
               ()
           in
           let never, _ = Promise.create () in
@@ -551,7 +551,6 @@ let sign_in () =
             incr serial;
             "kb-" ^ string_of_int !serial);
         factory = (fun _ -> assert false);
-        on_error = ignore;
       }
   in
   let endpoint port =
@@ -631,7 +630,6 @@ let redirect () =
       clock;
       fresh_id = (fun () -> "kb-redirect");
       factory = (fun _ -> assert false);
-      on_error = ignore;
     }
   in
   let target =
@@ -718,7 +716,6 @@ let session_unit startup () =
         clock;
         fresh_id = (fun () -> "kb");
         factory = (fun _ -> assert false);
-        on_error = ignore;
       }
   in
   let target =

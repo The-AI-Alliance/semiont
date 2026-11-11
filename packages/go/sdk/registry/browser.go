@@ -265,9 +265,13 @@ func (b *SemiontBrowser) LastViewedResource() semiont.Watched[api.ResourceId] {
 	return b.lastViewed.Reading()
 }
 
-// Errors is the failures that made a session unusable, from this call on,
-// until ctx is done or the registry is closed. A reader that falls more than
-// a few dozen behind misses those after.
+// Errors is the failures its sessions say of their own (each a
+// *semiont.SessionError among semiont.Session's Errors, which the registry
+// reads from the first thing each session said): those that made a session
+// unusable, those that stopped a session's client keeping what it holds, and
+// each write its storage refused, from this call on, until ctx is done or the
+// registry is closed. A reader that falls more than a few dozen behind misses
+// those after.
 func (b *SemiontBrowser) Errors(ctx context.Context) iter.Seq[*semiont.SessionError] {
 	return b.failures.from(ctx)
 }
@@ -304,14 +308,18 @@ func (b *SemiontBrowser) AddKb(input api.NewKnowledgeBase, session StoredSession
 	return kb, b.setActiveKb(kb.Id)
 }
 
-// RemoveKb forgets a knowledge base: its entry, its tokens, what was open in
-// it and where the person was. If it was active, the first of the others
-// becomes active.
+// RemoveKb forgets a knowledge base: its entry, its saved sign-in, what was
+// open in it and where the person was. If it was active, its session is
+// closed and the first of the others becomes active. Then what its sessions
+// kept of the person its sign-in named is deleted (forgetKept): forgetting a
+// saved sign-in deletes its person's entries, once the client has closed, so
+// nothing its closing writes is left.
 func (b *SemiontBrowser) RemoveKb(id string) error {
-	if err := ClearStoredSession(b.storage, id); err != nil {
+	stored, _, err := swapStoredSession(b.storage, id, nil)
+	if err != nil {
 		return err
 	}
-	if err := b.forgetKeptOf(id); err != nil {
+	if err := b.forgetOpenIn(id); err != nil {
 		return err
 	}
 	rest := slices.DeleteFunc(slices.Clone(b.knowledgeBases.Value()), func(kb api.KnowledgeBase) bool { return kb.Id == id })
@@ -323,9 +331,11 @@ func (b *SemiontBrowser) RemoveKb(id string) error {
 		return err
 	}
 	if b.activeKbID.Value() == id {
-		return b.setActiveKb(next)
+		if err := b.setActiveKb(next); err != nil {
+			return err
+		}
 	}
-	return nil
+	return forgetKept(b.storage, id, stored.PersonKey)
 }
 
 // UpdateKb writes what a knowledge base last said of itself onto its entry: a
@@ -366,13 +376,19 @@ func (b *SemiontBrowser) KbSessionStatus(kbID string) KbSessionStatus {
 // returns once its session is up, or once it is known there will be none.
 func (b *SemiontBrowser) SetActiveKb(id string) error { return b.setActiveKb(id) }
 
-// SignIn keeps new tokens for a registered knowledge base and brings its
-// session up on them. A session it already had is closed and replaced.
+// SignIn keeps a new sign-in for a registered knowledge base in place of the
+// one stored, and brings its session up on it. A session it already had is
+// closed and replaced. Then, before the new one is built, what its sessions
+// kept of the person the replaced sign-in named is deleted (forgetKept): a new
+// sign-in names nobody until its gateway names them, so keeping one forgets
+// the saved sign-in it replaces, once the client has closed, so nothing its
+// closing writes is left.
 func (b *SemiontBrowser) SignIn(id string, session StoredSession) error {
 	if b.closed.Load() {
 		return nil
 	}
-	if err := StoreSession(b.storage, id, session); err != nil {
+	replaced, _, err := swapStoredSession(b.storage, id, &session)
+	if err != nil {
 		return err
 	}
 	// A session it already has is on the old tokens: it is closed, and the
@@ -381,6 +397,9 @@ func (b *SemiontBrowser) SignIn(id string, session StoredSession) error {
 		if taken := b.takeSession(); taken != nil {
 			taken.close()
 		}
+	}
+	if err := forgetKept(b.storage, id, replaced.PersonKey); err != nil {
+		return err
 	}
 	return b.setActiveKb(id)
 }
@@ -435,13 +454,16 @@ func (b *SemiontBrowser) SignedIn(signedIn SignedIn) (SignInOutcome, error) {
 
 // SignOut signs out of a knowledge base: its tokens are forgotten, and the
 // issuer is told so its refresh token is good for nothing. If it is active,
-// its session is closed.
+// its session is closed. Then what its sessions kept of the person its
+// sign-in named is deleted (forgetKept): forgetting a saved sign-in deletes
+// its person's entries, once the client has closed, so nothing its closing
+// writes is left.
 func (b *SemiontBrowser) SignOut(id string) error {
 	if b.closed.Load() {
 		return nil
 	}
-	stored, ok := StoredSessionOf(b.storage, id)
-	if err := ClearStoredSession(b.storage, id); err != nil {
+	stored, ok, err := swapStoredSession(b.storage, id, nil)
+	if err != nil {
 		return err
 	}
 	if ok {
@@ -457,7 +479,7 @@ func (b *SemiontBrowser) SignOut(id string) error {
 			taken.close()
 		}
 	}
-	return nil
+	return forgetKept(b.storage, id, stored.PersonKey)
 }
 
 // ── What is open ────────────────────────────────────────────────────────
@@ -710,8 +732,8 @@ type ended struct {
 	signals *semiont.SessionSignals
 }
 
-// close ends the session, then the client it was built with, then what a
-// host was shown of it.
+// close ends the session as its factory's end does, the client it was built
+// with first, then what a host was shown of it.
 func (e *ended) close() {
 	e.end()
 	if e.signals != nil {
@@ -808,7 +830,7 @@ func (b *SemiontBrowser) activate(id string) {
 	// The signals exist before the session does: the session says it is over
 	// through them, and may be over before it is ready.
 	signals := semiont.NewSessionSignals()
-	handed, ok := b.build(SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals, OnError: b.failed})
+	handed, ok := b.build(SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals})
 	if !ok {
 		return
 	}
@@ -875,12 +897,24 @@ func constructFailed(err error, kbID string) *semiont.SessionError {
 	return &semiont.SessionError{Code: semiont.SessionErrorCodeConstructFailed, Message: err.Error(), KbID: kbID}
 }
 
-// route routes what the session's transport fails at. A refusal for want of a
-// valid token renews the session: it heals quietly, or the session ends itself
-// and says so once. A refusal for lack of permission has no remedy, and is
-// said. It ends when the transport closes.
+// route reads the session's errors, as their one reader, and so from what
+// was said at its start: each of the session's own it says on the registry's
+// Errors, and each failure of its transport it routes. A refusal for want of
+// a valid token renews the session: it heals quietly, or the session ends
+// itself and says so once. A refusal for lack of permission has no remedy,
+// and is said through signals. It ends when the session's errors do, when
+// the session ends.
 func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.SessionSignals) {
-	for failure := range session.Errors() {
+	for each := range session.Errors() {
+		var own *semiont.SessionError
+		if errors.As(each, &own) {
+			b.failed(own)
+			continue
+		}
+		var failure *semiont.TransportError
+		if !errors.As(each, &failure) {
+			continue
+		}
 		switch failure.Code {
 		case semiont.TransportErrorCodeUnauthorized:
 			// Refusals that arrive together are answered by one renewal: the
@@ -966,9 +1000,9 @@ func (b *SemiontBrowser) mutateLastViewed(mutate func(map[string]api.ResourceId)
 	return nil
 }
 
-// forgetKeptOf forgets what was open in a knowledge base and where the person
+// forgetOpenIn forgets what was open in a knowledge base and where the person
 // was.
-func (b *SemiontBrowser) forgetKeptOf(kbID string) error {
+func (b *SemiontBrowser) forgetOpenIn(kbID string) error {
 	var committed map[string][]OpenResource
 	err := b.storage.Update(OpenResourcesByKbKey, func(stored string, has bool) (string, bool) {
 		open := openByKbOf(stored, has)

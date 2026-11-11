@@ -2,7 +2,6 @@ package semiont.registry
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import semiont.errors.SessionError
 import semiont.session.OpenedSession
 import semiont.session.SessionSignals
 import semiont.storage.SessionStorage
@@ -21,20 +20,19 @@ public class SessionFactoryOptions(
     public val storage: SessionStorage,
     /** Where the session says it is over, for a host to show. */
     public val signals: SessionSignals,
-    /** Told each failure that makes the session unusable. */
-    public val onError: (SessionError) -> Unit,
 )
 
 /**
  * What builds the sessions a registry activates, and ends the credentials of
  * one. A registry is given one, and so manages sessions over any transport
- * without knowing which.
+ * without knowing which. It reads none of a session's errors: the registry is
+ * their one reader, from the first thing the session said.
  */
 public interface SessionFactory {
     /**
      * The session of a knowledge base, over a client of its own, started: the
-     * registry waits for it to be ready. Closing what it gives ends the
-     * session, then its client, then what it was built on. A knowledge base
+     * registry waits for it to be ready. Closing what it gives closes its
+     * client, then ends the session, then closes what it was built on. A knowledge base
      * this factory cannot reach is refused with a `SessionError`
      * (`session.construct-failed`).
      */

@@ -30,7 +30,7 @@ val save_device :
 val remove : t -> key:string -> unit
 
 val renew :
-  t -> key:string -> http:Oauth.http -> refused:string option -> Session.renewal
+  t -> key:string -> http:Oauth.http -> holding:string option -> Session.renewal
 
 val session : t -> sw:Eio.Switch.t -> key:string -> http:Oauth.http -> Session.t
 

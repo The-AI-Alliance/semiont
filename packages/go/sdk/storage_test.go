@@ -14,12 +14,12 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
-const keptKey = "semiont.cache.kb.resource"
+var keptKey = CacheKey("kb", PersonKey("did:web:example.org:users:alice"), CacheQueryResource)
 
 // keeping is what keeps a client's resource descriptions in storage, in a
 // document of maxBytes at most.
 func keeping(storage SessionStorage, maxBytes int) CachePersister[api.ResourceId, api.ResourceDescriptor] {
-	return keptBy[api.ResourceId, api.ResourceDescriptor](&CachePersistence{Storage: storage, KeyPrefix: "kb"}, "resource", maxBytes)
+	return NewStoragePersister[api.ResourceId, api.ResourceDescriptor](storage, keptKey, maxBytes)
 }
 
 func descriptorText(id, name string) string {
@@ -32,12 +32,11 @@ type keptRow struct {
 	at    int64
 }
 
-// keptDocument is a kept document as it was stored: its version, when it was
-// written, and its entries by key.
+// keptDocument is a kept document as it was stored: its version, and its
+// entries by key.
 type keptDocument struct {
-	version   int
-	writtenAt int64
-	rows      map[string]keptRow
+	version int
+	rows    map[string]keptRow
 }
 
 func documentIn(t *testing.T, storage SessionStorage) keptDocument {
@@ -48,13 +47,12 @@ func documentIn(t *testing.T, storage SessionStorage) keptDocument {
 	}
 	members := readJSON[map[string]json.RawMessage](t, text)
 	names := slices.Sorted(maps.Keys(members))
-	if !slices.Equal(names, []string{"entries", "version", "writtenAt"}) {
+	if !slices.Equal(names, []string{"entries", "version"}) {
 		t.Fatalf("the document's members are %v", names)
 	}
 	document := keptDocument{
-		version:   readJSON[int](t, string(members["version"])),
-		writtenAt: readJSON[int64](t, string(members["writtenAt"])),
-		rows:      map[string]keptRow{},
+		version: readJSON[int](t, string(members["version"])),
+		rows:    map[string]keptRow{},
 	}
 	for _, entry := range readJSON[[]json.RawMessage](t, string(members["entries"])) {
 		parts := readJSON[[]json.RawMessage](t, string(entry))
@@ -65,6 +63,14 @@ func documentIn(t *testing.T, storage SessionStorage) keptDocument {
 		document.rows[key] = keptRow{value: string(parts[1]), at: readJSON[int64](t, string(parts[2]))}
 	}
 	return document
+}
+
+// saved is persister's save of entries, and the clock's milliseconds before
+// and after it.
+func saved[K comparable, V any](persister CachePersister[K, V], entries map[K]V) (before, after int64) {
+	before = time.Now().UnixMilli()
+	persister.Save(entries)
+	return before, time.Now().UnixMilli()
 }
 
 // pastMillisecond waits until the clock has passed the millisecond at.
@@ -155,17 +161,12 @@ func TestACachesValuesAreKeptAsOneDocumentAsTheWireHadThemAndComeBackAsTheyWere(
 	said := `{"@context":"https://schema.org","@id":"res-1","name":"A resource","representations":[],"addedByALaterRelease":{"kept":true}}`
 	resource := readJSON[api.ResourceDescriptor](t, said)
 	id := mustResource(t, "res-1")
-	before := time.Now().UnixMilli()
-	keeping(storage, most).Save(map[api.ResourceId]api.ResourceDescriptor{id: resource})
-	after := time.Now().UnixMilli()
+	before, after := saved(keeping(storage, most), map[api.ResourceId]api.ResourceDescriptor{id: resource})
 
 	document := documentIn(t, storage)
-	if document.version != 1 || document.writtenAt < before || document.writtenAt > after {
-		t.Fatalf("the document is version %d, written at %d, want version 1 between %d and %d", document.version, document.writtenAt, before, after)
-	}
 	row, ok := document.rows["res-1"]
-	if len(document.rows) != 1 || !ok || row.at != document.writtenAt || !sameJSON(t, row.value, said) {
-		t.Fatalf("the entries are %v", document.rows)
+	if document.version != 1 || len(document.rows) != 1 || !ok || row.at < before || row.at > after || !sameJSON(t, row.value, said) {
+		t.Fatalf("the document is version %d, its entries %v, want version 1 and the one entry written between %d and %d", document.version, document.rows, before, after)
 	}
 
 	kept := keeping(storage, most).Load()
@@ -186,49 +187,59 @@ func TestAnEntryKeepsTheTimeItsValueWasLastWritten(t *testing.T) {
 	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
 	one := readJSON[api.ResourceDescriptor](t, descriptorText("res-1", "A resource"))
 	two := readJSON[api.ResourceDescriptor](t, descriptorText("res-2", "A resource"))
+	between := func(row keptRow, before, after int64) bool { return row.at >= before && row.at <= after }
 
-	persister.Save(map[api.ResourceId]api.ResourceDescriptor{resource: one})
-	first := documentIn(t, storage).writtenAt
+	_, first := saved(persister, map[api.ResourceId]api.ResourceDescriptor{resource: one})
+	firstAt := documentIn(t, storage).rows["res-1"].at
 	pastMillisecond(first)
-	persister.Save(map[api.ResourceId]api.ResourceDescriptor{resource: one, other: two})
-	second := documentIn(t, storage)
-	if second.writtenAt <= first || len(second.rows) != 2 || second.rows["res-1"].at != first || second.rows["res-2"].at != second.writtenAt {
-		t.Fatalf("written at %d after %d, the entries are %v", second.writtenAt, first, second.rows)
+	before, second := saved(persister, map[api.ResourceId]api.ResourceDescriptor{resource: one, other: two})
+	rows := documentIn(t, storage).rows
+	if len(rows) != 2 || rows["res-1"].at != firstAt || !between(rows["res-2"], before, second) {
+		t.Fatalf("written first at %d, then between %d and %d, the entries are %v", firstAt, before, second, rows)
 	}
 
 	// A value that changed is written now; one that is gone is gone.
-	pastMillisecond(second.writtenAt)
+	pastMillisecond(second)
 	renamed := readJSON[api.ResourceDescriptor](t, descriptorText("res-2", "Renamed"))
-	persister.Save(map[api.ResourceId]api.ResourceDescriptor{other: renamed})
-	third := documentIn(t, storage)
-	if third.writtenAt <= second.writtenAt || len(third.rows) != 1 || third.rows["res-2"].at != third.writtenAt || !sameJSON(t, third.rows["res-2"].value, descriptorText("res-2", "Renamed")) {
-		t.Fatalf("written at %d after %d, the entries are %v", third.writtenAt, second.writtenAt, third.rows)
+	before, third := saved(persister, map[api.ResourceId]api.ResourceDescriptor{other: renamed})
+	rows = documentIn(t, storage).rows
+	if len(rows) != 1 || !between(rows["res-2"], before, third) || !sameJSON(t, rows["res-2"].value, descriptorText("res-2", "Renamed")) {
+		t.Fatalf("written between %d and %d, the entries are %v", before, third, rows)
 	}
+	renamedAt := rows["res-2"].at
 
 	// The next life's persister knows when each was written from the document, not from having written it.
-	pastMillisecond(third.writtenAt)
+	pastMillisecond(third)
 	later := keeping(storage, most)
 	kept := later.Load()
 	if len(kept) != 1 || textOf(t, kept[other]) != textOf(t, renamed) {
 		t.Fatalf("the next life kept %v", kept)
 	}
-	later.Save(map[api.ResourceId]api.ResourceDescriptor{other: renamed, resource: one})
-	fourth := documentIn(t, storage)
-	if fourth.writtenAt <= third.writtenAt || len(fourth.rows) != 2 || fourth.rows["res-2"].at != third.writtenAt || fourth.rows["res-1"].at != fourth.writtenAt {
-		t.Fatalf("written at %d after %d, the entries are %v", fourth.writtenAt, third.writtenAt, fourth.rows)
+	before, fourth := saved(later, map[api.ResourceId]api.ResourceDescriptor{other: renamed, resource: one})
+	rows = documentIn(t, storage).rows
+	if len(rows) != 2 || rows["res-2"].at != renamedAt || !between(rows["res-1"], before, fourth) {
+		t.Fatalf("written between %d and %d, the entries are %v", before, fourth, rows)
 	}
 }
 
-func TestADocumentOfAnotherVersionOrThatDoesNotParseReadsAsNothingKept(t *testing.T) {
+func TestADocumentWhoseStructureIsNotTheTablesReadsAsNothingKept(t *testing.T) {
 	most := DefaultTiming().MaxStoredBytesCount
+	good := `["res-1", ` + descriptorText("res-1", "A resource") + `, 5]`
 	for _, stored := range []string{
 		"not json",
 		"[1, 2]",
-		`{"version": 2, "writtenAt": 1, "entries": []}`,
-		`{"version": "1", "writtenAt": 1, "entries": []}`,
-		`{"writtenAt": 1, "entries": []}`,
-		`{"version": 1, "writtenAt": 1}`,
-		`{"version": 1, "writtenAt": 1, "entries": {"res-1": {}}}`,
+		"null",
+		`{"version": 2, "entries": []}`,
+		`{"version": "1", "entries": []}`,
+		`{"entries": []}`,
+		`{"version": 1}`,
+		`{"version": 1, "entries": {"res-1": {}}}`,
+		// One entry that is not a key, a value and a stamp of at least 0 is a document of another structure.
+		`{"version": 1, "entries": [` + good + `, ["res-4", {"@context": "https://schema.org", "@id": "res-4", "name": "n", "representations": []}]]}`,
+		`{"version": 1, "entries": [` + good + `, ["res-5", {"@context": "https://schema.org", "@id": "res-5", "name": "n", "representations": []}, "when"]]}`,
+		`{"version": 1, "entries": [` + good + `, ["res-6", {"@context": "https://schema.org", "@id": "res-6", "name": "n", "representations": []}, true]]}`,
+		`{"version": 1, "entries": [` + good + `, ["res-7", {"@context": "https://schema.org", "@id": "res-7", "name": "n", "representations": []}, -1]]}`,
+		`{"version": 1, "entries": [` + good + `, "res-8"]}`,
 	} {
 		t.Run(stored, func(t *testing.T) {
 			storage := NewMemoryStorage()
@@ -240,7 +251,7 @@ func TestADocumentOfAnotherVersionOrThatDoesNotParseReadsAsNothingKept(t *testin
 	}
 	// And one of this version with no entries kept nothing, which is not nothing kept.
 	storage := NewMemoryStorage()
-	storage.Set(keptKey, `{"version": 1, "writtenAt": 1, "entries": []}`)
+	storage.Set(keptKey, `{"version": 1, "entries": []}`)
 	if kept := keeping(storage, most).Load(); kept == nil || len(kept) != 0 {
 		t.Fatalf("kept %v, want no entries", kept)
 	}
@@ -251,14 +262,12 @@ func TestAnEntryThatIsNotThisCachesShapeIsOneItNeverKept(t *testing.T) {
 	good := `["res-1", ` + descriptorText("res-1", "A resource") + `, 5]`
 	entries := []string{
 		`["not an id", {"@context": "https://schema.org", "@id": "res-9", "name": "n", "representations": []}, 5]`,
-		`["res-4", {"@context": "https://schema.org", "@id": "res-4", "name": "n", "representations": []}]`,
-		`["res-5", {"@context": "https://schema.org", "@id": "res-5", "name": "n", "representations": []}, "when"]`,
-		`["res-6", {"@context": "https://schema.org", "@id": "res-6", "name": "n", "representations": []}, true]`,
-		`"res-7"`,
+		`[null, {"@context": "https://schema.org", "@id": "res-9", "name": "n", "representations": []}, 5]`,
 		`["res-3", {"name": "a description with no id"}, 5]`,
+		`["res-4", null, 5]`,
 		good,
 	}
-	document := `{"version": 1, "writtenAt": 9, "entries": [`
+	document := `{"version": 1, "entries": [`
 	for i, entry := range entries {
 		if i > 0 {
 			document += ", "
@@ -298,29 +307,29 @@ func TestADocumentTooLargeLosesTheEntriesThatHaveGoneLongestWithoutANewValueUnti
 
 	storage := NewMemoryStorage()
 	persister := keeping(storage, three)
-	persister.Save(of(ids[0]))
-	pastMillisecond(documentIn(t, storage).writtenAt)
-	persister.Save(of(ids[1], ids[0]))
-	pastMillisecond(documentIn(t, storage).writtenAt)
-	persister.Save(of(ids[2], ids[1], ids[0]))
+	_, written := saved(persister, of(ids[0]))
+	pastMillisecond(written)
+	_, written = saved(persister, of(ids[1], ids[0]))
+	pastMillisecond(written)
+	_, written = saved(persister, of(ids[2], ids[1], ids[0]))
 	stored, _ := storage.Get(keptKey)
 	if keys := keysOf(documentIn(t, storage)); !slices.Equal(keys, []string{"res-1", "res-2", "res-3"}) || len(stored) != three {
 		t.Fatalf("kept %v in %d bytes, want the three in %d", keys, len(stored), three)
 	}
 
 	// A fourth does not fit: the one written longest ago goes, wherever the mapping has it.
-	pastMillisecond(documentIn(t, storage).writtenAt)
-	persister.Save(of(ids[3], ids[2], ids[1], ids[0]))
+	pastMillisecond(written)
+	before, written := saved(persister, of(ids[3], ids[2], ids[1], ids[0]))
 	fourth := documentIn(t, storage)
-	if keys := keysOf(fourth); !slices.Equal(keys, []string{"res-2", "res-3", "res-4"}) {
-		t.Fatalf("kept %v, want the three written last", keys)
+	if keys := keysOf(fourth); !slices.Equal(keys, []string{"res-2", "res-3", "res-4"}) || fourth.rows["res-4"].at < before || fourth.rows["res-4"].at > written {
+		t.Fatalf("kept %v, want the three written last", fourth.rows)
 	}
 	// What went is forgotten: kept again, it is as new as when it came back.
-	pastMillisecond(fourth.writtenAt)
-	persister.Save(of(ids[0], ids[3]))
+	pastMillisecond(written)
+	before, written = saved(persister, of(ids[0], ids[3]))
 	fifth := documentIn(t, storage)
-	if keys := keysOf(fifth); !slices.Equal(keys, []string{"res-1", "res-4"}) || fifth.rows["res-1"].at != fifth.writtenAt || fifth.rows["res-4"].at != fourth.writtenAt {
-		t.Fatalf("written at %d after %d, the entries are %v", fifth.writtenAt, fourth.writtenAt, fifth.rows)
+	if keys := keysOf(fifth); !slices.Equal(keys, []string{"res-1", "res-4"}) || fifth.rows["res-1"].at < before || fifth.rows["res-1"].at > written || fifth.rows["res-4"].at != fourth.rows["res-4"].at {
+		t.Fatalf("written between %d and %d, the entries are %v", before, written, fifth.rows)
 	}
 
 	// A document no entry fits in keeps none, and is still a document.

@@ -343,7 +343,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
   let lifetime = Lifetime()
   let started = Watched(false)
   let release = Watched(false)
-  let query = Cached(lifetime: lifetime, clock: ContinuousClock()) {
+  let query = Cached(lifetime: lifetime, owed: nil, clock: ContinuousClock()) {
     started.set(true)
     for await ready in release where ready { break }
     return ["old", "added"]

@@ -26,6 +26,8 @@ import semiont.live.recorded
 import semiont.registry.SemiontBrowser
 import semiont.registry.SemiontBrowserConfig
 import semiont.registry.StoredSession
+import semiont.registry.lastEventIdKey
+import semiont.registry.personKey
 import semiont.registry.saveKnowledgeBases
 import semiont.registry.storeSession
 import semiont.registry.storedSession
@@ -46,6 +48,9 @@ private const val CALLBACK = "http://127.0.0.1:9/callback"
 private val ALICE: JsonObject = Json.parseToJsonElement(
     """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}""",
 ).jsonObject
+
+/** The key Alice's caches and stream places are kept under. */
+private val ALICE_KEY = personKey(ALICE.getValue("did").jsonPrimitive.content)
 
 private val DESCRIBES = buildJsonObject {
     put("name", "KB A")
@@ -148,7 +153,8 @@ class RegistryHttpTest {
                     mapOf("grant_type" to "refresh_token", "refresh_token" to "r1", "client_id" to "semiont-browser"),
                     realm.of("/token").single().form,
                 )
-                assertEquals(realm.kept(renewed, "r2"), storedSession(storage, KB_A))
+                // The renewal is kept, and who the gateway said its token is is recorded on it.
+                assertEquals(realm.kept(renewed, "r2").copy(personKey = ALICE_KEY), storedSession(storage, KB_A))
             }
         }
     }
@@ -212,9 +218,10 @@ class RegistryHttpTest {
             realm.knowsAlice()
             val storage = MemoryStorage()
             saveKnowledgeBases(storage, listOf(realm.registered()))
-            storeSession(storage, KB_A, realm.kept(tokenFor("access"), "r1"))
-            val places = "semiont.lastEventId.$KB_A"
-            storage.set(places, """{"res-1":"p-5"}""")
+            // A sign-in whose person the gateway has named: the places kept for them are the session's from its start.
+            storeSession(storage, KB_A, realm.kept(tokenFor("access"), "r1").copy(personKey = ALICE_KEY))
+            val places = lastEventIdKey(KB_A, ALICE_KEY)
+            storage.set(places, """{"res-1":"p-res-1-5"}""")
 
             fun resumedFrom(): String? = realm.subscriptions.flatMap { subscription ->
                 (subscription["scoped"] as? kotlinx.serialization.json.JsonArray).orEmpty().map { it.jsonObject }
@@ -227,7 +234,7 @@ class RegistryHttpTest {
                 val watching = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launchWatching(session)
                 try {
                     until("the stream names the scope") { resumedFrom() != null }
-                    assertEquals("p-5", resumedFrom())
+                    assertEquals("p-res-1-5", resumedFrom())
                     // A recorded event of the scope moves the place, which is kept once the caches have taken it in and written what they hold.
                     realm.send(
                         buildJsonObject {
@@ -235,9 +242,9 @@ class RegistryHttpTest {
                             put("scope", "res-1")
                             put("payload", recorded("mark:archived", ResourceId("res-1")))
                         },
-                        id = "p-9",
+                        id = "p-res-1-9",
                     )
-                    until("the place is kept") { storage.get(places)?.let { Json.parseToJsonElement(it) } == Json.parseToJsonElement("""{"res-1":"p-9"}""") }
+                    until("the place is kept") { storage.get(places)?.let { Json.parseToJsonElement(it) } == Json.parseToJsonElement("""{"res-1":"p-res-1-9"}""") }
                 } finally {
                     watching.cancel()
                 }
@@ -264,7 +271,8 @@ class RegistryHttpTest {
                 // What the person believed they clicked is said back, not acted on.
                 assertEquals("did:web:example.org:another" to "Another", checkNotNull(outcome.expected).let { it.did to it.name })
                 assertEquals(listOf(outcome.kb.id to DID_A), browser.kbs.value.map { it.id to it.did })
-                assertEquals(realm.kept(access, "a-refresh-token"), storedSession(storage, outcome.kb.id))
+                // The new sign-in named nobody; its session asked who its token is, and recorded the answer.
+                assertEquals(realm.kept(access, "a-refresh-token").copy(personKey = ALICE_KEY), storedSession(storage, outcome.kb.id))
                 assertEquals(outcome.kb.id, live(browser).kb.id)
                 // The code was exchanged for the browser client.
                 val exchanged = realm.of("/token").first().form

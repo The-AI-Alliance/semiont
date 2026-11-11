@@ -118,6 +118,13 @@ public sealed partial class SignInStore
         }
 
         public Task ForgetAsync(CancellationToken cancellation = default) => store.ChangeAsync(document => document.Remove(key), cancellation);
+
+        public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            // What `semiont login` keeps (protocol/specs/src/sign-in-store/SignIn.json) has no member for a person.
+            return Task.FromResult(false);
+        }
     }
 
     public static string? StateDirectory(string os, string? home, string? xdgStateHome = null, string? localAppData = null)

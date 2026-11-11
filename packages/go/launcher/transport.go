@@ -131,10 +131,16 @@ func (c *VerbClient) Reached() error {
 // otherwise.
 func (c *VerbClient) Refusal(err error) error { return c.sess.refusal(err) }
 
-// close ends the client, and then both its transports.
-func (c *VerbClient) close() {
+// closeClient ends the client, waiting for its closing flush. Its transports
+// are closed after, by closeTransports.
+func (c *VerbClient) closeClient() {
 	c.unhook()
 	c.Client.Close()
+}
+
+// closeTransports closes both the client's transports, once the client is
+// closed.
+func (c *VerbClient) closeTransports() {
 	c.bus.Close()
 	c.direct.Close()
 }
@@ -149,7 +155,7 @@ func (s *Session) refusal(err error) error {
 		// again with it, so this is the second refusal: unless the session has
 		// already ended for its own reason, the gateway refused a token the
 		// session had just renewed.
-		s.end(&SessionRejected{cause: err})
+		s.over(&SessionRejected{cause: err})
 		return context.Cause(s.ended)
 	}
 	if s.ended.Err() != nil {

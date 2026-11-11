@@ -25,8 +25,8 @@ class TestSessionTest {
         assertEquals(null to null, made.session.token.value to made.session.user.value)
         made.setToken("a-token")
         assertEquals("a-token", made.session.token.value)
-        made.session.close()
         made.client.close()
+        made.session.close()
         made.transport.close()
     }
 
@@ -35,7 +35,7 @@ class TestSessionTest {
         val client = TestClient()
         val kb = KbTarget(id = "kb-2", label = "Another", endpoint = HttpEndpoint(host = "example.org", port = 443, protocol = HttpEndpointProtocol.Https))
         val access = token(3600, 1)
-        val kept = MemorySignIn(HeldSignIn(access, "a-refresh-token", "semiont-cli", "https://issuer.test/token", null))
+        val kept = MemorySignIn(HeldSignIn(access, "a-refresh-token", "semiont-cli", "https://issuer.test/token", null, null))
         val given = createTestSession(TestSessionOptions(client, kb, kept))
         withTimeout(5_000) { given.session.ready() }
         assertSame(client.client, given.client)
@@ -44,8 +44,8 @@ class TestSessionTest {
         assertSame(kept, given.kept)
         assertEquals(kb to access, given.session.kb to given.session.token.value)
         assertNull(given.session.user.value, "nobody is asked who it is")
-        given.session.close()
         given.client.close()
+        given.session.close()
         given.transport.close()
     }
 }

@@ -60,7 +60,6 @@ type session_factory_options = {
   kb : knowledge_base;
   storage : storage;
   signals : Session.t option;
-  on_error : Http_wire.failure -> unit;
 }
 
 type session_factory =
@@ -71,7 +70,6 @@ type semiont_browser_config = {
   clock : Clock.t;
   fresh_id : unit -> string;
   factory : session_factory;
-  on_error : Http_wire.failure -> unit;
 }
 
 type semiont_browser = {
@@ -341,10 +339,7 @@ let activate browser key =
   | None -> Error (Unavailable "kb.not-found")
   | Some kb -> (
       let storage = browser.config.storage in
-      match
-        browser.config.factory
-          { kb; storage; signals = None; on_error = browser.config.on_error }
-      with
+      match browser.config.factory { kb; storage; signals = None } with
       | Error code -> Error (Unavailable code)
       | Ok (client, identity) ->
           locked browser (fun () ->
@@ -504,49 +499,56 @@ let change_kept browser id change =
              | Some next -> store_session storage id next);
           value)
 
+let renew_kept browser ~http id ~holding =
+  match stored_session browser.config.storage id with
+  | None -> Session.Refused
+  | Some before
+    when Kept_renewal.renewed_elsewhere
+           ~now:(Clock.wall_now browser.config.clock)
+           ~holding
+           ~expiry:(Tokens.token_expiry before.access)
+           before.access ->
+      Session.Renewed before.access
+  | Some before ->
+      let issued =
+        Oauth.refresh_kept http ~token_endpoint:before.token_endpoint
+          ~client_id:before.client_id ~refresh_token:before.refresh
+      in
+      change_kept browser id (function
+        | None -> (None, Session.Refused)
+        | Some current when current <> before ->
+            (Some current, Session.Renewed current.access)
+        | Some current -> (
+            match issued with
+            | Ok tokens ->
+                let next =
+                  {
+                    before with
+                    access = tokens.access_token;
+                    refresh =
+                      Option.value tokens.refresh_token ~default:before.refresh;
+                  }
+                in
+                (Some next, Session.Renewed next.access)
+            | Error failure when Oauth.refresh_refused failure ->
+                (None, Session.Refused)
+            | Error _ -> (Some current, Session.Unavailable)))
+
+let forget_rejected browser id token =
+  change_kept browser id (function
+    | Some current when current.access = token -> (None, ())
+    | current -> (current, ()))
+
 let start_kept_session browser ~sw ~http id =
-  let kept = kept_in browser.config.storage id in
-  let credential session = session.access in
-  let initial_token = Option.map credential (kept.held ()) in
-  let renew ~refused =
-    match kept.held () with
-    | None -> Session.Refused
-    | Some before
-      when Option.exists (fun token -> token <> before.access) refused ->
-        Session.Renewed before.access
-    | Some before ->
-        let issued =
-          Oauth.refresh_kept http ~token_endpoint:before.token_endpoint
-            ~client_id:before.client_id ~refresh_token:before.refresh
-        in
-        change_kept browser id (function
-          | None -> (None, Session.Refused)
-          | Some current when current <> before ->
-              (Some current, Session.Renewed current.access)
-          | Some current -> (
-              match issued with
-              | Ok tokens ->
-                  let next =
-                    {
-                      before with
-                      access = tokens.access_token;
-                      refresh =
-                        Option.value tokens.refresh_token
-                          ~default:before.refresh;
-                    }
-                  in
-                  (Some next, Session.Renewed next.access)
-              | Error failure when Oauth.refresh_refused failure ->
-                  (None, Session.Refused)
-              | Error _ -> (Some current, Session.Unavailable)))
-  in
-  let on_rejected token =
-    change_kept browser id (function
-      | Some current when current.access = token -> (None, ())
-      | current -> (current, ()))
-  in
-  Session.start ~keep_on_unavailable:true ~on_rejected ~sw
-    ~clock:browser.config.clock ~initial_token ~renew ()
+  Session.start ~keep_on_unavailable:true
+    ~on_rejected:(forget_rejected browser id)
+    ~sw ~clock:browser.config.clock
+    ~initial_token:
+      (Option.map
+         (fun session -> session.access)
+         (stored_session browser.config.storage id))
+    ~renew:(renew_kept browser ~http id)
+    ()
 
 let begin_sign_in browser ~http ~issuer ~random ~redirect_uri ~target ?kb_id
     ?expected_did ?expected_name () =

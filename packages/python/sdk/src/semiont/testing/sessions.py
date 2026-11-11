@@ -2,6 +2,7 @@
 
 Each session it builds is a real `SemiontSession` over a `FaultyTransport` of
 its own, and the factory keeps every transport it built, by knowledge base.
+It reads none of what a session says: the registry is its errors' one reader.
 
 A test scripts three things: what each knowledge base's gateway answers, who
 the gateway says a token is, and what a renewal gives. Each refuses by name
@@ -15,7 +16,7 @@ a token is.
 import asyncio
 from collections import deque
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Final, final, override
 
 from pydantic import JsonValue
@@ -121,7 +122,7 @@ class ScriptedSessions(SessionFactory):
         self._built.append((kb_id, transport))
         user, wait = self._user, self._answers_after
 
-        async def renew() -> str | None:
+        async def renew(_holding: str | None) -> str | None:
             self._renewed += 1
             if not self._renewals:
                 raise SignInError("exchange", f"ScriptedSessions: not scripted: a renewal of {kb_id!r}. Script one with queue_renewals.")
@@ -144,13 +145,14 @@ class ScriptedSessions(SessionFactory):
             refresh=renew,
             validate=validate,
             on_auth_failed=options.signals.notify_session_ended,
-            on_error=options.on_error,
         )
-        try:
-            async with client, session:
+        # Entered client, session; left client, the session, then the transport.
+        async with AsyncExitStack() as ending:
+            ending.push_async_callback(transport.close)
+            async with AsyncExitStack() as closing:
+                await closing.enter_async_context(client)
+                await ending.enter_async_context(session)
                 yield session
-        finally:
-            await transport.close()
 
     @override
     async def revoke(self, stored: StoredSession) -> None:

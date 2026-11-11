@@ -1,8 +1,9 @@
 """A client of one knowledge base: its eleven namespaces over a transport, the bytes that never ride the bus, and the gateway's own answers.
 
 A client owns a bus of its own (`bus`). Its transport delivers into that bus
-every frame it receives, and what the client's own parts say to each other (a
-viewer's signals) goes through it and never reaches the wire. The namespaces
+every frame it receives, each once the client's refresher has taken it, and
+what the client's own parts say to each other (a viewer's signals) goes
+through it and never reaches the wire. The namespaces
 are attributes: `client.browse`, `client.mark`, and so on, with `yield_` for
 the one whose name Python keeps for itself.
 
@@ -23,9 +24,10 @@ that closes it, after the client.
             resource = await client.browse.resource(resource_id).fresh()
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Final, Self, final
+from typing import Final, Self, final, override
 
 from semiont.bus import Bus
 from semiont.event_bus import EventBus
@@ -43,8 +45,9 @@ from semiont.namespaces.match import MatchNamespace
 from semiont.namespaces.refresher import Refresher
 from semiont.namespaces.system import SystemNamespace
 from semiont.namespaces.yield_ import YieldNamespace
+from semiont.resume import seal_coupled_places
 from semiont.timing import BUS_REQUEST_TIMEOUT_MS, INVALIDATION_WINDOW_MS, JOB_SILENCE_MS, JOB_STATUS_POLL_MS
-from semiont.transport import ContentTransport, GatewayOperations, Transport
+from semiont.transport import ContentTransport, Frame, FrameRefusal, FrameSink, GatewayOperations, Transport
 
 __all__ = ["CachePersistence", "ClientTiming", "SemiontClient"]
 
@@ -62,6 +65,25 @@ class ClientTiming:
     """How often a silent job's status is asked for after that."""
     invalidation_window_ms: int = INVALIDATION_WINDOW_MS
     """How long the refetches events ask of one cached key are one refetch."""
+
+
+@final
+class _Delivery(FrameSink):
+    """Where a client's transport delivers: to its refresher, and then to its bus.
+
+    The refresher has taken a frame by the time its delivery returns, so a
+    stream that notes a frame's place after delivering it (`semiont.resume`)
+    notes it only once the refetch it asked for is in flight or owed.
+    """
+
+    def __init__(self, refresher: Refresher, bus: EventBus) -> None:
+        self._refresher: Final = refresher
+        self._bus: Final = bus
+
+    @override
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        self._refresher.take(frame)
+        self._bus.deliver(frame)
 
 
 @final
@@ -90,7 +112,6 @@ class SemiontClient[T: Transport]:
         """The client's own bus: every frame the transport delivered, and every signal the client's parts gave each other."""
         self.wire: Final = Bus(transport)
         """The bus over the transport, typed by channel: an emit, a channel's frames, a request."""
-        transport.bridge_into(self.bus)
         self._links: Final = Links(
             transport=transport,
             wire=self.wire,
@@ -103,6 +124,9 @@ class SemiontClient[T: Transport]:
         self._held = False
         self._live: Final = Live(self._links, content, persistence)
         self._refresher: Final = Refresher(self._links, self._live, invalidation_window_ms=kept.invalidation_window_ms)
+        transport.bridge_into(_Delivery(self._refresher, self.bus))
+        self._unwritten: Callable[[], bool] | None = None
+        """Whether a write of what the client keeps, which the storage refused, is still owed: given by `attach_persistence`."""
 
         self.frame: Final = FrameNamespace(self._links)
         """The vocabulary: what kinds of things exist."""
@@ -140,11 +164,27 @@ class SemiontClient[T: Transport]:
 
     @property
     def persistence_settled(self) -> bool:
-        """Whether every cache the client keeps is at rest: none is fetching, and none owes a save.
+        """Whether everything the client keeps is at rest.
 
-        What is kept of the stream's place is kept only then (`semiont.resume`).
+        No kept cache is fetching or owes a save, the refresher owes no
+        refetch, and no write the storage refused is owed. What is kept of
+        the stream's place is kept only then (`semiont.resume`).
         """
-        return self._live.persistence_settled
+        unwritten = self._unwritten is not None and self._unwritten()
+        return self._live.persistence_settled and not self._refresher.owes_a_refetch and not unwritten
+
+    def attach_persistence(self, persistence: CachePersistence, *, unwritten: Callable[[], bool]) -> None:
+        """Keep what the client's queries hold where `persistence` says, from now on: what a client made with it would keep.
+
+        What was kept there is shown for each key a query holds nothing for,
+        and asked for anew the first time it is observed. A session made
+        before it knew who its person is gives it this once the gateway says.
+        `unwritten` says whether a write to `persistence`'s storage that the
+        storage refused is still owed: one made later than the caches save,
+        as a session's are, whose refusal no cache hears.
+        """
+        self._live.attach(persistence)
+        self._unwritten = unwritten
 
     async def close(self) -> None:
         """End the client.
@@ -154,8 +194,14 @@ class SemiontClient[T: Transport]:
         saved. Then its own bus ends, so every reader of it and every followed
         job does, and then the tasks it started: a read still waiting for its
         answer fails as `bus.closed`. Closing twice is closing once.
+
+        Before anything is disposed, the places coupled to the client
+        (`semiont.resume.CoupledBookmarks.couple_to`) are told whether they may
+        ride the saves the close makes: only when no kept cache is fetching
+        and the refresher owes no refetch, since closing drops both.
         """
         self._closed = True
+        seal_coupled_places(self, not self._refresher.owes_a_refetch and not self._live.fetching_what_it_keeps)
         self._refresher.dispose()
         self._live.dispose()
         self.bus.destroy()

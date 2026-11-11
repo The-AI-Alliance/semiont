@@ -120,7 +120,7 @@ client.getBrowse().annotations(resource).asPublisher().subscribe(new Flow.Subscr
 });
 ```
 
-A client given a `CachePersistence` keeps its small queries in a `SessionStorage`, so the next client of the same knowledge base shows them at once and asks for them anew. `CoupledBookmarks` keeps the stream's place in each scope beside them, for an `HttpTransport` to resume from.
+A client given a `CachePersistence(storage, kbId, personKey(did))` keeps its small queries in a `SessionStorage` for that person, one key per query, so the next client of the same knowledge base and person shows them at once and asks for them anew. `CoupledBookmarks` keeps the stream's place in each scope beside them, for an `HttpTransport` to resume from: coupled to the client (`coupleTo`), it is written only with the caches, never ahead of them. Both are kept as `protocol/specs/src/session/stored.json` says, so a client in any SDK over the same storage reads what this one kept. A registry's session keeps for the person once its stored sign-in names them, and forgetting that sign-in, however it is forgotten, signing in again included, deletes what was kept. A session the SDK builds, `sessionFromKept` with a storage too, writes only while the sign-in it holds names its person; a client you construct with a `CachePersistence` of your own writes unchecked. Such a session says each write its storage refuses once, on its `errors()`, as `session.save-refused`, and the write stays owed for the client's next change or its closing; closing what `sessionFromKept` gives closes the client first, so what its closing flush meets is said before the session's errors end.
 
 ## Taking work
 

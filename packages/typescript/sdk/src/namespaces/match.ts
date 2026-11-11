@@ -1,4 +1,4 @@
-import type { AnnotationId, CacheQuery, ResourceDescriptor, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
+import type { AnnotationId, CacheQuery, CacheValues, ResourceDescriptor, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { Bus } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
@@ -15,7 +15,7 @@ type MatchQuery = (typeof MATCH_QUERIES)[number];
 
 export class MatchNamespace implements IMatchNamespace {
   /** One per search and set of filters asked for. In memory only. */
-  private readonly resourcesCache: Cache<string, MatchedResources>;
+  private readonly resourcesCache: Cache<string, CacheValues['matchedResources']>;
   /** What each key asks, so a refetch can ask it again. */
   private readonly resourcesAsked = new Map<string, { search: string; filters: ResourceSearchFilters }>();
   private readonly refresher: CacheRefresher<MatchQuery>;
@@ -33,7 +33,7 @@ export class MatchNamespace implements IMatchNamespace {
     },
   ) {
     this.wire = new Bus(transport);
-    this.resourcesCache = createCache<string, MatchedResources>(async (key) => {
+    this.resourcesCache = createCache<string, CacheValues['matchedResources']>(async (key) => {
       const asked = this.resourcesAsked.get(key);
       if (!asked) throw new Error(`Cannot search resources for ${key}: nothing asked it`);
       const result = await this.wire.request(

@@ -26,9 +26,13 @@
 //!   left as it was written;
 //! - no answer is no verdict, and changes nothing.
 //!
-//! A request the gateway refuses for want of a valid token renews the
-//! session, and only a session whose issuer refuses to renew it is said to
-//! have expired. A request refused for lack of permission is said at once.
+//! **The browser is the one reader of each session's errors**, from the
+//! first thing the session said until its errors end; the factory that
+//! built it reads none of them. Each of the session's own errors is said on
+//! the browser's (`errors`). A request the gateway refuses for want of a
+//! valid token renews the session, and only a session whose issuer refuses
+//! to renew it is said to have expired. A request refused for lack of
+//! permission is said at once, through the session's signals.
 //!
 //! Every change to what is open is made against what the storage holds, as
 //! one step, so two contexts that each open a resource both keep theirs. A
@@ -45,8 +49,8 @@ use super::semiont_session::SemiontSession;
 use super::signals::{KbIdentityConflict, SessionSignals};
 use super::stored::{
     ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession,
-    clear_stored_session, is_token_expired, load_knowledge_bases, save_knowledge_bases,
-    store_session, stored_session,
+    forget_kept, is_token_expired, load_knowledge_bases, replace_stored_session,
+    save_knowledge_bases, store_session, stored_session,
 };
 use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
 use crate::event_bus::EventBus;
@@ -64,7 +68,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, watch};
-use tokio::task::JoinSet;
+use tokio::task::{JoinHandle, JoinSet};
 
 pub struct SemiontBrowserConfig {
     /// Where everything the browser keeps is kept.
@@ -137,6 +141,8 @@ struct Inner {
     active_kb_id: Held<Option<String>>,
     active_session: Held<Option<Arc<SemiontSession>>>,
     active_signals: Held<Option<Arc<SessionSignals>>>,
+    /// The reading of the live session's errors (`Inner::read`).
+    active_reading: Mutex<Option<JoinHandle<()>>>,
     session_activating: Held<bool>,
     open_resources: Held<Vec<OpenResource>>,
     last_viewed_resource: Held<Option<ResourceId>>,
@@ -196,6 +202,7 @@ impl SemiontBrowser {
             active_kb_id: Held::new(None),
             active_session: Held::new(None),
             active_signals: Held::new(None),
+            active_reading: Mutex::new(None),
             session_activating: Held::new(false),
             open_resources: Held::new(Vec::new()),
             last_viewed_resource: Held::new(None),
@@ -266,7 +273,8 @@ impl SemiontBrowser {
         self.inner.last_viewed_resource.read()
     }
 
-    /// The failures that made a session unusable, from now on.
+    /// What went wrong with a session, from now on: each of its own errors,
+    /// as it said them, and a factory's refusal to build one.
     pub fn errors(&self) -> Events<SessionError> {
         match locked(&self.inner.errors).as_ref() {
             Some(errors) => Events::new(errors.subscribe()),
@@ -308,16 +316,19 @@ impl SemiontBrowser {
         self.inner.add_kb(input, session).await
     }
 
-    /// Forget a knowledge base: its entry, its tokens, what was open in it
-    /// and where the person was. If it was active, the first of the others
-    /// becomes active.
+    /// Forget a knowledge base: its entry, its saved sign-in, what was open
+    /// in it and where the person was. If it was active, the first of the
+    /// others becomes active. Then what its client kept of the person the
+    /// sign-in named goes, as forgetting a saved sign-in has it go: deleted
+    /// once the client has closed, so nothing its closing saves is left
+    /// (protocol/specs/src/session/persisted-cases.json, `forget`).
     pub async fn remove_kb(
         &self,
         id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
-        clear_stored_session(inner.storage.as_ref(), id)?;
-        inner.forget_kept_of(id)?;
+        let forgotten = replace_stored_session(inner.storage.as_ref(), id, None)?;
+        inner.forget_open_of(id)?;
         let rest: Vec<KnowledgeBase> = inner
             .kbs
             .now()
@@ -329,7 +340,7 @@ impl SemiontBrowser {
         if inner.active_kb_id.now().as_deref() == Some(id) {
             inner.set_active_kb(next).await?;
         }
-        Ok(())
+        forget_kept(inner.storage.as_ref(), id, forgotten.as_ref())
     }
 
     /// Write what a knowledge base last said of itself onto its entry. Its
@@ -365,7 +376,12 @@ impl SemiontBrowser {
     }
 
     /// Keep new tokens for a registered knowledge base and bring its session
-    /// up on them. A session it already had is closed and replaced.
+    /// up on them. A session it already had is closed and replaced. The
+    /// saved sign-in they replace is forgotten: what its client kept of the
+    /// person it named goes, deleted once that client has closed, even when
+    /// the new sign-in turns out to be theirs, as a new sign-in names nobody
+    /// until its gateway names them
+    /// (protocol/specs/src/session/persisted-cases.json, `forget`).
     pub async fn sign_in(
         &self,
         id: &str,
@@ -436,17 +452,20 @@ impl SemiontBrowser {
         Ok(SignInOutcome { kb, expected })
     }
 
-    /// Sign out of a knowledge base: forget its tokens, and have the issuer
-    /// told so its refresh token is good for nothing. If it is active, its
-    /// session is closed.
+    /// Sign out of a knowledge base: forget its saved sign-in, and have the
+    /// issuer told so its refresh token is good for nothing. If it is
+    /// active, its session is closed. Then what its client kept of the
+    /// person the sign-in named goes, as forgetting a saved sign-in has it
+    /// go: deleted once the client has closed, so nothing its closing saves
+    /// is left (protocol/specs/src/session/persisted-cases.json, `forget`).
+    /// A sign-in that named nobody leaves nothing known to be theirs.
     pub async fn sign_out(&self, id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed() {
             return Ok(());
         }
-        let stored = stored_session(inner.storage.as_ref(), id);
-        clear_stored_session(inner.storage.as_ref(), id)?;
-        if let Some(stored) = stored {
+        let forgotten = replace_stored_session(inner.storage.as_ref(), id, None)?;
+        if let Some(stored) = forgotten.clone() {
             // The sign-out is the local act: an issuer that cannot be
             // reached does not keep anyone in a session they asked to end.
             let revoking = inner.factory.revoke(stored);
@@ -457,12 +476,8 @@ impl SemiontBrowser {
         }
         // Said again, so whoever shows each knowledge base's status reads it anew.
         inner.kbs.raise(inner.kbs.now());
-        if inner.active_kb_id.now().as_deref() == Some(id)
-            && let Some(ended) = inner.take_session()
-        {
-            ended.close().await;
-        }
-        Ok(())
+        inner.close_if_active(id).await;
+        forget_kept(inner.storage.as_ref(), id, forgotten.as_ref())
     }
 
     // ── What is open ────────────────────────────────────────────────────
@@ -573,9 +588,11 @@ impl SemiontBrowser {
         }
     }
 
-    /// End the browser: its session is closed, and everything it holds ends.
-    /// It returns once what it was running has stopped, and the first
-    /// failure of any of it is the error. Closing twice is closing once.
+    /// End the browser: its session's client is closed, then the session
+    /// ends, and what the session said is read to the end of its errors;
+    /// then everything the browser holds ends. It returns once what it was
+    /// running has stopped, and the first failure of any of it is the
+    /// error. Closing twice is closing once.
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed.swap(true, Ordering::SeqCst) {
@@ -614,19 +631,29 @@ fn same_place(one: &KbEndpoint, other: &KbEndpoint) -> bool {
     }
 }
 
-/// A live session and what a host shows about it, taken out of the browser
-/// to be closed.
+/// A live session, what a host shows about it, and the browser's reading of
+/// its errors, taken out of the browser to be closed.
 struct Ended {
     session: Arc<SemiontSession>,
     signals: Option<Arc<SessionSignals>>,
+    reading: Option<JoinHandle<()>>,
 }
 
 impl Ended {
-    /// The session ends, then the client it was built with, which it only
-    /// used: the factory built both for this browser.
+    /// The client the session was built with closes, which the session only
+    /// used, and makes the saves its caches owe; then the session ends, so
+    /// what those saves meet is said before its errors end. The browser
+    /// reads them to their end, and then the signals end, which that
+    /// reading says a refusal through. The factory built the client and the
+    /// session for this browser.
     async fn close(self) {
-        crate::state_unit::StateUnit::dispose(self.session.as_ref());
         self.session.client().close().await;
+        crate::state_unit::StateUnit::dispose(self.session.as_ref());
+        if let Some(reading) = self.reading {
+            // It ends with the session's errors; a panic in it is not the
+            // close's to give.
+            let _ = reading.await;
+        }
         if let Some(signals) = self.signals {
             crate::state_unit::StateUnit::dispose(signals.as_ref());
         }
@@ -639,9 +666,13 @@ impl Inner {
     }
 
     /// End everything the browser holds. Its session is closed by whoever
-    /// took it out first.
+    /// took it out first; one still in it, as a dropped browser leaves it,
+    /// is read no more.
     fn end(&self) {
         self.tasks.stop();
+        if let Some(reading) = locked(&self.active_reading).take() {
+            reading.abort();
+        }
         *locked(&self.storage_changes) = None;
         *locked(&self.errors) = None;
         self.kbs.end();
@@ -755,15 +786,21 @@ impl Inner {
         if self.closed() {
             return Ok(());
         }
-        store_session(self.storage.as_ref(), id, session)?;
+        let replaced = replace_stored_session(self.storage.as_ref(), id, Some(session))?;
         // A session it already has is on the old tokens: it is closed, and
         // the one built next reads the new ones.
+        self.close_if_active(id).await;
+        forget_kept(self.storage.as_ref(), id, replaced.as_ref())?;
+        self.set_active_kb(Some(id.to_owned())).await
+    }
+
+    /// Close the knowledge base's session, when it is the active one's.
+    async fn close_if_active(&self, id: &str) {
         if self.active_kb_id.now().as_deref() == Some(id)
             && let Some(ended) = self.take_session()
         {
             ended.close().await;
         }
-        self.set_active_kb(Some(id.to_owned())).await
     }
 
     // ── The active session ──────────────────────────────────────────────
@@ -773,16 +810,27 @@ impl Inner {
     fn take_session(&self) -> Option<Ended> {
         let session = self.active_session.now()?;
         let signals = self.active_signals.now();
+        let reading = locked(&self.active_reading).take();
         self.active_session.raise(None);
         self.active_signals.raise(None);
         self.project();
-        Some(Ended { session, signals })
+        Some(Ended {
+            session,
+            signals,
+            reading,
+        })
     }
 
     /// The signals first: putting the session is what starts the checks of
     /// it, and a conflict they find is said through the signals. A session
     /// is put once, so what is open is checked once per session.
-    fn put_session(self: &Arc<Self>, session: Arc<SemiontSession>, signals: Arc<SessionSignals>) {
+    fn put_session(
+        self: &Arc<Self>,
+        session: Arc<SemiontSession>,
+        signals: Arc<SessionSignals>,
+        reading: JoinHandle<()>,
+    ) {
+        *locked(&self.active_reading) = Some(reading);
         self.active_signals.raise(Some(signals));
         self.active_session.raise(Some(session.clone()));
         self.project();
@@ -841,16 +889,10 @@ impl Inner {
         // The signals exist before the session does: the session says it is
         // over through them, and may be over before it is ready.
         let signals = Arc::new(SessionSignals::new());
-        let reporting = Arc::downgrade(self);
         let built = self.factory.session(SessionFactoryOptions {
             kb,
             storage: self.storage.clone(),
             signals: signals.clone(),
-            on_error: Arc::new(move |error| {
-                if let Some(inner) = reporting.upgrade() {
-                    inner.failed(error);
-                }
-            }),
         });
         let session = match built {
             Ok(session) => Arc::new(session),
@@ -859,22 +901,70 @@ impl Inner {
                 return;
             }
         };
-        let routing = route(session.clone(), signals.clone());
-        self.spawn(async move {
-            routing.await;
-            Ok(())
-        });
+        // Read before anything is awaited, as the session's first reader:
+        // what it said as it started is read too.
+        let reading = self.read(&session, signals.clone());
         session.ready().await;
         if self.closed() || self.active_kb_id.now().as_deref() != Some(id) {
             Ended {
                 session,
                 signals: Some(signals),
+                reading: Some(reading),
             }
             .close()
             .await;
             return;
         }
-        self.put_session(session, signals);
+        self.put_session(session, signals, reading);
+    }
+
+    /// Read what `session` says, as the one reader of its errors, from the
+    /// first thing it said until they end: each of its own errors is said on
+    /// the browser's; a refusal for want of a valid token renews the
+    /// session, which heals quietly, or ends itself and says so once; and a
+    /// refusal for lack of permission, which has no remedy, is said through
+    /// `signals`. The reading holds neither the session nor the browser, so
+    /// it never keeps either alive.
+    fn read(
+        self: &Arc<Self>,
+        session: &SemiontSession,
+        signals: Arc<SessionSignals>,
+    ) -> JoinHandle<()> {
+        let mut errors = session.errors();
+        let (renewer, token) = (session.renewer(), session.token());
+        let saying = Arc::downgrade(self);
+        tokio::spawn(async move {
+            let mut renewing = JoinSet::new();
+            while let Some(said) = errors.next().await {
+                // What was missed is not known, and is not acted on.
+                let Ok(said) = said else { continue };
+                while renewing.try_join_next().is_some() {}
+                match said {
+                    SemiontError::Session(error) => {
+                        if let Some(inner) = saying.upgrade() {
+                            inner.failed(error);
+                        }
+                    }
+                    SemiontError::Transport(failure) => match failure.code {
+                        TransportErrorCode::Unauthorized => {
+                            // A failure does not say which token was refused:
+                            // the one the session holds as it is read is. The
+                            // renewal runs beside the reading, which goes on.
+                            let refused = token.borrow().clone();
+                            let renewer = renewer.clone();
+                            renewing.spawn(async move {
+                                renewer.refresh(refused.as_deref()).await;
+                            });
+                        }
+                        TransportErrorCode::Forbidden => {
+                            signals.notify_permission_denied(Some(&failure.message));
+                        }
+                        _ => {}
+                    },
+                    SemiontError::Bus(_) | SemiontError::Job(_) => {}
+                }
+            }
+        })
     }
 
     // ── What is shown ───────────────────────────────────────────────────
@@ -967,7 +1057,7 @@ impl Inner {
     }
 
     /// Forget what was open in a knowledge base and where the person was.
-    fn forget_kept_of(&self, kb_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn forget_open_of(&self, kb_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut open = None;
         self.storage
             .update(OPEN_RESOURCES_BY_KB_KEY, &mut |stored| {
@@ -1169,35 +1259,6 @@ async fn check_open_resource(session: &SemiontSession, id: &ResourceId) -> TabCh
     }
 }
 
-/// Route what the session's transport fails at. A refusal for want of a
-/// valid token renews the session: it heals quietly, or the session ends
-/// itself and says so once. A refusal for lack of permission has no remedy,
-/// and is said. Ends when the transport closes.
-async fn route(session: Arc<SemiontSession>, signals: Arc<SessionSignals>) {
-    let mut failures = session.errors();
-    let mut renewing = JoinSet::new();
-    while let Some(failure) = failures.next().await {
-        // A failure that was missed is not known, and is not acted on.
-        let Ok(failure) = failure else { continue };
-        while renewing.try_join_next().is_some() {}
-        match failure.code {
-            TransportErrorCode::Unauthorized => {
-                let session = session.clone();
-                // A failure does not say which token was refused: the one the
-                // session holds as it is read is.
-                let refused = session.token().borrow().clone();
-                renewing.spawn(async move {
-                    session.refresh(refused.as_deref()).await;
-                });
-            }
-            TransportErrorCode::Forbidden => {
-                signals.notify_permission_denied(Some(&failure.message));
-            }
-            _ => {}
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     //! What the checks of a session do once it is no longer the live one.
@@ -1342,7 +1403,6 @@ mod tests {
                 kb: of_a,
                 storage,
                 signals: Arc::new(SessionSignals::new()),
-                on_error: Arc::new(|_| {}),
             })
             .expect("a session");
         stale.ready().await;

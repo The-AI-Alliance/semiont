@@ -115,8 +115,9 @@ impl fmt::Display for JobError {
 impl std::error::Error for JobError {}
 
 /// A session that is itself unusable: it could not be built, its stored
-/// credential could not be validated, or it could not be renewed. What one
-/// request met stays with whoever made it.
+/// credential could not be validated, or it could not be renewed; or what
+/// its client keeps could not be kept or written. What one request met
+/// stays with whoever made it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionError {
     pub code: SessionErrorCode,
@@ -209,12 +210,14 @@ impl fmt::Display for SpanRefusal {
 impl std::error::Error for SpanRefusal {}
 
 /// What a caller meets: a request's own failure, the transport's failure to
-/// send it, or the failure of a job it was following.
+/// send it, or the failure of a job it was following; and, on a session's
+/// errors stream, what the session says of its own.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SemiontError {
     Bus(BusRequestError),
     Transport(TransportError),
     Job(JobError),
+    Session(SessionError),
 }
 
 impl SemiontError {
@@ -224,13 +227,14 @@ impl SemiontError {
             SemiontError::Bus(error) => error.code.as_str(),
             SemiontError::Transport(error) => error.code.as_str(),
             SemiontError::Job(error) => error.code.as_str(),
+            SemiontError::Session(error) => error.code.as_str(),
         }
     }
 
     /// The HTTP status, when a server stated one.
     pub fn status(&self) -> Option<u16> {
         match self {
-            SemiontError::Bus(_) | SemiontError::Job(_) => None,
+            SemiontError::Bus(_) | SemiontError::Job(_) | SemiontError::Session(_) => None,
             SemiontError::Transport(error) => error.status,
         }
     }
@@ -242,6 +246,7 @@ impl fmt::Display for SemiontError {
             SemiontError::Bus(error) => error.fmt(f),
             SemiontError::Transport(error) => error.fmt(f),
             SemiontError::Job(error) => error.fmt(f),
+            SemiontError::Session(error) => error.fmt(f),
         }
     }
 }
@@ -266,6 +271,12 @@ impl From<TransportError> for SemiontError {
     }
 }
 
+impl From<SessionError> for SemiontError {
+    fn from(error: SessionError) -> SemiontError {
+        SemiontError::Session(error)
+    }
+}
+
 /// The wire code a failed request's peer stated, for a service that answers
 /// its own caller with that failure: `peer-unavailable` from a read it
 /// depended on reaches the caller as `peer-unavailable`. A failure only this
@@ -274,6 +285,6 @@ impl From<TransportError> for SemiontError {
 pub fn relayed_failure_code(error: &SemiontError) -> Option<crate::types::CommandErrorCode> {
     match error {
         SemiontError::Bus(error) => error.code.wire(),
-        SemiontError::Transport(_) | SemiontError::Job(_) => None,
+        SemiontError::Transport(_) | SemiontError::Job(_) | SemiontError::Session(_) => None,
     }
 }

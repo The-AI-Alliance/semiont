@@ -14,6 +14,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import semiont.KeptWrites
+import semiont.errors.SessionError
+import semiont.errors.SessionErrorCode
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.http.tokenFor
@@ -132,6 +135,28 @@ internal class HeldSessions(private val sessions: ScriptedSessions) : SessionFac
         asked.complete(Unit)
         released.await()
         return sessions.session(options)
+    }
+
+    override suspend fun revoke(stored: StoredSession): Unit = sessions.revoke(stored)
+}
+
+/**
+ * A factory over `sessions` whose every session's client, when `owed`, owes a
+ * save to a storage that refuses every write: its closing flush makes it, and
+ * the session says it was refused, as its writer would. Otherwise it owes
+ * nothing, and its closing flush makes nothing.
+ */
+internal class RefusedAsItCloses(private val sessions: ScriptedSessions, private val owed: Boolean) : SessionFactory {
+    override suspend fun session(options: SessionFactoryOptions): OpenedSession = sessions.session(options).also { opened ->
+        opened.client.writes = object : KeptWrites {
+            override val owesARefusedWrite: Boolean = owed
+
+            override fun writeRefused() {
+                if (owed) opened.session.say(SessionError(SessionErrorCode.SaveRefused, "the storage refused the closing write", options.kb.id))
+            }
+
+            override suspend fun landed() = Unit
+        }
     }
 
     override suspend fun revoke(stored: StoredSession): Unit = sessions.revoke(stored)

@@ -3,7 +3,7 @@
 // to them, held to the registry, the gateway's API, how each trigger is
 // delivered and the schema of each channel's events.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { deliveryClasses } from '../bus/delivery.mjs';
 import { storedEventComponent } from '../bus/stored-event.mjs';
@@ -17,13 +17,18 @@ export const UNREADABLE = 'unreadable';
 /** What each way a row `names`, and the way it `carries`, ends at: the component of that name. */
 export const WAY_ENDS = { resource: 'ResourceId', annotation: 'AnnotationId', carries: 'Annotation' };
 
+/** A query's `value`: a component, or a member within one, named member by member. */
+const VALUE = /^\.\.\/components\/schemas\/([A-Za-z0-9]+)\.json((?:#(?:\/properties\/[A-Za-z0-9]+)+)?)$/;
+
 /**
  * The table at `tablePath`, checked against the registry, the gateway's API
- * and the component schemas of the spec under `root`: its queries, its rows,
- * the triggers in the order first stated (`whens`, each with the kinds of
- * event its rows are split by), those of them that are channels, and the two
- * vocabularies a row is written in. `refuse(message)` is called for a table
- * that cannot be generated from, and does not return.
+ * and the component schemas of the spec under `root`: its queries, what each
+ * one's cache holds (`values`: by query, the component its `value` names and
+ * the members within it), its rows, the triggers in the order first stated
+ * (`whens`, each with the kinds of event its rows are split by), those of them
+ * that are channels, and the two vocabularies a row is written in.
+ * `refuse(message)` is called for a table that cannot be generated from, and
+ * does not return.
  */
 export function readCacheRefresh(root, tablePath, refuse) {
   const specs = resolve(root, 'protocol/specs/src');
@@ -46,6 +51,34 @@ export function readCacheRefresh(root, tablePath, refuse) {
   if (!Array.isArray(refresh) || refresh.length === 0) refuse('lists no refresh');
 
   const PER = ['resource', 'annotation', 'filters'];
+  const schemas = resolve(specs, 'components/schemas');
+  const component = (name) => JSON.parse(readFileSync(resolve(schemas, `${name}.json`), 'utf8'));
+  /**
+   * The component a query's `value` names, and the members within it the value is, outermost first. A kept
+   * value is held to its component when it is read back, as the component holding it alone, which is exact
+   * only when each member is all that holds it requires.
+   */
+  const valueOf = ({ name, value, persisted }) => {
+    if (value === undefined) refuse(`the query ${name} has no value`);
+    const match = VALUE.exec(value?.$ref);
+    if (match === null || Object.keys(value).length !== 1) refuse(`the value of the query ${name} is ${JSON.stringify(value)}, not a $ref to a component or to a member within one`);
+    const [, named, path] = match;
+    if (!existsSync(resolve(schemas, `${named}.json`))) refuse(`the value of the query ${name} names ${named}, which is no component`);
+    const members = path === '' ? [] : path.slice('#/properties/'.length).split('/properties/');
+    let holder = named;
+    let schema = component(named);
+    for (const member of members) {
+      if (schema.properties?.[member] === undefined) refuse(`the value of the query ${name}: ${holder} has no member ${member}`);
+      if (persisted === true && JSON.stringify(schema.required) !== JSON.stringify([member])) {
+        refuse(`the query ${name} is persisted, and ${holder} requires ${JSON.stringify(schema.required)}, so ${member} alone is not one of it`);
+      }
+      const inner = schema.properties[member];
+      const referred = /^\.\/([A-Za-z0-9]+)\.json$/.exec(inner.$ref ?? '')?.[1];
+      [holder, schema] = referred === undefined ? [`${holder}.${member}`, inner] : [referred, component(referred)];
+    }
+    return { component: named, members };
+  };
+  const values = new Map();
   const queryNames = new Set();
   for (const query of queries) {
     const { name, per, asks, docs } = query;
@@ -58,6 +91,11 @@ export function readCacheRefresh(root, tablePath, refuse) {
     if (asks !== undefined && !requests.has(asks)) refuse(`the query ${name} asks ${JSON.stringify(asks)}, which is not an operation of the registry`);
     if (read !== undefined && !reads.has(read)) refuse(`the query ${name} reads ${JSON.stringify(read)}, which is no GET of the gateway's API`);
     if (per !== undefined && !PER.includes(per)) refuse(`the query ${name} is kept per ${JSON.stringify(per)}: one of ${PER.join(', ')}, or absent`);
+    if (query.persisted !== undefined && query.persisted !== true) refuse(`the query ${name} is persisted ${JSON.stringify(query.persisted)}: true, or absent`);
+    if (query.persisted === true && per === 'filters') refuse(`the query ${name} is persisted, and a query per filters is not kept`);
+    const unknown = Object.keys(query).filter((key) => !['name', 'per', 'asks', 'reads', 'persisted', 'value', 'docs'].includes(key));
+    if (unknown.length > 0) refuse(`the query ${name} states ${unknown.join(', ')}, which a query does not have`);
+    values.set(name, valueOf(query));
   }
 
   /** The shape of the member `name` of a value of `shape`, where `shape` states one. */
@@ -168,5 +206,5 @@ export function readCacheRefresh(root, tablePath, refuse) {
     }
   }
 
-  return { queries, refresh, whens, channelTriggers: [...whens.keys()].filter((on) => channels.has(on)), WHEN, ACTS };
+  return { queries, values, refresh, whens, channelTriggers: [...whens.keys()].filter((on) => channels.has(on)), WHEN, ACTS };
 }

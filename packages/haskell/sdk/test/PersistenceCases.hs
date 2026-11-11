@@ -21,19 +21,19 @@ import qualified Streaming.Prelude as Stream
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import qualified Semiont.Cache as Cache
 import qualified Semiont.StoragePersister as Stored
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Internal.Coupled as Coupled
-import Semiont.Internal.Generated.CachePersistence
-import qualified Semiont.Internal.Generated.Stored as Keys
+import Semiont.Internal.Generated.CachePersistence (CacheDocument(..))
+import qualified Semiont.Internal.Kept as Kept
 import Semiont.Types
 import qualified ControlledTime as Time
 
 require :: String -> Bool -> IO ()
 require label good=unless good (ioError (userError label))
-readDocument :: Storage.SessionStorage -> Text -> IO StoredDocument
+readDocument :: Storage.SessionStorage -> Text -> IO CacheDocument
 readDocument storage key = do
   raw <- Storage.get storage key >>= maybe (ioError (userError "No persisted cache document")) pure
   either (ioError . userError) pure (eitherDecodeStrict' (encodeUtf8 raw))
@@ -41,18 +41,19 @@ readDocument storage key = do
 persistenceCases :: Map.Map Text Value -> IO ()
 persistenceCases fixtures = do
   storage <- Storage.newMemoryStorage
-  wall <- newTVarIO (10::Scientific)
+  -- The host's clock need not tick in whole milliseconds; each stamp is it rounded.
+  wall <- newTVarIO (10.4::Scientific)
   let unicode=Text.replicate 80 "λ"
-      desired=StoredDocument 1 30 [(String "b",String "new",20),(String "c",String unicode,30)]
+      desired=CacheDocument [(String "b",String "new",20),(String "c",String unicode,30)]
       limit=toInteger (Lazy.length (encode desired))
-      config=Stored.StoragePersister storage "case" 1 limit (readTVarIO wall)
+      config=Stored.StoragePersister storage "case" limit (readTVarIO wall) (pure ())
       make options=Stored.newStoragePersister options (\key (_::Text) -> parseJSON key) :: IO (Cache.CachePersister Text Text)
   persister <- make config
   Cache.save persister [("a","old"),("b","old")]
-  atomically (writeTVar wall 20)
+  atomically (writeTVar wall 19.6)
   Cache.save persister [("a","old"),("b","new")]
   before <- readDocument storage "case"
-  require "an unchanged persisted entry lost its original write time" (storedEntries before==[(String "a",String "old",10),(String "b",String "new",20)])
+  require "an unchanged persisted entry lost its original stamp, or a stamp was not the clock rounded" (before==CacheDocument [(String "a",String "old",10),(String "b",String "new",20)])
   atomically (writeTVar wall 30)
   Cache.save persister [("a","old"),("b","new"),("c",unicode)]
   document <- readDocument storage "case"
@@ -61,14 +62,28 @@ persistenceCases fixtures = do
   require "durable entries did not rehydrate" . (==[("b","new"),("c",unicode)]) =<< Cache.load restored
   Cache.save restored [("b","new"),("c",unicode)]
   require "rehydrated unchanged entries lost their stamps" . (==desired) =<< readDocument storage "case"
-  forM_ ["{", "null", "[]", "{}", "{\"version\":1,\"writtenAt\":1,\"entries\":[[\"a\",7,1]]}",
-    decodeUtf8 (Lazy.toStrict (encode desired { storedVersion=2 }))] $ \bad -> do
+  forM_ ["{", "null", "[]", "{}", "{\"version\":1,\"entries\":[[\"a\",7,1]]}", "{\"version\":2,\"entries\":[[\"b\",\"new\",20]]}"] $ \bad -> do
       Storage.set storage "case" bad
       reader <- make config
-      require "a corrupt, wrong-version or ill-typed persisted document reached a cache" . null =<< Cache.load reader
+      require "a corrupt or wrong-version document, or an ill-typed entry, reached a cache" . null =<< Cache.load reader
+  savedCases
   coupledCases
   clientCases fixtures
   putStrLn "PASS versioned cache documents, UTF-8 byte eviction, stable write stamps and quiescent bookmark coupling"
+
+-- | A save's follow-up runs once the cache has recorded the save, so a place
+-- written in it is gated by the cache it follows as by every other.
+savedCases :: IO ()
+savedCases = do
+  owner <- newEmptyTMVarIO
+  seen <- newEmptyTMVarIO
+  let follow=atomically (readTMVar owner >>= Cache.persistencePending >>= putTMVar seen)
+      options=Cache.CacheOptions (pure 0) (const (pure ())) 0
+        (Just (Cache.CachePersister (pure []) (\_ -> pure ()) follow)) (const (pure (pure ())))
+  bracket (Cache.newCache (pure :: Int -> IO Int) options) Cache.dispose $ \cache -> do
+    atomically (putTMVar owner cache)
+    Cache.set cache 1 10
+    require "a save's follow-up ran while its cache still owed that save" . not =<< atomically (takeTMVar seen)
 
 coupledCases :: IO ()
 coupledCases = do
@@ -76,51 +91,48 @@ coupledCases = do
   quiet <- newTVarIO False
   resource <- either (ioError . userError) pure (mkResourceId "res-1")
   other <- either (ioError . userError) pure (mkResourceId "res-2")
-  let key=Keys.lastEventIdKeyPrefix<>"kb"
-      document=Keys.cacheKeyPrefix<>"kb.resource"
-      expect expected=do actual<-Storage.get underlying key
-                         require "bookmark persisted ahead of its quiet cache documents" (actual==expected)
-  bracket (Coupled.newCoupled underlying "kb") Coupled.dispose $ \coupled -> do
-    Coupled.start coupled (readTVar quiet)
+  let key=Kept.lastEventIdKey "kb" "person"
+      expect label expected=do actual<-Storage.get underlying key
+                               require label (actual==expected)
+  bracket (Coupled.newCoupled underlying key) Coupled.dispose $ \coupled -> do
+    let held label expected=require label . (==expected) =<< Coupled.loadPositions coupled
     Coupled.savePosition coupled resource "p-res-1-1"
     atomically (writeTVar quiet True)
-    Time.settle
-    expect Nothing
-    Storage.set (Coupled.storage coupled) "unrelated" "a write is not a cache document"
-    Time.settle
-    expect Nothing
+    Coupled.written coupled
+    expect "a place was written before its client's gate was given" Nothing
+    Coupled.start coupled (not <$> readTVar quiet) (pure False)
     atomically (writeTVar quiet False)
-    Storage.set (Coupled.storage coupled) document "bystander document"
-    Time.settle
-    expect Nothing
+    Coupled.written coupled
+    expect "a place was written while a kept cache or the refresher was not settled" Nothing
     atomically (writeTVar quiet True)
     Time.settle
-    require "a completed document write never carried its pending bookmark" . (==Map.singleton resource "p-res-1-1") =<< Coupled.loadPositions coupled
+    expect "a place was written with no write of a kept cache" Nothing
+    Coupled.written coupled
+    held "a settled write of a kept cache did not carry its place" (Map.singleton resource "p-res-1-1")
     Coupled.savePosition coupled other "p-res-2-3"
     Time.settle
-    require "a bookmark moved without another document write" . (==Map.singleton resource "p-res-1-1") =<< Coupled.loadPositions coupled
-    -- A newer event can arrive while the first scope is quiet: all caches
-    -- must settle before either scope's pending bookmark can move.
+    held "a place moved with no write of a kept cache" (Map.singleton resource "p-res-1-1")
+    -- A newer event can arrive while the first scope is quiet: every kept
+    -- cache must settle before either scope's place can move.
     atomically (writeTVar quiet False)
     Coupled.savePosition coupled resource "p-res-1-2"
-    Storage.set (Coupled.storage coupled) document "second bystander"
-    Time.settle
-    require "a bystander save flushed a busy scope" . (==Map.singleton resource "p-res-1-1") =<< Coupled.loadPositions coupled
+    Coupled.written coupled
+    held "a write while unsettled moved a place" (Map.singleton resource "p-res-1-1")
     atomically (writeTVar quiet True)
-    Time.settle
-    require "the quiet record did not retain both scopes" . (==Map.fromList [(resource,"p-res-1-2"),(other,"p-res-2-3")]) =<< Coupled.loadPositions coupled
+    Coupled.written coupled
+    held "the settled places did not keep both scopes" (Map.fromList [(resource,"p-res-1-2"),(other,"p-res-2-3")])
     Coupled.savePosition coupled resource "e-resource-event"
-    Coupled.savePosition coupled resource "p-res-2-4"
-    Storage.set (Coupled.storage coupled) document "invalid positions do not advance"
-    Time.settle
-    require "an ephemeral or wrong-scope ID became a resumption bookmark" . (==Map.fromList [(resource,"p-res-1-2"),(other,"p-res-2-3")]) =<< Coupled.loadPositions coupled
-    atomically (writeTVar quiet False)
+    Coupled.written coupled
+    held "an ephemeral id became a place" (Map.fromList [(resource,"p-res-1-2"),(other,"p-res-2-3")])
+    -- A save owed when disposal begins does not hold the places back: the
+    -- disposal's flush is that save.
     Coupled.savePosition coupled resource "p-res-1-4"
-    Storage.set (Coupled.storage coupled) document "must not flush after disposal"
+    atomically (writeTVar quiet False)
     Coupled.dispose coupled
-    atomically (writeTVar quiet True)
-    Time.settle
-    require "disposal's cleared cache state advanced a pending bookmark" . (==Map.fromList [(resource,"p-res-1-2"),(other,"p-res-2-3")]) =<< Coupled.loadPositions coupled
+    Coupled.savePosition coupled other "p-res-2-5"
+    Coupled.written coupled
+    held "the disposal's flush did not write the places noted before it began, or wrote one noted after"
+      (Map.fromList [(resource,"p-res-1-4"),(other,"p-res-2-3")])
 
 fixture :: FromJSON value => Map.Map Text Value -> Text -> IO value
 fixture fixtures name=case Map.lookup name fixtures of
@@ -136,7 +148,7 @@ clientCases fixtures = do
   originalDescriptor <- fixture fixtures "ResourceDescriptor"
   let annotationValue=originalAnnotation { annotationTarget=AnnotationTargetInlineBranch1 resource }
       descriptor name=originalDescriptor { resourceDescriptorU40_id=resource,resourceDescriptorName=name }
-      persistence=Just (Client.CachePersistence kept "client-case" (pure 1800000000000))
+      persistence=Just (Client.CachePersistence kept "client-case" "person" (pure 1800000000000))
       configuration=Bus.BusOptions (Time.now time) (Time.waitUntil time)
   counter <- newTVarIO (0::Integer)
   let identifier=atomically $ do modifyTVar' counter (+1); Text.pack . show <$> readTVar counter
@@ -185,7 +197,7 @@ clientCases fixtures = do
   -- Closing synchronously flushed all five opt-in views; no test sleep or
   -- elapsed clock is needed to make their last values durable.
   forM_ [minBound..maxBound] $ \query -> do
-    value <- Storage.get kept (Keys.cacheKeyPrefix<>"client-case."<>persistedQueryName query)
+    value <- Storage.get kept (Kept.cacheKey "client-case" "person" query)
     require "a declared persisted view was not saved on client disposal" (value/=Nothing)
   blocked <- newEmptyTMVarIO
   calls <- newTVarIO []

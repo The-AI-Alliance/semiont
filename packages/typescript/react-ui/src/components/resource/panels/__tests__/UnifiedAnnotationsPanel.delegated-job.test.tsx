@@ -28,8 +28,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   for (const mark of marks.splice(0)) mark.dispose();
   for (const session of sessions.splice(0)) {
-    session.dispose();
     session.client.dispose();
+    session.dispose();
   }
   // The panel restores a resource's last tab from storage, over `initialTab`.
   localStorage.clear();
