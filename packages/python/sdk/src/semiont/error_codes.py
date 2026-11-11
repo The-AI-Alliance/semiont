@@ -8,12 +8,11 @@ ends in `assert_never` is checked to name every code, and a tuple of the same
 codes to iterate.
 """
 
-from collections.abc import Mapping
-from types import MappingProxyType
-from typing import Final, Literal
+from typing import Final, Literal, assert_never
+
+from semiont.types import CommandErrorCode
 
 __all__ = [
-    "BUS_REQUEST_CODE_BY_WIRE_CODE",
     "BUS_REQUEST_ERROR_CODES",
     "BusRequestErrorCode",
     "IDENTITY_UNVERIFIABLE_REASONS",
@@ -28,7 +27,7 @@ __all__ = [
     "SpanRefusal",
     "TRANSPORT_ERROR_CODES",
     "TransportErrorCode",
-    "UNRECOGNIZED_FAILURE_CODE",
+    "bus_request_code_for_wire_code",
     "transport_error_code_for_status",
 ]
 
@@ -71,18 +70,27 @@ BUS_REQUEST_ERROR_CODES: Final[tuple[BusRequestErrorCode, ...]] = (
     "bus.none-pending",
 )
 
-# The bus code a failure's own wire code (`CommandError.code`) becomes.
-BUS_REQUEST_CODE_BY_WIRE_CODE: Final[Mapping[str, BusRequestErrorCode]] = MappingProxyType(
-    {
-        "not-found": "bus.not-found",
-        "peer-unavailable": "bus.peer-unavailable",
-        "unauthorized": "bus.unauthorized",
-        "none-pending": "bus.none-pending",
-    }
-)
 
-# What a failure becomes when its code is one this vocabulary does not name, or absent.
-UNRECOGNIZED_FAILURE_CODE: Final[BusRequestErrorCode] = "bus.rejected"
+def bus_request_code_for_wire_code(code: CommandErrorCode | None) -> BusRequestErrorCode:
+    """The bus code a failure's own code (`CommandError.code`) becomes.
+
+    A failure that states none is the unrecognized failure, and so is one
+    whose code the wire does not list, which is read as stating none.
+    """
+    match code:
+        case "not-found":
+            return "bus.not-found"
+        case "peer-unavailable":
+            return "bus.peer-unavailable"
+        case "unauthorized":
+            return "bus.unauthorized"
+        case "none-pending":
+            return "bus.none-pending"
+        case None:
+            return "bus.rejected"
+        case _:
+            assert_never(code)
+
 
 # Transport-neutral failure vocabulary. Every transport maps its native failures to one of
 # these, so a routing layer matches on the code without knowing the wire kind. Over HTTP the

@@ -12,8 +12,6 @@ from typing import Final, final, override
 from pydantic import JsonValue
 
 from semiont.error_codes import (
-    BUS_REQUEST_CODE_BY_WIRE_CODE,
-    UNRECOGNIZED_FAILURE_CODE,
     BusRequestErrorCode,
     IdentityUnverifiableReason,
     JobErrorCode,
@@ -21,10 +19,11 @@ from semiont.error_codes import (
     SignInErrorCode,
     SpanRefusal,
     TransportErrorCode,
+    bus_request_code_for_wire_code,
     transport_error_code_for_status,
 )
 from semiont.identifiers import JobId
-from semiont.types import FailureClass
+from semiont.types import CommandError, FailureClass
 
 __all__ = [
     "BusRequestError",
@@ -95,17 +94,18 @@ class BusRequestError(SemiontError):
         return self._code
 
     @classmethod
-    def answered(cls, said: str, failure: Mapping[str, JsonValue]) -> "BusRequestError":
-        """The failure a peer answered with, in its words `said`, under the code its own code becomes.
+    def answered(cls, said: CommandError, failure: Mapping[str, JsonValue]) -> "BusRequestError":
+        """The failure a peer answered with, in its own words and under the code its own code becomes.
 
-        A failure that states no code, or one this vocabulary does not name,
-        is `UNRECOGNIZED_FAILURE_CODE`: the peer may be newer than this build.
+        `failure` is the failure as read, and `said` is it read as a
+        `CommandError`.
+
+        A failure that states no code is the unrecognized failure
+        (`semiont.error_codes.bus_request_code_for_wire_code`): the peer may
+        be newer than this build, and a code the wire does not list is read
+        as none.
         """
-        stated = failure.get("code")
-        code = (
-            BUS_REQUEST_CODE_BY_WIRE_CODE.get(stated, UNRECOGNIZED_FAILURE_CODE) if isinstance(stated, str) else UNRECOGNIZED_FAILURE_CODE
-        )
-        return cls(code, said, failure=failure)
+        return cls(bus_request_code_for_wire_code(said.code), said.message, failure=failure)
 
 
 @final

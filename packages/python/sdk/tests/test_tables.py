@@ -44,14 +44,17 @@ def test_each_vocabulary_is_its_table_s_codes_as_a_type_and_as_a_tuple() -> None
         assert list(listed) == stated(name)
 
 
-def test_a_wire_code_becomes_the_bus_code_that_restates_it() -> None:
+def test_a_wire_code_becomes_the_bus_code_that_restates_it_and_none_the_unrecognized_failure() -> None:
     bus = CODES["busRequest"]
     assert isinstance(bus, dict)
     restated = {
         text(entry["wire"], "a wire code"): text(entry["code"], "a code") for entry in objects(bus["codes"], "codes") if "wire" in entry
     }
-    assert dict(error_codes.BUS_REQUEST_CODE_BY_WIRE_CODE) == restated
-    assert bus["unrecognizedFailure"] == error_codes.UNRECOGNIZED_FAILURE_CODE
+    read: dict[str, wire.CommandErrorCode | None] = {
+        code: wire.CommandError.model_validate({"message": "said", "code": code}).code for code in restated
+    }
+    assert {code: error_codes.bus_request_code_for_wire_code(as_read) for code, as_read in read.items()} == restated
+    assert error_codes.bus_request_code_for_wire_code(None) == bus["unrecognizedFailure"]
 
 
 def test_a_status_becomes_the_transport_code_the_table_gives_it() -> None:

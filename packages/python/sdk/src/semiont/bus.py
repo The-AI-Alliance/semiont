@@ -49,6 +49,7 @@ from semiont.identifiers import ResourceId, UserId
 from semiont.model import WireModel
 from semiont.timing import BUS_REQUEST_TIMEOUT_MS
 from semiont.transport import ConnectionState, Frame, FrameRefusal, ResourceHold, TraceContext, Transport
+from semiont.types import CommandError
 from semiont.watched import NeverReached, reached
 
 __all__ = ["Bus", "Delivered", "Heard", "Typed", "decoded", "reply_channels_for", "request"]
@@ -155,13 +156,19 @@ def _answered(channel: AnyChannel, failure: Mapping[str, JsonValue]) -> BusReque
     is: one with a fault is refused, naming the fault. A failure the shape
     passes is a `BusRequestError` in its own words, under the code its own
     code becomes, and carries the failure as read: a code the shape does
-    not recognize is read as absent.
+    not recognize is read as absent. Every failure is a `CommandError`, and
+    is read as one for its words and its code.
     """
     read = as_read(channel.payload, _unstamped(channel, failure))
     if isinstance(read, Fault):
         fault = read
-    elif isinstance(read, dict) and isinstance(said := read.get("message"), str):
-        return BusRequestError.answered(said, read)
+    elif isinstance(read, dict):
+        try:
+            said = CommandError.model_validate(read)
+        except ValidationError:
+            fault = UNDECODED
+        else:
+            return BusRequestError.answered(said, read)
     else:
         fault = UNDECODED
     return TransportError("error", f"a payload on {channel.name} is not that channel's: {fault}")
