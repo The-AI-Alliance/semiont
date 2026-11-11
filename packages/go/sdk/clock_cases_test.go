@@ -730,6 +730,55 @@ func jobFollower(t *testing.T, _ clockGiven) clockSubject {
 	}
 }
 
+// polledJob is a client's job.pollUntilComplete of job-1, naming no interval
+// and no limit of its own, over a transport that answers every
+// job:status-requested with that job running; ended is told how the poll
+// ended, unless the case was over first.
+func polledJob(t *testing.T, ended func(err error)) *semionttest.FaultyTransport {
+	running := statusOf(t, "running", nil)
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{MakeResponse: func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
+		if operation == jobStatus {
+			return running, nil
+		}
+		return semionttest.RefuseUnscriptedOperation(operation, payload)
+	}})
+	client, _ := worldOver(t, transport, semiont.DefaultTiming())
+	job, err := api.ParseJobId("job-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	background(t, func(ctx context.Context) {
+		_, err := client.Job.PollUntilComplete(ctx, job, 0, 0, nil)
+		if ctx.Err() == nil {
+			ended(err)
+		}
+	})
+	return transport
+}
+
+func jobPoll(t *testing.T, _ clockGiven) clockSubject {
+	transport := polledJob(t, func(err error) {
+		// How it fails is what jobPollTimeout counts.
+		if err == nil {
+			t.Error("the poll ended with the job running")
+		}
+	})
+	return clockSubject{counted: func() int { return len(requestsOn(transport, jobStatus)) }}
+}
+
+func jobPollTimeout(t *testing.T, _ clockGiven) clockSubject {
+	var timedOut atomic.Int64
+	polledJob(t, func(err error) {
+		var failed *semiont.BusRequestError
+		if !errors.As(err, &failed) || failed.Code != semiont.BusRequestErrorCodeTimeout {
+			t.Errorf("the poll ended otherwise: %v", err)
+			return
+		}
+		timedOut.Add(1)
+	})
+	return clockSubject{counted: func() int { return int(timedOut.Load()) }}
+}
+
 // clockSubjects is how this SDK builds each subject the table names, with
 // what is to be closed once the case is over left to t's cleanup.
 var clockSubjects = map[string]func(t *testing.T, given clockGiven) clockSubject{
@@ -750,6 +799,8 @@ var clockSubjects = map[string]func(t *testing.T, given clockGiven) clockSubject
 	"unansweredEmit":     unansweredEmit,
 	"refusedBusRequest":  refusedBusRequest,
 	"timedOutBusRequest": timedOutBusRequest,
+	"jobPoll":            jobPoll,
+	"jobPollTimeout":     jobPollTimeout,
 }
 
 // ── A case, played ──────────────────────────────────────────────────────

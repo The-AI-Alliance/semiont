@@ -450,7 +450,7 @@ var calls = map[string]call{
 		_, _ = c.Job.Status(ctx, a.jid("jobId"))
 	},
 	"job.pollUntilComplete": func(ctx context.Context, c *semiont.Client, a args) {
-		_, _ = c.Job.PollUntilComplete(ctx, a.jid("jobId"), 10*time.Millisecond, 50*time.Millisecond, nil)
+		_, _ = c.Job.PollUntilComplete(ctx, a.jid("jobId"), 0, 0, nil)
 	},
 	"job.cancel": func(ctx context.Context, c *semiont.Client, a args) {
 		_, _ = c.Job.Cancel(ctx, a.jid("jobId"))
