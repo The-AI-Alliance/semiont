@@ -292,7 +292,7 @@ public sealed partial class TransportTests
             var http = new HttpClient(server);
             server.Answer = sent => Reply(server, sent, BusOperations.BrowseKbRequested.Result.Name,
                 new { response = new { domain, name = options.Kb.Label } });
-            var client = new SemiontClient(new HttpTransport("https://kb.test", kept.State.Token, BusRegistry.FullClientChannels,
+            var client = new SemiontClient(new HttpTransport("https://kb.test", kept.State.Token, BusRegistry.BridgedChannels,
                 httpClient: http, timeProvider: clock));
             var session = new SemiontSession(Target(options.Kb), client, kept);
             built(options.Signals, session, kept);

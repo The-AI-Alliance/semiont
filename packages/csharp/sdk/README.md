@@ -382,6 +382,9 @@ another view of the same storage that hears writes from other contexts.
 ## The bus and transport
 
 `client.Wire` accepts generated `BusChannels` and `BusOperations` values.
+An `HttpTransport` is always given its channels and assumes none of its own: a full
+client's is given `BusRegistry.BridgedChannels`, every channel delivered to everyone and
+every operation's replies, as `SemiontClient` and the sessions give theirs.
 `BusRegistry.ReplyChannelsFor(requests)` names the result and failure channels of the
 given operations, each once: the channels of a transport that awaits only those.
 `BusRegistry.Unsubscribed(channel)` is the refusal of a request whose replies cannot

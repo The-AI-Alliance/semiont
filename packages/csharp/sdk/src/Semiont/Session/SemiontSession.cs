@@ -53,7 +53,7 @@ public sealed class SemiontSession : IStateUnit
         HttpTransport? transport = null;
         try
         {
-            transport = new HttpTransport(Gateway.Origin(endpoint), credentials.State.Token, BusRegistry.FullClientChannels,
+            transport = new HttpTransport(Gateway.Origin(endpoint), credentials.State.Token, BusRegistry.BridgedChannels,
                 refresher: credentials.RefreshAsync, httpClient: httpClient, timeProvider: timeProvider, random: random);
             var client = new SemiontClient(transport, persistence);
             var session = new SemiontSession(kb, client, credentials);

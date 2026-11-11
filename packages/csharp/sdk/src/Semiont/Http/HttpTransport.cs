@@ -56,13 +56,13 @@ public sealed partial class HttpTransport : IDisposable
     private ConnectionState state;
     private long outages;
 
-    public HttpTransport(string baseUrl, string? token, IEnumerable<string>? channels = null, Timing? timing = null,
+    public HttpTransport(string baseUrl, string? token, IEnumerable<string> channels, Timing? timing = null,
         Func<string?, CancellationToken, Task<string?>>? refresher = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null)
     {
         BaseUrl = baseUrl.TrimEnd('/');
         this.token = token;
-        this.channels = (channels ?? ProtocolFacts.Channels("everyone")).Distinct(StringComparer.Ordinal).ToArray();
+        this.channels = channels.Distinct(StringComparer.Ordinal).ToArray();
         this.timing = timing ?? new Timing();
         clock = timeProvider ?? TimeProvider.System;
         this.random = random ?? Random.Shared;

@@ -169,7 +169,7 @@ public sealed class ClockCasesTests
     private static HttpTransport Over(Gateway gateway, Case play)
     {
         var http = play.Keep(new HttpClient(gateway) { Timeout = Timeout.InfiniteTimeSpan });
-        return play.Keep(new HttpTransport(GatewayUrl, "a-token", BusRegistry.FullClientChannels, httpClient: http,
+        return play.Keep(new HttpTransport(GatewayUrl, "a-token", BusRegistry.BridgedChannels, httpClient: http,
             timeProvider: play.Clock, random: play.Random));
     }
 

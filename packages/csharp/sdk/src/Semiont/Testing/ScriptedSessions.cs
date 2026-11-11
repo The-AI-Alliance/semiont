@@ -69,7 +69,7 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
         {
             await kept.ReadyAsync(cancellation).ConfigureAwait(false);
             var bus = new HttpTransport(origin, kept.State.Token,
-                BusRegistry.FullClientChannels,
+                BusRegistry.BridgedChannels,
                 refresher: kept.RefreshAsync, httpClient: http, timeProvider: clock, random: random);
             var openedClient = client = new SemiontClient(bus);
             var session = new SemiontSession(new KbTarget { Id = kb.Id, Label = kb.Label, Endpoint = kb.Endpoint }, openedClient, kept);
