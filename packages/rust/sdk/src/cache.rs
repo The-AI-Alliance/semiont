@@ -190,9 +190,9 @@ struct Flight<V> {
 
 struct Key<V> {
     state: watch::Sender<CacheState<V>>,
-    /// The fetch in flight for the key. An `invalidate` lets go of it
-    /// without waiting, so a fetch whose answer will never come cannot hold
-    /// the key.
+    /// The key's current fetch, until it settles: the one fetch whose answer
+    /// is written (B9). An `invalidate` lets go of it without waiting, so a
+    /// fetch whose answer will never come cannot hold the key.
     in_flight: Option<Flight<V>>,
 }
 
@@ -398,12 +398,14 @@ where
         }
     }
 
-    /// The fetch numbered `number` for `key` settled with `fetched`. In this
-    /// one step it stops being in flight, a value it brought is written, and
-    /// the live view's ask that waits on it ends: a first ask that failed is
-    /// asked once more (B14), and a second that fails fails a key that holds
-    /// no value (B15). So a key whose fetch has settled is not fetching, and
-    /// one whose ask goes on is (B17).
+    /// The fetch numbered `number` for `key` settled with `fetched`. Only the
+    /// key's current fetch writes (B9): one that an invalidate, a removal or
+    /// disposal let go of answers whoever awaited it, and changes nothing
+    /// here. The current one, in this one step, stops being in flight, writes
+    /// a value it brought, and ends the live view's ask that waits on it: a
+    /// first ask that failed is asked once more (B14), and a second that
+    /// fails fails a key that holds no value (B15). So a key whose current
+    /// fetch has settled is not fetching, and one whose ask goes on is (B17).
     fn settled(
         self: &Arc<Self>,
         key: &K,
@@ -415,15 +417,10 @@ where
         let Some(held) = state.keys.get_mut(key) else {
             return;
         };
-        // Only its own: an `invalidate` may have put a newer fetch in its
-        // place, and the ask that waits on it with it.
-        let validation = held
-            .in_flight
-            .take_if(|flight| flight.number == number)
-            .and_then(|flight| flight.validation);
-        match (fetched, validation) {
-            // A value from any fetch is written, the newest last: each is at
-            // least as new as what was there.
+        let Some(current) = held.in_flight.take_if(|flight| flight.number == number) else {
+            return;
+        };
+        match (fetched, current.validation) {
             (Ok(value), _) => {
                 held.state.send_replace(CacheState::Ready(value.clone()));
                 self.owe_a_save(&mut state);
@@ -649,8 +646,9 @@ where
     }
 
     /// Ask for the key's value now: what the service answers, which every
-    /// observer of the key is given too, or the failure, which only this
-    /// caller is. Concurrent asks for one key share one fetch.
+    /// observer of the key is given too while the fetch is still the key's
+    /// current one (B9), or the failure, which only this caller is.
+    /// Concurrent asks for one key share one fetch.
     pub fn fetch(
         &self,
         key: &K,
@@ -696,7 +694,7 @@ where
 
     /// The key's value is out of date: ask again, showing what there is
     /// meanwhile. A fetch already in flight is not waited on: its answer may
-    /// never come.
+    /// never come, and is not written when it does (B9).
     pub fn invalidate(&self, key: &K) {
         let mut state = self.inner.state();
         if state.disposed {
@@ -725,7 +723,8 @@ where
     }
 
     /// The key's entity is gone: its value is dropped and the key is failed
-    /// with `gone`, at once, for every observer. Nothing is asked for.
+    /// with `gone`, at once, for every observer. Nothing is asked for, and the
+    /// fetch in flight is let go of: its answer is not written (B9).
     pub fn remove(&self, key: &K, gone: Box<dyn std::error::Error + Send + Sync>) {
         let mut state = self.inner.state();
         if state.disposed {
