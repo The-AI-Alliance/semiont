@@ -879,6 +879,29 @@ def test_an_agents_due_renewal_tried_again_renews_nothing_once_a_refusal_has_ren
     run(scenario())
 
 
+def test_an_agent_that_closes_while_its_token_is_renewed_ends_the_renewal_and_takes_no_token_after() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[ME] = agent_named("semiont-smelter")
+            first, second = token(3600, 1), token(3600, 2)
+            granting = asyncio.Event()
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": first}), replace(says({"access_token": second}), after=granting)]
+
+            async with AgentToken(gateway.origin, service=ServiceToken(account(gateway))) as agent:
+                # A request refused with the token it holds, and the issuer holds its answer to the grant.
+                refusing = asyncio.create_task(agent.refresh(first))
+                await soon(gateway.arrived("POST", TOKEN, 2))
+
+            # The close ended the renewal: the refusal waits for no answer, and the one that comes later is not taken.
+            await soon(asyncio.wait([refusing]))
+            granting.set()
+            await settle()
+            assert agent.token.value == first
+
+    run(scenario())
+
+
 def test_an_agent_the_gateway_refuses_to_name_by_its_refusal_rate_limit_is_refused_as_by_a_401() -> None:
     # A 429 says "not now" unless its code is `refusal-rate`: then the account's token was refused,
     # and the same token gets the same answer however long the sign-in waits.
