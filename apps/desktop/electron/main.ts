@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, Menu, net, protocol, screen, shell, type MenuItemConstructorOptions } from 'electron';
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { access } from 'node:fs/promises';
@@ -8,10 +8,11 @@ import { pathToFileURL } from 'node:url';
 import { parseAppManifest } from '../src/lib/app-manifest';
 import { parseKbUri, parseUserConfig } from '../src/lib/user-config';
 import type { McpProcessStatus } from '../src/lib/launcher-bridge';
+import type { McpToolInfo } from '../src/lib/agent-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import type { AgentHistoryMessage } from '../src/lib/agent-bridge';
 import { isAgentModelId, isAgentProviderId } from '../src/lib/agent-bridge';
-import { runLocalAgentTurn } from './agent-runtime';
+import { listSemiontMcpTools, McpStdioClient, runLocalAgentTurn } from './agent-runtime';
 import { registerAuthHandlers } from './auth';
 import { ControlClient } from './control-client';
 import { registerControlHandlers } from './control-ipc';
@@ -26,10 +27,13 @@ protocol.registerSchemesAsPrivileged([{
 registerAuthHandlers();
 
 let mainWindow: BrowserWindow | null = null;
-let mcpChild: ChildProcess | null = null;
+let mcpClient: McpStdioClient | null = null;
 let mcpStartedAt: number | null = null;
 let mcpStopping = false;
 let mcpError: string | null = null;
+let mcpReady = false;
+let mcpStarting: Promise<McpProcessStatus> | null = null;
+let mcpTools: McpToolInfo[] = [];
 function configuredKbOrigins(toml: string | null): Set<string> {
   const origins = new Set<string>();
   if (toml === null) return origins;
@@ -345,16 +349,18 @@ handleTrustedIpc('agent:complete', async (_event, input: unknown) => {
   if (messages.length !== request['messages'].length || messages.at(-1)?.role !== 'user') {
     throw new Error('Invalid Semiont agent conversation messages');
   }
+  const mcp = mcpClient;
+  if (mcp === null || mcp.isClosed || !mcpReady) {
+    throw new Error('Chat Tools is not running. Start it from the Semiont menu and try again.');
+  }
   const info = await ollamaInfo();
   if (info.endpoint === null) throw new Error('Ollama is not reachable. Start Ollama and try again.');
   if (!info.models.some((model) => model.name === request['model'])) {
     throw new Error(`Ollama is reachable, but ${request['model']} is not installed. Pull it with \`ollama pull ${request['model']}\`.`);
   }
   return runLocalAgentTurn({
+    mcp,
     endpoint: info.endpoint,
-    launcherPath: launcherPath(),
-    env: launcherEnvironment(),
-    cwd: app.getPath('home'),
     kbDid: request['kbDid'],
     model: request['model'],
     messages,
@@ -410,22 +416,23 @@ handleTrustedIpc('system:op-path', async () => {
 });
 
 async function mcpProcessStatus(): Promise<McpProcessStatus> {
-  const child = mcpChild;
-  if (child === null) {
+  const client = mcpClient;
+  if (client === null || client.isClosed) {
+    const error = client?.error ?? mcpError;
     return {
-      state: mcpError === null ? 'stopped' : 'failed',
+      state: mcpStopping ? 'stopping' : error === null ? 'stopped' : 'failed',
       pid: null,
       startedAt: null,
       memoryBytes: null,
       cpuPercent: null,
-      error: mcpError,
+      error,
     };
   }
 
-  const pid = child.pid ?? null;
+  const pid = client.pid;
   let memoryBytes: number | null = null;
   let cpuPercent: number | null = null;
-  if (pid !== null && !mcpStopping) {
+  if (pid !== null && mcpReady && !mcpStopping) {
     const stats = await new Promise<{ memoryBytes: number | null; cpuPercent: number | null }>((resolve) => {
       execFile('ps', ['-o', 'rss=', '-o', '%cpu=', '-p', String(pid)], { encoding: 'utf8' }, (error, output) => {
         const values = output.trim().match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)$/);
@@ -442,7 +449,7 @@ async function mcpProcessStatus(): Promise<McpProcessStatus> {
   }
 
   return {
-    state: mcpStopping ? 'stopping' : pid === null ? 'starting' : 'running',
+    state: mcpStopping ? 'stopping' : !mcpReady || pid === null ? 'starting' : 'running',
     pid,
     startedAt: mcpStartedAt,
     memoryBytes,
@@ -452,70 +459,87 @@ async function mcpProcessStatus(): Promise<McpProcessStatus> {
 }
 
 handleTrustedIpc('mcp:status', () => mcpProcessStatus());
-
-handleTrustedIpc('mcp:start', async () => {
-  if (mcpChild !== null) return mcpProcessStatus();
-  mcpError = null;
-  mcpStopping = false;
-  const child = spawn(launcherPath(), ['mcp'], {
-    cwd: app.getPath('home'),
-    env: launcherEnvironment(),
-    stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
-  mcpChild = child;
-  mcpStartedAt = Date.now();
-  child.stdout?.on('data', () => {});
-  child.stderr?.on('data', () => {});
-  child.once('error', (error) => {
-    mcpError = error.message;
-    if (mcpChild === child) {
-      mcpChild = null;
-      mcpStartedAt = null;
-    }
-  });
-  child.once('close', (code, signal) => {
-    if (mcpChild !== child) return;
-    if (!mcpStopping && (code !== 0 || signal !== null)) {
-      mcpError = `semiont mcp exited${code === null ? '' : ` with code ${code}`}${signal === null ? '' : ` (${signal})`}.`;
-    }
-    mcpChild = null;
-    mcpStartedAt = null;
-    mcpStopping = false;
-  });
-
-  await new Promise<void>((resolve) => {
-    child.once('spawn', resolve);
-    child.once('error', resolve);
-  });
-  return mcpProcessStatus();
+handleTrustedIpc('mcp:tools', async () => {
+  const client = mcpClient;
+  if (client === null || client.isClosed || !mcpReady) return mcpTools;
+  mcpTools = await listSemiontMcpTools(client);
+  return mcpTools;
 });
 
+async function startMcpProcess(): Promise<McpProcessStatus> {
+  const current = mcpClient;
+  if (current !== null && !current.isClosed) return mcpStarting ?? mcpProcessStatus();
+  if (mcpStarting !== null) return mcpStarting;
+  mcpError = null;
+  mcpStopping = false;
+  mcpReady = false;
+  let client: McpStdioClient;
+  try {
+    client = new McpStdioClient(launcherPath(), launcherEnvironment(), app.getPath('home'));
+  } catch (error) {
+    mcpError = error instanceof Error ? error.message : String(error);
+    return mcpProcessStatus();
+  }
+  mcpClient = client;
+  mcpStartedAt = Date.now();
+  void client.waitForClose().then(() => {
+    if (mcpClient !== client) return;
+    mcpReady = false;
+    mcpStartedAt = null;
+    if (!mcpStopping && client.error !== null) mcpError = client.error;
+  });
+  const starting = (async () => {
+    try {
+      await client.initialize();
+      mcpTools = await listSemiontMcpTools(client);
+      if (client.isClosed) throw new Error(client.error ?? 'semiont mcp closed while starting');
+      mcpReady = true;
+      return await mcpProcessStatus();
+    } catch (error) {
+      if (mcpClient === client) {
+        mcpError = error instanceof Error ? error.message : String(error);
+        mcpReady = false;
+        mcpStartedAt = null;
+        mcpClient = null;
+      }
+      client.close();
+      return mcpProcessStatus();
+    } finally {
+      mcpStarting = null;
+    }
+  })();
+  mcpStarting = starting;
+  return starting;
+}
+
+handleTrustedIpc('mcp:start', () => startMcpProcess());
+
 handleTrustedIpc('mcp:stop', async () => {
-  const child = mcpChild;
-  if (child === null) return mcpProcessStatus();
+  const client = mcpClient;
+  if (client === null || client.isClosed) return mcpProcessStatus();
   mcpStopping = true;
-  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
-  child.kill('SIGTERM');
+  client.close();
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const stopped = await Promise.race([
-    closed.then(() => true),
+    client.waitForClose().then(() => true),
     new Promise<boolean>((resolve) => {
       timeout = setTimeout(() => resolve(false), 3000);
     }),
   ]);
   if (timeout !== undefined) clearTimeout(timeout);
   if (!stopped) {
-    child.kill('SIGKILL');
-    await closed;
+    client.kill('SIGKILL');
+    await client.waitForClose();
   }
+  if (mcpClient === client) mcpClient = null;
+  mcpStartedAt = null;
+  mcpReady = false;
+  mcpStopping = false;
   return mcpProcessStatus();
 });
 
 app.on('before-quit', () => {
-  if (mcpChild !== null && mcpChild.exitCode === null && mcpChild.signalCode === null) {
-    mcpChild.kill('SIGTERM');
-  }
+  if (mcpClient !== null && !mcpClient.isClosed) mcpClient.close();
 });
 
 function setApplicationMenu(): void {
@@ -779,6 +803,11 @@ void app.whenReady().then(() => {
   }
   setApplicationMenu();
   createWindow();
+  void startMcpProcess().then((status) => {
+    if (status.state === 'failed') {
+      appendLog(`${new Date().toISOString()} [mcp] startup failed: ${status.error ?? 'unknown error'}`);
+    }
+  });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

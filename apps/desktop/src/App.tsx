@@ -43,6 +43,7 @@ import { RuntimeModal } from './components/RuntimeModal';
 import type { GitCheck } from './components/GitStatusSection';
 import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { McpModal } from './components/McpModal';
+import type { McpToolInfo } from './lib/agent-bridge';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_PROVIDER, type AgentModelId, type AgentProviderId } from './lib/agent-bridge';
 import { ResourceComposeModal } from './components/ResourceComposeModal';
@@ -241,6 +242,9 @@ export function App() {
   const [showSecrets, setShowSecrets] = useState(false);
   const [secretsCheck, setSecretsCheck] = useState<SecretsCheck>({ status: 'checking' });
   const [showMcp, setShowMcp] = useState(false);
+  const [mcpTools, setMcpTools] = useState<McpToolInfo[]>([]);
+  const [mcpToolsLoading, setMcpToolsLoading] = useState(false);
+  const [mcpToolsError, setMcpToolsError] = useState<string | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpProcessStatus>({
     state: 'stopped',
     pid: null,
@@ -407,14 +411,28 @@ export function App() {
 
   const openMcp = useCallback(() => {
     setShowMcp(true);
+    setMcpToolsLoading(true);
+    setMcpToolsError(null);
     const bridge = window.launcherBridge;
     if (bridge === undefined) {
-      setMcpStatus({ state: 'failed', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: 'MCP process control is available in the Desktop app only.' });
+      setMcpStatus({ state: 'failed', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: 'Chat Tools process control is available in the Desktop app only.' });
+      setMcpToolsLoading(false);
+      setMcpToolsError('Available only in the Desktop app.');
       return;
     }
     void bridge.mcpStatus().then(setMcpStatus, (error: unknown) => {
       setMcpStatus({ state: 'failed', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: error instanceof Error ? error.message : String(error) });
     });
+    void bridge.mcpTools().then(
+      (tools) => {
+        setMcpTools(tools);
+        setMcpToolsLoading(false);
+      },
+      (error: unknown) => {
+        setMcpToolsError(error instanceof Error ? error.message : String(error));
+        setMcpToolsLoading(false);
+      },
+    );
   }, []);
 
   const startMcp = useCallback(() => {
@@ -443,7 +461,7 @@ export function App() {
 
   useEffect(() => {
     const bridge = window.launcherBridge;
-    if (bridge === undefined || mcpStatus.state !== 'running') return undefined;
+    if (bridge === undefined || (mcpStatus.state !== 'starting' && mcpStatus.state !== 'running')) return undefined;
     const timer = window.setInterval(() => {
       void bridge.mcpStatus().then(setMcpStatus, () => undefined);
     }, 2000);
@@ -1097,6 +1115,8 @@ export function App() {
             chatModel={chatModel}
             onChatProviderChange={setChatProvider}
             onChatModelChange={setChatModel}
+            chatToolsState={mcpStatus.state}
+            onOpenChatTools={openMcp}
             hasOpenKb={activeKbTabUri !== null}
             activeRootPath={activeRootPath}
             connectionRoot={activeKnowledgeBaseRoot}
@@ -1240,7 +1260,7 @@ export function App() {
         <RuntimeModal status={snapshot} about={launcherAbout} onClose={() => setShowRuntime(false)} />
       )}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
-      {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
+      {showMcp && <McpModal status={mcpStatus} tools={mcpTools} toolsLoading={mcpToolsLoading} toolsError={mcpToolsError} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
       {composeTarget !== null && (
         <ResourceComposeModal
           session={composeTarget.session}
@@ -1289,6 +1309,8 @@ function MainPane({
   onRetryStatus,
   onOpenWorkspace,
   onNewDocument,
+  chatToolsState,
+  onOpenChatTools,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
@@ -1309,6 +1331,8 @@ function MainPane({
   onRetryStatus: () => void;
   onOpenWorkspace: () => void;
   onNewDocument: () => void;
+  chatToolsState: McpProcessStatus['state'];
+  onOpenChatTools: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string; presentation: ResourcePresentation } | null;
@@ -1325,7 +1349,7 @@ function MainPane({
 }) {
   return (
     <div className="mainwrap">
-      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} connectionRoot={connectionRoot} launcherStatusError={launcherStatusError} launcherRegistryLoaded={launcherRegistryLoaded} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onOpenServiceGroup={onOpenServiceGroup} onOpenInference={onOpenInference} onOpenTelemetry={onOpenTelemetry} onRetryStatus={onRetryStatus} onOpenWorkspace={onOpenWorkspace} onNewDocument={onNewDocument} chatProvider={chatProvider} chatModel={chatModel} onChatProviderChange={onChatProviderChange} onChatModelChange={onChatModelChange} {...body} />
+      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} connectionRoot={connectionRoot} launcherStatusError={launcherStatusError} launcherRegistryLoaded={launcherRegistryLoaded} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onOpenServiceGroup={onOpenServiceGroup} onOpenInference={onOpenInference} onOpenTelemetry={onOpenTelemetry} onRetryStatus={onRetryStatus} onOpenWorkspace={onOpenWorkspace} onNewDocument={onNewDocument} chatProvider={chatProvider} chatModel={chatModel} onChatProviderChange={onChatProviderChange} onChatModelChange={onChatModelChange} chatToolsState={chatToolsState} onOpenChatTools={onOpenChatTools} {...body} />
     </div>
   );
 }
@@ -1516,6 +1540,8 @@ function MainBody({
   onRetryStatus,
   onOpenWorkspace,
   onNewDocument,
+  chatToolsState,
+  onOpenChatTools,
   chatProvider,
   chatModel,
   onChatProviderChange,
@@ -1547,6 +1573,8 @@ function MainBody({
   onRetryStatus: () => void;
   onOpenWorkspace: () => void;
   onNewDocument: () => void;
+  chatToolsState: McpProcessStatus['state'];
+  onOpenChatTools: () => void;
   chatProvider: AgentProviderId;
   chatModel: AgentModelId;
   onChatProviderChange: (provider: AgentProviderId) => void;
@@ -1714,6 +1742,8 @@ function MainBody({
         onResourcesChanged={onResourcesChanged}
         onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name, 'chat-and-document')}
         onNewDocument={onNewDocument}
+        chatToolsState={chatToolsState}
+        onOpenChatTools={onOpenChatTools}
       />
     );
 

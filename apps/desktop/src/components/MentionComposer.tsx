@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -57,11 +58,12 @@ export const MentionComposer = forwardRef<
     docs: MentionCandidate[];
     /** Past questions for Up/Down recall, newest first (`questionHistory` of the log). */
     history: RecallEntry[];
+    disabled: boolean;
     onSubmit: (text: string, mentions: PendingReference[]) => void;
     /** Fired when the composer flips between empty and non-empty (drives Send's disabled). */
     onEmptyChange: (empty: boolean) => void;
   }
->(function MentionComposer({ session, docs, history, onSubmit, onEmptyChange }, ref) {
+>(function MentionComposer({ session, docs, history, disabled, onSubmit, onEmptyChange }, ref) {
   const editorRef = useRef<HTMLDivElement>(null);
   const emptyRef = useRef(true);
 
@@ -93,6 +95,14 @@ export const MentionComposer = forwardRef<
     setQuery('');
     atRef.current = null;
   };
+
+  useEffect(() => {
+    if (disabled) {
+      setPickerOpen(false);
+      setQuery('');
+      atRef.current = null;
+    }
+  }, [disabled]);
 
   const emitEmpty = () => {
     const text = serialize(editorRef.current).text;
@@ -252,6 +262,7 @@ export const MentionComposer = forwardRef<
   };
 
   const doSubmit = () => {
+    if (disabled) return;
     const editor = editorRef.current;
     if (editor === null) return;
     const { text, mentions } = serialize(editor);
@@ -266,6 +277,7 @@ export const MentionComposer = forwardRef<
 
   useImperativeHandle(ref, () => ({
     insertMentionTrigger: () => {
+      if (disabled) return;
       const editor = editorRef.current;
       if (editor === null) return;
       editor.focus();
@@ -276,7 +288,9 @@ export const MentionComposer = forwardRef<
       syncMention();
     },
     submit: doSubmit,
-    focus: () => editorRef.current?.focus(),
+    focus: () => {
+      if (!disabled) editorRef.current?.focus();
+    },
   }));
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -359,8 +373,9 @@ export const MentionComposer = forwardRef<
       <div
         ref={editorRef}
         className="chat__editor"
-        contentEditable
+        contentEditable={!disabled}
         role="textbox"
+        aria-disabled={disabled}
         aria-label="Message composer"
         data-placeholder="Make meaning"
         onInput={() => {

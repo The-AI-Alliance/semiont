@@ -1295,6 +1295,52 @@ button.kb-location-picker__entry:hover {
   color: var(--danger);
   overflow-wrap: anywhere;
 }
+.mcp-modal__tools {
+  min-width: 0;
+}
+.mcp-modal__tools h2 {
+  margin: 0 0 0.65rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.mcp-modal__tools > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.mcp-modal__tools code {
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+.mcp-modal__tools ul {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcp-modal__tools li {
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-sidebar);
+}
+.mcp-modal__tools li strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+.mcp-modal__tools li p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
 .mcp-modal__note {
   margin: 0.9rem 0;
   color: var(--muted);
@@ -3647,6 +3693,37 @@ body.resizing {
 .chat__composer:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.chat__composer--disabled {
+  opacity: 0.72;
+}
+.chat__composer--disabled .chat__editor {
+  cursor: not-allowed;
+}
+.chat__tools-blocked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.chat__tools-blocked button {
+  flex: none;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.chat__tools-blocked button:hover,
+.chat__tools-blocked button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
 }
 
 /* The contenteditable mention composer — chips can live inline and prompts can span lines. */

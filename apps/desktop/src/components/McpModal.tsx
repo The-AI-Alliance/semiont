@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
+import type { McpToolInfo } from '../lib/agent-bridge';
 import type { McpProcessStatus } from '../lib/launcher-bridge';
 
 export function McpModal({
   status,
+  tools,
+  toolsLoading,
+  toolsError,
   onStart,
   onStop,
   onClose,
 }: {
   status: McpProcessStatus;
+  tools: McpToolInfo[];
+  toolsLoading: boolean;
+  toolsError: string | null;
   onStart: () => void;
   onStop: () => void;
   onClose: () => void;
@@ -35,8 +42,8 @@ export function McpModal({
     <div className="modal" onClick={onClose}>
       <section className="config config--modal mcp-modal" role="dialog" aria-modal="true" aria-labelledby="mcp-title" onClick={(event) => event.stopPropagation()}>
         <header className="config__head">
-          <h1 id="mcp-title">MCP</h1>
-          <button type="button" className="config__close" onClick={onClose} aria-label="Close MCP status">
+          <h1 id="mcp-title">Chat Tools</h1>
+          <button type="button" className="config__close" onClick={onClose} aria-label="Close Chat Tools">
             ×
           </button>
         </header>
@@ -58,16 +65,34 @@ export function McpModal({
           {!running && !busy && status.state !== 'failed' && <p>Start the Desktop-managed `semiont mcp` process.</p>}
         </section>
 
+        <section className="mcp-modal__tools" aria-labelledby="mcp-tools-title">
+          <h2 id="mcp-tools-title">Available tools</h2>
+          {toolsLoading && <p>Loading tools advertised by <code>semiont mcp</code>…</p>}
+          {toolsError !== null && <p className="mcp-modal__error">Could not load tools: {toolsError}</p>}
+          {!toolsLoading && toolsError === null && tools.length === 0 && <p>No tools were advertised.</p>}
+          {tools.length > 0 && (
+            <ul>
+              {tools.map((tool) => (
+                <li key={tool.name}>
+                  <code>{tool.name}</code>
+                  {tool.title !== undefined && <strong>{tool.title}</strong>}
+                  {tool.description !== undefined && <p>{tool.description}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <p className="mcp-modal__note">
-          This MCP server uses stdio. External clients can run their own <code>semiont mcp</code> process or use the Semiont SDK.
+          The Desktop-managed <code>semiont mcp</code> process uses stdio. External clients can run their own process or use the Semiont SDK.
         </p>
 
         <footer className="mcp-modal__actions">
           {running ? (
-            <button type="button" className="mcp-modal__stop" onClick={onStop}>Stop MCP</button>
+            <button type="button" className="mcp-modal__stop" onClick={onStop}>Stop Chat Tools</button>
           ) : (
             <button type="button" onClick={onStart} disabled={busy}>
-              {status.state === 'starting' ? 'Starting…' : status.state === 'stopping' ? 'Stopping…' : 'Start MCP'}
+              {status.state === 'starting' ? 'Starting…' : status.state === 'stopping' ? 'Stopping…' : 'Start Chat Tools'}
             </button>
           )}
         </footer>

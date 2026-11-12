@@ -174,7 +174,7 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
                 <button type="button" onClick={() => choose(onOpenMcp)}>
                   <McpIcon running={mcpStatus.state === 'running'} />
                   <span className="semiont-menu__item-copy">
-                    <span>MCP</span>
+                    <span>Chat Tools</span>
                     {mcpStatus.state === 'running' && mcpStatus.pid !== null && <small>Running · PID {mcpStatus.pid}</small>}
                     {mcpStatus.state !== 'running' && <small>{mcpStatus.state === 'failed' ? 'Failed' : 'Stopped'}</small>}
                   </span>
