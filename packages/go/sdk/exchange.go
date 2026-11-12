@@ -87,7 +87,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 		made, err := http.NewRequestWithContext(attempt, spec.method, s.baseURL+spec.path, body)
 		if err != nil {
 			cancel()
-			return answered{}, s.failures.report(transportErrorWithoutResponse(fmt.Sprintf("%s %s cannot be asked: %v", spec.method, spec.path, err), TransportErrorCodeError))
+			return answered{}, s.failures.Report(transportErrorWithoutResponse(fmt.Sprintf("%s %s cannot be asked: %v", spec.method, spec.path, err), TransportErrorCodeError))
 		}
 		if spec.body != nil {
 			made.ContentLength = length
@@ -117,7 +117,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 			case ctx.Err() != nil:
 				return answered{}, ctx.Err()
 			case timedOut.Load():
-				return answered{}, s.failures.report(unanswered(spec.method, spec.path, spec.deadline))
+				return answered{}, s.failures.Report(unanswered(spec.method, spec.path, spec.deadline))
 			case !retried && repeatable:
 				retried = true
 				if !pause(ctx, s.timing.RequestRetryPause) {
@@ -125,7 +125,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 				}
 				continue
 			}
-			return answered{}, s.failures.report(transportErrorWithoutResponse(fmt.Sprintf("%s %s got no answer: %v", spec.method, spec.path, err), TransportErrorCodeUnavailable))
+			return answered{}, s.failures.Report(transportErrorWithoutResponse(fmt.Sprintf("%s %s got no answer: %v", spec.method, spec.path, err), TransportErrorCodeUnavailable))
 		}
 		if response.StatusCode >= 200 && response.StatusCode <= 299 {
 			return answered{response: response, done: func() { response.Body.Close(); cancel() }}, nil
@@ -163,7 +163,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 		if ctx.Err() != nil {
 			return answered{}, ctx.Err()
 		}
-		return answered{}, s.failures.report(refused)
+		return answered{}, s.failures.Report(refused)
 	}
 }
 
@@ -221,11 +221,11 @@ func answer[T any](ctx context.Context, s *transportShared, spec request) (T, er
 		if ctx.Err() != nil {
 			return out, ctx.Err()
 		}
-		return out, s.failures.report(unanswered(spec.method, spec.path, spec.deadline))
+		return out, s.failures.Report(unanswered(spec.method, spec.path, spec.deadline))
 	}
 	notItsBody := func(fault required.Fault) error {
 		failure := &TransportError{Code: TransportErrorCodeError, Message: fmt.Sprintf("%s %s answered what is not its declared body: %s", spec.method, spec.path, fault), status: got.response.StatusCode, hasStatus: true}
-		return s.failures.report(failure)
+		return s.failures.Report(failure)
 	}
 	body, fault, faulty := required.Read(raw, reflect.TypeFor[T]())
 	if faulty {

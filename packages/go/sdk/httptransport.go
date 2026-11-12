@@ -23,6 +23,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 )
 
 // TokenRefresher renews a token the gateway refused. It is asked once for a
@@ -77,7 +78,7 @@ type transportShared struct {
 	random   *rand.Rand
 	hub      *FrameHub
 	router   *ReplyRouter
-	failures *failureTelling
+	failures *kept.Telling[*TransportError]
 }
 
 // HTTPTransport is the Transport over HTTP. Its stream opens in the
@@ -109,7 +110,7 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		random:    config.Random,
 		hub:       NewFrameHub(),
 		router:    NewReplyRouter(),
-		failures:  &failureTelling{keptForFirst: config.Timing.ErrorsKeptForFirstReaderCount},
+		failures:  kept.NewTelling[*TransportError](config.Timing.ErrorsKeptForFirstReaderCount),
 	}
 	state := NewVariable(ConnectionStateInitial)
 	s := newStream(shared, state, config.Bookmarks)
@@ -236,7 +237,7 @@ func (t *HTTPTransport) State() Watched[ConnectionState] { return t.state.Readin
 // since the transport was made; one who comes after the transport has closed,
 // nothing.
 func (t *HTTPTransport) Failures(told func(*TransportError)) (stop func()) {
-	return t.shared.failures.listen(told)
+	return t.shared.failures.Listen(told)
 }
 
 // Close stops the transport: the state becomes closed, every sequence ends,
@@ -280,7 +281,7 @@ type emitted struct {
 func (s *transportShared) emit(ctx context.Context, body api.BusEmitRequest) (int, bool, error) {
 	encoded, err := json.Marshal(body)
 	if err != nil {
-		return 0, false, s.failures.report(transportErrorWithoutResponse(fmt.Sprintf("an emit on %s that does not serialize: %v", body.Channel, err), TransportErrorCodeError))
+		return 0, false, s.failures.Report(transportErrorWithoutResponse(fmt.Sprintf("an emit on %s that does not serialize: %v", body.Channel, err), TransportErrorCodeError))
 	}
 	key := uuid.NewString()
 	token := s.token.Value()
@@ -322,7 +323,7 @@ func (s *transportShared) emit(ctx context.Context, body api.BusEmitRequest) (in
 			}
 		}
 		if errors.As(err, &refused) {
-			s.failures.report(refused)
+			s.failures.Report(refused)
 		}
 		return 0, false, err
 	}

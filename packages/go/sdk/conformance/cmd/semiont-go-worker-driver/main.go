@@ -342,10 +342,11 @@ func (w *worker) claim(args protocol.Arguments) error {
 	}()
 	go func() {
 		defer w.reporters.Done()
-		for stall := range claims.Stalled().Changes(w.life) {
-			if stall != nil {
-				protocol.Say(map[string]string{"stalled": stall.JobId.String()})
+		for stall := range claims.Stalled() {
+			if w.life.Err() != nil {
+				return
 			}
+			protocol.Say(map[string]string{"stalled": stall.JobId.String()})
 		}
 	}()
 	return nil
