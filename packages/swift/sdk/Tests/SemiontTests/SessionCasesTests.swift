@@ -725,7 +725,8 @@ private func everythingSaid(by errors: Events<any Error>) async throws -> [Strin
   try await overAQuietSession { opened, transport in
     // Each kind in turn, before anyone reads: all kept for the first reader.
     let met = meetEachKindInTurn(opened, transport)
-    #expect(try await firstSaid(met.count, by: opened.session.errors()) == met)
+    let heard = try await firstSaid(met.count, by: opened.session.errors())
+    #expect(heard == met)
   }
 }
 
@@ -737,7 +738,8 @@ private func everythingSaid(by errors: Events<any Error>) async throws -> [Strin
     let met = meetEachKindInTurn(opened, transport)
     opened.session.dispose()
     transport.failureEvents.yield(TransportError(.unavailable, "HTTP 503 once the session ended"))
-    #expect(try await everythingSaid(by: errors) == met)
+    let heard = try await everythingSaid(by: errors)
+    #expect(heard == met)
   }
 }
 
@@ -787,7 +789,8 @@ private func everythingSaid(by errors: Events<any Error>) async throws -> [Strin
     }
     let errors = opened.session.errors()
     opened.session.dispose()
-    #expect(try await everythingSaid(by: errors) == Array(met.dropFirst(beyond)))
+    let heard = try await everythingSaid(by: errors)
+    #expect(heard == Array(met.dropFirst(beyond)))
   }
 }
 
