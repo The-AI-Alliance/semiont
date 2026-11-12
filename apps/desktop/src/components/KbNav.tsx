@@ -163,7 +163,7 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
                 <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
                 <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secret Managers</span></button>
               </MenuGroup>
-              <MenuGroup id="shared-local" label="Shared, Local Services" expanded={!collapsedGroups.has('shared-local')} onToggle={() => toggleGroup('shared-local')}>
+              <MenuGroup id="shared-local" label="Local Services" expanded={!collapsedGroups.has('shared-local')} onToggle={() => toggleGroup('shared-local')}>
                 <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('browser'))}><BrowserIcon /><span>Browser</span></button>
@@ -178,7 +178,7 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
                 </button>
                 <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
               </MenuGroup>
-              <MenuGroup id="shared-remote" label="Shared, Remote Services" expanded={!collapsedGroups.has('shared-remote')} onToggle={() => toggleGroup('shared-remote')}>
+              <MenuGroup id="shared-remote" label="Remote Services" expanded={!collapsedGroups.has('shared-remote')} onToggle={() => toggleGroup('shared-remote')}>
                 <button type="button" onClick={() => choose(() => onOpenRemoteService('inference'))}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
                 <button type="button" onClick={() => choose(() => onOpenRemoteService('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
                 <button type="button" onClick={() => choose(() => onOpenRemoteService('identity'))}><IdentityIcon /><span>Identity</span></button>

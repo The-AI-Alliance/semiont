@@ -2291,21 +2291,20 @@ button.kb-location-picker__entry:hover {
   width: 2.25rem;
   height: 2.25rem;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: var(--surface);
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
 }
 .app__chrome-controls .prefctl__btn:hover,
 .app__menu-toggle:hover,
 .app__menu-toggle:focus-visible {
-  border-color: var(--accent);
+  background: var(--hover);
   color: var(--accent);
   outline: none;
 }
 .app__menu-toggle--on {
-  border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
 }
