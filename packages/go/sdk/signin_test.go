@@ -434,6 +434,66 @@ func TestARenewalOnTheBackoffIsHandedTheTokenWhoseRenewalGotNoAnswer(t *testing.
 	}
 }
 
+// What the session's schedule does when a wait runs out: a wait for a token
+// renewed some other way since, here by a refusal, renews nothing, since the
+// token held has a wait of its own; a wait for the token held renews it, and
+// the renewal is handed that token. The race that brings a wait to run out
+// for a token since replaced is not run here: this is the step it comes to.
+func TestAWaitThatRanOutForATokenSinceReplacedRenewsNothing(t *testing.T) {
+	kept := &MemorySignIn{}
+	if err := kept.Keep(context.Background(), heldFor(1)); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var handed []string
+	token := NewVariable("")
+	wire := newWorkerWire()
+	client := NewClient(ClientConfig{Transport: wire, Timing: quickTiming()})
+	session, err := StartSession(context.Background(), SessionConfig{
+		Kb: api.KbTarget{Id: "local"}, Client: client, Token: token, Kept: kept,
+		Refresh: func(_ context.Context, renewing string) (string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			handed = append(handed, renewing)
+			return signedToken(len(handed) + 1), nil
+		},
+		Timing: quickTiming(),
+	})
+	if err != nil {
+		client.Close()
+		wire.Close()
+		t.Fatal(err)
+	}
+	defer func() {
+		client.Close()
+		session.Close()
+		wire.Close()
+	}()
+	ready, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := session.Ready(ready); err != nil {
+		t.Fatal(err)
+	}
+	if renewed, ok := session.Refresh(context.Background(), signedToken(1)); !ok || renewed != signedToken(2) {
+		t.Fatal("the refusal of the kept token was not answered by its renewal")
+	}
+
+	session.renewDue(signedToken(1))
+	mu.Lock()
+	stale := slices.Clone(handed)
+	mu.Unlock()
+	if !slices.Equal(stale, []string{signedToken(1)}) || token.Value() != signedToken(2) {
+		t.Errorf("a wait for the token the refusal renewed renewed %d times in all, want once: the refusal's", len(stale))
+	}
+
+	session.renewDue(signedToken(2))
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Equal(handed, []string{signedToken(1), signedToken(2)}) || token.Value() != signedToken(3) {
+		t.Errorf("a wait for the token held renewed %d times in all, want twice, the second handed the token that fell due", len(handed))
+	}
+}
+
 // A session opened over a kept sign-in asks the gateway who its token is,
 // once, and so knows who is signed in, unless it is told not to.
 func TestASessionFromAKeptSignInAsksWhoItsTokenIsUnlessToldNotTo(t *testing.T) {

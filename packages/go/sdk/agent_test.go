@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 )
 
 type agentWorld struct {
@@ -19,8 +21,9 @@ type agentWorld struct {
 
 	mu     sync.Mutex
 	grants int
-	asked  []string // each request the gateway was asked: its path and the Authorization it came with
-	refuse bool     // the issuer refuses every grant
+	asked  []string      // each request the gateway was asked: its path and the Authorization it came with
+	refuse bool          // the issuer refuses every grant
+	takes  time.Duration // how long the issuer takes to answer a grant
 }
 
 // agentDID is the DID the gateway names the worker's account by.
@@ -35,8 +38,9 @@ func newAgentWorld(t *testing.T) *agentWorld {
 			writeJSON(rw, http.StatusOK, map[string]any{"token_endpoint": w.issuer.URL + "/realms/semiont/token"})
 		case "/realms/semiont/token":
 			w.mu.Lock()
-			refuse := w.refuse
+			refuse, takes := w.refuse, w.takes
 			w.mu.Unlock()
+			time.Sleep(takes)
 			if refuse || r.FormValue("grant_type") != "client_credentials" || r.FormValue("client_id") != "semiont-worker" || r.FormValue("client_secret") != "s3cret" {
 				writeJSON(rw, http.StatusUnauthorized, map[string]any{"error": "invalid_client", "error_description": "s3cret is wrong"})
 				return
@@ -136,6 +140,105 @@ func TestARefusalOfATokenRenewedSinceIsAnsweredByTheNewOne(t *testing.T) {
 	if w.grants != 2 {
 		t.Errorf("a sign-in and two refusals of one token made %d grants, want 2", w.grants)
 	}
+}
+
+// Refusals of the agent's token that arrive together are answered together:
+// however many requests were refused it at once, they cost one grant, and
+// each is given the token that grant brought.
+func TestRefusalsOfAnAgentsTokenThatArriveTogetherCostOneGrant(t *testing.T) {
+	w := newAgentWorld(t)
+	agent, err := w.signIn(t, "s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer agent.Close()
+	// An issuer that takes a moment, as one does: the refusals overlap.
+	w.mu.Lock()
+	w.takes = 200 * time.Millisecond
+	w.mu.Unlock()
+	var together sync.WaitGroup
+	given := make([]string, 4)
+	for i := range given {
+		together.Add(1)
+		go func() {
+			defer together.Done()
+			given[i], _ = agent.Refresh(context.Background(), signedToken(101))
+		}()
+	}
+	together.Wait()
+	for i, token := range given {
+		if token != signedToken(102) || agent.Token().Value() != token {
+			t.Errorf("refusal %d was not given the token the one grant brought", i+1)
+		}
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.grants != 2 {
+		t.Errorf("a sign-in and four refusals of one token together made %d grants, want 2", w.grants)
+	}
+}
+
+// The agent's token falls due, and its renewal gets no answer; while it waits
+// to try again, a refusal renews the token. The renewal tried again renews
+// nothing: the token whose wait ran out is no longer the one held, and the
+// token the refusal brought has a wait of its own. On the test's own clock.
+func TestADueRenewalTriedAgainRenewsNothingOnceTheAgentsTokenIsRenewedSomeOtherWay(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var mu sync.Mutex
+		asks := 0
+		// The issuer grants the sign-in, is down when the token falls due, and
+		// grants every ask after that.
+		client := httptest.NewTestServer(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/realms/semiont/.well-known/openid-configuration":
+				writeJSON(rw, http.StatusOK, map[string]any{"token_endpoint": "http://issuer.test/realms/semiont/token"})
+			case "/realms/semiont/token":
+				mu.Lock()
+				asks++
+				n := asks
+				mu.Unlock()
+				if n == 2 {
+					rw.WriteHeader(http.StatusServiceUnavailable)
+					return
+				}
+				now := time.Now()
+				writeJSON(rw, http.StatusOK, map[string]any{"access_token": aToken(t, map[string]any{"iat": now.Unix(), "exp": now.Add(time.Hour).Unix(), "n": n}), "expires_in": 3600})
+			case "/api/users/me":
+				writeJSON(rw, http.StatusOK, map[string]any{"did": agentDID, "email": nil, "name": nil, "image": nil, "domain": "kb.example"})
+			default:
+				http.NotFound(rw, r)
+			}
+		})).Client()
+		timing := quickTiming()
+		// The renewal waits a minute or more to try again: the refusal is
+		// answered before it does.
+		timing.RefreshRetry = RetryPolicy{Attempts: 3, InitialDelay: time.Minute, MaxDelay: time.Minute}
+		service := NewServiceToken(SecretCredential{Issuer: "http://issuer.test/realms/semiont", ClientID: "semiont-worker", ClientSecret: "s3cret"}, Issuer{HTTP: client, Timing: timing})
+		agent, err := SignInAgent(context.Background(), AgentConfig{Gateway: "http://gateway.test", Service: service, HTTP: client, Timing: timing})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer agent.Close()
+		signedIn := agent.Token().Value()
+		wait, scheduled := RefreshDelay(signedIn, time.Now(), timing)
+		if !scheduled {
+			t.Fatal("the agent's token schedules no renewal")
+		}
+		time.Sleep(wait + time.Second)
+		synctest.Wait()
+		renewed, ok := agent.Refresh(context.Background(), signedIn)
+		if !ok || renewed == signedIn {
+			t.Fatal("the refusal was not answered by a new grant")
+		}
+		// Past every try the due renewal has left.
+		time.Sleep(10 * time.Minute)
+		synctest.Wait()
+		mu.Lock()
+		defer mu.Unlock()
+		if asks != 3 || agent.Token().Value() != renewed {
+			t.Errorf("the issuer was asked %d times, want 3: the sign-in, the due renewal and the refusal's; the agent holds the refusal's token: %v", asks, agent.Token().Value() == renewed)
+		}
+	})
 }
 
 // A gateway that does not name the agent fails the sign-in.
