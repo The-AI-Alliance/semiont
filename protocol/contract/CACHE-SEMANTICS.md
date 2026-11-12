@@ -444,7 +444,9 @@ holds every SDK to it, case by case.
    client has closed. Nothing may save after disposal (B16 extends to the
    persister). A write the storage refuses leaves its save owed, so the
    places stay held back: the cache's next change, or disposal's flush,
-   writes the document again. A session whose client keeps says each write its storage refuses once, on its errors stream, as `session.save-refused` ([`codes.json`](../specs/src/errors/codes.json)), when the storage refuses it: one disposal's flush meets among them, before that stream ends. Each entry's stamp is when its value was
+   writes the document again. A storage's write returns or throws: whoever
+   closes a client waits for its flush's write without limit, so a write
+   that never returns holds the close. A session whose client keeps says each write its storage refuses once, on its errors stream, as `session.save-refused` ([`codes.json`](../specs/src/errors/codes.json)), when the storage refuses it: one disposal's flush meets among them, before that stream ends. Each entry's stamp is when its value was
    received, in milliseconds since the epoch, kept while the value comes
    again unchanged
    (its JSON text the text it was kept with); a document larger than
