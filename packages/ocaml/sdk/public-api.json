@@ -127,8 +127,8 @@
     "lib/bus_registry.mli": "a43ea86d26004cdbb0f68d47a419f92da7fdaea69aff840b30d6b0d0e161a3eb",
     "lib/cache_state.ml": "b270721df6ee9432f61bfa450fb280036a1c1a1f880de8eabed84aec0fab8c5a",
     "lib/cache_state.mli": "940957912e84b57a1404ea6adceeb35efbc6ecb7cdc3bd28f5c6e98b24ecb13f",
-    "lib/claims.ml": "52ff135d1c111beeceec0ddf0895231aefaf3dbc2a9bd29cf5f3b6b7bc0e350f",
-    "lib/claims.mli": "f7bebec3f61f8b39c4cb884a49f1e5703ece2c60d2f6d87b8822411aea9bd3ea",
+    "lib/claims.ml": "64824d0eb8fed25197fd648702278bc9864969c7778e1d7ca0f90933f8a7613f",
+    "lib/claims.mli": "5b2543de444959a69e170ae6fe60efe4f543969ecceaf1da90bbd8aac9834650",
     "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
     "lib/client.mli": "6e08b6b7851820acced98ca320e6ec093455f2d0340828149b2f43e255d30e39",
     "lib/client_core.ml": "499578f209bce59f105498b0ebd8f8c10f4049e2a93f6f8c5988f8e0f644d597",
@@ -142,7 +142,7 @@
     "lib/delegation.mli": "577b0158488a8f1dd3cd5aaef32b816c4c5324a38af03289b762e63d33ae5afe",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
-    "lib/dune": "1ea7a2c3212158c41333ad8a7b049ba9e05c30c5a2d5a9245323038756262b91",
+    "lib/dune": "ae4deb1f9ddbd175bab2efa0f0a3dab965f73002a0a0ebfcc5d4885e31d34380",
     "lib/encoding_facts.ml": "8d971c2160eea6fe4fbc60d553d2479917de25ffb9e4c7be3dac16dbba78a021",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
@@ -163,6 +163,7 @@
     "lib/job.ml": "583809224cd23d98628e42793857f6877951d14ca1984bafd820aa56ec71b788",
     "lib/job_filter.ml": "d0b6bff412af0031c187c9f667c7d75cbff5d486f48c24d34d6441e4d13e4c01",
     "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
+    "lib/kept_for_first_reader.ml": "6f853f2a44415317489ea3e910cbab9aaf6df0ba1960bed261f3503332f341ae",
     "lib/kept_renewal.ml": "3c69043d8304fa35dcbe80e5322ea71bb0f39d7ee57e4d772cc789b1de36ddee",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
     "lib/live_query.ml": "7038b501e02b72ed14594aed3d0a44d1a91813ad5494367bbbc625a58f4bf4d0",
@@ -15083,7 +15084,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -17286,7 +17287,7 @@
     {
       "kind": "value",
       "path": "Semiont.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -17384,7 +17385,7 @@
     {
       "kind": "value",
       "path": "Semiont.Claims.make",
-      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
+      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
     },
     {
       "kind": "value",
@@ -17428,12 +17429,12 @@
     {
       "kind": "value",
       "path": "Semiont.Claims.refused",
-      "declaration": "val refused : t -> string option option Semiont__.State_value.t"
+      "declaration": "val refused :\n  t ->\n  on_value:(string option -> unit) -> on_close:(unit -> unit) -> unit -> unit"
     },
     {
       "kind": "value",
       "path": "Semiont.Claims.stalled",
-      "declaration": "val stalled : t -> Semiont__.Worker.held option Semiont__.State_value.t"
+      "declaration": "val stalled :\n  t ->\n  on_value:(Semiont__.Worker.held -> unit) ->\n  on_close:(unit -> unit) -> unit -> unit"
     },
     {
       "kind": "value",

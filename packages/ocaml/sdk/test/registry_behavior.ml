@@ -386,10 +386,11 @@ let controlled () =
                   (Models.decode Models.job_filter
                      {|{"jobType":"mark","params":{"motivation":"highlighting"}}|})
               in
-              let claims =
-                Client.Job.claim client
-                  ~on_stalled:(fun _ -> incr count)
-                  [ filter ]
+              let claims = Client.Job.claim client [ filter ] in
+              let _release =
+                Claims.stalled claims
+                  ~on_value:(fun _ -> incr count)
+                  ~on_close:ignore
               in
               Fiber.fork_daemon ~sw (fun () ->
                   let job = Option.get (Claims.next claims) in
@@ -840,6 +841,252 @@ let session_unit startup () =
   Client.close client;
   Client.await_closed client
 
+(* A worker's claims over the testing transport. [answer] answers each request
+   the claims make, handed the transport so it can announce the queue. *)
+let claims_over ~sw ~clock ?timeout_ms ?stall_ms ?stall_check_ms answer =
+  let transport = ref None in
+  let testing =
+    Testing.transport ~sw ~clock ~schedule:[] ~respond:(fun ~channel payload ->
+        answer (Option.get !transport) ~channel payload)
+  in
+  transport := Some testing;
+  let session =
+    Session.start ~sw ~clock ~initial_token:(Some "token")
+      ~renew:(fun ~holding:_ -> Session.Refused)
+      ()
+  in
+  let serial = ref 0 in
+  let client =
+    Client.connect ~sw ~clock ~session ~client_id:"claims"
+      ~key:(fun () ->
+        incr serial;
+        "claims-" ^ string_of_int !serial)
+      ~call:(Testing.call testing) ~global:Claims.job_claim_channels
+      ~on_event:ignore ~on_error:ignore ()
+  in
+  let filter =
+    decode Models.job_filter
+      (`Assoc
+         [
+           ("jobType", text "mark");
+           ("params", `Assoc [ ("motivation", text "highlighting") ]);
+         ])
+  in
+  ( client,
+    Client.Job.claim client ?timeout_ms ?stall_ms ?stall_check_ms [ filter ] )
+
+let queued =
+  `Assoc
+    [
+      ("jobId", text "job-queued");
+      ("jobType", text "mark");
+      ("resourceId", text "res-1");
+      ("userId", text "did:web:kb.example:users:one");
+      ("params", `Assoc [ ("motivation", text "highlighting") ]);
+    ]
+
+let mock_clock () =
+  let mono = Eio_mock.Clock.Mono.make () in
+  ( mono,
+    Clock.make ~monotonic:mono ~wall:(Eio_mock.Clock.make ())
+      ~jitter:(Random.State.make [| 1 |]) )
+
+let pass mono clock elapsed_ms =
+  Eio_mock.Clock.Mono.set_time mono
+    (Option.get
+       (Mtime.add_span (Clock.monotonic_now clock) Mtime.Span.(elapsed_ms * ms)));
+  for _ = 1 to 20 do
+    Fiber.yield ()
+  done
+
+(* client/timing.json, errorsKeptForFirstReaderCount: a claims' refusals keep
+   the latest for their first reader, the oldest dropped. *)
+let claims_refused () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono, clock = mock_clock () in
+  let kept =
+    int "errorsKeptForFirstReaderCount"
+      (Yojson.Safe.from_string Registry_cases.timing)
+  in
+  let code index =
+    if index = 0 then Some "not-found"
+    else if index = 1 then Some "peer-unavailable"
+    else if index = kept then Some "unauthorized"
+    else None
+  in
+  let said index =
+    Some (Option.fold ~none:"bus.rejected" ~some:(( ^ ) "bus.") (code index))
+  in
+  let claim_timeout_ms = 10 in
+  let all_said, said_all = Promise.create () in
+  let answered = ref 0 in
+  let client, claims =
+    claims_over ~sw ~clock ~timeout_ms:claim_timeout_ms
+      (fun transport ~channel _ ->
+        assert (channel = "job:claim");
+        let index = !answered in
+        incr answered;
+        if index > kept then (
+          Promise.resolve said_all ();
+          None)
+        else (
+          Testing.deliver transport "job:queued" queued;
+          Some
+            ( "job:claim-failed",
+              `Assoc
+                (("message", text "refused")
+                :: Option.to_list
+                     (Option.map (fun code -> ("code", text code)) (code index))
+                ) )))
+  in
+  Fiber.fork ~sw (fun () -> assert (Option.is_none (Claims.next claims)));
+  Promise.await all_said;
+  let first = ref [] and later = Eio.Stream.create max_int and ended = ref [] in
+  let _release =
+    Claims.refused claims
+      ~on_value:(fun code -> first := code :: !first)
+      ~on_close:(fun () -> ended := "first" :: !ended)
+  in
+  let _release =
+    Claims.refused claims ~on_value:(Eio.Stream.add later) ~on_close:(fun () ->
+        ended := "later" :: !ended)
+  in
+  let let_go =
+    Claims.refused claims
+      ~on_value:(fun _ -> Alcotest.fail "a reader that let go heard a refusal")
+      ~on_close:(fun () -> Alcotest.fail "a reader that let go heard the end")
+  in
+  let_go ();
+  let refused = Alcotest.(list (option string)) in
+  Alcotest.check refused
+    "the first reader hears the latest kept in order, the oldest dropped"
+    (List.init kept (fun index -> said (index + 1)))
+    (List.rev !first);
+  Alcotest.(check bool)
+    "a later reader hears nothing said before it" true
+    (Eio.Stream.is_empty later);
+  pass mono clock (2 * claim_timeout_ms);
+  let timed_out = Some "bus.timeout" in
+  Alcotest.(check (option string))
+    "a later reader hears what is said after" timed_out (Eio.Stream.take later);
+  Alcotest.check refused "the first reader hears what is said after"
+    (List.init kept (fun index -> said (index + 1)) @ [ timed_out ])
+    (List.rev !first);
+  Claims.stop claims;
+  Alcotest.(check (list string))
+    "each reader hears the end" [ "first"; "later" ] (List.sort compare !ended);
+  let told_end = ref false in
+  let _release =
+    Claims.refused claims
+      ~on_value:(fun _ ->
+        Alcotest.fail "a reader after the end heard a refusal")
+      ~on_close:(fun () -> told_end := true)
+  in
+  Alcotest.(check bool)
+    "a reader after the end hears only the end" true !told_end;
+  Client.close client
+
+let claims_stalled () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono, clock = mock_clock () in
+  let stall_ms = 10 in
+  let claimed = ref 0 in
+  let held_job id =
+    `Assoc
+      [
+        ( "response",
+          `Assoc
+            [
+              ("status", text "running");
+              ( "metadata",
+                `Assoc
+                  [
+                    ("id", text id);
+                    ("type", text "mark");
+                    ("userId", text "did:web:kb.example:users:one");
+                    ("created", text "2026-01-01T00:00:00Z");
+                    ("retryCount", `Int 0);
+                    ("maxRetries", `Int 3);
+                  ] );
+              ( "params",
+                `Assoc
+                  [
+                    ("resourceId", text "res-1");
+                    ("motivation", text "highlighting");
+                  ] );
+              ("startedAt", text "2026-01-01T00:00:01Z");
+              ("progress", `Assoc []);
+            ] );
+      ]
+  in
+  let client, claims =
+    claims_over ~sw ~clock ~stall_ms ~stall_check_ms:1 (fun _ ~channel _ ->
+        match channel with
+        | "job:claim" ->
+            incr claimed;
+            Some ("job:claimed", held_job ("job-" ^ string_of_int !claimed))
+        | _ -> None)
+  in
+  let held = Eio.Stream.create max_int in
+  Fiber.fork ~sw (fun () ->
+      let rec consume () =
+        match Claims.next claims with
+        | Some job ->
+            Eio.Stream.add held job;
+            consume ()
+        | None -> ()
+      in
+      consume ());
+  let stall () =
+    let job = Eio.Stream.take held in
+    pass mono clock (2 * stall_ms);
+    job
+  in
+  let settle job =
+    Worker.fail job ~error:"stalled" ~failure_class:None ~completed:None
+      ~cursors:None
+  in
+  settle (stall ());
+  let second = stall () in
+  let first = ref [] and later = Eio.Stream.create max_int and ended = ref [] in
+  let _release =
+    Claims.stalled claims
+      ~on_value:(fun job -> first := Worker.id job :: !first)
+      ~on_close:(fun () -> ended := "first" :: !ended)
+  in
+  let _release =
+    Claims.stalled claims
+      ~on_value:(fun job -> Eio.Stream.add later (Worker.id job))
+      ~on_close:(fun () -> ended := "later" :: !ended)
+  in
+  let jobs = Alcotest.(list string) in
+  Alcotest.check jobs "a first reader taken late hears each stall, in order"
+    [ "job-1"; "job-2" ] (List.rev !first);
+  Alcotest.(check bool)
+    "a later reader hears no stall said before it" true
+    (Eio.Stream.is_empty later);
+  settle second;
+  ignore (stall ());
+  Alcotest.(check string)
+    "a later reader hears the stall said after" "job-3" (Eio.Stream.take later);
+  Alcotest.check jobs "the first reader hears the stall said after"
+    [ "job-1"; "job-2"; "job-3" ]
+    (List.rev !first);
+  Claims.stop claims;
+  Alcotest.(check (list string))
+    "each reader hears the end" [ "first"; "later" ] (List.sort compare !ended);
+  let told_end = ref false in
+  let _release =
+    Claims.stalled claims
+      ~on_value:(fun _ -> Alcotest.fail "a reader after the end heard a stall")
+      ~on_close:(fun () -> told_end := true)
+  in
+  Alcotest.(check bool)
+    "a reader after the end hears only the end" true !told_end;
+  Client.close client
+
 let () =
   Alcotest.run "OCaml registry and discovery"
     [
@@ -860,5 +1107,12 @@ let () =
         [
           Alcotest.test_case "document and diff" `Quick discovery;
           Alcotest.test_case "shared clock" `Quick controlled;
+        ] );
+      ( "claims",
+        [
+          Alcotest.test_case "refusals kept for the first reader" `Quick
+            claims_refused;
+          Alcotest.test_case "stalls kept for the first reader" `Quick
+            claims_stalled;
         ] );
     ]

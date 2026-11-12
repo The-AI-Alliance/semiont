@@ -28,15 +28,11 @@ type t = {
   stall_ms : int;
   stall_check_ms : int;
   trace : unit -> Wire_stream.trace option;
-  on_stalled : (Worker.held -> unit) option;
   mutable last_active : Mtime.t option;
   mutable did_stall : bool;
-  refusals :
-    string option option State_value.t * string option option State_value.writer;
-  stalls :
-    Worker.held option State_value.t * Worker.held option State_value.writer;
+  refusals : string option Kept_for_first_reader.t;
+  stalls : Worker.held Kept_for_first_reader.t;
   mutable vitals : vitals;
-  on_refused : string option -> unit;
   on_cancel : Worker.held -> unit;
   mutable held : Worker.held option;
   mutable waiting : bool;
@@ -48,7 +44,7 @@ type t = {
 
 let make client ?timeout_ms ?(stall_ms = Worker.default_stall_ms)
     ?(stall_check_ms = Worker.default_stall_check_ms) ?(trace = fun () -> None)
-    ?on_stalled ?(on_refused = ignore) ?(on_cancel = ignore) filters =
+    ?(on_cancel = ignore) filters =
   let accepts =
     `List
       (List.map
@@ -63,13 +59,11 @@ let make client ?timeout_ms ?(stall_ms = Worker.default_stall_ms)
     stall_ms;
     stall_check_ms;
     trace;
-    on_stalled;
     last_active = None;
     did_stall = false;
-    refusals = State_value.make None;
-    stalls = State_value.make None;
+    refusals = Kept_for_first_reader.make ();
+    stalls = Kept_for_first_reader.make ();
     vitals = initial_vitals;
-    on_refused;
     on_cancel;
     held = None;
     waiting = false;
@@ -79,8 +73,8 @@ let make client ?timeout_ms ?(stall_ms = Worker.default_stall_ms)
     stop_now;
   }
 
-let refused t = fst t.refusals
-let stalled t = fst t.stalls
+let refused t = Kept_for_first_reader.read t.refusals
+let stalled t = Kept_for_first_reader.read t.stalls
 let vitals t = t.vitals
 let now t = Clock.wall_now (Client_core.clock t.client)
 let stopped t = Promise.is_resolved t.stopped
@@ -138,8 +132,7 @@ let listen t =
                && (not (Worker.is_settled job))
                && Mtime.Span.compare (Mtime.span now active) threshold > 0 ->
             t.did_stall <- true;
-            State_value.set ~repeat:true (snd t.stalls) (Some job);
-            Option.iter (fun notify -> notify job) t.on_stalled
+            Kept_for_first_reader.say t.stalls job
         | _ -> ());
         let next =
           Mtime.add_span now interval |> Option.value ~default:Mtime.max_stamp
@@ -221,14 +214,12 @@ let next t =
                 active_job = Some (job, claimed);
                 last_claim_at = Some claimed;
               };
-            State_value.set (snd t.stalls) None;
             Some job
         | Worker.Empty ->
             Promise.await (fst t.wake);
             claim ()
         | Worker.Refused reason ->
-            State_value.set ~repeat:true (snd t.refusals) (Some reason);
-            t.on_refused reason;
+            Kept_for_first_reader.say t.refusals reason;
             Promise.await (fst t.wake);
             claim ()
       in
@@ -255,8 +246,8 @@ let stop ?(settle = true) t =
         t.held;
     t.held <- None;
     t.vitals <- { t.vitals with active_job = None };
-    State_value.close (snd t.refusals);
-    State_value.close (snd t.stalls))
+    Kept_for_first_reader.close t.refusals;
+    Kept_for_first_reader.close t.stalls)
 
 let job_claim_channels = Worker.channels
 let job_commit_channels = Worker.commit_channels

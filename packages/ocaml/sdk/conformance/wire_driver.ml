@@ -513,8 +513,13 @@ let run mode env =
       Semiont.Client.Job.claim
         (Option.get !worker_facade)
         ?timeout_ms:!claim_timeout ?stall_ms:!stall_ms
-        ?stall_check_ms:!stall_check_ms ~trace ~on_refused ~on_cancel
-        ~on_stalled filters
+        ?stall_check_ms:!stall_check_ms ~trace ~on_cancel filters
+    in
+    let _release =
+      Semiont.Claims.refused stream ~on_value:on_refused ~on_close:ignore
+    in
+    let _release =
+      Semiont.Claims.stalled stream ~on_value:on_stalled ~on_close:ignore
     in
     claims := Some stream;
     Fiber.fork ~sw (fun () ->
