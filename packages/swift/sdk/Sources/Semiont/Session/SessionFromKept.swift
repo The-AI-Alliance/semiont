@@ -19,6 +19,32 @@ actor SessionGate {
   }
   func failed(_ error: SessionError) { session?.failed(error) }
 }
+/// A transport's failures, said on its session's errors as the transport tells each, before the
+/// telling returns. Of what it tells before the session is made, the latest
+/// `Timings.errorsKeptForFirstReaderCount` are held until it is, and said ahead of everything the
+/// session says.
+final class RelayedFailures: Sendable {
+  private struct State: Sendable {
+    /// Says a failure on the session's errors, once the session is made.
+    var say: (@Sendable (TransportError) -> Void)?
+    /// The latest the transport told before the session was made.
+    var held: [TransportError] = []
+  }
+  private let state = Mutex(State())
+  func told(_ failure: TransportError) {
+    state.withLock { state in
+      if let say = state.say { say(failure) } else { state.held.keepForFirstReader(failure) }
+    }
+  }
+  /// Says what it held on `session`'s errors, and from now on each failure as it is told.
+  func made(_ session: SemiontSession) {
+    state.withLock { state in
+      for failure in state.held { session.relay(failure) }
+      state.held.removeAll()
+      state.say = { [weak session] failure in session?.relay(failure) }
+    }
+  }
+}
 /// A session with the knowledge base `kb`, over the sign-in `kept` holds. Unless `validate` is
 /// false, it asks the gateway who its token is, and so learns the person whose caches its client
 /// keeps. Given a `storage`, its client keeps its persisted queries' answers there for the person
@@ -52,7 +78,8 @@ public func sessionFromKept(
       isTokenExpired($0.access, now: Date().timeIntervalSince1970) ? nil : $0.access
     }, channels: bridgedChannels, clock: clock, random: draws,
     refresher: { try await gate.refresh($0) })
-  let failures = transport.failures()
+  let relayed = RelayedFailures()
+  transport.failureEvents.onEach { relayed.told($0) }
   let writer = WritesWhileNamed(
     kept: kept, report: { code, what in await gate.failed(SessionError(code, what, kbId: kb.id)) })
   let persistence = storage.map {
@@ -63,7 +90,6 @@ public func sessionFromKept(
     client = try await SemiontClient(
       transport: transport, gateway: transport, persistence: persistence, clock: clock)
   } catch {
-    failures.dispose()
     transport.dispose()
     throw error
   }
@@ -89,15 +115,7 @@ public func sessionFromKept(
     },
     validate: asking, publish: { await transport.setToken($0) }, random: draws,
     onAuthFailed: onAuthFailed)
-  let id = UUID()
-  let life = session.lifetime
-  let forwarding = spawn { [weak session] in
-    defer { life.forget(id) }
-    do { for try await error in failures { session?.relay(error) } } catch {
-      if !Task.isCancelled { session?.relay(error) }
-    }
-  }
-  life.keep(forwarding, id: id)
+  relayed.made(session)
   await gate.set(session)
   await session.start()
   return OpenedSession(session: session)

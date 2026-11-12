@@ -10,7 +10,9 @@ public actor SemiontSession: StateUnit {
   public nonisolated let token = Watched<String?>(nil)
   public nonisolated let user = Watched<UserResponse?>(nil)
   nonisolated let lifetime = Lifetime()
-  /// Its one errors stream: what it says before anyone reads it is kept for the first reader.
+  /// Its one errors stream, its own errors and its transport's failures in the order they were met:
+  /// of what it says before anyone reads it, the latest `Timings.errorsKeptForFirstReaderCount`
+  /// are kept for the first reader.
   private nonisolated let failures = Broadcast<any Error>(keepingForFirst: true)
   let kept: any SignInKept
   /// Forgets the sign-in `kept` holds.

@@ -2,15 +2,19 @@ import Foundation
 import Synchronization
 
 /// Each call creates an independent unbounded queue, beginning at the call. One that keeps for its
-/// first listener gives that listener first what it was given before anyone listened.
+/// first listener gives that listener first the latest `Timings.errorsKeptForFirstReaderCount` it
+/// was given before anyone listened. An action given to `onEach` is called with each value as it
+/// is given.
 package final class Broadcast<Value: Sendable>: Sendable {
   private let keepsForFirst: Bool
   package init(keepingForFirst: Bool = false) { keepsForFirst = keepingForFirst }
   private struct State: Sendable {
     var listeners: [UUID: AsyncThrowingStream<Value, any Error>.Continuation] = [:]
+    /// What `onEach` was given, until it ends.
+    var actions: [@Sendable (Value) -> Void] = []
     var closed = false
     var listened = false
-    /// What it was given before anyone listened, kept for its first listener.
+    /// The latest it was given before anyone listened, kept for its first listener until it ends.
     var kept: [Value] = []
   }
   private let state = Mutex(State())
@@ -36,21 +40,39 @@ package final class Broadcast<Value: Sendable>: Sendable {
     return Events(stream, stop: { continuation.finish() })
   }
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
-  package func yield(_ value: Value) {
-    let listeners = state.withLock { state in
-      if keepsForFirst, !state.listened, !state.closed { state.kept.append(value) }
-      return Array(state.listeners.values)
+  /// Calls `action` with each value it is given from now until it ends, before the giving returns.
+  package func onEach(_ action: @escaping @Sendable (Value) -> Void) {
+    state.withLock { state in
+      if !state.closed { state.actions.append(action) }
     }
+  }
+  package func yield(_ value: Value) {
+    let (listeners, actions) = state.withLock { state in
+      if keepsForFirst, !state.listened, !state.closed { state.kept.keepForFirstReader(value) }
+      return (Array(state.listeners.values), state.actions)
+    }
+    for action in actions { action(value) }
     for listener in listeners { listener.yield(value) }
   }
   package func finish() {
     let listeners = state.withLock { state in
       state.closed = true
+      state.kept.removeAll()
+      state.actions.removeAll()
       let listeners = Array(state.listeners.values)
       state.listeners.removeAll()
       return listeners
     }
     for listener in listeners { listener.finish() }
+  }
+}
+
+extension Array {
+  /// Appends `value` to what is kept for a first reader, which keeps the latest
+  /// `Timings.errorsKeptForFirstReaderCount`: the oldest is dropped beyond that.
+  mutating func keepForFirstReader(_ value: Element) {
+    append(value)
+    if count > Timings.errorsKeptForFirstReaderCount { removeFirst() }
   }
 }
 

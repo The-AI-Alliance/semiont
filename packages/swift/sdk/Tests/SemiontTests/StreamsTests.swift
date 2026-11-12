@@ -18,6 +18,24 @@ import Testing
   var late = source.listen().makeAsyncIterator()
   #expect(try await late.next() == nil)
 }
+private final class Said: Sendable {}
+@Test func endingLetsGoOfWhatWasKeptForAFirstListenerWhoNeverCame() async throws {
+  let source = Broadcast<Said>(keepingForFirst: true)
+  weak var probe: Said?
+  do {
+    let said = Said()
+    probe = said
+    source.yield(said)
+  }
+  let keptBeforeTheEnd = probe != nil
+  #expect(keptBeforeTheEnd)
+  source.finish()
+  let keptAfterTheEnd = probe != nil
+  #expect(!keptAfterTheEnd)
+  var late = source.listen().makeAsyncIterator()
+  let lateHearsOnlyTheEnd = try await late.next() == nil
+  #expect(lateHearsOnlyTheEnd)
+}
 @Test func eventsRefuseASecondConsumerAndDisposeFinishes() async throws {
   let source = Broadcast<Int>()
   let events = source.listen()
@@ -55,4 +73,15 @@ import Testing
   let first = disabled.remember("e-a")
   let second = disabled.remember("e-a")
   #expect(first && second)
+}
+@Test func theFirstListenerIsGivenTheLatestGivenBeforeAnyoneListenedInOrder() async throws {
+  let source = Broadcast<Int>(keepingForFirst: true)
+  let beyond = 5
+  let given = Array(0..<(Timings.errorsKeptForFirstReaderCount + beyond))
+  for n in given { source.yield(n) }
+  let first = source.listen()
+  source.finish()
+  var heard: [Int] = []
+  for try await value in first { heard.append(value) }
+  #expect(heard == Array(given.dropFirst(beyond)))
 }
