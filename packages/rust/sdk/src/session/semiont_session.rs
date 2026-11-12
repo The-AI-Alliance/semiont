@@ -167,8 +167,10 @@ struct Shared {
     random: Option<Arc<Mutex<dyn Rng + Send>>>,
     tasks: Tasks,
     closed: AtomicBool,
-    /// Held while a refusal is being answered, so that the refusals that
-    /// arrive during it are answered by it.
+    /// Held while a refusal is being answered, and while a token whose wait
+    /// ran out is renewed: the refusals that arrive during either are
+    /// answered by it, and a wait that runs out during either finds the token
+    /// it was for replaced.
     answering: tokio::sync::Mutex<()>,
 }
 
@@ -222,10 +224,10 @@ impl SemiontSession {
         let renewing = shared.clone();
         shared
             .tasks
-            .spawn(renew_when_due(shared.token.read(), move || {
+            .spawn(renew_when_due(shared.token.read(), move |due| {
                 let shared = renewing.clone();
                 async move {
-                    shared.renew().await;
+                    shared.fell_due(due).await;
                 }
             }));
 
@@ -413,22 +415,28 @@ impl Shared {
         locked(&self.errors).take();
     }
 
-    /// The token a renewal renews, which it is handed: the one the session
-    /// holds, expired or not; while it holds none, the one found stored at
-    /// its start, or the one the renewal that left it none was for. None
-    /// only when it has held none (protocol/specs/src/session/cases.json).
-    fn renewing(&self) -> Option<String> {
-        self.token
-            .now()
-            .or_else(|| locked(&self.renewed_for).clone())
+    /// The token a renewal of `holding` is handed, which is remembered:
+    /// `holding`, the token the session was found holding, expired or not;
+    /// while it holds none, the one found stored at its start, or the one the
+    /// renewal that left it none was for. None only when it has held none
+    /// (protocol/specs/src/session/cases.json). The token is not read again
+    /// here: one another renewal wrote since `holding` was read is not this
+    /// renewal's to renew.
+    fn renewing(&self, holding: Option<String>) -> Option<String> {
+        let mut renewed_for = locked(&self.renewed_for);
+        if holding.is_some() {
+            *renewed_for = holding;
+        }
+        renewed_for.clone()
     }
 
-    /// Ask `refresh`, handing it the token it renews, with a failure to ask
-    /// read as there being no token: a renewal that could not be made and
-    /// one that was refused both leave the session without one. The reason
-    /// is kept for whoever reads why.
+    /// Ask `refresh` to renew `holding`, the token the session was found
+    /// holding, with a failure to ask read as there being no token: a
+    /// renewal that could not be made and one that was refused both leave
+    /// the session without one. The reason is kept for whoever reads why.
     async fn try_refresh(
         &self,
+        holding: Option<String>,
     ) -> (
         Option<String>,
         Option<Arc<dyn std::error::Error + Send + Sync>>,
@@ -436,21 +444,32 @@ impl Shared {
         let Some(refresh) = &self.refresh else {
             return (None, None);
         };
-        let renewing = self.renewing();
-        locked(&self.renewed_for).clone_from(&renewing);
-        match refresh(renewing).await {
+        match refresh(self.renewing(holding)).await {
             Ok(token) => (token, None),
             Err(failure) => (None, Some(failure)),
         }
     }
 
-    /// Renew the token at the issuer, with nobody asked afterwards: what
-    /// the session does on its own schedule, where no refusal came first.
-    async fn renew(&self) -> Option<String> {
+    /// The wait for `due` ran out: renew it on the session's schedule, while
+    /// it is still the token the session holds. A token renewed some other
+    /// way meanwhile has a wait of its own, and this renews nothing. A
+    /// refusal being answered as the wait runs out is waited for, so the
+    /// token it renews is renewed once.
+    async fn fell_due(&self, due: String) {
+        let _answering = self.answering.lock().await;
+        if self.token.now().as_deref() == Some(due.as_str()) {
+            self.renew(Some(due)).await;
+        }
+    }
+
+    /// Renew `holding`, the token the session was found holding, at the
+    /// issuer, with nobody asked afterwards: what the session does on its
+    /// own schedule, where no refusal came first.
+    async fn renew(&self, holding: Option<String>) -> Option<String> {
         if self.closed() || self.refresh.is_none() {
             return None;
         }
-        let (renewed, failure) = self.try_refresh().await;
+        let (renewed, failure) = self.try_refresh(holding).await;
         if self.closed() {
             return None;
         }
@@ -503,7 +522,7 @@ impl Shared {
                     if self.user.now().is_none() {
                         self.refused(None).await;
                     } else {
-                        self.renew().await;
+                        self.renew(None).await;
                     }
                 }
                 step = (step * 2).min(MAX_RECONNECT);
@@ -545,17 +564,18 @@ impl Shared {
     /// refuses nothing: the renewed token is given. A session of a service,
     /// which has nobody to ask about, only renews.
     ///
-    /// One refusal is answered at a time, so however many requests were
-    /// refused at once, they cost one renewal and one ask. A refusal of a
-    /// token the session no longer holds was answered already: the token it
-    /// holds is given.
+    /// One refusal is answered at a time, and none while a token whose wait
+    /// ran out is renewed, so however many requests were refused at once,
+    /// they cost one renewal and one ask. A refusal of a token the session
+    /// no longer holds was answered already: the token it holds is given.
+    /// The renewal is handed the token checked here, never one read later.
     async fn refused(&self, refused: Option<&str>) -> Option<String> {
         let _answering = self.answering.lock().await;
         let held = self.token.now();
         if held.as_deref() != refused {
             return held;
         }
-        let renewed = self.renew().await?;
+        let renewed = self.renew(held).await?;
         let Some(validate) = &self.validate else {
             return Some(renewed);
         };
@@ -669,7 +689,7 @@ impl Shared {
         let Some(held) = held else { return };
         let expired = is_token_expired(&held.access, SystemTime::now());
         let mut token = if expired {
-            match self.try_refresh().await {
+            match self.try_refresh(Some(held.access.clone())).await {
                 (Some(renewed), _) => renewed,
                 (None, Some(failure)) if !refused(failure.as_ref()) => {
                     // The issuer did not refuse it: the credential is kept,
@@ -740,7 +760,7 @@ impl Shared {
                         just_issued = true;
                         continue;
                     }
-                    let (renewed, failure) = self.try_refresh().await;
+                    let (renewed, failure) = self.try_refresh(current).await;
                     if self.closed() {
                         return;
                     }

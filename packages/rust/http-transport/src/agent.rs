@@ -8,7 +8,9 @@
 //! It is a transport's token source, as a person's stored sign-in is: it
 //! gives the current token and each one after it, renews the token by the
 //! schedule every Semiont client keeps (`semiont::session`), and renews it at
-//! once when the gateway refuses it (`TokenRefresher`).
+//! once when the gateway refuses it (`TokenRefresher`). It renews one token
+//! once: whatever asks for the renewal of a token while it is being renewed
+//! is given the token that renewal makes.
 //!
 //! It is not a session. A person whose token cannot be renewed is signed
 //! out, and signs in again. An agent whose renewal fails keeps the token it
@@ -86,6 +88,10 @@ pub struct AgentToken {
     service: ServiceToken,
     did: UserId,
     token: watch::Sender<Option<String>>,
+    /// Held while a token is renewed, from the check of the token held to
+    /// the write of the one renewed: a renewal asked for meanwhile waits,
+    /// and finds the token it names replaced.
+    renewing: tokio::sync::Mutex<()>,
     random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
@@ -110,6 +116,7 @@ impl AgentToken {
             service,
             did,
             token: watch::channel(Some(token)).0,
+            renewing: tokio::sync::Mutex::new(()),
             random,
         });
         tokio::spawn(keep_renewed(Arc::downgrade(&agent), agent.token()));
@@ -133,15 +140,25 @@ impl AgentToken {
         self.token.subscribe()
     }
 
-    /// Ask the issuer for another, and make it the token.
-    async fn renew(&self) -> Result<String, AgentSignInError> {
+    /// Renew `holding`, the token the caller names, while it is still the
+    /// token held: ask the issuer for another, and make it the token. A
+    /// renewal under way is waited for, and a caller that names a token it
+    /// replaced is given the token held, with the issuer not asked. So the
+    /// refusals of one token, and its wait running out on the schedule, cost
+    /// one grant however they overlap.
+    async fn renew(&self, holding: Option<&str>) -> Result<Option<String>, AgentSignInError> {
+        let _renewing = self.renewing.lock().await;
+        let held = self.token.borrow().clone();
+        if held.as_deref() != holding {
+            return Ok(held);
+        }
         let token = self
             .service
             .token(true)
             .await
             .map_err(AgentSignInError::SignIn)?;
         self.token.send_replace(Some(token.clone()));
-        Ok(token)
+        Ok(Some(token))
     }
 }
 
@@ -179,26 +196,23 @@ async fn named(
     Ok(user.did)
 }
 
-/// A token the agent no longer holds was renewed already: the one it holds is
-/// given, and the issuer is not asked.
+/// A token the agent no longer holds was renewed already, and one being
+/// renewed is renewed once: the token the renewal makes is given, and the
+/// issuer is not asked again (`AgentToken::renew`).
 impl TokenRefresher for AgentToken {
     fn refresh<'a>(&'a self, refused: Option<&'a str>) -> BoxFuture<'a, Option<String>> {
-        Box::pin(async move {
-            let held = self.token.borrow().clone();
-            if held.as_deref() != refused {
-                return held;
-            }
-            self.renew().await.ok()
-        })
+        Box::pin(async move { self.renew(refused).await.ok().flatten() })
     }
 }
 
-/// Renew the token whenever it is due, for as long as it is held. A renewal
-/// that fails is tried again inside the renewal budget when the failure is
-/// transient (`retry::REFRESH`); spent or refused, the token is left as it is
-/// and the next one is due an interval later, by the schedule's floor.
+/// Renew the token whenever it is due, for as long as it is held: the token
+/// whose wait ran out, while it is still the one held (`AgentToken::renew`).
+/// A renewal that fails is tried again inside the renewal budget when the
+/// failure is transient (`retry::REFRESH`); spent or refused, the token is
+/// left as it is and the next one is due an interval later, by the
+/// schedule's floor.
 async fn keep_renewed(agent: Weak<AgentToken>, token: watch::Receiver<Option<String>>) {
-    renew_when_due(token, move || {
+    renew_when_due(token, move |due| {
         let agent = agent.clone();
         async move {
             let Some(agent) = agent.upgrade() else {
@@ -207,7 +221,7 @@ async fn keep_renewed(agent: Weak<AgentToken>, token: watch::Receiver<Option<Str
             let _ = retry_with_backoff(
                 REFRESH_RETRY,
                 agent.random.as_deref(),
-                || agent.renew(),
+                || agent.renew(Some(due.as_str())),
                 worth_another,
                 |_| None,
             )

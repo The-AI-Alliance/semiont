@@ -103,36 +103,36 @@ pub fn renewal_delay(lifetime: Duration, remaining: Duration) -> Duration {
 }
 
 /// Renew a token whenever it is due, for as long as somebody holds it: wait
-/// what `refresh_delay` says of the token as it is, and call `renew`. The
-/// wait is counted from each token as it arrives, so one renewed some other
-/// way starts a wait of its own, and a renewal that changed nothing is due
-/// again a floor later. A token that names no expiry schedules nothing: it
-/// is renewed when whoever it is shown to refuses it.
+/// what `refresh_delay` says of the token as it is, and call `renew` with
+/// that token. A wait is for the token it was counted from, and `renew`
+/// renews that token only while it is still the one held: one renewed some
+/// other way meanwhile replaces the wait with a wait of its own, so a wait
+/// that ran out for a token since replaced renews nothing. A renewal that
+/// changed nothing is due again a floor later. A token that names no expiry
+/// schedules nothing: it is renewed when whoever it is shown to refuses it.
 pub async fn renew_when_due<Fut: Future<Output = ()>>(
     mut token: watch::Receiver<Option<String>>,
-    mut renew: impl FnMut() -> Fut,
+    mut renew: impl FnMut(String) -> Fut,
 ) {
     loop {
-        let due = token
+        let waiting = token
             .borrow_and_update()
-            .as_deref()
-            .and_then(|token| refresh_delay(token, SystemTime::now()));
-        match due {
-            Some(due) => {
-                tokio::select! {
-                    () = tokio::time::sleep(due) => {}
-                    changed = token.changed() => match changed {
-                        Ok(()) => continue,
-                        Err(_) => return,
-                    },
-                }
+            .clone()
+            .and_then(|held| Some((refresh_delay(&held, SystemTime::now())?, held)));
+        let Some((wait, due)) = waiting else {
+            match token.changed().await {
+                Ok(()) => continue,
+                Err(_) => return,
             }
-            None => match token.changed().await {
+        };
+        tokio::select! {
+            () = tokio::time::sleep(wait) => {}
+            changed = token.changed() => match changed {
                 Ok(()) => continue,
                 Err(_) => return,
             },
         }
-        renew().await;
+        renew(due).await;
     }
 }
 
