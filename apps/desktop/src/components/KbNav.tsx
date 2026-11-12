@@ -83,7 +83,9 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
   useEffect(() => {
     if (!open) return;
     const dismiss = (event: MouseEvent) => {
-      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) onOpenChange(false);
+      if (!(event.target instanceof Node) || menuRef.current?.contains(event.target)) return;
+      if (event.target instanceof Element && event.target.closest('.app__chrome-controls') !== null) return;
+      onOpenChange(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onOpenChange(false);
