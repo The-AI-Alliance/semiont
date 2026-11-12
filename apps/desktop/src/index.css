@@ -2660,38 +2660,6 @@ body.resizing {
   background: var(--hover);
 }
 
-.kb__head {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.kb__name {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.kb__branch {
-  flex: none;
-  font-family: ui-monospace, monospace;
-  font-size: 0.66rem;
-  font-weight: 400;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  background: var(--field);
-  border: 1px solid var(--border);
-  color: var(--muted);
-}
-
 .kb__icon {
   flex: none;
   display: flex;

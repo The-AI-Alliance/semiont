@@ -47,14 +47,6 @@ export interface KbNavProps {
   onOpenDispatcherMessaging: () => void;
 }
 
-function hostOf(uri: string): string {
-  try {
-    return new URL(uri).host;
-  } catch {
-    return uri;
-  }
-}
-
 export function KbNav(props: KbNavProps) {
   const { kbs } = props;
 
@@ -178,17 +170,8 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
   const [docsOpen, setDocsOpen] = useState(true);
   const [sessionsOpen, setSessionsOpen] = useState(true);
 
-  const displayName = kb.alias || (connected && conn?.description?.name) || hostOf(kb.uri);
-
   return (
     <div className="kb">
-      <div className="kb__head">
-        <span className="kb__name" title={kb.uri}>
-          {displayName}
-          {connected && conn?.description?.gitBranch && <span className="kb__branch">{conn.description.gitBranch}</span>}
-        </span>
-      </div>
-
       {connected && conn?.opened && (
         <div className="kb__section-group">
           <div className="kb__section-head">
