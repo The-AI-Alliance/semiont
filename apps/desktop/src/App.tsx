@@ -1741,7 +1741,7 @@ function MainBody({
         setEntries={setActiveEntries}
         onResourcesChanged={onResourcesChanged}
         onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name, 'chat-and-document')}
-        onOpenInResourceViewer={(id, name) => onOpenResource(activeSession.kbUri, id, name, 'document-only')}
+        onOpenInResourceViewer={(id, name) => onOpenResource(activeSession.kbUri, id, name, 'chat-and-document')}
         onNewDocument={onNewDocument}
         chatToolsState={chatToolsState}
         onOpenChatTools={onOpenChatTools}
