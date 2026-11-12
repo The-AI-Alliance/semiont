@@ -51,7 +51,7 @@ export function AnswerView({
           <MessageView
             session={session}
             resourceId={String(turn.questionId)}
-            content={turn.question}
+            content={turn.question ?? ''}
             prefs={prefs}
             markableEntityTypes={markableEntityTypes}
             delegatedEntityTypes={turn.questionMarkedEntityTypes ?? []}
@@ -61,11 +61,11 @@ export function AnswerView({
         </div>
       ) : (
         // Not a resource yet (turn still running) or a legacy pre-viewer turn: plain text.
-        <p className="turn__q">{turn.question}</p>
+        <p className="turn__q">{turn.question ?? ''}</p>
       )}
 
       {turn.status === 'running' && (
-        <PhaseIndicator phase={turn.phase === 'yielding' ? 'yielding' : 'gathering'} startedAt={turn.phaseStartedAt} />
+        <PhaseIndicator phase={turn.phase ?? 'gathering'} startedAt={turn.phaseStartedAt} />
       )}
 
       {turn.status === 'error' && (

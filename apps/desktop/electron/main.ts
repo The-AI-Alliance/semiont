@@ -9,6 +9,9 @@ import { parseAppManifest } from '../src/lib/app-manifest';
 import { parseKbUri, parseUserConfig } from '../src/lib/user-config';
 import type { McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
+import type { AgentHistoryMessage } from '../src/lib/agent-bridge';
+import { isAgentModelId, isAgentProviderId } from '../src/lib/agent-bridge';
+import { runLocalAgentTurn } from './agent-runtime';
 import { registerAuthHandlers } from './auth';
 import { ControlClient } from './control-client';
 import { registerControlHandlers } from './control-ipc';
@@ -299,6 +302,78 @@ async function ollamaInfo(): Promise<OllamaInfo> {
 }
 
 handleTrustedIpc('system:ollama-info', () => ollamaInfo());
+
+function validatedAgentToolCalls(value: unknown): AgentHistoryMessage['toolCalls'] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const calls = value.flatMap((item: unknown) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const call = item as Record<string, unknown>;
+    const args = call['arguments'];
+    if (
+      typeof call['name'] !== 'string' || typeof args !== 'object' || args === null || Array.isArray(args)
+    ) return [];
+    return [{ name: call['name'], arguments: args as Record<string, unknown> }];
+  });
+  return calls;
+}
+
+handleTrustedIpc('agent:complete', async (_event, input: unknown) => {
+  const request = typeof input === 'object' && input !== null ? input as Record<string, unknown> : null;
+  if (
+    request === null ||
+    !isAgentProviderId(request['provider']) ||
+    !isAgentModelId(request['model']) ||
+    typeof request['kbDid'] !== 'string' ||
+    !Array.isArray(request['messages'])
+  ) {
+    throw new Error('Invalid Semiont agent request');
+  }
+  if (request['messages'].length > 80) throw new Error('Chat context is too long for one request');
+  const messages: AgentHistoryMessage[] = request['messages'].flatMap((item: unknown) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const message = item as Record<string, unknown>;
+    if (!['user', 'assistant', 'tool'].includes(String(message['role'])) || typeof message['content'] !== 'string') return [];
+    if (message['content'].length > 40_000) throw new Error('A chat message exceeds the Desktop limit');
+    const toolCalls = validatedAgentToolCalls(message['toolCalls']);
+    return [{
+      role: message['role'] as AgentHistoryMessage['role'],
+      content: message['content'],
+      ...(typeof message['toolName'] === 'string' ? { toolName: message['toolName'] } : {}),
+      ...(toolCalls !== undefined ? { toolCalls } : {}),
+    }];
+  });
+  if (messages.length !== request['messages'].length || messages.at(-1)?.role !== 'user') {
+    throw new Error('Invalid Semiont agent conversation messages');
+  }
+  const info = await ollamaInfo();
+  if (info.endpoint === null) throw new Error('Ollama is not reachable. Start Ollama and try again.');
+  if (!info.models.some((model) => model.name === request['model'])) {
+    throw new Error(`Ollama is reachable, but ${request['model']} is not installed. Pull it with \`ollama pull ${request['model']}\`.`);
+  }
+  return runLocalAgentTurn({
+    endpoint: info.endpoint,
+    launcherPath: launcherPath(),
+    env: launcherEnvironment(),
+    cwd: app.getPath('home'),
+    kbDid: request['kbDid'],
+    model: request['model'],
+    messages,
+    confirmDestructiveTool: async (toolName, args) => {
+      if (mainWindow === null || mainWindow.isDestroyed()) return false;
+      const confirmation = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Confirm Semiont action',
+        message: `Allow “${toolName}” to make this change?`,
+        detail: JSON.stringify(args, null, 2).slice(0, 1800),
+        buttons: ['Cancel', 'Allow once'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+      return confirmation.response === 1;
+    },
+  });
+});
 
 handleTrustedIpc('system:git-path', async () => {
   const pathValue = launcherEnvironment().PATH ?? '';

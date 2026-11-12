@@ -5,7 +5,8 @@ import { PrefMenu } from './PrefMenu';
 /**
  * The app-global viewer preferences (UNIFY/toolbar split): what clicking an annotation does,
  * and what selecting text creates in annotate mode. One bundle — values + setters — threaded
- * from App to every mounted viewer (controlled props) and to the footer controls below.
+ * from App to every mounted viewer (controlled props) and to the interaction controls beside
+ * the composer or in the standalone document toolbar.
  * Mode is deliberately NOT here: it's per-message (the pencil in each bubble/pane).
  */
 export interface ViewerPrefs {
@@ -31,22 +32,24 @@ const MOTIVATION_OPTIONS: Array<{ value: SelectionMotivation; icon: ReactNode; l
 ];
 
 /**
- * Two quiet icon controls for the chat footer (left of the Settings gear): click action and
- * selection motivation. Each shows the current value's icon and opens a small upward radio
- * popover. Global by construction — App owns the state and passes it to every viewer.
+ * Two quiet icon controls for document interaction: click action and selection motivation.
+ * App owns the state and passes it to every viewer, so controls can move with the active surface.
  */
-export function ViewerPrefControls({ prefs }: { prefs: ViewerPrefs }) {
+export function ViewerPrefControls({ prefs, placement = 'up' }: { prefs: ViewerPrefs; placement?: 'up' | 'down' }) {
+  const placementClass = placement === 'down' ? 'prefctl--down' : undefined;
   return (
     <>
       <PrefMenu
         ariaLabel="Annotation click action"
         buttonIcon={<PointerGlyph />}
+        {...(placementClass !== undefined ? { className: placementClass } : {})}
         options={CLICK_OPTIONS}
         value={prefs.clickAction}
         onChange={prefs.onClickActionChange}
       />
       <PrefMenu
         ariaLabel="Selection motivation"
+        {...(placementClass !== undefined ? { className: placementClass } : {})}
         options={MOTIVATION_OPTIONS}
         value={prefs.motivation ?? 'linking'}
         onChange={prefs.onMotivationChange}

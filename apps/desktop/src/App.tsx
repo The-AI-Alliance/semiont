@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { ClickAction, SelectionMotivation } from '@semiont/react-ui';
+import type { ResourceId } from '@semiont/core';
 import type { OpenedSession, SessionEndReason } from '@semiont/sdk';
 import { appTitle, appVersion, appCommit, appBuildDate } from 'virtual:app-config';
 import { connect, signOut, type ChatSession, type KbConnection } from './lib/session';
@@ -40,8 +41,8 @@ import { RuntimeModal } from './components/RuntimeModal';
 import type { GitCheck } from './components/GitStatusSection';
 import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { McpModal } from './components/McpModal';
-import { AppFooter } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
+import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_PROVIDER, type AgentModelId, type AgentProviderId } from './lib/agent-bridge';
 import { ResourceComposeModal } from './components/ResourceComposeModal';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
@@ -198,6 +199,8 @@ export function App() {
   // One live connection per connected KB (its own token-refreshing SemiontSession).
   const [connections, setConnections] = useState<Record<string, KbConnection>>({});
   const [sessions, setSessions] = useState<AppChatSession[]>([]);
+  const [chatProvider, setChatProvider] = useState<AgentProviderId>(DEFAULT_AGENT_PROVIDER);
+  const [chatModel, setChatModel] = useState<AgentModelId>(DEFAULT_AGENT_MODEL);
   const [openKbTabUris, setOpenKbTabUris] = useState<string[]>([]);
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
   const activeRootPath = activeKbTabUri === null ? null : localRootPathFromTabId(activeKbTabUri);
@@ -925,6 +928,11 @@ export function App() {
       prev.map((s) => (s.id === activeSessionId ? { ...s, entries: updater(s.entries), updatedAt: Date.now() } : s)),
     );
   };
+  const setActiveCurrentMessageId = (id: ResourceId) => {
+    setSessions((prev) => prev.map((session) => session.id === activeSessionId
+      ? { ...session, currentMessageId: id, updatedAt: Date.now() }
+      : session));
+  };
 
   // --- Open a document in the main pane (beside the chat when there's room) ---
   // Rendered natively via @semiont/react-ui's bring-your-own-session ResourceViewer, so this
@@ -1064,6 +1072,8 @@ export function App() {
               setShowKnowledgeBaseUsers(true);
               refreshKnowledgeBases();
             }}
+            queueRootPath={activeLocalRootPath}
+            onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeLocalRootPath)}
           />
           {showWorkspaceNav && (
             <div
@@ -1078,6 +1088,10 @@ export function App() {
           )}
           <MainPane
             viewerPrefs={viewerPrefs}
+            chatProvider={chatProvider}
+            chatModel={chatModel}
+            onChatProviderChange={setChatProvider}
+            onChatModelChange={setChatModel}
             hasOpenKb={activeKbTabUri !== null}
             activeRootPath={activeRootPath}
             connectionRoot={activeKnowledgeBaseRoot}
@@ -1088,7 +1102,6 @@ export function App() {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
             }}
-            onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeLocalRootPath)}
             onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
             onOpenInference={openInference}
             onOpenTelemetry={openTelemetry}
@@ -1097,7 +1110,6 @@ export function App() {
               else refreshKnowledgeBaseStatus(activeKnowledgeBaseRoot.path);
             }}
             onOpenWorkspace={() => activeKnowledgeBaseRoot !== null && openKnowledgeBaseTab(activeKnowledgeBaseRoot)}
-            queueRootPath={activeLocalRootPath}
             activeSession={activeSession}
             onNewDocument={() => activeSession && openNewDocument(activeSession.kbUri)}
             conn={activeConn}
@@ -1108,6 +1120,7 @@ export function App() {
             onCloseResource={closeActiveResource}
             onOpenResource={openResource}
             setActiveEntries={setActiveEntries}
+            setActiveCurrentMessageId={setActiveCurrentMessageId}
             onResourcesChanged={() => setDocsRefresh((n) => n + 1)}
             onConnect={() => activeKbUri && void connectKb(activeKbUri, true)}
           />
@@ -1212,6 +1225,10 @@ export function App() {
  *  the footer (KB status and viewer preference controls) persists across ALL of them. */
 function MainPane({
   viewerPrefs,
+  chatProvider,
+  chatModel,
+  onChatProviderChange,
+  onChatModelChange,
   hasOpenKb,
   activeRootPath,
   connectionRoot,
@@ -1224,12 +1241,14 @@ function MainPane({
   onOpenTelemetry,
   onRetryStatus,
   onOpenWorkspace,
-  onOpenDispatcherMessaging,
-  queueRootPath,
   onNewDocument,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
+  chatProvider: AgentProviderId;
+  chatModel: AgentModelId;
+  onChatProviderChange: (provider: AgentProviderId) => void;
+  onChatModelChange: (model: AgentModelId) => void;
   hasOpenKb: boolean;
   activeRootPath: string | null;
   connectionRoot: KnowledgeBaseRow | null;
@@ -1242,8 +1261,6 @@ function MainPane({
   onOpenTelemetry: () => void;
   onRetryStatus: () => void;
   onOpenWorkspace: () => void;
-  onOpenDispatcherMessaging: () => void;
-  queueRootPath: string | null;
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
@@ -1255,13 +1272,13 @@ function MainPane({
   onCloseResource: () => void;
   onOpenResource: (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => void;
   setActiveEntries: (updater: (prev: LogEntry[]) => LogEntry[]) => void;
+  setActiveCurrentMessageId: (id: ResourceId) => void;
   onResourcesChanged: () => void;
   onConnect: () => void;
 }) {
   return (
     <div className="mainwrap">
-      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} connectionRoot={connectionRoot} launcherStatusError={launcherStatusError} launcherRegistryLoaded={launcherRegistryLoaded} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onOpenServiceGroup={onOpenServiceGroup} onOpenInference={onOpenInference} onOpenTelemetry={onOpenTelemetry} onRetryStatus={onRetryStatus} onOpenWorkspace={onOpenWorkspace} onNewDocument={onNewDocument} {...body} />
-      <AppFooter prefs={viewerPrefs} activeRootPath={queueRootPath} onOpenDispatcherMessaging={onOpenDispatcherMessaging} />
+      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} connectionRoot={connectionRoot} launcherStatusError={launcherStatusError} launcherRegistryLoaded={launcherRegistryLoaded} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onOpenServiceGroup={onOpenServiceGroup} onOpenInference={onOpenInference} onOpenTelemetry={onOpenTelemetry} onRetryStatus={onRetryStatus} onOpenWorkspace={onOpenWorkspace} onNewDocument={onNewDocument} chatProvider={chatProvider} chatModel={chatModel} onChatProviderChange={onChatProviderChange} onChatModelChange={onChatModelChange} {...body} />
     </div>
   );
 }
@@ -1452,6 +1469,10 @@ function MainBody({
   onRetryStatus,
   onOpenWorkspace,
   onNewDocument,
+  chatProvider,
+  chatModel,
+  onChatProviderChange,
+  onChatModelChange,
   activeSession,
   conn,
   activeResource,
@@ -1461,6 +1482,7 @@ function MainBody({
   onCloseResource,
   onOpenResource,
   setActiveEntries,
+  setActiveCurrentMessageId,
   onResourcesChanged,
   onConnect,
 }: {
@@ -1478,6 +1500,10 @@ function MainBody({
   onRetryStatus: () => void;
   onOpenWorkspace: () => void;
   onNewDocument: () => void;
+  chatProvider: AgentProviderId;
+  chatModel: AgentModelId;
+  onChatProviderChange: (provider: AgentProviderId) => void;
+  onChatModelChange: (model: AgentModelId) => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string; presentation: ResourcePresentation } | null;
@@ -1487,6 +1513,7 @@ function MainBody({
   onCloseResource: () => void;
   onOpenResource: (kbUri: string, id: string, name: string, presentation: ResourcePresentation) => void;
   setActiveEntries: (updater: (prev: LogEntry[]) => LogEntry[]) => void;
+  setActiveCurrentMessageId: (id: ResourceId) => void;
   onResourcesChanged: () => void;
   onConnect: () => void;
 }) {
@@ -1558,6 +1585,7 @@ function MainBody({
         key={activeResource.id}
         session={resourceSession}
         prefs={viewerPrefs}
+        showInteractionControls={layout === 'doc'}
         resourceId={activeResource.id}
         name={activeResource.name}
         onClose={onCloseResource}
@@ -1624,6 +1652,14 @@ function MainBody({
       <ChatPane
         key={activeSession.id}
         session={conn.opened.session}
+        provider={chatProvider}
+        model={chatModel}
+        onProviderChange={onChatProviderChange}
+        onModelChange={onChatModelChange}
+        sessionId={activeSession.id}
+        kbDid={`did:web:${conn.description?.domain ?? ''}`}
+        {...(activeSession.currentMessageId !== undefined ? { currentMessageId: activeSession.currentMessageId } : {})}
+        setCurrentMessageId={setActiveCurrentMessageId}
         prefs={viewerPrefs}
         entries={activeSession.entries}
         setEntries={setActiveEntries}

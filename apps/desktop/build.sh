@@ -93,6 +93,11 @@ assemble_sources() {
   # Snapshot source, including uncommitted files, without sharing dependency or build
   # directories with other commands running in the checkout.
   git -C "$REPO_ROOT" ls-files --cached --others --exclude-standard -z |
+    while IFS= read -r -d '' source_path; do
+      # `--cached` also lists tracked files deleted in the working tree. The
+      # build snapshot should mirror the working tree and omit those paths.
+      [[ -e "$REPO_ROOT/$source_path" || -L "$REPO_ROOT/$source_path" ]] && printf '%s\0' "$source_path"
+    done |
     COPYFILE_DISABLE=1 tar -c -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" --null -T -
   if [[ -x "$LAUNCHER_BIN" ]]; then
     COPYFILE_DISABLE=1 tar -r -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" apps/desktop/.build/launcher/semiont

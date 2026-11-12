@@ -33,8 +33,8 @@ export interface MentionComposerHandle {
  * mentions; serialization walks the editor emitting text (chips as their `@Name` token,
  * which the send path anchors annotations on) plus the `{name, resourceId}` list.
  *
- * Single-line semantics like the old input: Enter submits (Shift+Enter swallowed), Esc
- * closes the picker leaving the literal `@`, paste is forced to plain text.
+ * Enter submits and Shift+Enter inserts a line break; Esc closes the picker leaving the
+ * literal `@`, and paste is forced to plain text.
  *
  * Up/Down are readline-style question recall (the vertical arrows are free in a
  * single-line box, and sent questions are immutable resources — so terminal history, not
@@ -290,7 +290,7 @@ export const MentionComposer = forwardRef<
         setActive((i) => Math.max(i - 1, 0));
         return;
       }
-      if (event.key === 'Enter') {
+      if (event.key === 'Enter' && !event.shiftKey) {
         const pick = candidates[activeIndex];
         if (pick) {
           event.preventDefault();
@@ -304,9 +304,16 @@ export const MentionComposer = forwardRef<
         return;
       }
     }
+    if (event.key === 'Enter' && event.shiftKey) {
+      event.preventDefault();
+      document.execCommand('insertText', false, '\n');
+      syncMention();
+      emitEmpty();
+      return;
+    }
     if (event.key === 'Enter') {
-      event.preventDefault(); // single-line: Enter submits, Shift+Enter does nothing
-      if (!event.shiftKey) doSubmit();
+      event.preventDefault();
+      doSubmit();
       return;
     }
     // Readline recall — only when the picker isn't consuming the arrows.
