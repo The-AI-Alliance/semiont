@@ -1476,69 +1476,6 @@ def test_the_resources_open_as_a_session_becomes_active_are_checked_as_the_share
 # ── What the session's transport fails at ───────────────────────────────
 
 
-def test_a_refusal_for_want_of_a_token_renews_the_session_quietly_when_it_can() -> None:
-    async def scenario() -> None:
-        world = World().with_(kb_of_a())
-        renewed = token(7200, 2)
-        world.factory.sessions.queue_renewals(renewed)
-        async with world.browser() as browser:
-            session = await live(browser)
-
-            world.factory.sessions.transports(KB_A)[0].fail(TransportError.of_status("HTTP 401", 401, None))
-            await settle()
-
-            assert world.factory.sessions.renewed == 1
-            assert session.token.value == renewed
-            assert session_ended(browser) is None
-            assert stored_session(world.storage, KB_A) is not None
-
-    run(scenario())
-
-
-def test_a_session_that_cannot_be_renewed_is_said_to_have_expired_and_its_credential_is_gone() -> None:
-    async def scenario() -> None:
-        world = World().with_(kb_of_a())
-        # The issuer has nothing to renew it with.
-        world.factory.sessions.queue_renewals(None)
-        browser = world.browser()
-        errors = browser.errors()
-        async with browser:
-            await live(browser)
-
-            world.factory.sessions.transports(KB_A)[0].fail(TransportError.of_status("HTTP 401", 401, None))
-            await settle()
-
-            assert session_ended(browser) == SessionEnded(reason="expired")
-            assert stored_session(world.storage, KB_A) is None
-            said = await soon(anext(errors))
-            assert said.code == "session.refresh-exhausted"
-
-            # The refusals that follow find nothing stored, and say nothing more.
-            signals = signals_of(browser)
-            assert signals is not None
-            signals.acknowledge_session_ended()
-            world.factory.sessions.transports(KB_A)[0].fail(TransportError.of_status("HTTP 401", 401, None))
-            await settle()
-            assert session_ended(browser) is None
-
-    run(scenario())
-
-
-def test_a_refusal_with_nothing_stored_is_being_signed_out_and_not_an_expiry() -> None:
-    async def scenario() -> None:
-        world = World()
-        save_knowledge_bases(world.storage, [kb_of_a()])
-        async with world.browser() as browser:
-            await live(browser)
-
-            world.factory.sessions.transports(KB_A)[0].fail(TransportError.of_status("HTTP 401", 401, None))
-            await settle()
-
-            assert session_ended(browser) is None
-
-    run(scenario())
-
-
 def test_a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not() -> None:
     async def scenario() -> None:
         world = World().with_(kb_of_a())

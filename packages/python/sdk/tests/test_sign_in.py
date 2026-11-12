@@ -2018,3 +2018,37 @@ def test_a_write_the_storage_still_refuses_after_the_closing_flush_is_said_on_th
             assert refusals_said(said) == storage.refusals
 
     run(scenario())
+
+
+def test_a_save_still_waiting_as_its_session_closes_is_tried_once_by_the_close_and_its_refusal_said_once() -> None:
+    async def scenario() -> None:
+        kept_types = cache_key("kb", ALICE_KEY, "entityTypes")
+        storage = Refusing(kept_types, times=None)
+
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+
+            def answering(emit: JsonObject) -> None:
+                if emit["channel"] == "browse:entity-types-requested":
+                    answer: JsonObject = {"response": {"entityTypes": ["Person", "Place"]}}
+                    gateway.send(None, {"channel": "browse:entity-types-result", "payload": answer, "correlationId": emit["correlationId"]})
+
+            gateway.on_emit = answering
+            kept = MemorySignIn(held(gateway, access(1)))
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage, channels=BRIDGED_CHANNELS) as session:
+                heard = Heard(session.errors())
+                client = session.client
+                await soon(reached(client.transport.state, lambda state: state == "open"))
+                assert await soon(client.browse.entity_types().fresh()) == ["Person", "Place"]
+                # Held, and not yet written: its save waits, so the close's flush is the first to write it.
+                assert storage.refusals == 0
+                assert not client.persistence_settled
+
+            # The close tried the write once, and its refusal is said once before the errors end.
+            assert storage.refusals == 1
+            said = await heard.ended()
+            assert [error.code for error in said] == ["session.save-refused"]
+            assert refusals_said(said) == 1
+
+    run(scenario())

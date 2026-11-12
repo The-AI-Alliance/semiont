@@ -25,6 +25,7 @@ __all__ = [
     "DISCOVERY_INTERVAL_MS",
     "EMIT_RETRY",
     "EMIT_TIMEOUT_MS",
+    "ERRORS_KEPT_FOR_FIRST_READER_COUNT",
     "GENERATED_TEXT_ASKS_COUNT",
     "GENERATION_STALL_ASSUMED_TOKENS_COUNT",
     "GENERATION_STALL_FLOOR_MS",
@@ -197,6 +198,14 @@ SAVE_DEBOUNCE_MS: Final = 50
 # keep is a few megabytes, and the cache shares it with everything else the origin keeps.
 MAX_STORED_BYTES_COUNT: Final = 2097152
 
+# How many of the errors a session says, its own and its transport's failures, it keeps for the
+# first reader of its errors while none has come. One more drops the oldest kept, so the first
+# reader hears the latest this many, in the order they were met. A registry reads a session as
+# soon as it is handed back, so it hears everything the opening said, which is a handful; the
+# bound is for a session nobody reads, which would otherwise keep every failure it meets until
+# it ends.
+ERRORS_KEPT_FOR_FIRST_READER_COUNT: Final = 100
+
 # How long a job a client is following may say nothing before the client asks for its status. A
 # job's progress and its end reach the client as passing frames, which a dropped stream loses
 # and nothing redelivers; `job:status-requested` is how a follower learns what it missed. Every
@@ -317,6 +326,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "invalidationWindowMs",
     "saveDebounceMs",
     "maxStoredBytesCount",
+    "errorsKeptForFirstReaderCount",
     "jobSilenceMs",
     "jobStatusPollMs",
     "jobPollMs",

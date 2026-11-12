@@ -20,10 +20,10 @@ from tokens import expired, jwt, token
 
 from semiont.errors import BusRequestError, SemiontError, SessionError, SignInError, TransportError
 from semiont.events import Broadcast, Events
-from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate, said_in_full
+from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
-from semiont.timing import MAX_RECONNECT_MS, RECONNECT_MS
+from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT, MAX_RECONNECT_MS, RECONNECT_MS
 from semiont.types import HttpEndpoint, KbTarget, UserResponse
 from semiont.watched import Variable
 
@@ -313,6 +313,105 @@ def test_what_a_session_says_is_on_its_one_errors_stream_beside_its_transports_f
         # Each once, and the stream ended with the session, which its client outlives.
         assert await world.said_in_all() == [("session.auth-failed", "nobody answered"), ("unavailable", "the gateway went away")]
         assert not session.client.bus.destroyed
+
+    run(scenario())
+
+
+def say_each_in_turn(session: SemiontSession[FaultyTransport], keeping: Broadcast[SessionError]) -> list[tuple[str, str]]:
+    """Say an own error and a transport failure, twice over, with no turn of the loop between: what was said, in order."""
+    said: list[SessionError | TransportError] = [
+        SessionError("session.keep-failed", "the sign-in could not be read", kb_id=KB),
+        TransportError("unavailable", "the gateway cannot be reached"),
+        SessionError("session.save-refused", "the storage refused a write", kb_id=KB),
+        unauthorized(),
+    ]
+    for each in said:
+        if isinstance(each, SessionError):
+            keeping.deliver(each)
+        else:
+            session.client.transport.fail(each)
+    return [(each.code, each.message) for each in said]
+
+
+def test_a_sessions_own_errors_and_its_transports_failures_are_said_in_the_order_they_were_met() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+
+    async def scenario() -> None:
+        session = world.session(refresh=world.refresh, validate=world.validate, said=keeping.listen())
+        async with session:
+            await soon(session.ready())
+            in_turn = say_each_in_turn(session, keeping)
+            assert await world.said() == in_turn
+        assert await world.said_in_all() == in_turn
+
+    run(scenario())
+
+
+def test_what_a_session_and_its_transport_said_in_turn_just_before_it_ended_is_said_in_that_order_before_its_errors_end() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+
+    async def scenario() -> None:
+        session = world.session(refresh=world.refresh, validate=world.validate, said=keeping.listen())
+        async with session:
+            await soon(session.ready())
+            # Nothing is read, and the session has no turn of the loop, before it ends.
+            in_turn = say_each_in_turn(session, keeping)
+        assert await world.said_in_all() == in_turn
+
+    run(scenario())
+
+
+def test_the_first_reader_of_a_session_nobody_has_read_is_given_the_latest_it_said_in_the_order_met_and_no_more() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+    beyond = 3
+    said: list[SessionError | TransportError] = [
+        SessionError("session.save-refused", f"write {serial} refused", kb_id=KB)
+        if serial % 2 == 0
+        else TransportError("unavailable", f"request {serial} unanswered")
+        for serial in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
+    ]
+
+    async def scenario() -> None:
+        # Not the world's: it reads the session's errors as soon as it is made.
+        session = SemiontSession(
+            kb=TARGET,
+            client=create_test_client().client,
+            token=world.token,
+            kept=world.kept,
+            refresh=world.refresh,
+            validate=world.validate,
+            said=keeping.listen(),
+        )
+        async with session:
+            await soon(session.ready())
+            for each in said:
+                if isinstance(each, SessionError):
+                    keeping.deliver(each)
+                else:
+                    session.client.transport.fail(each)
+            errors = session.errors()
+        assert [(error.code, error.message) async for error in errors] == [(each.code, each.message) for each in said[beyond:]]
+
+    run(scenario())
+
+
+def test_a_failure_its_transport_met_as_the_gateway_was_asked_who_its_token_is_is_said_before_what_the_session_says_of_it() -> None:
+    world = World(kept=token(3600, 1))
+    gone = TransportError("unavailable", "the gateway cannot be reached")
+
+    async def scenario() -> None:
+        async def unreachable(asked: str) -> UserResponse:
+            # As a request over the wire fails: the transport meets the failure, and then the ask raises it.
+            session.client.transport.fail(gone)
+            raise gone
+
+        session = world.session(refresh=world.refresh, validate=unreachable)
+        async with session:
+            await soon(session.ready())
+        assert await world.said_in_all() == [("unavailable", gone.message), ("session.auth-failed", gone.message)]
 
     run(scenario())
 
@@ -828,7 +927,7 @@ def test_a_session_ended_with_its_client_open_ends_its_errors_then_and_says_noth
     run(soon(scenario()))
 
 
-def test_what_a_session_was_given_to_say_is_said_in_full_once_it_has_ended_and_the_session_was_waited_for() -> None:
+def test_what_a_session_was_given_to_say_before_it_ended_is_said_before_its_errors_end_though_it_had_no_turn_to_say_it() -> None:
     world = World(kept=token(3600, 1))
     keeping = Broadcast[SessionError]()
 
@@ -836,11 +935,23 @@ def test_what_a_session_was_given_to_say_is_said_in_full_once_it_has_ended_and_t
         session = world.session(refresh=world.refresh, validate=world.validate, said=keeping.listen())
         async with session:
             await soon(session.ready())
-            # Said, and ended, with no turn of the loop for the session to say it before it ends: waiting for it is what has it said.
+            # Said with no turn of the loop before the session ends: it is said as it is met.
             keeping.deliver(SessionError("session.save-refused", "the storage refused a write", kb_id=KB))
-            keeping.close()
-            await soon(said_in_full(session))
         assert await world.said_in_all() == [("session.save-refused", "the storage refused a write")]
+
+    run(scenario())
+
+
+def test_a_failure_its_transport_said_just_before_a_session_ended_is_said_before_its_errors_end() -> None:
+    world = World(kept=token(3600, 1))
+
+    async def scenario() -> None:
+        session = world.its_session()
+        async with session:
+            await soon(session.ready())
+            # Said with no turn of the loop before the session ends: it is said as it is met.
+            session.client.transport.fail(TransportError("unavailable", "the gateway cannot be reached"))
+        assert await world.said_in_all() == [("unavailable", "the gateway cannot be reached")]
 
     run(scenario())
 

@@ -57,7 +57,7 @@ from semiont.oauth_clients import BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID
 from semiont.operations import BROWSE_KB_REQUESTED
 from semiont.registry import SemiontBrowser, SessionFactory, SessionFactoryOptions, SignedIn, SignInOutcome, kept_in
 from semiont.resume import CoupledBookmarks
-from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate, said_in_full
+from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate
 from semiont.storage import SessionStorage
 from semiont.stored import StoredSession, last_event_id_key, person_key
 from semiont.types import HttpEndpoint, KbDescription, KbTarget, LocalEndpoint, UserResponse
@@ -138,8 +138,9 @@ class _WhileNamed(SessionStorage):
     as it happens. A write the storage refuses is still owed, and so is every
     write after it (`owes_a_refused_write`): they are made, in order, when
     another write is owed, or at `close`, and what `close` cannot make is
-    lost. `refused` is told of each refusal, as it happens. What is owed
-    reads as written.
+    lost. From `hold` on, nothing is made until `close`, which makes what is
+    owed then once: so a client's closing flush is tried once. `refused` is
+    told of each refusal, as it happens. What is owed reads as written.
     """
 
     def __init__(
@@ -161,6 +162,8 @@ class _WhileNamed(SessionStorage):
         self._refused = False
         """Whether the storage refused the first write still owed."""
         self._owing: Final = asyncio.Event()
+        self._holding = False
+        """Whether what is owed waits for `close`: from `hold` on."""
         self._closing = False
         self._dropped = False
         self._writer: Final = asyncio.get_running_loop().create_task(self._write())
@@ -197,15 +200,21 @@ class _WhileNamed(SessionStorage):
         self._owed.clear()
         self._owing.set()
 
+    def hold(self) -> None:
+        """Make nothing until `close`: what is owed by then, and what the client's close owes among it, is made by `close`, once."""
+        self._holding = True
+
     def _owe(self, key: str, value: str | None) -> None:
         if not self._dropped:
             self._owed.append((key, value))
             self._owing.set()
 
     async def _write(self) -> None:
-        """Make what is owed whenever something is, until closing, `stop`, or the sign-in no longer names the person or cannot be read.
+        """Make what is owed whenever something is, until `hold`, and then what is owed at closing, once.
 
-        However it ends, what is owed is dropped and nothing is written again.
+        It ends at closing, at `stop`, or once the sign-in no longer names the
+        person or cannot be read. However it ends, what is owed is dropped and
+        nothing is written again.
         """
         try:
             while True:
@@ -221,7 +230,8 @@ class _WhileNamed(SessionStorage):
                     # as this SDK's holders do, no forgetting falls between its answer and the writes.
                     if self._dropped or held is None or held.person_key != self._person:
                         return
-                    self._make()
+                    if self._closing or not self._holding:
+                        self._make()
                 if self._closing:
                     return
         finally:
@@ -354,6 +364,11 @@ class _Keeping:
         failed.__cause__ = cause
         self._saying.deliver(failed)
 
+    def hold(self) -> None:
+        """The client is about to close: what it owes from now on is written by `close` alone, once."""
+        if self._beneath is not None:
+            self._beneath.hold()
+
     async def close(self) -> None:
         """Make what the client still owes once it has closed, as every write is made: only while the sign-in names its person.
 
@@ -401,8 +416,9 @@ async def session_from_kept(
     client first, then what it still owes is written, then the session ends,
     and its errors with it, and then the transport closes. A token the
     gateway refuses is renewed through the session, so the transport and the
-    session never hold different ones. What the session said as it started,
-    before it was handed over, is given to the first reader of its `errors`.
+    session never hold different ones. The first reader of its `errors` is
+    given the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said before it came,
+    what the session said as it started, before it was handed over, among them.
 
     With nothing kept, the session is signed out: its `token` is none, and a
     request made through its client is refused. `validate` is whether the
@@ -469,12 +485,11 @@ async def _session_started(
     """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself.
 
     On the way out its client closes first, and what it still owes then is
-    made as every write is, only while `kept` names the person, so what
+    made once, as every write is, only while `kept` names the person, so what
     forgetting the sign-in deleted stays deleted. Then what the client keeps
-    says no more, and the session is waited for until it has said all of it.
-    Only then does the session end, and its errors with it, so whatever that
-    flush met is said on them before they end. Then its transport closes, and
-    what that meets is said nowhere.
+    says no more, and the session ends, and its errors with it, once it has
+    said what it was told: so whatever that flush met is said on them before
+    they end. Then its transport closes, and what that meets is said nowhere.
     """
     base_url = _gateway_of(kb)
     # Read before anything is built: the client begins with what was kept for the person the sign-in names.
@@ -502,16 +517,17 @@ async def _session_started(
         on_auth_failed=on_auth_failed,
         said=None if keeping is None else keeping.said,
     )
-    # Entered transport, client, session; left client, the flush, the wait for the session to say what the flush
-    # met, the session, the transport, then the renewal.
+    # Entered transport, client, session; left the client, with what it owes held for the flush, then the flush, the
+    # session, the transport, and the renewal.
     async with AsyncExitStack() as ending:
         ending.push_async_callback(renewing.close)
         await ending.enter_async_context(transport)
         async with AsyncExitStack() as closing:
             if keeping is not None:
-                closing.push_async_callback(said_in_full, session)
                 closing.push_async_callback(keeping.close)
             await closing.enter_async_context(client)
+            if keeping is not None:
+                closing.callback(keeping.hold)
             await ending.enter_async_context(session)
             yield session
 
