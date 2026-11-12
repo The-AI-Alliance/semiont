@@ -40,6 +40,12 @@ export interface AgentTurnResult {
   events: AgentToolEvent[];
 }
 
+export interface McpToolInfo {
+  name: string;
+  title?: string;
+  description?: string;
+}
+
 export interface AgentBridge {
   complete(input: {
     provider: AgentProviderId;

@@ -20,6 +20,7 @@ export function AnswerView({
   onDelegated,
   onQuestionDelegated,
   onOpenResource,
+  onOpenInResourceViewer,
 }: {
   turn: Turn;
   /** The connected session — feeds both message viewers. */
@@ -34,6 +35,8 @@ export function AnswerView({
   onQuestionDelegated: (turn: Turn, entityTypes: string[]) => void;
   /** A reference opens its target in the main pane; bound to this KB by the caller. */
   onOpenResource: (id: string, name: string) => void;
+  /** Open the message resource in the full resource viewer area. */
+  onOpenInResourceViewer: (id: string, name: string) => void;
 }) {
   // A referentially-stable open handler so the memo'd MessageViews don't re-render when the
   // parent passes a fresh closure.
@@ -57,6 +60,7 @@ export function AnswerView({
             delegatedEntityTypes={turn.questionMarkedEntityTypes ?? []}
             onDelegated={(entityTypes) => onQuestionDelegated(turn, entityTypes)}
             onOpenResource={openResource}
+            onOpenInResourceViewer={onOpenInResourceViewer}
           />
         </div>
       ) : (
@@ -87,6 +91,7 @@ export function AnswerView({
               delegatedEntityTypes={turn.markedEntityTypes ?? []}
               onDelegated={(entityTypes) => onDelegated(turn, entityTypes)}
               onOpenResource={openResource}
+              onOpenInResourceViewer={onOpenInResourceViewer}
             />
           </div>
         ) : (

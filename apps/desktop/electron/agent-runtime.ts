@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import type { AgentHistoryMessage, AgentModelId, AgentToolEvent, AgentTurnResult } from '../src/lib/agent-bridge';
+import type { AgentHistoryMessage, AgentModelId, AgentToolEvent, AgentTurnResult, McpToolInfo } from '../src/lib/agent-bridge';
 
 const MCP_VERSION = '2025-03-26';
 const MAX_TOOL_ROUNDS = 6;
@@ -67,7 +67,7 @@ function extractJsonRpcMessages(buffer: string): { lines: string[]; rest: string
   return { lines: parts.slice(0, -1), rest: parts.at(-1) ?? '' };
 }
 
-class McpStdioClient {
+export class McpStdioClient {
   private readonly child: ChildProcessWithoutNullStreams;
   private output = '';
   private nextId = 1;
@@ -77,17 +77,45 @@ class McpStdioClient {
     timer: ReturnType<typeof setTimeout>;
   }>();
   private closed = false;
+  private failure: string | null = null;
+  private finishClose: () => void = () => {};
+  private readonly closePromise = new Promise<void>((resolve) => { this.finishClose = resolve; });
 
   constructor(executable: string, env: NodeJS.ProcessEnv, cwd: string) {
     this.child = spawn(executable, ['mcp'], { cwd, env, stdio: 'pipe', windowsHide: true });
     this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data', (chunk: string) => this.onData(chunk));
     this.child.stderr.on('data', () => {}); // drain diagnostics without copying them into app logs
-    this.child.once('error', (error) => this.failAll(error));
+    this.child.once('error', (error) => {
+      this.closed = true;
+      this.failure = error.message;
+      this.failAll(error);
+      this.finishClose();
+    });
     this.child.once('close', (code, signal) => {
       this.closed = true;
+      if (code !== 0 || signal !== null) {
+        this.failure ??= `semiont mcp exited${code === null ? '' : ` with code ${code}`}${signal === null ? '' : ` (${signal})`}`;
+      }
       this.failAll(new Error(`semiont mcp exited${code === null ? '' : ` with code ${code}`}${signal === null ? '' : ` (${signal})`}`));
+      this.finishClose();
     });
+  }
+
+  get pid(): number | null {
+    return this.child.pid ?? null;
+  }
+
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  get error(): string | null {
+    return this.failure;
+  }
+
+  waitForClose(): Promise<void> {
+    return this.closePromise;
   }
 
   async initialize(): Promise<void> {
@@ -120,6 +148,10 @@ class McpStdioClient {
     const timer = setTimeout(() => this.child.kill('SIGKILL'), 1500);
     this.child.once('close', () => clearTimeout(timer));
     this.failAll(new Error('semiont mcp client closed'));
+  }
+
+  kill(signal: NodeJS.Signals): void {
+    this.child.kill(signal);
   }
 
   private notify(method: string, params: Record<string, unknown>): void {
@@ -172,6 +204,20 @@ class McpStdioClient {
       pending.reject(error);
     }
   }
+}
+
+export async function listSemiontMcpTools(client: McpStdioClient): Promise<McpToolInfo[]> {
+  const result = asRecord(await client.request('tools/list', {}));
+  if (!Array.isArray(result?.['tools'])) throw new Error('semiont mcp did not return a tools list');
+  return result['tools'].flatMap((value: unknown) => {
+    const tool = asRecord(value);
+    if (tool === null || typeof tool['name'] !== 'string') return [];
+    return [{
+      name: tool['name'],
+      ...(typeof tool['title'] === 'string' ? { title: tool['title'] } : {}),
+      ...(typeof tool['description'] === 'string' ? { description: tool['description'] } : {}),
+    }];
+  });
 }
 
 function mcpResultText(value: unknown): string {
@@ -280,67 +326,60 @@ async function findKbKey(client: McpStdioClient, did: string): Promise<string> {
 }
 
 export async function runLocalAgentTurn(input: {
+  mcp: McpStdioClient;
   endpoint: string;
-  launcherPath: string;
-  env: NodeJS.ProcessEnv;
-  cwd: string;
   kbDid: string;
   model: AgentModelId;
   messages: AgentHistoryMessage[];
   confirmDestructiveTool: (toolName: string, args: Record<string, unknown>) => Promise<boolean>;
 }): Promise<AgentTurnResult> {
-  const mcp = new McpStdioClient(input.launcherPath, input.env, input.cwd);
-  try {
-    await mcp.initialize();
-    const kbKey = await findKbKey(mcp, input.kbDid);
-    const tools = runtimeTools(await mcp.request('tools/list', {}));
-    if (tools.length === 0) throw new Error('semiont mcp did not advertise any tools for Desktop.');
+  const mcp = input.mcp;
+  const kbKey = await findKbKey(mcp, input.kbDid);
+  const tools = runtimeTools(await mcp.request('tools/list', {}));
+  if (tools.length === 0) throw new Error('semiont mcp did not advertise any tools for Desktop.');
 
-    const messages: RuntimeMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...input.messages.map((message): RuntimeMessage => ({
-        role: message.role,
-        content: message.content,
-        ...(message.toolName !== undefined ? { tool_name: message.toolName } : {}),
-        ...(message.toolCalls !== undefined ? {
-          tool_calls: message.toolCalls.map((call) => ({ function: call })),
-        } : {}),
-      })),
-    ];
-    const events: AgentToolEvent[] = [];
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
-      const answer = await ollamaChat(input.endpoint, input.model, messages, tools);
-      const calls = toolCalls(answer);
-      if (calls.length === 0) return { answer: answer.content as string, events };
-      if (round === MAX_TOOL_ROUNDS) throw new Error('Semiont agent reached the tool-call limit for this turn.');
-      const assistant: RuntimeMessage = {
-        role: 'assistant',
-        content: answer.content as string,
-        tool_calls: calls.map((call) => ({ function: call })),
-      };
-      messages.push(assistant);
-      events.push({ kind: 'tool-call', name: calls.map((call) => call.name).join(', '), payload: JSON.stringify(assistant) });
-      for (const call of calls) {
-        const tool = tools.find((candidate) => candidate.name === call.name);
-        if (tool === undefined) throw new Error(`Ollama requested unavailable tool ${call.name}`);
-        const args = scopedToolArguments(call.arguments, kbKey);
-        if (tool.destructive && !(await input.confirmDestructiveTool(tool.name, args))) {
-          const content = 'The user declined this action. No tool call was made.';
-          events.push({ kind: 'tool-result', name: call.name, payload: content });
-          messages.push({ role: 'tool', tool_name: call.name, content });
-          continue;
-        }
-        const result = await mcp.request('tools/call', {
-          name: call.name,
-          arguments: args,
-        });
-        const content = mcpResultText(result);
+  const messages: RuntimeMessage[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...input.messages.map((message): RuntimeMessage => ({
+      role: message.role,
+      content: message.content,
+      ...(message.toolName !== undefined ? { tool_name: message.toolName } : {}),
+      ...(message.toolCalls !== undefined ? {
+        tool_calls: message.toolCalls.map((call) => ({ function: call })),
+      } : {}),
+    })),
+  ];
+  const events: AgentToolEvent[] = [];
+  for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+    const answer = await ollamaChat(input.endpoint, input.model, messages, tools);
+    const calls = toolCalls(answer);
+    if (calls.length === 0) return { answer: answer.content as string, events };
+    if (round === MAX_TOOL_ROUNDS) throw new Error('Semiont agent reached the tool-call limit for this turn.');
+    const assistant: RuntimeMessage = {
+      role: 'assistant',
+      content: answer.content as string,
+      tool_calls: calls.map((call) => ({ function: call })),
+    };
+    messages.push(assistant);
+    events.push({ kind: 'tool-call', name: calls.map((call) => call.name).join(', '), payload: JSON.stringify(assistant) });
+    for (const call of calls) {
+      const tool = tools.find((candidate) => candidate.name === call.name);
+      if (tool === undefined) throw new Error(`Ollama requested unavailable tool ${call.name}`);
+      const args = scopedToolArguments(call.arguments, kbKey);
+      if (tool.destructive && !(await input.confirmDestructiveTool(tool.name, args))) {
+        const content = 'The user declined this action. No tool call was made.';
         events.push({ kind: 'tool-result', name: call.name, payload: content });
         messages.push({ role: 'tool', tool_name: call.name, content });
+        continue;
       }
+      const result = await mcp.request('tools/call', {
+        name: call.name,
+        arguments: args,
+      });
+      const content = mcpResultText(result);
+      events.push({ kind: 'tool-result', name: call.name, payload: content });
+      messages.push({ role: 'tool', tool_name: call.name, content });
     }
-    throw new Error('Semiont agent stopped without a final response.');
-  } finally {
-    mcp.close();
   }
+  throw new Error('Semiont agent stopped without a final response.');
 }

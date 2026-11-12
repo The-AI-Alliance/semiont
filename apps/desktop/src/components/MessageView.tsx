@@ -52,6 +52,8 @@ interface MessageProps {
   onDelegated?: (entityTypes: string[]) => void;
   /** A reference clicked in the message — open the referent in the main pane. */
   onOpenResource: (id: string, name: string) => void;
+  /** Open this message's resource in the full resource viewer, as if selected in the nav. */
+  onOpenInResourceViewer: (id: string, name: string) => void;
 }
 
 /**
@@ -111,6 +113,7 @@ function LoadedMessage({
   delegatedEntityTypes,
   onDelegated,
   onOpenResource,
+  onOpenInResourceViewer,
   rid,
   resource,
   annotations,
@@ -306,10 +309,19 @@ function LoadedMessage({
           className={`msg__pencil${annotate ? ' msg__pencil--on' : ''}`}
           onClick={() => setAnnotate((v) => !v)}
           aria-pressed={annotate}
-          aria-label={annotate ? 'Stop annotating this message' : 'Annotate this message'}
-          title={annotate ? 'Stop annotating this message' : 'Annotate this message'}
+          aria-label={annotate ? 'Stop annotating this message inline' : 'Annotate this message inline'}
+          title={annotate ? 'Stop annotating this message inline' : 'Annotate this message inline'}
         >
           <PencilGlyph />
+        </button>
+        <button
+          type="button"
+          className="msg__open-resource"
+          onClick={() => onOpenInResourceViewer(String(rid), resource.name ?? String(rid))}
+          aria-label="Open resource in viewer"
+          title="Open resource in viewer"
+        >
+          <OpenResourceGlyph />
         </button>
       </div>
       {detail !== null && (
@@ -391,6 +403,25 @@ function PencilGlyph() {
     >
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
+function OpenResourceGlyph() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 17 17 7" />
+      <path d="M7 7h10v10" />
     </svg>
   );
 }

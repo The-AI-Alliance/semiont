@@ -6,6 +6,7 @@ import type {
   ControlMethods,
 } from '../../electron/control-types.gen';
 import type { OllamaInfo } from './ollama-info';
+import type { McpToolInfo } from './agent-bridge';
 
 /** A control request's params as a caller gives them: every member but `apiVersion`, which
  *  Desktop's control client states. */
@@ -101,6 +102,7 @@ export interface LauncherBridge {
   opPath(): Promise<string | null>;
   ollamaInfo(): Promise<OllamaInfo>;
   mcpStatus(): Promise<McpProcessStatus>;
+  mcpTools(): Promise<McpToolInfo[]>;
   startMcp(): Promise<McpProcessStatus>;
   stopMcp(): Promise<McpProcessStatus>;
 }

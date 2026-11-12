@@ -4,6 +4,7 @@ import type { ResourceId } from '@semiont/core';
 import { chatTurn, type PendingReference, type TurnPhase } from '../lib/chat-turn';
 import { questionHistory } from '../lib/question-history';
 import type { ChatSession } from '../lib/session';
+import type { McpProcessStatus } from '../lib/launcher-bridge';
 import { AnswerView } from './AnswerView';
 import { MentionComposer, type MentionComposerHandle } from './MentionComposer';
 import type { MentionCandidate } from './MentionPicker';
@@ -74,7 +75,10 @@ export function ChatPane({
   setEntries,
   onResourcesChanged,
   onOpenResource,
+  onOpenInResourceViewer,
   onNewDocument,
+  chatToolsState,
+  onOpenChatTools,
 }: {
   session: ChatSession;
   provider: AgentProviderId;
@@ -97,7 +101,10 @@ export function ChatPane({
   onResourcesChanged: () => void;
   /** Open a referenced/uploaded resource in the main pane; bound to this KB by the caller. */
   onOpenResource: (id: string, name: string) => void;
+  onOpenInResourceViewer: (id: string, name: string) => void;
   onNewDocument: () => void;
+  chatToolsState: McpProcessStatus['state'];
+  onOpenChatTools: () => void;
 }) {
   const entityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
   const entityTypes = entityTypesState?.status === 'ready' ? entityTypesState.value : [];
@@ -123,6 +130,7 @@ export function ChatPane({
   const [composerEmpty, setComposerEmpty] = useState(true);
   const [turnRunning, setTurnRunning] = useState(false);
   const [showResourceDiscovery, setShowResourceDiscovery] = useState(false);
+  const chatToolsAvailable = chatToolsState === 'running';
 
   // This session's past questions, newest-first, for the composer's Up/Down recall. Each
   // entry points at its question RESOURCE (the persisted questionId) — the composer
@@ -231,7 +239,7 @@ export function ChatPane({
   // question resource — which is what the viewer renders AND what Up-arrow recall rebuilds
   // chips from (the turn's persisted questionId points at them; a chat turn IS a resource).
   const send = async (text: string, mentions: PendingReference[]) => {
-    if (turnRunning) return;
+    if (turnRunning || !chatToolsAvailable) return;
     setTurnRunning(true);
     const id = crypto.randomUUID();
     stickToBottom.current = true; // a new question — scroll to it
@@ -356,6 +364,7 @@ export function ChatPane({
                 markableEntityTypes={docEntityTypes}
                 onDelegated={recordUploadDelegated}
                 onOpenResource={onOpenResource}
+                onOpenInResourceViewer={onOpenInResourceViewer}
               />
             ) : (
               <AnswerView
@@ -367,6 +376,7 @@ export function ChatPane({
                 onDelegated={recordAnswerDelegated}
                 onQuestionDelegated={recordQuestionDelegated}
                 onOpenResource={onOpenResource}
+                onOpenInResourceViewer={onOpenInResourceViewer}
               />
             ),
           )
@@ -377,15 +387,17 @@ export function ChatPane({
         className="chat__compose"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
+          if (!chatToolsAvailable) return;
           composerRef.current?.submit();
         }}
       >
-        <div className="chat__composer">
+        <div className={`chat__composer${chatToolsAvailable ? '' : ' chat__composer--disabled'}`}>
           <MentionComposer
             ref={composerRef}
             session={session}
             docs={mentionDocs}
             history={history}
+            disabled={!chatToolsAvailable}
             onSubmit={(text, mentions) => void send(text, mentions)}
             onEmptyChange={setComposerEmpty}
           />
@@ -395,6 +407,7 @@ export function ChatPane({
                 type="button"
                 className="chat__composer-add"
                 onClick={onNewDocument}
+                disabled={!chatToolsAvailable}
                 aria-label="Create or add a resource"
                 title="Create or add a resource"
               >
@@ -416,6 +429,7 @@ export function ChatPane({
                 type="button"
                 className="chat__attach"
                 onClick={() => setShowResourceDiscovery(true)}
+                disabled={!chatToolsAvailable}
                 aria-label="Search resources"
                 title="Search resources"
               >
@@ -428,6 +442,7 @@ export function ChatPane({
                 type="button"
                 className="chat__mention"
                 onClick={() => composerRef.current?.insertMentionTrigger()}
+                disabled={!chatToolsAvailable}
                 aria-label="Reference a document"
                 title="Reference a document"
               >
@@ -439,6 +454,7 @@ export function ChatPane({
                 <select
                   aria-label="Provider"
                   value={provider}
+                  disabled={!chatToolsAvailable}
                   onChange={(event) => {
                     const selected = AGENT_PROVIDERS.find((candidate) => candidate.id === event.currentTarget.value);
                     if (selected !== undefined) onProviderChange(selected.id);
@@ -451,6 +467,7 @@ export function ChatPane({
                 <select
                   aria-label="Model"
                   value={model}
+                  disabled={!chatToolsAvailable}
                   onChange={(event) => {
                     const selected = AGENT_MODELS.find((candidate) => candidate.id === event.currentTarget.value);
                     if (selected !== undefined) onModelChange(selected.id);
@@ -462,7 +479,7 @@ export function ChatPane({
               <button
                 type="submit"
                 className="chat__send"
-                disabled={composerEmpty || turnRunning}
+                disabled={composerEmpty || turnRunning || !chatToolsAvailable}
                 aria-label="Send message"
                 title="Send message (Enter)"
               >
@@ -470,6 +487,12 @@ export function ChatPane({
               </button>
             </div>
           </div>
+          {!chatToolsAvailable && (
+            <div className="chat__tools-blocked" role="status">
+              <span>{chatToolsState === 'starting' ? 'Chat Tools is starting…' : `Chat Tools is ${chatToolsState}.`}</span>
+              <button type="button" onClick={onOpenChatTools}>Open Chat Tools</button>
+            </div>
+          )}
         </div>
       </form>
       </section>
