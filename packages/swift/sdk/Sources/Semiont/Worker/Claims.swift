@@ -93,7 +93,7 @@ public actor Claims: AsyncSequence {
   private let stream: AsyncStream<any HeldJob>
   private let jobs: AsyncStream<any HeldJob>.Continuation
   private let refusals = Broadcast<ClaimRefusal>(keepingForFirst: true)
-  public nonisolated let stalled = Watched<HeldJobStall?>(nil)
+  private let stalls = Broadcast<HeldJobStall>(keepingForFirst: true)
   private var currentVitals = WorkerVitals()
   public var vitals: WorkerVitals { currentVitals }
   private let iterated = Mutex(false)
@@ -127,7 +127,7 @@ public actor Claims: AsyncSequence {
     claimTask?.cancel()
     jobs.finish()
     refusals.finish()
-    stalled.finish()
+    stalls.finish()
   }
 
   public struct AsyncIterator: AsyncIteratorProtocol {
@@ -154,6 +154,11 @@ public actor Claims: AsyncSequence {
   /// given first the latest `Timings.errorsKeptForFirstReaderCount` refused before it listened;
   /// one who comes after the claims have ended, nothing.
   public nonisolated func refused() -> Events<ClaimRefusal> { refusals.listen() }
+
+  /// Each held job that showed no activity for longer than `WorkerTiming.stallMs`, once for each
+  /// job. The first listener is given first the latest `Timings.errorsKeptForFirstReaderCount`
+  /// stalled before it listened; one who comes after the claims have ended, nothing.
+  public nonisolated func stalled() -> Events<HeldJobStall> { stalls.listen() }
 
   private func begin() async {
     guard readers.isEmpty, !stopped else { return }
@@ -272,7 +277,6 @@ public actor Claims: AsyncSequence {
     currentVitals.activeJob = ActiveJob(jobId: job.jobId, jobType: job.jobType, since: now)
     active()
     stallReported = false
-    stalled.set(nil)
     wakeOwed = false
     jobs.yield(job)
   }
@@ -302,7 +306,6 @@ public actor Claims: AsyncSequence {
     currentVitals.lastFinishedAt = currentVitals.lastActivityAt
     currentVitals.activeJob = nil
     if completed { currentVitals.jobsCompleted += 1 }
-    stalled.set(nil)
     pull()
   }
 
@@ -314,7 +317,7 @@ public actor Claims: AsyncSequence {
     let threshold = Duration.milliseconds(timing.stallMs)
     if silence > threshold {
       stallReported = true
-      stalled.set(
+      stalls.yield(
         HeldJobStall(
           jobId: job.jobId, jobType: job.jobType, heldSince: job.since,
           lastActivityAt: lastActivityAt, silentFor: silence, threshold: threshold))
@@ -354,6 +357,6 @@ public actor Claims: AsyncSequence {
     currentVitals.activeJob = nil
     jobs.finish()
     refusals.finish()
-    stalled.finish()
+    stalls.finish()
   }
 }

@@ -78,7 +78,7 @@ public final class ScriptedTransport: Transport {
   public let state = Watched<ConnectionState>(.open)
   private let subscription: Subscription
   private let events = Broadcast<Carried>()
-  private let errors = Broadcast<TransportError>()
+  let failureEvents = Broadcast<TransportError>(keepingForFirst: true)
   private let wire = Mutex(State())
   private let schedule: [FaultAction]
   let clock: any Clock<Duration>
@@ -198,7 +198,10 @@ public final class ScriptedTransport: Transport {
     }
   }
 
-  public func failures() -> Events<TransportError> { errors.listen() }
+  /// Its failures, kept for the first listener as an HTTP transport keeps them: that listener is
+  /// given first the latest `Timings.errorsKeptForFirstReaderCount` said before it listened; one
+  /// who comes after the transport is disposed, nothing.
+  public func failures() -> Events<TransportError> { failureEvents.listen() }
 
   public func dispose() {
     let pending = wire.withLock { wire in
@@ -210,7 +213,7 @@ public final class ScriptedTransport: Transport {
     for task in pending { task.cancel() }
     state.set(.closed)
     state.finish()
-    errors.finish()
+    failureEvents.finish()
     events.finish()
   }
 
