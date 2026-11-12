@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { AuthBridge } from '../src/lib/auth-bridge';
+import type { AgentBridge } from '../src/lib/agent-bridge';
 import {
   controlEventChannel,
   type ControlEvent,
@@ -32,6 +33,13 @@ contextBridge.exposeInMainWorld('historyBridge', {
   read: (): Promise<string | null> => ipcRenderer.invoke('history:read'),
   write: (json: string): Promise<void> => ipcRenderer.invoke('history:write', json),
 });
+
+// Local model requests and the semiont mcp stdio client stay in Electron main.
+// The renderer sends only the active KB identity and bounded conversation context.
+const agentBridge: AgentBridge = {
+  complete: (input) => ipcRenderer.invoke('agent:complete', input),
+};
+contextBridge.exposeInMainWorld('agentBridge', agentBridge);
 
 // UI preferences bridge — same pattern, backed by the XDG prefs.json. Used via src/lib/prefs.ts.
 contextBridge.exposeInMainWorld('prefsBridge', {

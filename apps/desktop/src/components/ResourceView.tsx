@@ -28,7 +28,7 @@ import { AnnotationDetailCard } from './AnnotationDetailCard';
 import { PendingCreationPopover, useAnnotationCreation } from './AnnotationCreator';
 import { DelegationControl } from './DelegationControl';
 import { ShapeControl } from './ShapeControl';
-import type { ViewerPrefs } from './ViewerPrefControls';
+import { ViewerPrefControls, type ViewerPrefs } from './ViewerPrefControls';
 
 const MIN_RESOURCE_ZOOM = 0.5;
 const MAX_RESOURCE_ZOOM = 3;
@@ -53,6 +53,7 @@ function clampResourceZoom(zoom: number): number {
 export function ResourceView({
   session,
   prefs,
+  showInteractionControls = false,
   resourceId,
   name,
   onClose,
@@ -61,6 +62,8 @@ export function ResourceView({
   session: ChatSession;
   /** App-global click action + motivation (controlled props on the viewer). */
   prefs: ViewerPrefs;
+  /** Show global interaction controls here when no chat composer is visible. */
+  showInteractionControls?: boolean;
   resourceId: string;
   name: string;
   onClose: () => void;
@@ -160,6 +163,11 @@ export function ResourceView({
             +
           </button>
         </div>
+        {showInteractionControls && (
+          <div className="rview__interaction-controls" role="group" aria-label="Document interaction controls">
+            <ViewerPrefControls prefs={prefs} placement="down" />
+          </div>
+        )}
         {annotate && markableEntityTypes.length > 0 && (
           <DelegationControl
             className="rview__delegctl"

@@ -3,6 +3,7 @@ import { ResourceCard, useObservable } from '@semiont/react-ui';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { ChatSession } from '../lib/session';
 import { isDirectKbDirectory, normalizeKbDirectory } from '../lib/kb-location';
+import { isDesktopChatResource } from '../lib/agent-bridge';
 
 const RESULT_LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 250;
@@ -87,8 +88,8 @@ export function ResourceDiscoveryModal({
   const isSearching = displayingSearch && (
     query.trim() !== debouncedQuery || searchState === undefined || searchState.status === 'pending'
   );
-  const recentDocuments = recentState?.status === 'ready' ? recentState.value.resources : [];
-  const searchDocuments = searchState?.status === 'ready' ? searchState.value.resources : [];
+  const recentDocuments = recentState?.status === 'ready' ? recentState.value.resources.filter((resource) => !isDesktopChatResource(resource.name)) : [];
+  const searchDocuments = searchState?.status === 'ready' ? searchState.value.resources.filter((resource) => !isDesktopChatResource(resource.name)) : [];
   const visibleSearchDocuments = isSearching ? [] : searchDocuments;
   const documents = displayingSearch ? visibleSearchDocuments : recentDocuments;
   const recentError = recentState?.status === 'failed' ? recentState.error : null;

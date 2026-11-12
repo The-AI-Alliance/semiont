@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useObservable } from '@semiont/react-ui';
 import { QUESTION_ENTITY_TYPE, type ChatSession } from '../lib/session';
+import { isDesktopChatResource } from '../lib/agent-bridge';
 import { MentionPicker, type MentionCandidate } from './MentionPicker';
 
 /**
@@ -33,6 +34,7 @@ export function LinkSelectionPopover({
     const q = query.trim().toLowerCase();
     return (resources ?? [])
       .filter((r) => !(r.entityTypes ?? []).includes(QUESTION_ENTITY_TYPE))
+      .filter((r) => !isDesktopChatResource(r.name))
       .map((r) => ({ id: String(r['@id']), name: r.name ?? String(r['@id']) }))
       .filter((c) => c.id !== excludeId && (q.length === 0 || c.name.toLowerCase().includes(q)))
       .slice(0, 8);

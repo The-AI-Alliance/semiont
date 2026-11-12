@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
  * The app's icon radio-popover: a quiet icon button that opens a small menu of exclusive
- * options. Used for the footer viewer prefs (click action, motivation) and the per-resource
- * shape badge. The popover opens upward by default (footer placement); pass `prefctl--down`
+ * options. Used for document interaction preferences and the per-resource shape badge. The
+ * popover opens upward by default (bottom-edge placement); pass `prefctl--down`
  * in `className` to open it downward (corner-badge / header placement).
  */
 export function PrefMenu<T extends string>({

@@ -8,14 +8,21 @@ import { AnswerView } from './AnswerView';
 import { MentionComposer, type MentionComposerHandle } from './MentionComposer';
 import type { MentionCandidate } from './MentionPicker';
 import { UploadRecord } from './UploadRecord';
-import type { ViewerPrefs } from './ViewerPrefControls';
+import { ViewerPrefControls, type ViewerPrefs } from './ViewerPrefControls';
 import { ResourceDiscoveryModal } from './ResourceDiscoveryModal';
+import {
+  AGENT_MODELS,
+  AGENT_PROVIDERS,
+  isDesktopChatResource,
+  type AgentModelId,
+  type AgentProviderId,
+} from '../lib/agent-bridge';
 
 /** A question/answer turn in the chat log. */
 export interface Turn {
   kind: 'qna';
   id: string;
-  question: string;
+  question?: string;
   // running → answered (answer painted; references marked on demand, additively)
   status: 'running' | 'answered' | 'error';
   // which await the running turn is on (gathering vs yielding)
@@ -52,6 +59,14 @@ export type LogEntry = Turn | UploadEntry;
 
 export function ChatPane({
   session,
+  provider,
+  model,
+  onProviderChange,
+  onModelChange,
+  sessionId,
+  kbDid,
+  currentMessageId,
+  setCurrentMessageId,
   prefs,
   entries,
   setEntries,
@@ -60,7 +75,15 @@ export function ChatPane({
   onNewDocument,
 }: {
   session: ChatSession;
-  /** App-global viewer prefs — threaded to every message viewer (the footer lives in App). */
+  provider: AgentProviderId;
+  model: AgentModelId;
+  onProviderChange: (provider: AgentProviderId) => void;
+  onModelChange: (model: AgentModelId) => void;
+  sessionId: string;
+  kbDid: string;
+  currentMessageId?: ResourceId;
+  setCurrentMessageId: (id: ResourceId) => void;
+  /** App-global viewer prefs — threaded to message viewers and the composer controls. */
   prefs: ViewerPrefs;
   /** The active session's log; App owns the sessions store and persists it. */
   entries: LogEntry[];
@@ -84,6 +107,7 @@ export function ChatPane({
     () =>
       (resources ?? [])
         .filter((r) => !(r.entityTypes ?? []).includes(QUESTION_ENTITY_TYPE))
+        .filter((r) => !isDesktopChatResource(r.name))
         .map((r) => ({ id: String(r['@id']), name: r.name ?? String(r['@id']) })),
     [resources],
   );
@@ -94,12 +118,49 @@ export function ChatPane({
   // re-renders the chat log.
   const composerRef = useRef<MentionComposerHandle>(null);
   const [composerEmpty, setComposerEmpty] = useState(true);
+  const [turnRunning, setTurnRunning] = useState(false);
   const [showResourceDiscovery, setShowResourceDiscovery] = useState(false);
 
   // This session's past questions, newest-first, for the composer's Up/Down recall. Each
   // entry points at its question RESOURCE (the persisted questionId) — the composer
   // rebuilds chips from that resource's own annotations.
-  const history = useMemo(() => questionHistory(entries.filter((e) => e.kind === 'qna')), [entries]);
+  const history = useMemo(
+    () => questionHistory(entries.filter((e): e is Turn & { question: string } => e.kind === 'qna' && typeof e.question === 'string')),
+    [entries],
+  );
+
+  // history.json carries Resource IDs only. Hydrate the visible chat from those KB
+  // Resources when a session opens; the KB remains the source of message content.
+  useEffect(() => {
+    const missing = entries.filter((entry): entry is Turn =>
+      entry.kind === 'qna' && ((entry.questionId !== undefined && entry.question === undefined) || (entry.answerId !== undefined && entry.answerText === undefined)),
+    );
+    if (missing.length === 0) return;
+    let cancelled = false;
+    void Promise.all(missing.map(async (entry) => {
+      const [question, answerText] = await Promise.all([
+        entry.questionId !== undefined && entry.question === undefined
+          ? session.client.browse.resourceContent(entry.questionId).catch(() => '')
+          : Promise.resolve(entry.question),
+        entry.answerId !== undefined && entry.answerText === undefined
+          ? session.client.browse.resourceContent(entry.answerId).catch(() => '')
+          : Promise.resolve(entry.answerText),
+      ]);
+      return { id: entry.id, question, answerText };
+    })).then((loaded) => {
+      if (cancelled) return;
+      setEntries((prev) => prev.map((entry) => {
+        const hydrated = loaded.find((item) => item.id === entry.id);
+        if (entry.kind !== 'qna' || hydrated === undefined) return entry;
+        return {
+          ...entry,
+          ...(hydrated.question !== undefined ? { question: hydrated.question } : {}),
+          ...(hydrated.answerText !== undefined ? { answerText: hydrated.answerText } : {}),
+        };
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [entries, session, setEntries]);
 
   // Keep the newest turn in view: auto-scroll the log to the bottom on new content, but
   // only while the user is already near the bottom (don't yank them down if they've
@@ -167,13 +228,15 @@ export function ChatPane({
   // question resource — which is what the viewer renders AND what Up-arrow recall rebuilds
   // chips from (the turn's persisted questionId points at them; a chat turn IS a resource).
   const send = async (text: string, mentions: PendingReference[]) => {
+    if (turnRunning) return;
+    setTurnRunning(true);
     const id = crypto.randomUUID();
     stickToBottom.current = true; // a new question — scroll to it
     suppressPinUntil.current = 0; // sending overrides any in-log interaction hold
     holdScrollTop.current = null;
     setEntries((prev) => [
       ...prev,
-      { kind: 'qna', id, question: text, status: 'running', phase: 'gathering', phaseStartedAt: Date.now() },
+      { kind: 'qna', id, question: text, status: 'running', phase: 'thinking', phaseStartedAt: Date.now() },
     ]);
 
     // Patch the matching Q&A entry by id (upload entries are left untouched).
@@ -181,14 +244,22 @@ export function ChatPane({
       setEntries((prev) => prev.map((e) => (e.kind === 'qna' && e.id === id ? { ...e, ...patch } : e)));
 
     try {
-      // Each @-mention becomes a real, pre-resolved reference annotation on the question
-      // resource (created inside the turn, before gather).
-      const run = chatTurn(session, { question: text, references: mentions });
-      const { questionId, answerId, answerTruncated } = await run((event) => {
+      // Each @-mention becomes a resolved reference annotation on the user-message Resource.
+      const previousMessageId = currentMessageId ?? [...entries].reverse().find(
+        (entry): entry is Turn => entry.kind === 'qna' && entry.answerId !== undefined,
+      )?.answerId;
+      const run = chatTurn(session, {
+        question: text,
+        provider,
+        model,
+        references: mentions,
+        conversationId: sessionId,
+        kbDid,
+        ...(previousMessageId !== undefined ? { previousMessageId } : {}),
+      }, setCurrentMessageId);
+      const { questionId, answerId, answerText } = await run((event) => {
         if (event.kind === 'phase') update({ phase: event.phase, phaseStartedAt: Date.now() });
-        // Mid-turn: the question resource (with its mention annotations) exists — mount
-        // the annotated question bubble now, not when the answer lands.
-        else update({ questionId: event.questionId });
+        else if (event.kind === 'question') update({ questionId: event.questionId });
       });
 
       if (answerId === undefined) {
@@ -199,18 +270,18 @@ export function ChatPane({
       // Paint the answer and rest here. Finding its references (and the question's) is on
       // demand — delegated to the KB AI from each message's annotate cluster (DELEGATION.md).
       // A KB usually has many entity types, and marking all every turn is slow.
-      const answerText = await session.client.browse.resourceContent(answerId);
       update({
         status: 'answered',
         answerId,
         answerText,
         questionId,
-        ...(answerTruncated === true ? { answerTruncated: true as const } : {}),
         phaseStartedAt: Date.now(),
       });
       onResourcesChanged(); // the answer is a new resource — refresh the document list
     } catch (err) {
       update({ status: 'error', error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setTurnRunning(false);
     }
   };
 
@@ -299,69 +370,100 @@ export function ChatPane({
           composerRef.current?.submit();
         }}
       >
-        <button
-          type="button"
-          className="chat__attach"
-          onClick={onNewDocument}
-          aria-label="Add a document"
-          title="Add a document"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="chat__attach"
-          onClick={() => setShowResourceDiscovery(true)}
-          aria-label="Search resources"
-          title="Search resources"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-4-4" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="chat__mention"
-          onClick={() => composerRef.current?.insertMentionTrigger()}
-          aria-label="Reference a document"
-          title="Reference a document"
-        >
-          @
-        </button>
-        <MentionComposer
-          ref={composerRef}
-          session={session}
-          docs={mentionDocs}
-          history={history}
-          onSubmit={(text, mentions) => void send(text, mentions)}
-          onEmptyChange={setComposerEmpty}
-        />
-        <button type="submit" disabled={composerEmpty}>
-          Send
-        </button>
+        <div className="chat__composer">
+          <MentionComposer
+            ref={composerRef}
+            session={session}
+            docs={mentionDocs}
+            history={history}
+            onSubmit={(text, mentions) => void send(text, mentions)}
+            onEmptyChange={setComposerEmpty}
+          />
+          <div className="chat__composer-tools">
+            <div className="chat__composer-actions">
+              <button
+                type="button"
+                className="chat__composer-add"
+                onClick={onNewDocument}
+                aria-label="Create or add a resource"
+                title="Create or add a resource"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="chat__attach"
+                onClick={() => setShowResourceDiscovery(true)}
+                aria-label="Search resources"
+                title="Search resources"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-4-4" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="chat__mention"
+                onClick={() => composerRef.current?.insertMentionTrigger()}
+                aria-label="Reference a document"
+                title="Reference a document"
+              >
+                @
+              </button>
+            </div>
+            <div className="chat__model-controls">
+              <label className="chat__model-select">
+                <select
+                  aria-label="Provider"
+                  value={provider}
+                  onChange={(event) => {
+                    const selected = AGENT_PROVIDERS.find((candidate) => candidate.id === event.currentTarget.value);
+                    if (selected !== undefined) onProviderChange(selected.id);
+                  }}
+                >
+                  {AGENT_PROVIDERS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
+                </select>
+              </label>
+              <label className="chat__model-select">
+                <select
+                  aria-label="Model"
+                  value={model}
+                  onChange={(event) => {
+                    const selected = AGENT_MODELS.find((candidate) => candidate.id === event.currentTarget.value);
+                    if (selected !== undefined) onModelChange(selected.id);
+                  }}
+                >
+                  {AGENT_MODELS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
+                </select>
+              </label>
+              <button
+                type="submit"
+                className="chat__send"
+                disabled={composerEmpty || turnRunning}
+                aria-label="Send message"
+                title="Send message (Enter)"
+              >
+                ↵
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="chat__interaction-controls" role="group" aria-label="Document interaction controls">
+          <ViewerPrefControls prefs={prefs} />
+        </div>
       </form>
       </section>
       {showResourceDiscovery && (

@@ -7,6 +7,7 @@ import type { McpProcessStatus } from '../lib/launcher-bridge';
 import type { ResourcePresentation } from '../lib/split-layout';
 import type { DesktopServiceGroup } from './ServiceGroupModal';
 import type { RemoteService } from './RemoteServiceModal';
+import { QueueStatusIndicator } from './QueueStatusIndicator';
 
 /** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
@@ -40,6 +41,8 @@ export interface KbNavProps {
   onOpenRuntime: () => void;
   onOpenKnowledgeBase: () => void;
   onOpenKnowledgeBaseUsers: () => void;
+  queueRootPath: string | null;
+  onOpenDispatcherMessaging: () => void;
 }
 
 function hostOf(uri: string): string {
@@ -67,12 +70,12 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu hasActiveKbTab={props.hasActiveKbTab} hasConfiguredIndex={props.hasConfiguredIndex} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
+      <SemiontMenu showWorkspaceContent={props.showWorkspaceContent} hasActiveKbTab={props.hasActiveKbTab} hasConfiguredIndex={props.hasConfiguredIndex} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} queueRootPath={props.queueRootPath} onOpenDispatcherMessaging={props.onOpenDispatcherMessaging} />
     </nav>
   );
 }
 
-function SemiontMenu({ hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'hasActiveKbTab' | 'hasConfiguredIndex' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
+function SemiontMenu({ showWorkspaceContent, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, queueRootPath, onOpenDispatcherMessaging }: Pick<KbNavProps, 'showWorkspaceContent' | 'hasActiveKbTab' | 'hasConfiguredIndex' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'queueRootPath' | 'onOpenDispatcherMessaging'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -99,6 +102,7 @@ function SemiontMenu({ hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, 
 
   return (
     <div className="nav__footer" ref={menuRef}>
+      {showWorkspaceContent && queueRootPath !== null && <QueueStatusIndicator rootPath={queueRootPath} onClick={onOpenDispatcherMessaging} />}
       {open && (
         <>
           <button type="button" className="semiont-panel-backdrop" aria-label="Close Semiont panel" onClick={() => setOpen(false)} />

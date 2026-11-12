@@ -1,4 +1,5 @@
 import type { LogEntry } from '../components/ChatPane';
+import type { ResourceId } from '@semiont/core';
 
 /**
  * Named chat sessions, one conversation each, grouped by KB. Persisted via the same
@@ -15,6 +16,8 @@ export interface AppChatSession {
   name: string | null;
   createdAt: number;
   updatedAt: number;
+  /** Current end of this KB-resident message chain; history.json stores only the pointer. */
+  currentMessageId?: ResourceId;
   entries: LogEntry[];
 }
 
@@ -91,7 +94,17 @@ export async function loadSessions(): Promise<AppChatSession[]> {
 export async function saveSessions(sessions: AppChatSession[]): Promise<void> {
   try {
     const store: SessionStore = { sessions: {} };
-    for (const s of sessions) store.sessions[s.id] = { ...s, entries: s.entries.filter(isTerminal) };
+    for (const s of sessions) {
+      const entries = s.entries.filter(isTerminal).map((entry) => {
+        if (entry.kind !== 'qna' || entry.questionId === undefined) return entry;
+        // Keep the UI index, but message text is durable only in KB Resources.
+        const resourceIndex = { ...entry };
+        delete resourceIndex.question;
+        delete resourceIndex.answerText;
+        return resourceIndex;
+      });
+      store.sessions[s.id] = { ...s, entries };
+    }
     await writeRaw(JSON.stringify(store));
   } catch {
     // best-effort — history loss is non-fatal
@@ -114,7 +127,7 @@ export function sessionTitle(s: AppChatSession): string {
   if (s.name && s.name.trim()) return s.name.trim();
   const firstQuestion = s.entries.find((e): e is Extract<LogEntry, { kind: 'qna' }> => e.kind === 'qna');
   if (firstQuestion) {
-    const words = firstQuestion.question.trim().split(/\s+/).slice(0, 6).join(' ');
+    const words = firstQuestion.question?.trim().split(/\s+/).slice(0, 6).join(' ') ?? '';
     if (words) return words.length > 48 ? `${words.slice(0, 48)}…` : words;
   }
   return 'New chat';

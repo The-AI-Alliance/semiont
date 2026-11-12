@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 
-export type Phase = 'gathering' | 'yielding' | 'marking';
+export type Phase = 'gathering' | 'yielding' | 'thinking' | 'marking';
 
 const PHASE_LABEL: Record<Phase, string> = {
   gathering: 'Gathering context…',
   yielding: 'Yielding answer…',
+  thinking: 'Thinking and using Semiont tools…',
   marking: 'Finding references…',
 };
 
@@ -25,13 +26,14 @@ export function PhaseIndicator({
   /** Caller-supplied label (the delegation form's verb-specific running copy). */
   label?: string;
 }) {
-  const Sprite = phase === 'gathering' ? GatherSprite : phase === 'yielding' ? YieldSprite : MarkSprite;
+  const Sprite = phase === 'gathering' ? GatherSprite : phase === 'marking' ? MarkSprite : YieldSprite;
+  const spriteKind = phase === 'gathering' ? 'gather' : phase === 'marking' ? 'mark' : 'yield';
   // While finding references, the linking job reports the entity type it's on.
   const label =
     labelOverride ?? (phase === 'marking' && detail ? `Finding ${detail} references…` : PHASE_LABEL[phase]);
   return (
     <p className={phase === 'marking' ? 'turn__progress turn__progress--refs' : 'turn__progress'}>
-      <span className={`sprite sprite--${phase}`} aria-hidden="true">
+      <span className={`sprite sprite--${spriteKind}`} aria-hidden="true">
         <Sprite />
       </span>
       {label}

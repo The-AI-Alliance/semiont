@@ -1,25 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ControlWorkloadStatusQueue } from '../../electron/control-types.gen';
 import type { ControlOutcome, LauncherBridge } from '../lib/launcher-bridge';
-import { ViewerPrefControls, type ViewerPrefs } from './ViewerPrefControls';
 
 const QUEUE_REFRESH_INTERVAL_MS = 30_000;
-
-/** Main-pane app chrome: global resource-view preferences. */
-export function AppFooter({ prefs, activeRootPath, onOpenDispatcherMessaging }: {
-  prefs: ViewerPrefs;
-  activeRootPath: string | null;
-  onOpenDispatcherMessaging: () => void;
-}) {
-  return (
-    <div className="appfooter">
-      <div className="appfooter__right">
-        {activeRootPath !== null && <QueueStatusIndicator rootPath={activeRootPath} onClick={onOpenDispatcherMessaging} />}
-        <ViewerPrefControls prefs={prefs} />
-      </div>
-    </div>
-  );
-}
 
 type QueueState =
   | { status: 'loading' }
@@ -35,7 +18,7 @@ function requestQueue(bridge: LauncherBridge, rootPath: string): Promise<Control
   });
 }
 
-function QueueStatusIndicator({ rootPath, onClick }: { rootPath: string; onClick: () => void }) {
+export function QueueStatusIndicator({ rootPath, onClick }: { rootPath: string; onClick: () => void }) {
   const [state, setState] = useState<QueueState>({ status: 'loading' });
 
   useEffect(() => {
@@ -84,20 +67,20 @@ function QueueStatusIndicator({ rootPath, onClick }: { rootPath: string; onClick
   return (
     <button
       type="button"
-      className={`appfooter__queue${state.status === 'ready' && state.queue.failed !== undefined && state.queue.failed > 0 ? ' appfooter__queue--failed' : ''}`}
+      className={`queue-status${state.status === 'ready' && state.queue.failed !== undefined && state.queue.failed > 0 ? ' queue-status--failed' : ''}`}
       title={title}
       aria-label={`${title} Open Dispatcher and Messaging details.`}
       onClick={onClick}
     >
-      <span className="appfooter__queue-label">Queue</span>
+      <span className="queue-status-label">Queue</span>
       {state.status === 'ready' ? (
         <>
-          <span><i className="appfooter__queue-dot appfooter__queue-dot--pending" />{state.queue.pending} pending</span>
-          <span><i className="appfooter__queue-dot appfooter__queue-dot--running" />{state.queue.running} running</span>
-          {state.queue.failed !== undefined && state.queue.failed > 0 && <span className="appfooter__queue-failures">{state.queue.failed} failed</span>}
+          <span><i className="queue-status-dot queue-status-dot--pending" />{state.queue.pending} pending</span>
+          <span><i className="queue-status-dot queue-status-dot--running" />{state.queue.running} running</span>
+          {state.queue.failed !== undefined && state.queue.failed > 0 && <span className="queue-status-failures">{state.queue.failed} failed</span>}
         </>
       ) : (
-        <span className="appfooter__queue-muted">{state.status === 'loading' ? 'Loading…' : state.status === 'waiting' ? 'Waiting for metrics' : 'Unavailable'}</span>
+        <span className="queue-status-muted">{state.status === 'loading' ? 'Loading…' : state.status === 'waiting' ? 'Waiting for metrics' : 'Unavailable'}</span>
       )}
     </button>
   );

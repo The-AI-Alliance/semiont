@@ -11,6 +11,8 @@ declare module 'virtual:app-config' {
 }
 
 interface Window {
+  /** Electron main owns local inference and the stdio MCP client; absent in web builds. */
+  agentBridge?: import('./lib/agent-bridge').AgentBridge;
   /** Electron preload bridge to the per-user runtime config (the XDG TOML file).
    *  Absent in the browser, which falls back to localStorage. */
   configBridge?: {
