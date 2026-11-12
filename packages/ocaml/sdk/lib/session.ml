@@ -74,11 +74,18 @@ let renew_once t refused =
           Eio.Stream.add t.work task;
           task
     in
-    Fiber.first
-      (fun () -> Promise.await task.result)
-      (fun () ->
-        Promise.await t.closed;
-        Unavailable)
+    (* The close gives each caller waiting no token at once, while a renewal
+       that runs to its end goes on. *)
+    Fiber.any
+      [
+        (fun () -> Promise.await task.result);
+        (fun () ->
+          Promise.await t.stop;
+          Unavailable);
+        (fun () ->
+          Promise.await t.closed;
+          Unavailable);
+      ]
 
 let refresh_refused t ~refused =
   match credential t with
@@ -93,22 +100,26 @@ let worker t =
     let outcome =
       try t.renew ~holding:task.holding with Eio.Io _ -> Unavailable
     in
-    let outcome =
-      match t.managed with
-      | Some validate when task.generation == t.generation ->
-          validate
-            ~current:(fun () -> active t && task.generation == t.generation)
-            ~refused:task.refused outcome
-      | _ -> outcome
-    in
-    t.pending <- None;
-    if task.generation == t.generation then (
-      t.retry_due <- outcome = Unavailable && Option.is_some t.managed;
-      match outcome with
-      | Renewed bearer -> publish t (Some bearer)
-      | Unavailable when t.keep_on_unavailable && t.managed = None -> ()
-      | Refused | Unavailable -> publish t None);
-    Promise.resolve task.complete outcome
+    (* A renewal that comes back once the session is closed has nobody left
+       to give its token to, and ends nothing: its waiters are given what the
+       close gives them. *)
+    if active t then (
+      let outcome =
+        match t.managed with
+        | Some validate when task.generation == t.generation ->
+            validate
+              ~current:(fun () -> active t && task.generation == t.generation)
+              ~refused:task.refused outcome
+        | _ -> outcome
+      in
+      t.pending <- None;
+      if task.generation == t.generation then (
+        t.retry_due <- outcome = Unavailable && Option.is_some t.managed;
+        match outcome with
+        | Renewed bearer -> publish t (Some bearer)
+        | Unavailable when t.keep_on_unavailable && t.managed = None -> ()
+        | Refused | Unavailable -> publish t None);
+      Promise.resolve task.complete outcome)
   done
 
 let wait t seconds =

@@ -510,29 +510,34 @@ let renew_kept browser ~http id ~holding =
            before.access ->
       Session.Renewed before.access
   | Some before ->
-      let issued =
-        Oauth.refresh_kept http ~token_endpoint:before.token_endpoint
-          ~client_id:before.client_id ~refresh_token:before.refresh
-      in
-      change_kept browser id (function
-        | None -> (None, Session.Refused)
-        | Some current when current <> before ->
-            (Some current, Session.Renewed current.access)
-        | Some current -> (
-            match issued with
-            | Ok tokens ->
-                let next =
-                  {
-                    before with
-                    access = tokens.access_token;
-                    refresh =
-                      Option.value tokens.refresh_token ~default:before.refresh;
-                  }
-                in
-                (Some next, Session.Renewed next.access)
-            | Error failure when Oauth.refresh_refused failure ->
-                (None, Session.Refused)
-            | Error _ -> (Some current, Session.Unavailable)))
+      (* An issuer that rotates refresh tokens spends the old one when it
+         answers: the exchange and the write of what it brought run to their
+         end, whoever stops waiting. *)
+      Eio.Cancel.protect (fun () ->
+          let issued =
+            Oauth.refresh_kept http ~token_endpoint:before.token_endpoint
+              ~client_id:before.client_id ~refresh_token:before.refresh
+          in
+          change_kept browser id (function
+            | None -> (None, Session.Refused)
+            | Some current when current <> before ->
+                (Some current, Session.Renewed current.access)
+            | Some current -> (
+                match issued with
+                | Ok tokens ->
+                    let next =
+                      {
+                        before with
+                        access = tokens.access_token;
+                        refresh =
+                          Option.value tokens.refresh_token
+                            ~default:before.refresh;
+                      }
+                    in
+                    (Some next, Session.Renewed next.access)
+                | Error failure when Oauth.refresh_refused failure ->
+                    (None, Session.Refused)
+                | Error _ -> (Some current, Session.Unavailable))))
 
 let forget_rejected browser id token =
   change_kept browser id (function
