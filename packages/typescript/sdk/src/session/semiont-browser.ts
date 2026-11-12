@@ -22,7 +22,7 @@
  * throws, and changes nothing, there or here.
  */
 
-import { BehaviorSubject, Subject, map, type Observable } from 'rxjs';
+import { BehaviorSubject, map, type Observable } from 'rxjs';
 import {
   BusRequestError,
   CHECKS_AT_ONCE_COUNT,
@@ -68,6 +68,7 @@ import {
 import { SemiontSession } from './semiont-session';
 import { createSessionSignals, type SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
+import { KeptForFirstReader } from '../kept-for-first-reader';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
 
@@ -218,10 +219,18 @@ export class SemiontBrowser {
    * nothing is connected, and never carrying one KB's id into another.
    */
   readonly lastViewedResource$: BehaviorSubject<string | null>;
-  /** Each session's own errors, as the registry reads them from its errors, and each session it could not make. */
-  readonly error$: Subject<SemiontSessionError>;
+  /**
+   * Each session's own errors, as the registry reads them from its errors,
+   * and each session it could not make. Its first reader is given the latest
+   * `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said before it came, in the order
+   * they were said, the oldest beyond them dropped. It ends when the registry
+   * is disposed, and what is still kept then is dropped.
+   */
+  readonly error$: Observable<SemiontSessionError>;
   readonly identityToken$: BehaviorSubject<string | null>;
 
+  /** What the registry says on `error$`. */
+  private readonly said = new KeptForFirstReader<SemiontSessionError>();
   private readonly storage: SessionStorage;
   private readonly sessionFactory: SessionFactory;
   private readonly fetch: typeof fetch | undefined;
@@ -271,7 +280,7 @@ export class SemiontBrowser {
     this.openResources$ = new BehaviorSubject<OpenResource[]>([]);
     this.lastViewedByKb = lastViewedByKbOf(this.storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY));
     this.lastViewedResource$ = new BehaviorSubject<string | null>(null);
-    this.error$ = new Subject<SemiontSessionError>();
+    this.error$ = this.said.said$;
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
     this.putKbs(kbs);
@@ -532,7 +541,7 @@ export class SemiontBrowser {
       try {
         session = this.sessionFactory({ kb, storage: this.storage, signals });
       } catch (err) {
-        this.error$.next(
+        this.said.say(
           err instanceof SemiontSessionError
             ? err
             : new SemiontSessionError(
@@ -558,7 +567,7 @@ export class SemiontBrowser {
       // The reading ends when the session's errors do, as the session ends.
       session.errors$.subscribe((err) => {
         if (err instanceof SemiontSessionError) {
-          this.error$.next(err);
+          this.said.say(err);
         } else if (err.code === 'forbidden') {
           signals.notifyPermissionDenied(err.message);
         }
@@ -567,7 +576,7 @@ export class SemiontBrowser {
       try {
         await session.ready;
       } catch (err) {
-        this.error$.next(
+        this.said.say(
           new SemiontSessionError(
             'session.construct-failed',
             err instanceof Error ? err.message : String(err),
@@ -1013,7 +1022,7 @@ export class SemiontBrowser {
     this.activeSignals$.complete();
     this.openResources$.complete();
     this.lastViewedResource$.complete();
-    this.error$.complete();
+    this.said.end();
     this.identityToken$.complete();
     this.eventBus.destroy();
     if (this.failures.length > 0) throw this.failures[0];

@@ -43,14 +43,13 @@
  * or `window` directly, and does not follow what another context writes.
  */
 
-import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
+import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { currentUserOf } from '@semiont/http-transport';
 import {
   accessToken,
   baseUrl,
   BRIDGED_CHANNELS,
   equalJitter,
-  ERRORS_KEPT_FOR_FIRST_READER_COUNT,
   MAX_RECONNECT_MS,
   RECONNECT_MS,
   RETRY_RULES,
@@ -60,6 +59,7 @@ import {
 } from '@semiont/core';
 import type { components, StateUnit } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
+import { KeptForFirstReader } from '../kept-for-first-reader';
 import type { SemiontError } from '@semiont/core';
 import { watched, type Watched } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
@@ -210,7 +210,8 @@ export class SemiontSession implements StateUnit {
    * transport's failures, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are
    * kept for the first reader, in the order they were said. It ends when
    * the session does: the client's closing flush, made first, says what it
-   * says before then, and what the client meets after is said nowhere.
+   * says before then, and what the client meets after is said nowhere. What
+   * is still kept then is dropped: a reader that comes after is given nothing.
    */
   readonly errors$: Observable<SemiontError>;
 
@@ -219,15 +220,8 @@ export class SemiontSession implements StateUnit {
 
   readonly #heldToken$: BehaviorSubject<AccessToken | null>;
   readonly #heldUser$: BehaviorSubject<UserInfo | null>;
-  /** What the session says on `errors$`, to every reader it has: its own errors and its transport's failures. */
-  readonly #said = new Subject<SemiontError>();
-  /**
-   * The latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` the session said before
-   * anyone read `errors$`, its own errors and its transport's failures in the
-   * order it said them, kept for the first reader; null once one has, or the
-   * session has ended.
-   */
-  #keptForFirstReader: SemiontError[] | null = [];
+  /** What the session says on `errors$`: its own errors and its transport's failures. */
+  readonly #said = new KeptForFirstReader<SemiontError>();
   readonly #transportFailures: Subscription;
   /**
    * The token the session held last, or found stored at its start though it
@@ -264,14 +258,9 @@ export class SemiontSession implements StateUnit {
     this.token$ = watched(this.#heldToken$);
     this.#heldUser$ = new BehaviorSubject<UserInfo | null>(null);
     this.user$ = watched(this.#heldUser$);
-    this.#transportFailures = this.client.transport.errors$.subscribe((failure) => this.#say(failure));
-    this.errors$ = new Observable<SemiontError>((reader) => {
-      const kept = this.#keptForFirstReader;
-      this.#keptForFirstReader = null;
-      if (kept !== null) for (const error of kept) reader.next(error);
-      return this.#said.subscribe(reader);
-    });
-    voices.set(this, (error) => this.#say(error));
+    this.#transportFailures = this.client.transport.errors$.subscribe((failure) => this.#said.say(failure));
+    this.errors$ = this.#said.said$;
+    voices.set(this, (error) => this.#said.say(error));
 
     // Reconcile the kept token: if there's a fresh kept access token
     // and `token$` hasn't been seeded yet, push the kept value so the
@@ -326,7 +315,7 @@ export class SemiontSession implements StateUnit {
         } else {
           // The issuer did not refuse it: the stored session is kept, and renewed on the reconnect backoff or when a request is refused.
           this.renewAgainLater();
-          this.#say(new SemiontSessionError('session.auth-failed', notRenewed(failure), this.kb.id));
+          this.#said.say(new SemiontSessionError('session.auth-failed', notRenewed(failure), this.kb.id));
         }
         return;
       }
@@ -362,7 +351,7 @@ export class SemiontSession implements StateUnit {
       } catch (err) {
         if (this.disposed) return;
         if (!(err instanceof APIError && err.code === 'unauthorized')) {
-          this.#say(
+          this.#said.say(
             new SemiontSessionError(
               'session.auth-failed',
               err instanceof Error ? err.message : String(err),
@@ -410,16 +399,7 @@ export class SemiontSession implements StateUnit {
     this.#heldToken$.next(null);
     this.kept.forget();
     this.onAuthFailed(told);
-    this.#say(new SemiontSessionError(code, why, this.kb.id));
-  }
-
-  /** Say `error`, one of the session's own or its transport's failure, on `errors$`, kept for the first reader while nobody has read, the oldest kept dropped beyond `ERRORS_KEPT_FOR_FIRST_READER_COUNT`. */
-  #say(error: SemiontError): void {
-    if (this.#keptForFirstReader !== null) {
-      this.#keptForFirstReader.push(error);
-      if (this.#keptForFirstReader.length > ERRORS_KEPT_FOR_FIRST_READER_COUNT) this.#keptForFirstReader.shift();
-    }
-    this.#said.next(error);
+    this.#said.say(new SemiontSessionError(code, why, this.kb.id));
   }
 
   /** Hold `token`: the transport sends it from now on, and a renewal is handed it. */
@@ -569,7 +549,7 @@ export class SemiontSession implements StateUnit {
     this.clearRefreshTimer();
     this.#heldToken$.next(null);
     this.renewAgainLater();
-    this.#say(new SemiontSessionError('session.refresh-exhausted', notRenewed(failure), this.kb.id));
+    this.#said.say(new SemiontSessionError('session.refresh-exhausted', notRenewed(failure), this.kb.id));
   }
 
   /**
@@ -642,11 +622,10 @@ export class SemiontSession implements StateUnit {
     this.clearRefreshTimer();
     this.clearUnanswered();
     this.#transportFailures.unsubscribe();
-    this.#keptForFirstReader = null;
 
     this.#heldToken$.complete();
     this.#heldUser$.complete();
-    this.#said.complete();
+    this.#said.end();
   }
 
   /**
@@ -688,7 +667,7 @@ export class SemiontSession implements StateUnit {
     let session!: SemiontSession;
     const keeps = storage === undefined
       ? null
-      : personKeeping(storage, opts.kb.id, opts.kept, (error) => session.#say(error));
+      : personKeeping(storage, opts.kb.id, opts.kept, (error) => session.#said.say(error));
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const tok = opts.token == null
       ? null

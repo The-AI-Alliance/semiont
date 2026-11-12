@@ -882,6 +882,15 @@ describe('SemiontSession — what is kept for the first reader', () => {
 
     expect(said.map((error) => error.message)).toEqual(messages.slice(beyond));
   });
+
+  it('drops what it kept when it ends: a reader who comes after is given nothing', async () => {
+    const session = newSession();
+    await session.ready;
+    sayOn(session, new SemiontSessionError('session.keep-failed', 'said before anyone read', KB.id));
+    session.dispose();
+
+    expect(saidBy(session)).toEqual([]);
+  });
 });
 
 describe('SemiontSession — StateUnit axioms', () => {

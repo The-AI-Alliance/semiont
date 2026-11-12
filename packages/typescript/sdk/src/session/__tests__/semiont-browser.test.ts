@@ -62,7 +62,9 @@ import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
 import { mockResource } from '../../__tests__/fixtures/resource';
-import { BusRequestError, resourceId } from '@semiont/core';
+import { sayOn, type SemiontSession } from '../semiont-session';
+import { SemiontSessionError } from '../errors';
+import { BusRequestError, ERRORS_KEPT_FOR_FIRST_READER_COUNT, resourceId } from '@semiont/core';
 import type { SemiontError } from '@semiont/core';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -1569,6 +1571,42 @@ describe('SemiontBrowser — asking the gateway who a stored token is', () => {
     expect(session?.user$.getValue()).toMatchObject({ name: 'Alice' });
 
     await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — what error$ keeps for its first reader', () => {
+  const connected = async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(filter((live): live is SemiontSession => live !== null)));
+    return { browser, session };
+  };
+
+  it('gives its first reader the latest ERRORS_KEPT_FOR_FIRST_READER_COUNT said before it read, in order, the oldest dropped', async () => {
+    const { browser, session } = await connected();
+    const beyond = 3;
+    const messages = Array.from({ length: ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond }, (_, n) => `write ${n} refused`);
+    for (const message of messages) sayOn(session, new SemiontSessionError('session.save-refused', message, KB_A.id));
+
+    const said: string[] = [];
+    browser.error$.subscribe((error) => said.push(error.message));
+    expect(said).toEqual(messages.slice(beyond));
+
+    await browser.dispose();
+  });
+
+  it('gives a reader who comes once it has ended nothing of what it kept', async () => {
+    const { browser, session } = await connected();
+    sayOn(session, new SemiontSessionError('session.save-refused', 'a write refused', KB_A.id));
+    await browser.dispose();
+
+    const said: string[] = [];
+    let ended = false;
+    browser.error$.subscribe({ next: (error) => said.push(error.message), complete: () => { ended = true; } });
+    expect(said).toEqual([]);
+    expect(ended).toBe(true);
   });
 });
 
