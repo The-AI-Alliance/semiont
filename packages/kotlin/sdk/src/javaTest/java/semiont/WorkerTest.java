@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -27,6 +28,7 @@ import semiont.jobs.ClaimRefusal;
 import semiont.jobs.Claims;
 import semiont.jobs.ClaimsKt;
 import semiont.jobs.HeldJob;
+import semiont.jobs.HeldJobStall;
 import semiont.jobs.HeldYieldJob;
 import semiont.jobs.JobFilterKt;
 import semiont.jobs.RetriesKt;
@@ -112,6 +114,34 @@ final class WorkerTest {
         return first;
     }
 
+    /** Everything `publisher` gives, once it ends. */
+    private static <T> CompletableFuture<List<T>> all(Flow.Publisher<T> publisher) {
+        CompletableFuture<List<T>> all = new CompletableFuture<>();
+        List<T> given = new ArrayList<>();
+        publisher.subscribe(new Flow.Subscriber<>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(T item) {
+                given.add(item);
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                all.completeExceptionally(error);
+            }
+
+            @Override
+            public void onComplete() {
+                all.complete(given);
+            }
+        });
+        return all;
+    }
+
     @Test
     void aJavaWorkerClaimsHoldsAndSettlesAJob() throws Exception {
         try (Opened opened = new Opened()) {
@@ -158,7 +188,7 @@ final class WorkerTest {
     void aJavaWorkerReadsWhatItWasHandedAndCompletesIt() throws Exception {
         try (Opened opened = new Opened()) {
             Claims claims = opened.client.getJob().claim(List.<JobFilter>of(YieldJobFilter.builder().build()));
-            assertNull(claims.getStalled().getValue());
+            Events<HeldJobStall> stalls = claims.stalled();
             HeldYieldJob held = assertInstanceOf(HeldYieldJob.class, claims.nextFuture().get(10, SECONDS));
             assertEquals(JobType.Yield, held.getJobType());
             assertNotNull(held.getParams());
@@ -178,6 +208,8 @@ final class WorkerTest {
             assertTrue(opened.next("job:complete").contains("res-2"));
             assertTrue(held.getSettled());
             claims.stopFuture().get(10, SECONDS);
+            // The job never stalled, and the stalls end with the claims.
+            assertEquals(List.of(), all(stalls.asPublisher()).get(10, SECONDS));
         }
     }
 

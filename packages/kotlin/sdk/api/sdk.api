@@ -1022,10 +1022,10 @@ public final class semiont/jobs/ClaimRefusal {
 }
 
 public final class semiont/jobs/Claims {
-	public final fun getStalled ()Lsemiont/transport/Watched;
 	public final fun next (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun nextFuture ()Ljava/util/concurrent/CompletableFuture;
 	public final fun refused ()Lsemiont/transport/Events;
+	public final fun stalled ()Lsemiont/transport/Events;
 	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun stopFuture ()Ljava/util/concurrent/CompletableFuture;
 	public final fun vitals ()Lsemiont/jobs/WorkerVitals;

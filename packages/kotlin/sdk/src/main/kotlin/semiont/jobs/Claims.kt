@@ -31,7 +31,6 @@ import semiont.transport.Frame
 import semiont.transport.FrameRefusal
 import semiont.transport.Transport
 import semiont.transport.Variable
-import semiont.transport.Watched
 import semiont.types.JobClaimCommand
 import semiont.types.JobFilter
 import semiont.types.JobType
@@ -105,7 +104,7 @@ public class Claims internal constructor(
     private val holder = Holder(transport, Bus(transport, parent.coroutineContext, clock), clock, parent, markCommitTimeoutMs, ::active, ::releasedJob)
     private val handed = Channel<HeldJob>(Channel.UNLIMITED)
     private val refusals = Broadcast<ClaimRefusal>(keptForFirst = Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT)
-    private val stall = Variable<HeldJobStall?>(null)
+    private val stalls = Broadcast<HeldJobStall>(keptForFirst = Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT)
     private val listening = mutableListOf<Events<Carried>>()
 
     /** What watches for idle moments, cancellations and stalls: stopped when the claiming ends. */
@@ -133,9 +132,6 @@ public class Claims internal constructor(
     private var heldSince: Instant? = null
     private var jobsCompleted = 0L
 
-    /** The last stall found: a held job that has shown no activity for the stall threshold, reported once. Each one after is a change. */
-    public val stalled: Watched<HeldJobStall?> = stall.reading()
-
     /**
      * The next job the worker comes to hold, once the one before it is
      * settled: none once the claims have ended. The first call begins
@@ -156,6 +152,14 @@ public class Claims internal constructor(
 
     /** Each claim refused from now on; the first reader is also given the latest `errorsKeptForFirstReaderCount` of those refused before it read, in the order refused. */
     public fun refused(): Events<ClaimRefusal> = refusals.listen()
+
+    /**
+     * Each stall found from now on: a held job that has shown no activity for
+     * the stall threshold, said once. The first reader is also given the
+     * latest `errorsKeptForFirstReaderCount` of those found before it read, in
+     * the order found.
+     */
+    public fun stalled(): Events<HeldJobStall> = stalls.listen()
 
     /** What this worker can say of itself now. */
     public fun vitals(): WorkerVitals = synchronized(lock) {
@@ -183,7 +187,6 @@ public class Claims internal constructor(
         inFlight?.join()
         synchronized(lock) { listening.toList().also { listening.clear() } }.forEach { it.close() }
         scope.cancel()
-        stall.end()
     }
 
     /** `stop`, for Java. */
@@ -266,7 +269,7 @@ public class Claims internal constructor(
                 stallReported = true
                 HeldJobStall(holding.jobId, holding.jobType, since, last, silentForMs, heldJobStallMs)
             }
-            found?.let(stall::set)
+            if (found != null) stalls.deliver(found)
         }
     }
 
@@ -378,6 +381,7 @@ public class Claims internal constructor(
         }
         handed.close()
         refusals.close()
+        stalls.close()
         watchers.forEach { it.cancel() }
     }
 }

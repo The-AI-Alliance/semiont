@@ -70,7 +70,6 @@ import semiont.testing.REFUSE_UNSCRIPTED
 import semiont.testing.Respond
 import semiont.transport.ConnectionState
 import semiont.transport.Frame
-import semiont.transport.Watched
 import semiont.types.DiscoveredKB
 import semiont.types.HighlightingJobParams
 import semiont.types.JobFilter
@@ -156,10 +155,10 @@ private object LowestDraw : Random() {
 /** What a case drives: what it counts, and its action, when it has one. */
 private class Subject(val counted: () -> Int, val act: (suspend () -> Unit)?)
 
-/** How many of the values `watched` takes, from the case's start, `counts` holds of. */
-private fun <T> tally(bench: Bench, watched: Watched<T>, counts: (T) -> Boolean): () -> Int {
+/** How many of the values `told` gives, from the case's start, `counts` holds of. */
+private fun <T> tally(bench: Bench, told: kotlinx.coroutines.flow.Flow<T>, counts: (T) -> Boolean): () -> Int {
     var seen = 0
-    bench.work.launch { watched.collect { if (counts(it)) seen += 1 } }
+    bench.work.launch { told.collect { if (counts(it)) seen += 1 } }
     return { seen }
 }
 
@@ -497,7 +496,7 @@ private suspend fun heldJobStall(given: JsonObject, bench: Bench): Subject {
     val claiming = bench.work.async { claims.next() }
     bench.test.runCurrent()
     val job = claiming.getCompleted() ?: throw AssertionError("the claims ended before they held a job")
-    return Subject(tally(bench, claims.stalled) { it != null }, { job.progress(JobProgress(percentage = 50.0)) })
+    return Subject(tally(bench, claims.stalled()) { true }, { job.progress(JobProgress(percentage = 50.0)) })
 }
 
 // ── Discovery ───────────────────────────────────────────────────────────
