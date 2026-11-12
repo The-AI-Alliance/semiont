@@ -47,6 +47,7 @@ export interface SemiontMenuProps {
   onOpenTelemetry: () => void;
   onOpenRuntime: () => void;
   onOpenKnowledgeBase: () => void;
+  onOpenVocabulary: () => void;
   onOpenKnowledgeBaseUsers: () => void;
 }
 
@@ -109,7 +110,7 @@ function MenuGroup({ id, label, expanded, onToggle, children }: {
   );
 }
 
-export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: SemiontMenuProps) {
+export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenVocabulary, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: SemiontMenuProps) {
   const menuRef = useRef<HTMLElement>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<MenuGroupId>>(() => new Set());
 
@@ -152,6 +153,7 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
               {hasActiveKbTab && (
                 <MenuGroup id="knowledge-base" label="Knowledge Base" expanded={!collapsedGroups.has('knowledge-base')} onToggle={() => toggleGroup('knowledge-base')}>
                   <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Record</span></button>
+                  <button type="button" onClick={() => choose(onOpenVocabulary)}><VocabularyIcon /><span>Vocabulary</span></button>
                   <button type="button" onClick={() => choose(onOpenKnowledgeBaseUsers)}><WorkersIcon /><span>Users</span></button>
                   <button type="button" onClick={() => choose(() => onOpenServiceGroup('gateway-archivist'))}><RecordIcon /><span>Gateway &amp; Archivist</span></button>
                   <button type="button" onClick={() => choose(() => onOpenServiceGroup('dispatcher-messaging'))}><RecordIcon /><span>Dispatcher &amp; Messaging</span></button>
@@ -321,6 +323,10 @@ function KnowledgeBaseIcon() {
 
 function RecordIcon() {
   return <svg width="18" height="18" {...ICON_PROPS}><path d="M4 5.5c0-1 3.6-2 8-2s8 1 8 2-3.6 2-8 2-8-1-8-2Z" /><path d="M4 5.5v6c0 1 3.6 2 8 2m8-8v6m-16 0v5c0 1 3.6 2 8 2" /></svg>;
+}
+
+function VocabularyIcon() {
+  return <svg width="18" height="18" {...ICON_PROPS}><path d="M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" /><circle cx="7.5" cy="7.5" r="1.25" /></svg>;
 }
 
 function IndexIcon() {
