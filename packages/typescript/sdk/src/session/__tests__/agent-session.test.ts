@@ -24,7 +24,9 @@
  *     refused one, and schedules nothing for a token that carries no `exp`;
  *   - a renewal made on a refusal replaces the wait: the wait counted from
  *     the token it replaced renews nothing;
- *   - `stop()` disarms it.
+ *   - `stop()` disarms it, and ends the renewal under way: a refusal waiting
+ *     on it is given no token, the token it brings is not taken, and a
+ *     refusal after the stop is given none, with the issuer not asked.
  *
  * Global `fetch` is stubbed. It answers the issuer's discovery itself, and
  * hands the grant to `grant` and the gateway to `gateway`, which each test
@@ -411,5 +413,48 @@ describe('startAgentSession', () => {
     session.stop();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(grant).toHaveBeenCalledTimes(1);
+  });
+
+  it('a stop while its token is renewed gives the refusal no token, takes none after, and renews nothing', async () => {
+    const first = tokenExpiringIn(60 * 60 * 1000, 'first');
+    const second = tokenExpiringIn(2 * 60 * 60 * 1000, 'second');
+    const third = tokenExpiringIn(3 * 60 * 60 * 1000, 'third');
+    let answer!: (response: Response) => void;
+    grant
+      .mockReturnValueOnce(granted(first, 60 * 60 * 1000))
+      .mockReturnValueOnce(granted(second, 2 * 60 * 60 * 1000))
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          answer = resolve;
+        }),
+      );
+    session = await start();
+    await expect(session.refresh(first)).resolves.toBe(second);
+    const seen: Array<string | null> = [];
+    session.token$.subscribe((t) => seen.push(t));
+
+    // A request sent with the second token is refused, and the issuer holds its answer.
+    const given: Array<string | null> = [];
+    void session.refresh(second).then((token) => {
+      given.push(token);
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(grant, 'the renewal waits on the issuer').toHaveBeenCalledTimes(3);
+
+    session.stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(given, 'the stop ended the renewal: the refusal is given no token, and does not wait on the issuer').toEqual([null]);
+
+    // The issuer's answer comes later, and is read, and is not taken.
+    const late = granted(third, 3 * 60 * 60 * 1000);
+    answer(late);
+    await vi.waitFor(() => expect(late.bodyUsed).toBe(true));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen).toEqual([second]);
+
+    // A refusal once stopped, of the token it holds or of the one that token replaced, is given no token, and the issuer is not asked.
+    await expect(session.refresh(second)).resolves.toBeNull();
+    await expect(session.refresh(first)).resolves.toBeNull();
+    expect(grant).toHaveBeenCalledTimes(3);
   });
 });

@@ -77,6 +77,7 @@ import type { SessionStorage } from './session-storage';
 import { personKeeping } from '../cache-persister';
 import type { SessionEndReason } from './session-signals';
 import { SCRIPT_CLIENT_ID, renewKept, signInWithDeviceGrant, type DeviceCode } from './oauth';
+import { sharedRenewal, type SharedRenewal } from './shared-renewal';
 
 export type UserInfo = components['schemas']['UserResponse'];
 
@@ -244,7 +245,7 @@ export class SemiontSession implements StateUnit {
   /** Whether the session is still doing what it does at its start. */
   private starting = true;
   /** The renewal a refusal is being answered with, shared by the refusals that arrive during it. */
-  private refusal: Promise<AccessToken | null> | null = null;
+  private refusal: SharedRenewal<AccessToken | null> | null = null;
   private disposed = false;
 
   constructor(config: SemiontSessionConfig) {
@@ -472,16 +473,22 @@ export class SemiontSession implements StateUnit {
    * Refusals that arrive together are answered together: one renewal and
    * one ask, however many requests were refused at once. Who the gateway
    * says the renewed token is, is who is signed in.
+   *
+   * Once the session is disposed, a refusal is given no token and nothing is
+   * renewed, and one waiting on the renewal the dispose ended is given none
+   * too.
    */
   async refresh(refused: string | null): Promise<AccessToken | null> {
     // A refusal that arrives while another is answered waits for that answer.
-    if (this.refusal) await this.refusal;
+    if (this.refusal) await this.refusal.answer;
+    // A disposed session renews nothing.
+    if (this.disposed) return null;
     const held = this.#heldToken$.getValue();
-    if (held !== refused) return this.disposed ? null : held;
-    this.refusal ??= this.renewForRefusal().finally(() => {
+    if (held !== refused) return held;
+    this.refusal ??= sharedRenewal(this.renewForRefusal().finally(() => {
       this.refusal = null;
-    });
-    return this.refusal;
+    }));
+    return this.refusal.answer;
   }
 
   private async renewForRefusal(): Promise<AccessToken | null> {
@@ -625,10 +632,10 @@ export class SemiontSession implements StateUnit {
   }
 
   /**
-   * End the session: its renewal stops, and its token, its user and its
-   * errors complete. The client is left to whoever made it, who closes it
-   * first, so that what its closing flush says is said on `errors$` before
-   * they end.
+   * End the session: its renewal stops, each refusal waiting on the renewal
+   * under way is given no token, and its token, its user and its errors
+   * complete. The client is left to whoever made it, who closes it first, so
+   * that what its closing flush says is said on `errors$` before they end.
    */
   dispose(): void {
     if (this.disposed) return;
@@ -636,6 +643,8 @@ export class SemiontSession implements StateUnit {
 
     this.clearRefreshTimer();
     this.clearUnanswered();
+    // A renewal still under way has nobody left to give its token to.
+    this.refusal?.end();
     this.#transportFailures.unsubscribe();
     this.#keptForFirstReader = null;
 
