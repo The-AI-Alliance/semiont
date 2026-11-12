@@ -1056,8 +1056,8 @@ class SemiontBrowser:
         Each of its own errors is said on the registry's. A refusal for want
         of a valid token renews the session: it heals quietly, or the session
         ends itself and says so once. A refusal for lack of permission has no
-        remedy, and is said through `signals`. A renewal still under way when
-        the errors end ends with them, and one that failed is raised then.
+        remedy, and is said through `signals`. A renewal it still waits on when
+        the errors end is waited on no more, and one that failed is raised then.
         """
         renewals: list[asyncio.Task[str | None]] = []
         try:

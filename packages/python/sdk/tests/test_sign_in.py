@@ -884,23 +884,30 @@ def test_an_agent_that_closes_while_its_token_is_renewed_gives_the_refusal_no_to
         async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.answers[ME] = agent_named("semiont-smelter")
-            first, second = token(3600, 1), token(3600, 2)
+            first, second, third = token(3600, 1), token(3600, 2), token(3600, 3)
             granting = asyncio.Event()
-            gateway.scripted[("POST", TOKEN)] = [says({"access_token": first}), replace(says({"access_token": second}), after=granting)]
+            gateway.scripted[("POST", TOKEN)] = [
+                says({"access_token": first}),
+                says({"access_token": second}),
+                replace(says({"access_token": third}), after=granting),
+            ]
 
             async with AgentToken(gateway.origin, service=ServiceToken(account(gateway))) as agent:
+                assert await soon(agent.refresh(first)) == second
                 # A request refused with the token it holds, and the issuer holds its answer to the grant.
-                refusing = asyncio.create_task(agent.refresh(first))
-                await soon(gateway.arrived("POST", TOKEN, 2))
+                refusing = asyncio.create_task(agent.refresh(second))
+                await soon(gateway.arrived("POST", TOKEN, 3))
 
             # The close ended the renewal: the refusal is given no token, rather than a cancellation it never had.
             assert await soon(refusing) is None
-            # The answer that comes later is not taken, and a closed agent asks the issuer for nothing.
+            # The answer that comes later is not taken, and a closed agent gives no token, whatever was refused, and
+            # asks the issuer for nothing.
             granting.set()
             await settle()
-            assert agent.token.value == first
+            assert agent.token.value == second
+            assert await agent.refresh(second) is None
             assert await agent.refresh(first) is None
-            assert len(gateway.of("POST", TOKEN)) == 2
+            assert len(gateway.of("POST", TOKEN)) == 3
 
     run(scenario())
 
@@ -1229,20 +1236,49 @@ def test_a_renewal_runs_to_its_end_when_the_request_that_asked_for_it_stops_wait
     run(scenario())
 
 
-def test_leaving_a_session_ends_a_renewal_nobody_is_left_to_hear_of() -> None:
+def test_a_session_that_closes_while_its_sign_in_is_renewed_gives_the_refusal_no_token_and_keeps_what_the_renewal_brings() -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
-            kept = Slowly(held(gateway, access(1)))
-            gateway.scripted[("GET", "/api/health")] = [REFUSED]
+            first, second, third = access(1), access(2), access(3)
+            kept = MemorySignIn(held(gateway, first))
+            granting = asyncio.Event()
+            gateway.scripted[("POST", TOKEN)] = [
+                says({"access_token": second, "refresh_token": "refresh-2"}),
+                replace(says({"access_token": third, "refresh_token": "refresh-3"}), after=granting),
+            ]
+            told: list[SessionEndReason] = []
+            opened: asyncio.Future[SemiontSession[HttpTransport]] = asyncio.get_running_loop().create_future()
+            leave = asyncio.Event()
 
-            async with session_from_kept(gateway.target("kb"), kept=kept, channels=()) as session:
-                transport = session.client.transport
-                with pytest.raises(TimeoutError):
-                    async with asyncio.timeout(0.1):
-                        await transport.health_check()
-            # `run` fails a scenario that leaves a task behind: the renewal, still waiting to read what is kept, was ended.
-            assert gateway.of("POST", TOKEN) == []
+            async def held_open() -> None:
+                async with session_from_kept(gateway.target("kb"), kept=kept, on_auth_failed=told.append, channels=()) as session:
+                    opened.set_result(session)
+                    await leave.wait()
+
+            holding = asyncio.create_task(held_open())
+            session = await soon(opened)
+            assert await soon(session.refresh(first)) == second
+            # A request refused with the token it holds, and the issuer holds its answer to the renewal.
+            refusing = asyncio.create_task(session.refresh(second))
+            await soon(gateway.arrived("POST", TOKEN, 2))
+            leave.set()
+
+            # The close gives the refusal no token at once, and waits for the renewal: the refresh token it spent is not lost.
+            assert await soon(refusing) is None
+            await settle()
+            assert not holding.done()
+            granting.set()
+            await soon(holding)
+            # What the issuer rotated is kept for the next session, and the closed session took none of it.
+            assert await kept.held() == held(gateway, third, "refresh-3")
+            assert session.token.value == second
+            assert sent_with(gateway, "GET", ME) == [f"Bearer {first}", f"Bearer {second}"]
+            # A closed session gives no token, whatever was refused, and asks the issuer for nothing.
+            assert await session.refresh(first) is None
+            assert len(gateway.of("POST", TOKEN)) == 2
+            # And nothing was signed out.
+            assert told == []
 
     run(scenario())
 

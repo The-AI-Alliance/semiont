@@ -77,7 +77,12 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
                     client.Dispose();
                     await client.Flushed.ConfigureAwait(Spawning.Captures);
                 }
-                finally { session.Dispose(); }
+                finally
+                {
+                    session.Dispose();
+                    // A renewal under way at the issuer runs to its end, and what it brings is kept, before the close returns.
+                    await kept.DisposeAsync().ConfigureAwait(Spawning.Captures);
+                }
             }, session);
         }
         catch

@@ -410,6 +410,33 @@ class SignInTest {
         }
     }
 
+    @Test
+    fun anAgentThatClosesWhileItsTokenIsRenewedGivesTheRefusalNoTokenAndRenewsNothingAfter() = runBlocking {
+        val realm = realm()
+        val first = tokenFor("service-1")
+        val second = tokenFor("service-2")
+        realm.script("/token", issued(first), issued(second))
+        realm.script("/api/users/me", named(AGENT_DID))
+        AgentToken(realm.origin, ServiceToken(SecretCredential(realm.origin, "worker", "the-secret"))).use { agent ->
+            agent.signIn()
+            assertEquals(second, agent.refresh(first))
+            // The issuer holds its answer to the next refusal's grant while the agent closes.
+            realm.hold("/token")
+            val refusing = async { agent.refresh(second) }
+            withTimeout(5_000) {
+                while (realm.of("/token").size < 3) delay(5)
+            }
+            agent.close()
+            // The close ended the renewal: the refusal is given no token, rather than a cancellation it never had.
+            assertNull(withTimeout(5_000) { refusing.await() })
+            assertEquals(second, agent.token.value)
+            // A closed agent gives no token, whatever token was refused, and asks the issuer for nothing.
+            assertNull(agent.refresh(second))
+            assertNull(agent.refresh(first))
+            assertEquals(3, realm.of("/token").size)
+        }
+    }
+
     // ── What fails, and how it is said ───────────────────────────────────
 
     private fun refusal(status: Int, error: String) = Said(status, buildJsonObject { put("error", error) })

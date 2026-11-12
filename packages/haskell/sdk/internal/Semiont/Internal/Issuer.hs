@@ -190,13 +190,15 @@ refreshAtIssuer options endpoint identity refresh = do
 
 -- | Only a missing stored grant gives Nothing. Outages exhaust the refresh
 -- budget as typed errors; an atomic comparison prevents resurrecting sign-out
--- or overwriting a grant another context has already rotated.
+-- or overwriting a grant another context has already rotated. Each attempt is
+-- one exchange and the write of what it brought, and reads the kept sign-in
+-- afresh: a wait between attempts spends nothing.
 refreshSession :: IssuerOptions -> SignIn.KeptSignIn -> Maybe Text -> IO Scientific -> IO (Maybe Text)
 refreshSession options kept holding wallNow =
-  SignIn.renewKept kept holding (\access -> Tokens.isTokenExpired access <$> wallNow) $ \original ->
-    Retry.retryWithBackoff (issuerTime options) (Timing.refreshRetry (issuerTiming options))
-      (\failure -> Retry.retryable Retry.Refresh (signInStatus failure) Nothing False) (const Nothing)
-      (refreshAtIssuer options (storedSessionTokenEndpoint original) (storedSessionClientId original) (storedSessionRefresh original))
+  Retry.retryWithBackoff (issuerTime options) (Timing.refreshRetry (issuerTiming options))
+    (\failure -> Retry.retryable Retry.Refresh (signInStatus failure) Nothing False) (const Nothing)
+    (SignIn.renewKept kept holding (\access -> Tokens.isTokenExpired access <$> wallNow) $ \original ->
+      refreshAtIssuer options (storedSessionTokenEndpoint original) (storedSessionClientId original) (storedSessionRefresh original))
 
 revokeAtIssuer :: IssuerOptions -> Text -> Text -> Text -> IO ()
 revokeAtIssuer options endpoint identity refresh = do

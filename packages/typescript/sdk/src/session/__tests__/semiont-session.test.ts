@@ -866,6 +866,49 @@ describe('SemiontSession — dispose', () => {
     await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it('gives the refusal waiting on the renewal under way no token, and does not take the token the renewal brings after', async () => {
+    const stored = freshJwt(3600);
+    const renewed = freshJwt(7200);
+    seedStoredSession(storage, KB.id, stored, 'refresh-tok');
+    let answer!: (token: string | null) => void;
+    refresh = vi.fn<NonNullable<SemiontSessionConfig['refresh']>>()
+      .mockResolvedValueOnce(renewed)
+      .mockReturnValueOnce(new Promise<string | null>((resolve) => {
+        answer = resolve;
+      })) as typeof refresh;
+    const onAuthFailed = vi.fn();
+    const session = newSession({ onAuthFailed });
+    await session.ready;
+    await expect(session.refresh(stored)).resolves.toBe(renewed);
+    const said = saidBy(session);
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    // A request sent with the renewed token is refused, and the issuer holds its answer.
+    const given: Array<AccessToken | null> = [];
+    void session.refresh(renewed).then((token) => {
+      given.push(token);
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    session.dispose();
+    await settled();
+    expect(given, 'the refusal is given no token at once, and does not wait on the issuer').toEqual([null]);
+
+    // The issuer's answer comes later, and is not taken.
+    answer(freshJwt(10800));
+    await settled();
+    expect(session.token$.getValue()).toBe(renewed);
+
+    // A refusal once disposed, of the token it holds or of the one that token replaced, is given no token, and nothing is renewed.
+    await expect(session.refresh(renewed)).resolves.toBeNull();
+    await expect(session.refresh(stored)).resolves.toBeNull();
+    expect(refresh).toHaveBeenCalledTimes(2);
+    // The dispose is not a sign-out: nothing is said, nobody is told the session ended, and the sign-in stays kept.
+    expect(said).toEqual([]);
+    expect(onAuthFailed).not.toHaveBeenCalled();
+    expect(getStoredSession(storage, KB.id)?.access).toBe(stored);
+  });
 });
 
 describe('SemiontSession — StateUnit axioms', () => {

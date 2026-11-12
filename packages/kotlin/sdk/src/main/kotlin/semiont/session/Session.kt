@@ -210,10 +210,15 @@ public class SemiontSession internal constructor(
      * signed in. A token the session no longer holds was answered already,
      * however late the refusal arrives: the token it holds is given, and
      * nothing is renewed or asked. A gateway that cannot be asked refuses
-     * nothing: the renewed token is given.
+     * nothing: the renewed token is given. Once the session is closed, a
+     * refusal is given null, whatever token it refused, and nothing is
+     * renewed, and one waiting on the renewal under way is given null too:
+     * the close signs nobody out, and the session takes nothing that renewal
+     * brings.
      */
     public suspend fun refresh(refused: String?): String? =
         answering.withLock {
+            if (closing) return@withLock null
             // The first of refusals that arrive together renews and asks; the rest find the token is no longer theirs.
             if (tokens.value != refused) return@withLock tokens.value
             // The token checked is the one handed, never one read again: a renewal made meanwhile is answered by what keeps the sign-in.

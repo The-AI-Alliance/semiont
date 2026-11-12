@@ -158,7 +158,8 @@ type SessionConfig struct {
 	// *SignInError. renewing is the token found kept at the start, though it
 	// has expired, and, once a renewal that got no answer has left the
 	// session holding none, the token that renewal was for: "" only for a
-	// session that has held none. Nil: the session renews nothing.
+	// session that has held none. It runs to its end: the session's close
+	// does not cancel ctx, and waits for it. Nil: the session renews nothing.
 	Refresh func(ctx context.Context, renewing string) (string, error)
 	// Validate asks the gateway who token is; a refusal of the token is a
 	// *TransportError of code unauthorized. Nil: nobody is asked, as a
@@ -190,6 +191,12 @@ type Session struct {
 	// ended it in full before it lets go: the token gone, the sign-in
 	// forgotten, and why told.
 	answering sync.Mutex
+	// renewals is each renewal under way, which runs to its end whatever
+	// becomes of the session, so that what it brings is kept: Close waits for
+	// it. ending is held to begin one while the session is open, and by Close
+	// to end the session, so every renewal begun is one Close waits for.
+	ending   sync.Mutex
+	renewals sync.WaitGroup
 
 	// id is which live session this is: a new one for the same knowledge
 	// base has another.
@@ -334,12 +341,17 @@ func (s *Session) ExpiresAt() (time.Time, bool) {
 
 // Close ends the session: it renews nothing more and asks nobody anything,
 // its token and who is signed in change no more, its errors end once what it
-// was running has said what it met, and it returns then. Closing twice is
-// closing once. Its client is left to whoever made it, who closes it first.
+// was running has said what it met, and it returns then. A renewal under way
+// finishes first, so what it brings is kept: whoever waits on it is given no
+// token at once, and the session does not take it. Closing twice is closing
+// once. Its client is left to whoever made it, who closes it first.
 func (s *Session) Close() {
+	s.ending.Lock()
 	s.cancel()
+	s.ending.Unlock()
 	s.markReady()
 	s.work.Wait()
+	s.renewals.Wait()
 	s.config.Token.End()
 	s.user.End()
 	s.failures.close()
@@ -355,14 +367,21 @@ func (s *Session) Close() {
 // or one after another, they cost one renewal and one ask, and who the gateway
 // says the renewed token is, is who is signed in. A refusal met while the
 // session is starting waits for the start, which answers it. A gateway
-// that cannot be asked refuses nothing: the renewed token is given.
+// that cannot be asked refuses nothing: the renewed token is given. Once the
+// session is closed, a refusal is given no token, whatever token it names,
+// and nothing is renewed or asked.
 //
-// The wait and the renewal run under the session's own lifetime, not ctx: a
-// refresh token spent at the issuer is not left without the token it bought.
+// The wait runs under the session's own lifetime, not ctx, and the renewal to
+// its end, whatever becomes of either: a refresh token spent at the issuer is
+// not left without the token it bought. A refusal waiting on a renewal when
+// the session closes is given no token at once.
 func (s *Session) Refresh(_ context.Context, refused string) (string, bool) {
 	<-s.ready
 	s.answering.Lock()
 	defer s.answering.Unlock()
+	if s.closing() {
+		return "", false
+	}
 	if current := s.config.Token.Value(); current != refused {
 		return current, current != ""
 	}
@@ -392,16 +411,39 @@ func (s *Session) Refresh(_ context.Context, refused string) (string, bool) {
 
 // tryRefresh asks Refresh to renew holding, the token the session holds: the
 // token, or "" and why there is none. A renewal that could not be made and one
-// that was refused both leave the session without a token.
+// that was refused both leave the session without a token. The renewal runs to
+// its end under a context the session's close does not cancel, so what it
+// brings is kept, and Close waits for it. Once the session is closed, or when
+// it closes first, there is no token, and the close is why.
 func (s *Session) tryRefresh(holding string) (string, error) {
 	if s.config.Refresh == nil {
 		return "", nil
 	}
-	renewed, err := s.config.Refresh(s.alive, s.renewing(holding))
-	if err != nil {
-		return "", err
+	s.ending.Lock()
+	if closed := s.alive.Err(); closed != nil {
+		s.ending.Unlock()
+		return "", closed
 	}
-	return renewed, nil
+	renewing := s.renewing(holding)
+	s.renewals.Add(1)
+	s.ending.Unlock()
+	var renewed string
+	var err error
+	done := make(chan struct{})
+	go func() {
+		defer s.renewals.Done()
+		defer close(done)
+		renewed, err = s.config.Refresh(context.WithoutCancel(s.alive), renewing)
+	}()
+	select {
+	case <-done:
+		if err != nil {
+			return "", err
+		}
+		return renewed, nil
+	case <-s.alive.Done():
+		return "", s.alive.Err()
+	}
 }
 
 // renewing is the token a renewal of holding is handed, and remembers it:

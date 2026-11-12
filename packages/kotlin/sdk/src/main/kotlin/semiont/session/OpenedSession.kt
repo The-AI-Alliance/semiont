@@ -7,7 +7,9 @@ import semiont.SemiontClient
  * closing flush writes what it owes, then the session, whose errors end once
  * the writes that flush began are made or refused, so what the flush met is
  * said on them first, then what the session was built on, its transport and
- * what renews its token. What a factory of sessions gives a registry.
+ * what renews its token: a renewal of a kept sign-in under way runs to its
+ * end, so what its issuer rotated is kept, and the close returns once it has.
+ * What a factory of sessions gives a registry.
  */
 public class OpenedSession internal constructor(
     public val session: SemiontSession,

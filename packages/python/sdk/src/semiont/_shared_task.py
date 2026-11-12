@@ -1,4 +1,4 @@
-"""A task several callers wait on: whoever stops waiting does not stop it, and one its owner ended gives nothing."""
+"""A task several callers wait on: whoever stops waiting does not stop it, and once its owner is closing it gives them nothing."""
 
 import asyncio
 
@@ -11,15 +11,17 @@ def heard(task: asyncio.Task[object]) -> None:
         task.exception()
 
 
-async def answer[T](task: asyncio.Task[T]) -> T | None:
-    """What `task` gives, or raises; nothing when its owner ended it.
+async def answer[T](task: asyncio.Task[T], closing: asyncio.Event) -> T | None:
+    """What `task` gives, or raises; nothing once `closing` is set, whether `task` has ended or not.
 
     A waiter that is cancelled is cancelled alone: `task` goes on for the
-    others. One its owner ended, as a close ends what nobody is left to give
-    it to, gives its waiters nothing rather than a cancellation none of them
-    had.
+    others. Its owner sets `closing` as it closes, and each waiter is given
+    nothing at once, rather than a cancellation none of them had, whether the
+    owner then ends `task` or waits for it to end.
     """
-    await asyncio.wait([task])
-    if task.cancelled():
-        return None
-    return task.result()
+    closed = asyncio.create_task(closing.wait())
+    try:
+        await asyncio.wait([task, closed], return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        closed.cancel()
+    return None if closing.is_set() else task.result()

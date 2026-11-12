@@ -389,13 +389,9 @@ construct owned options time settings shared stream = mask $ \restore -> do
         when first (maybe (pure ()) Prelude.id detach)
   forwarder <- forward restore owned stream `onException` (detachOnce `finally` Lifetime.close lifetime)
   let session = Session options owned time settings lifetime shared handed person done queue flight generation detachOnce stream forwarder
+      -- A refusal still waiting is given no token once this closes the lifetime.
       finish = do
-        atomically $ do
-          let failure = Left (toException (BusRequestError Code.BusRequestClosed "Session is closed" Nothing))
-          void (tryPutTMVar done failure)
-          pending <- readTVar flight
-          mapM_ (\result -> void (tryPutTMVar result failure)) pending
-          writeTVar flight Nothing
+        atomically (void (tryPutTMVar done (Left (toException (BusRequestError Code.BusRequestClosed "Session is closed" Nothing)))))
         unsubscribe session `finally` (atomically (State.complete shared >> State.complete person)
           `finally` Lifetime.close lifetime)
       work = do
@@ -420,14 +416,17 @@ forward restore owned stream = do
 
 -- | Refusal of an already replaced token returns the held token immediately,
 -- in the same transaction that chooses whether a renewal must be queued.
--- Nothing requests a renewal without naming a refused token.
+-- Nothing requests a renewal without naming a refused token. Once the
+-- session is closed, a refusal is given no token and nothing is renewed, and
+-- one waiting on the renewal under way is given none at once. A caller
+-- cancelled while it waits is cancelled alone: the renewal goes on for the
+-- others.
 refresh :: Session -> Maybe Text -> IO (Maybe Text)
-refresh session refused = Lifetime.run (life session) $ do
+refresh session refused = do
   answer <- atomically $ do
     closed <- Lifetime.isClosed (life session)
-    when closed (throwSTM (BusRequestError Code.BusRequestClosed "Session is closed" Nothing))
     current <- State.current (token session)
-    if isJust refused && refused/=current then pure (Left current) else do
+    if closed then pure (Left Nothing) else if isJust refused && refused/=current then pure (Left current) else do
       active <- readTVar (refusing session)
       pending <- case active of
         Just waiting -> pure waiting
@@ -439,7 +438,9 @@ refresh session refused = Lifetime.run (life session) $ do
       pure (Right pending)
   case answer of
     Left current -> pure current
-    Right pending -> atomically (readTMVar pending) >>= either throwIO pure
+    Right pending -> atomically (ended `orElse` readTMVar pending) >>= either throwIO pure
+  where
+    ended = Right Nothing <$ (Lifetime.isClosed (life session) >>= check)
 
 loop :: Session -> IORef Schedule -> IO ()
 loop session schedule = do
@@ -479,7 +480,10 @@ attempt session = case sessionRefresh (configuration session) of
       maybe (readTVar (renewing session)) (pure . Just) current
     outcome <- trySync (action renewed)
     current <- readTVarIO (revision session)
-    pure $ if current/=version then Superseded else case outcome of
+    -- One that comes back once the session is closed has nobody left to give
+    -- its token to, and ends nothing.
+    closed <- atomically (Lifetime.isClosed (life session))
+    pure $ if current/=version || closed then Superseded else case outcome of
       Right (Just value) -> Renewed value
       Right Nothing -> NoGrant
       Left problem -> Unrenewed $ case fromException problem of
@@ -620,7 +624,9 @@ later session schedule = do
 
 -- | Ends the session's work, observations and errors stream. The client
 -- stays its owner's: closed first, what its transport said is said before
--- the errors end; still open, the errors end at once.
+-- the errors end; still open, the errors end at once. A kept sign-in's
+-- renewal under way runs to its end first and keeps what it brought, of
+-- which the session takes nothing.
 dispose :: Session -> IO ()
 dispose session = halt session `finally` (forwarded `finally` silence session)
   where

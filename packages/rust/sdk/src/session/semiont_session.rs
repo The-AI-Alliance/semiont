@@ -44,13 +44,17 @@
 //! client keeps (`super::refresh_delay`).
 //!
 //! A session is a state unit: it writes its token, its user and its errors,
-//! so `dispose` ends them, and stops its renewal. It only uses its client,
-//! so it never closes it: whoever built the client and the session closes
-//! the client, which makes the saves its caches owe, and then ends the
-//! session, so what those saves meet is said before its errors end. A
-//! session that is only dropped ends the same things. A session is built
-//! inside a Tokio runtime, and owns its client from then on
-//! (`SemiontClient::record_person_key`).
+//! so `dispose` ends them, and stops its renewal. A renewal under way runs
+//! to its end, so what it brings is kept where the sign-in is kept (an
+//! issuer that rotates refresh tokens has spent the old one by then), and a
+//! close waits for it (`OpenedSession::close`); each refusal waiting on it
+//! is given no token, and the session does not take the token it brings.
+//! It only uses its client, so it never closes it: whoever built the client
+//! and the session closes the client, which makes the saves its caches owe,
+//! and then ends the session, so what those saves meet is said before its
+//! errors end. A session that is only dropped ends the same things. A
+//! session is built inside a Tokio runtime, and owns its client from then
+//! on (`SemiontClient::record_person_key`).
 
 use super::kept::SignInKept;
 use super::signals::SessionEndReason;
@@ -68,10 +72,10 @@ use crate::timing::{MAX_RECONNECT, RECONNECT};
 use crate::transport::{BoxFuture, ConnectionState, Events, Failures, STREAM_BACKLOG};
 use crate::types::{KbTarget, UserResponse};
 use rand_core::Rng;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::SystemTime;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, oneshot, watch};
+use tokio::task::JoinHandle;
 
 /// Renew the token it is handed, the one the session renews (see the
 /// module's documentation; none only when the session has held none): the
@@ -166,7 +170,13 @@ struct Shared {
     first: Mutex<Option<broadcast::Receiver<SemiontError>>>,
     random: Option<Arc<Mutex<dyn Rng + Send>>>,
     tasks: Tasks,
-    closed: AtomicBool,
+    /// Whether the session has ended, which whoever waits on a renewal
+    /// waits on too.
+    closed: watch::Sender<bool>,
+    /// Each renewal begun, which a task of its own drives to its end
+    /// whoever waits on it: a close waits for those its end let finish
+    /// (`SemiontSession::renewals_finished`).
+    renewals: Mutex<Vec<JoinHandle<()>>>,
     /// Held while a refusal is being answered, and while a token whose wait
     /// ran out is renewed: the refusals that arrive during either are
     /// answered by it, and a wait that runs out during either finds the token
@@ -215,7 +225,8 @@ impl SemiontSession {
             first: Mutex::new(Some(first)),
             random: config.random,
             tasks: Tasks::new(),
-            closed: AtomicBool::new(false),
+            closed: watch::channel(false).0,
+            renewals: Mutex::default(),
             answering: tokio::sync::Mutex::new(()),
         });
 
@@ -311,9 +322,24 @@ impl SemiontSession {
     /// if the issuer refused to renew a kept credential it is over. A token
     /// the session no longer holds was answered already, however late the
     /// refusal arrives: the token it holds is given, and nothing is renewed
-    /// or asked. See `SessionRenewer`, through which a transport asks.
+    /// or asked. Once the session has ended, a refusal is given none,
+    /// whatever token it names, and the issuer is not asked; one waiting on
+    /// a renewal as the session ends is given none at once. See
+    /// `SessionRenewer`, through which a transport asks.
     pub async fn refresh(&self, refused: Option<&str>) -> Option<String> {
         self.shared.refused(refused).await
+    }
+
+    /// Resolves once each renewal the session's end let finish has ended,
+    /// and kept what it brought where the sign-in is kept: whoever closes the
+    /// session waits for this once it has ended it.
+    pub(crate) async fn renewals_finished(&self) {
+        let begun = std::mem::take(&mut *locked(&self.shared.renewals));
+        for renewal in begun {
+            // A renewal that panicked has finished too: its panic is not the
+            // close's to give.
+            let _ = renewal.await;
+        }
     }
 
     /// A handle that renews this session's token, for the transport under
@@ -327,9 +353,11 @@ impl SemiontSession {
 }
 
 impl StateUnit for SemiontSession {
-    /// End the session: its renewal stops, and its token, its user, its
-    /// readiness and its errors end. Its client is left to whoever built
-    /// it. Ending twice is ending once.
+    /// End the session: it renews nothing more, and its token, its user,
+    /// its readiness and its errors end. A renewal under way finishes, and
+    /// keeps what it brings where the sign-in is kept, but whoever waits on
+    /// it is given no token, and the session does not take it. Its client is
+    /// left to whoever built it. Ending twice is ending once.
     fn dispose(&self) {
         self.shared.end();
     }
@@ -367,10 +395,13 @@ impl OpenedSession {
 
     /// Close the client, which makes the saves its caches owe, and then end
     /// the session: what those saves meet is said before the session's
-    /// errors end. Closing twice is closing once.
+    /// errors end. A renewal under way finishes before this returns, so
+    /// what it brings is kept where the sign-in is kept by then. Closing
+    /// twice is closing once.
     pub async fn close(&self) {
         self.session.client().close().await;
         self.session.dispose();
+        self.session.renewals_finished().await;
     }
 }
 
@@ -399,12 +430,12 @@ impl Drop for SemiontSession {
 
 impl Shared {
     fn closed(&self) -> bool {
-        self.closed.load(Ordering::SeqCst)
+        *self.closed.borrow()
     }
 
     /// Stop everything the session runs and end what it holds.
     fn end(&self) {
-        if self.closed.swap(true, Ordering::SeqCst) {
+        if self.closed.send_replace(true) {
             return;
         }
         self.tasks.stop();
@@ -434,19 +465,47 @@ impl Shared {
     /// holding, with a failure to ask read as there being no token: a
     /// renewal that could not be made and one that was refused both leave
     /// the session without one. The reason is kept for whoever reads why.
+    /// A task of its own drives the renewal to its end, so a caller that
+    /// stops waiting does not stop it. `None` once the session has ended,
+    /// and when it ends first: the renewal finishes, and what it brings is
+    /// kept where the sign-in is kept, but its token is not taken and
+    /// nothing is decided of it.
     async fn try_refresh(
         &self,
         holding: Option<String>,
-    ) -> (
+    ) -> Option<(
         Option<String>,
         Option<Arc<dyn std::error::Error + Send + Sync>>,
-    ) {
+    )> {
         let Some(refresh) = &self.refresh else {
-            return (None, None);
+            return Some((None, None));
         };
-        match refresh(self.renewing(holding)).await {
-            Ok(token) => (token, None),
-            Err(failure) => (None, Some(failure)),
+        let (answered, answer) = oneshot::channel();
+        {
+            let mut renewals = locked(&self.renewals);
+            // Decided with the renewals held, so every renewal begun is one
+            // a close waits for.
+            if self.closed() {
+                return None;
+            }
+            renewals.retain(|begun| !begun.is_finished());
+            let renewal = refresh(self.renewing(holding));
+            renewals.push(tokio::spawn(async move {
+                // Whoever waited may have stopped: the renewal goes on to
+                // its end all the same.
+                let _ = answered.send(renewal.await);
+            }));
+        }
+        let mut ended = self.closed.subscribe();
+        tokio::select! {
+            biased;
+            _ = ended.wait_for(|closed| *closed) => None,
+            given = answer => match given {
+                Ok(Ok(token)) => Some((token, None)),
+                Ok(Err(failure)) => Some((None, Some(failure))),
+                // Its task ends without answering only by panicking.
+                Err(unanswered) => panic!("a renewal panicked: {unanswered}"),
+            },
         }
     }
 
@@ -466,13 +525,8 @@ impl Shared {
     /// issuer, with nobody asked afterwards: what the session does on its
     /// own schedule, where no refusal came first.
     async fn renew(&self, holding: Option<String>) -> Option<String> {
-        if self.closed() || self.refresh.is_none() {
-            return None;
-        }
-        let (renewed, failure) = self.try_refresh(holding).await;
-        if self.closed() {
-            return None;
-        }
+        self.refresh.as_ref()?;
+        let (renewed, failure) = self.try_refresh(holding).await?;
         if let Some(token) = renewed {
             self.unanswered.set(false);
             self.token.set(Some(token.clone()));
@@ -566,11 +620,16 @@ impl Shared {
     ///
     /// One refusal is answered at a time, and none while a token whose wait
     /// ran out is renewed, so however many requests were refused at once,
-    /// they cost one renewal and one ask. A refusal of a token the session
-    /// no longer holds was answered already: the token it holds is given.
-    /// The renewal is handed the token checked here, never one read later.
+    /// they cost one renewal and one ask. Once the session has ended, a
+    /// refusal is given no token, whatever token it names. A refusal of a
+    /// token the session no longer holds was answered already: the token it
+    /// holds is given. The renewal is handed the token checked here, never
+    /// one read later.
     async fn refused(&self, refused: Option<&str>) -> Option<String> {
         let _answering = self.answering.lock().await;
+        if self.closed() {
+            return None;
+        }
         let held = self.token.now();
         if held.as_deref() != refused {
             return held;
@@ -689,7 +748,10 @@ impl Shared {
         let Some(held) = held else { return };
         let expired = is_token_expired(&held.access, SystemTime::now());
         let mut token = if expired {
-            match self.try_refresh(Some(held.access.clone())).await {
+            let Some(answer) = self.try_refresh(Some(held.access.clone())).await else {
+                return;
+            };
+            match answer {
                 (Some(renewed), _) => renewed,
                 (None, Some(failure)) if !refused(failure.as_ref()) => {
                     // The issuer did not refuse it: the credential is kept,
@@ -760,10 +822,9 @@ impl Shared {
                         just_issued = true;
                         continue;
                     }
-                    let (renewed, failure) = self.try_refresh(current).await;
-                    if self.closed() {
+                    let Some((renewed, failure)) = self.try_refresh(current).await else {
                         return;
-                    }
+                    };
                     match renewed {
                         Some(renewed) => {
                             self.token.set(Some(renewed.clone()));

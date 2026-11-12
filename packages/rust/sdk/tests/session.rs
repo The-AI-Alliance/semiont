@@ -14,8 +14,8 @@ use semiont::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
 };
 use semiont::session::{
-    SemiontSession, SemiontSessionConfig, SessionEndReason, SessionSignals, SignInKept,
-    StoredSession, kept_in, store_session, stored_session,
+    OpenedSession, SemiontSession, SemiontSessionConfig, SessionEndReason, SessionSignals,
+    SignInKept, StoredSession, kept_in, store_session, stored_session,
 };
 use semiont::state_unit::StateUnit;
 use semiont::testing::axioms::{
@@ -1606,6 +1606,77 @@ async fn dropping_a_session_ends_what_it_holds_and_leaves_its_client_open() {
     assert_eq!(world.renewed(), 0);
     assert!(!world.client.bus().destroyed());
     assert!(world.transport.request_log().is_empty());
+}
+
+// The session is closed while a refusal's renewal of its token is under way.
+// The refusal is given no token at once. The renewal finishes, and the close
+// waits for it, so the rotation it brings is kept where the sign-in is kept;
+// the closed session does not take its token. A refusal once the session is
+// closed is given none, whatever token it names, and asks the issuer nothing.
+// Nothing the close let finish is a sign-out.
+#[tokio::test(start_paused = true)]
+async fn a_session_closed_while_renewing_gives_the_refusal_no_token_and_keeps_the_rotation() {
+    let (access, renewed) = (token(3600, 1), token(3600, 2));
+    let world = World::new().storing(&access);
+    // An issuer that holds its answer until released, whose rotation is kept
+    // where the sign-in is kept, as a kept sign-in's renewal keeps it.
+    let release = Arc::new(tokio::sync::Notify::new());
+    let renewals = Arc::new(Mutex::new(0usize));
+    let (renewing, holding) = (renewals.clone(), release.clone());
+    let (storage, issued) = (world.storage.clone(), renewed.clone());
+    let session = world.session_of(SemiontSessionConfig {
+        refresh: Some(Arc::new(move |_holding| {
+            *renewing.lock().expect("renewals") += 1;
+            let (holding, storage, issued) = (holding.clone(), storage.clone(), issued.clone());
+            Box::pin(async move {
+                holding.notified().await;
+                let rotated = StoredSession {
+                    refresh: "a-rotated-refresh-token".to_owned(),
+                    ..stored(&issued)
+                };
+                store_session(storage.as_ref(), KB, &rotated).expect("kept");
+                Ok(Some(issued))
+            })
+        })),
+        ..world.config()
+    });
+    ready(&session).await;
+
+    let refreshing = tokio::spawn({
+        let renewer = session.renewer();
+        let refused = held_by(&session);
+        async move { renewer.refresh(refused.as_deref()).await }
+    });
+    settle().await;
+    assert_eq!(*renewals.lock().expect("renewals"), 1);
+    let closing = tokio::spawn(async move {
+        let opened = OpenedSession::new(session);
+        opened.close().await;
+        opened
+    });
+
+    let given = tokio::time::timeout(Duration::from_secs(1), refreshing)
+        .await
+        .expect("the refusal is answered at the close")
+        .expect("the refresh ran");
+    assert_eq!(given, None);
+    assert!(!closing.is_finished(), "the close waits for the renewal");
+    release.notify_waiters();
+    let opened = tokio::time::timeout(Duration::from_secs(1), closing)
+        .await
+        .expect("the close returns once the renewal has finished")
+        .expect("the close ran");
+
+    let kept = stored_session(world.storage.as_ref(), KB).expect("the sign-in is kept");
+    assert_eq!(kept.refresh, "a-rotated-refresh-token");
+    let session = opened.session();
+    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
+    assert_eq!(session.refresh(Some(access.as_str())).await, None);
+    // A token the session does not hold is given no token either.
+    assert_eq!(session.refresh(Some(renewed.as_str())).await, None);
+    assert_eq!(*renewals.lock().expect("renewals"), 1);
+    assert!(world.auth_failed().is_empty());
+    assert!(world.errors().is_empty());
 }
 
 // ── What a host shows about a session ───────────────────────────────────

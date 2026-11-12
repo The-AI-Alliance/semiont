@@ -26,9 +26,16 @@ val replace : t -> string option -> unit
 
 val refresh_refused : t -> refused:string -> string option
 (** Reuse a replacement already held, or join the shared renewal. Cancelling
-    this waiter leaves the renewal running for the session. *)
+    this waiter leaves the renewal running for the session. Once the session is
+    closed it is given no token and nothing is renewed, and one waiting on the
+    renewal under way is given none at once. *)
 
 val close : t -> unit
+(** End the session: each caller waiting on its renewal is given no token at
+    once, and what that renewal brings back is not taken. A renewal that
+    protects itself from cancellation, as a kept sign-in's does once it spends
+    its refresh token, runs to its end, and [await_closed] returns after it. *)
+
 val await_closed : t -> unit
 val await_credential_change : t -> from:string option -> string option
 val refresh : t -> string option
