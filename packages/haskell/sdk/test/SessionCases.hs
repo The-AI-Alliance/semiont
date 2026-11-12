@@ -253,7 +253,7 @@ orderCases target = do
 
 -- | A session nobody has read says more than it keeps for a first reader:
 -- the first reader is given the latest errorsKeptForFirstReaderCount, in the
--- order said, and no more.
+-- order said, and no more. What one keeps when it ends is dropped.
 keptForFirstReaderCases :: KbTarget -> UserResponse -> IO ()
 keptForFirstReaderCases target person = do
   time <- Time.newTime
@@ -272,6 +272,13 @@ keptForFirstReaderCases target person = do
       heard <- Session.errors session (\given -> Session.dispose session >> Stream.toList_ given)
       require ("the first reader was not given the latest the session said, in order: "++show (map codeOf heard))
         (heard==map Right (drop beyond said))
+    -- One is said with nobody reading, and the session ends: a reader who comes after hears nothing.
+    bracket (Session.newSession owned options { Session.sessionId = "dropped-at-end" } (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
+      Session.ready session
+      Transport.reportError input (TransportError Code.TransportUnavailable "said before the session ended" Nothing Nothing)
+      Session.dispose session
+      afterEnd <- Session.errors session Stream.toList_
+      require ("a reader who came after the session ended was given what was kept: "++show (map codeOf afterEnd)) (null afterEnd)
 
 externalCases :: KbTarget -> UserResponse -> IO ()
 externalCases target person = do
@@ -300,10 +307,9 @@ externalCases target person = do
       =<< atomically (State.current (Session.token session))
     atomically (putTMVar gate ())
     require "an old renewal resurrected a signed-out session" . (==Nothing) =<< wait pending
-    Session.dispose session
-    Session.dispose session
+    said <- Session.errors session (\given -> Session.dispose session >> Session.dispose session >> Stream.toList_ given)
     require "session detached its storage listener more than once" . (==1) =<< readTVarIO detached
-    require "a replaced renewal said a failure" . null =<< Session.errors session Stream.toList_
+    require "a replaced renewal said a failure" (null said)
     -- Disposal joins an issuer request and releases every waiter, including
     -- callers which did not themselves cancel their refusal request.
     Stored.storeSession memory (kbTargetId target) (stored (jwt 3600 0))

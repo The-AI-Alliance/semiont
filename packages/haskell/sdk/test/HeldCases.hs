@@ -2,7 +2,7 @@
 module HeldCases (heldCases, heldClockCases) where
 
 import Control.Concurrent (yield)
-import Control.Concurrent.Async (async, cancel, wait, concurrently)
+import Control.Concurrent.Async (async, cancel, wait, concurrently, withAsync)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Exception (IOException, bracket, try)
@@ -19,6 +19,7 @@ import Semiont.Channels hiding (JobComplete, JobCheckpoint)
 import qualified Semiont.Channels as Ch
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors (BusRequestError(..))
+import Semiont.Timing (errorsKeptForFirstReaderCount)
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Transport as Transport
 import Semiont.Types
@@ -86,11 +87,20 @@ acquire fixtures rigValue@(Rig worker _ _ _ _) = do
   answer <- wait reader
   case answer of Just (Worker.HeldMark job) -> pure job; _ -> ioError (userError "claim did not hand over a typed mark job")
 
+-- | A job the worker accepts is announced as queued.
+announceJob :: Map.Map Text Value -> Rig -> IO ()
+announceJob fixtures (Rig _ input _ _ _) = do
+  filterValue <- fixture fixtures "JobFilter"
+  case toJSON (filterValue :: JobFilter) of
+    Object fields -> Transport.receive input (BusFrame (channelName JobQueued) Nothing (BusFramePayload fields) Nothing)
+    _ -> ioError (userError "filter was not an object")
+
 heldCases :: Map.Map Text Value -> IO ()
 heldCases fixtures = do
-  result <- timeout 15000000 (lifecycle fixtures >> commits fixtures >> failedSettle fixtures >> stopping fixtures >> idleAndStalled fixtures >> yieldJob fixtures)
+  result <- timeout 15000000 (lifecycle fixtures >> commits fixtures >> failedSettle fixtures >> stopping fixtures >> idleAndStalled fixtures >> yieldJob fixtures
+    >> refusalsKept fixtures >> stallsKept fixtures)
   require "held-job liveness deadline expired" (result == Just ())
-  putStrLn "PASS worker lifecycle, cancellation, commit evidence, atomic settlement and scoped shutdown"
+  putStrLn "PASS worker lifecycle, cancellation, commit evidence, atomic settlement, scoped shutdown, and what refusals and stalls keep for a first reader"
 
 lifecycle :: Map.Map Text Value -> IO ()
 lifecycle fixtures = rig fixtures $ \rigValue@(Rig worker input sent _ _) -> do
@@ -184,14 +194,10 @@ idleAndStalled fixtures = rig fixtures $ \rigValue@(Rig worker input _ clock _) 
   takeMVar readyRefused
   reader <- async (Worker.next worker)
   firstClaim <- outgoing rigValue (channelName JobClaim)
-  filterValue <- fixture fixtures "JobFilter"
-  let announce = case toJSON (filterValue :: JobFilter) of
-        Object fields -> Transport.receive input (BusFrame (channelName JobQueued) Nothing (BusFramePayload fields) Nothing)
-        _ -> ioError (userError "filter was not an object")
-      waitStamp = do
+  let waitStamp = do
         stats <- Worker.vitals worker
         case workerVitalsLastQueuedEventAt stats of Nothing -> yield >> waitStamp; Just _ -> pure ()
-  announce
+  announceJob fixtures rigValue
   waitStamp
   reply rigValue firstClaim JobClaimFailed (CommandError (Just CommandErrorCodeNoneU2d_pending) Nothing "empty" KM.empty)
   secondClaim <- outgoing rigValue (channelName JobClaim)
@@ -216,6 +222,69 @@ idleAndStalled fixtures = rig fixtures $ \rigValue@(Rig worker input _ clock _) 
   frame <- outgoing rigValue (channelName JobCancel)
   value <- decode (Object (busFramePayloadAdditionalProperties (busFramePayload frame)))
   require "cancel checkpoint was not retained" (jobCancelCommandCompletedUnits value == Just ["done"])
+
+-- | Claims, each refused for its reason with nobody reading the refusals; then body is handed the worker.
+refusing :: Map.Map Text Value -> [Text] -> (Worker.Claims -> IO ()) -> IO ()
+refusing fixtures reasons body = rig fixtures $ \rigValue@(Rig worker _ _ _ _) -> withAsync (Worker.next worker) $ \_ -> do
+  forM_ reasons $ \reason -> do
+    asked <- outgoing rigValue (channelName JobClaim)
+    reply rigValue asked JobClaimFailed (CommandError (Just CommandErrorCodeUnauthorized) Nothing reason KM.empty)
+    -- A job announced wakes the worker to claim again once the refusal is said.
+    announceJob fixtures rigValue
+  -- The claim after the last refusal: every refusal was said before it.
+  _ <- outgoing rigValue (channelName JobClaim)
+  body worker
+
+-- | A worker nobody reads the refusals of meets more than it keeps for a first reader: the first reader is given the
+-- latest errorsKeptForFirstReaderCount, in the order met, and no more. What it keeps as it stops is dropped.
+refusalsKept :: Map.Map Text Value -> IO ()
+refusalsKept fixtures = do
+  let beyond = 3 :: Int
+      reasons = ["claim " <> T.pack (show serial) <> " refused" | serial <- [1 .. fromInteger errorsKeptForFirstReaderCount + beyond]]
+  refusing fixtures reasons $ \worker -> do
+    heard <- Worker.refused worker (\given -> Worker.stop worker >> Stream.toList_ given)
+    require ("the first reader was not given the latest refusals, in order: " ++ show (map claimRefusalMessage heard))
+      (map claimRefusalMessage heard == drop beyond reasons)
+  refusing fixtures ["refused before the stop"] $ \worker -> do
+    Worker.stop worker
+    afterStop <- Worker.refused worker Stream.toList_
+    require "a reader who came after the stop was given the refusal kept" (null afterStop)
+
+-- | Jobs held one at a time, each named by jobs, each let go quiet past the rig's stall threshold and its stall said
+-- with nobody reading the stalls, then completed; then body is handed the worker.
+stalling :: Map.Map Text Value -> [JobId] -> (Worker.Claims -> IO ()) -> IO ()
+stalling fixtures jobs body = rig fixtures $ \rigValue@(Rig worker _ _ clock _) -> do
+  running <- record fixtures
+  result <- fixture fixtures "MarkJobResult"
+  forM_ jobs $ \identity -> do
+    reader <- async (Worker.next worker)
+    asked <- outgoing rigValue (channelName JobClaim)
+    let named = running { jobRunningMetadata = (jobRunningMetadata running) { jobMetadataId = identity } }
+    reply rigValue asked JobClaimed (JobClaimedResult named)
+    received <- wait reader
+    job <- case received of Just (Worker.HeldMark value) -> pure value; _ -> ioError (userError "claim did not hand over a typed mark job")
+    atomically (modifyTVar' clock (+ 1100000000))
+    -- The stall check has woken to the quiet and said the stall.
+    Time.settle
+    Worker.complete job result
+    _ <- outgoing rigValue (channelName Ch.JobComplete)
+    pure ()
+  body worker
+
+-- | Stalls nobody reads are kept for a first reader as refusals are, and dropped as the worker stops.
+stallsKept :: Map.Map Text Value -> IO ()
+stallsKept fixtures = do
+  let beyond = 3 :: Int
+  jobs <- mapM (\serial -> decode (String ("job-" <> T.pack (show serial)))) [1 .. fromInteger errorsKeptForFirstReaderCount + beyond]
+  stalling fixtures jobs $ \worker -> do
+    heard <- Worker.stalled worker (\given -> Worker.stop worker >> Stream.toList_ given)
+    require ("the first reader was not given the latest stalls, in order: " ++ show (map heldJobStallJobId heard))
+      (map heldJobStallJobId heard == drop beyond jobs)
+  quiet <- decode (String "job-stalled-before-the-stop")
+  stalling fixtures [quiet] $ \worker -> do
+    Worker.stop worker
+    afterStop <- Worker.stalled worker Stream.toList_
+    require "a reader who came after the stop was given the stall kept" (null afterStop)
 
 yieldJob :: Map.Map Text Value -> IO ()
 yieldJob fixtures = rig fixtures $ \rigValue@(Rig worker _ _ _ _) -> do

@@ -8,6 +8,7 @@ import Control.Monad (unless)
 import qualified Data.Map.Strict as Map
 import Data.Sequence (Seq, (|>))
 import qualified Data.Sequence as Seq
+import Semiont.Timing (errorsKeptForFirstReaderCount)
 
 data Broadcast value = Broadcast (TVar (Contents value))
 data Contents value = Contents
@@ -22,19 +23,20 @@ data Contents value = Contents
   , stopped :: Bool
   }
 -- | What is kept for the first reader while none has subscribed: the latest
--- published, oldest first, at most the count; nothing once one has, and
--- nothing ever for events that keep nothing for one.
+-- published, oldest first, at most the count; nothing once one has or the
+-- broadcast has closed, and nothing ever for events that keep nothing for one.
 data Unread value = Keeping !Int !(Seq value) | Unkept
 data Subscription value = Subscription (Broadcast value) Integer (TQueue value) (TVar Bool)
 
 newEvents :: STM (Broadcast value)
 newEvents = Broadcast <$> newTVar (Contents 0 Map.empty Nothing Unkept False)
 
--- | Events where the latest @count@ values published before anyone
--- subscribes reach the first subscriber, in the order published: one more
--- drops the oldest.
-newKeptEvents :: Int -> STM (Broadcast value)
-newKeptEvents count = Broadcast <$> newTVar (Contents 0 Map.empty Nothing (Keeping count Seq.empty) False)
+-- | Events where the latest 'errorsKeptForFirstReaderCount' values published
+-- before anyone subscribes reach the first subscriber, in the order
+-- published: one more drops the oldest. What is still kept when they close
+-- is dropped.
+newKeptEvents :: STM (Broadcast value)
+newKeptEvents = Broadcast <$> newTVar (Contents 0 Map.empty Nothing (Keeping (fromInteger errorsKeptForFirstReaderCount) Seq.empty) False)
 
 newState :: value -> STM (Broadcast value)
 newState value = Broadcast <$> newTVar (Contents 0 Map.empty (Just value) Unkept False)
@@ -106,5 +108,8 @@ keep :: value -> Unread value -> Unread value
 keep value (Keeping count kept) = Keeping count (Seq.drop (Seq.length kept + 1 - count) (kept |> value))
 keep _ Unkept = Unkept
 
+-- | Ends every reader's values once it has read what it was handed. A reader
+-- who subscribes after is handed the latest, for state, and nothing kept for
+-- a first reader.
 close :: Broadcast value -> STM ()
-close (Broadcast cell) = modifyTVar' cell (\current -> current { stopped = True, readers = Map.empty })
+close (Broadcast cell) = modifyTVar' cell (\current -> current { stopped = True, readers = Map.empty, unread = Unkept })

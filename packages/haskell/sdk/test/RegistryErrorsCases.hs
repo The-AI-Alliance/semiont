@@ -5,12 +5,13 @@
 -- a session does: for a write the storage it keeps in refuses, or a sign-in that cannot be read or cannot record the
 -- person the gateway names. Its transport's failures are said on its transport as the transport says its own, and its
 -- renewal records the token it is handed, so a case holds that the registry renewed nothing. A registry's close also
--- waits for a switch under way to finish closing the session it retired.
+-- waits for a switch under way to finish closing the session it retired. A registry nobody reads keeps the latest
+-- errorsKeptForFirstReaderCount it said for its first reader, and drops them as it closes.
 module RegistryErrorsCases (registryErrorsCases) where
 
 import Control.Concurrent.Async (Async, poll, wait, withAsync)
 import Control.Concurrent.STM
-import Control.Exception (bracket, onException)
+import Control.Exception (bracket, onException, throwIO)
 import Control.Monad (forM_, unless, void, when)
 import Data.Aeson (FromJSON, Value(..), eitherDecodeStrict', fromJSON, Result(..))
 import qualified Data.Aeson.Key as Key
@@ -41,6 +42,7 @@ import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.SignIn as SignIn
 import qualified Semiont.State.SessionSignals as Signals
 import qualified Semiont.StateValue as State
+import Semiont.Timing (errorsKeptForFirstReaderCount)
 import qualified Semiont.Timing.Settings as Timing
 import Semiont.Types
 import qualified Streaming.Prelude as Stream
@@ -321,13 +323,58 @@ runRetiredClosing fixtures = do
     unless (found == [Code.sessionCode Code.SessionSaveRefused])
       (failure why ("said " ++ show found ++ " on the registry's errors as it closed, not the retired session's refused save"))
 
+-- | A registry over one knowledge base whose factory refuses each session it is asked for, saying why on the
+-- registry's errors, which nobody reads: it refuses count, then body is handed the registry.
+refusedBuilds :: Text -> Int -> (Browser.SemiontBrowser -> IO ()) -> IO ()
+refusedBuilds why count body = do
+  stage <- newStage
+  time <- Time.newTime
+  http <- stageHttp stage time Timing.protocolSettings
+  builds <- newTVarIO (0 :: Int)
+  let refuse _ = do
+        build <- atomically (modifyTVar' builds (+1) >> readTVar builds)
+        throwIO (SessionError Code.SessionConstructFailed ("build " <> Text.pack (show build) <> " refused") "kb-a")
+  store <- Storage.newMemoryStorage
+  Browser.saveKnowledgeBases store [registered "kb-a"]
+  bracket (Browser.newSemiontBrowser (Browser.SemiontBrowserConfig store (Factory.SessionFactory refuse (const (pure ()))) http (pure 1800000000)))
+    Browser.dispose $ \browser -> do
+      -- The registry activates its knowledge base as it opens, and again each time it is selected with no session live.
+      atomically $ do
+        built <- readTVar builds
+        activating <- State.current (Browser.sessionActivating browser)
+        check (built >= 1 && not activating)
+      forM_ [2 .. count] (\_ -> Browser.setActiveKb browser (Just "kb-a"))
+      built <- readTVarIO builds
+      unless (built == count) (failure why ("was asked for " ++ show built ++ " sessions, not " ++ show count))
+      body browser
+
+-- | A registry nobody reads says more than it keeps for a first reader: the first reader is given the latest
+-- errorsKeptForFirstReaderCount, in the order said, and no more. What one keeps as it closes is dropped: a reader who
+-- comes after hears nothing.
+runKeptForFirstReader :: IO ()
+runKeptForFirstReader = do
+  let why = "a registry's first reader is given the latest it said before it came, in order, and no more"
+      beyond = 3 :: Int
+      count = fromInteger errorsKeptForFirstReaderCount + beyond
+  refusedBuilds why count $ \browser -> do
+    heard <- Browser.errors browser (\given -> Browser.dispose browser >> Stream.toList_ given)
+    agreeOn why "heard by the first reader" (map sessionErrorMessage heard)
+      ["build " <> Text.pack (show build) <> " refused" | build <- [beyond + 1 .. count]]
+  let dropped = "a registry drops what it kept for a first reader as it closes"
+  refusedBuilds dropped 1 $ \browser -> do
+    Browser.dispose browser
+    afterClose <- Browser.errors browser Stream.toList_
+    agreeOn dropped "heard by a reader who came after the close" (map sessionErrorMessage afterClose) []
+
 registryErrorsCases :: FilePath -> Map.Map Text Value -> IO ()
 registryErrorsCases root fixtures = do
   table <- Bytes.readFile (root </> "protocol/specs/src/session/registry-errors-cases.json")
     >>= either (ioError . userError) pure . eitherDecodeStrict'
   cases <- field "the registry-errors table" "cases" table :: IO [Value]
   closing <- field "the registry-errors table" "closing" table :: IO [Value]
-  outcome <- timeout 60000000 (mapM_ (runCase fixtures) cases >> mapM_ (runClosing fixtures) closing >> runRetiredClosing fixtures)
+  outcome <- timeout 60000000
+    (mapM_ (runCase fixtures) cases >> mapM_ (runClosing fixtures) closing >> runRetiredClosing fixtures >> runKeptForFirstReader)
   maybe (ioError (userError "the registry-errors cases did not finish in a minute")) pure outcome
   putStrLn ("PASS " ++ show (length cases) ++ " shared registry-errors cases and " ++ show (length closing)
-    ++ " of a registry's close, and a close that waits for a switch to finish closing the session it retired")
+    ++ " of a registry's close, a close that waits for a switch to finish closing the session it retired, and what a"
+    ++ " registry keeps for its first reader")

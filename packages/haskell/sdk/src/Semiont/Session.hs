@@ -41,7 +41,7 @@ import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Tokens as Tokens
 import qualified Semiont.Transport as Transport
 import qualified Semiont.Internal.Transport as Transport (relayErrors)
-import Semiont.Timing (RetryBudget, errorsKeptForFirstReaderCount)
+import Semiont.Timing (RetryBudget)
 import Semiont.Types (KbTarget(..), StoredSession(..), UserResponse(..), userIdValue, KbEndpoint(..), HttpEndpoint, DeviceCode, IssuerEndpoints(..), IssuedTokens(..), SessionEndReason(..))
 import Streaming (Of, Stream)
 import qualified Streaming.Prelude as Stream
@@ -109,10 +109,12 @@ streamState = Client.state . owner
 -- | What went wrong, each said once, in the order met: the session's own
 -- errors and its transport's failures, each said within the transaction
 -- that reports it. The first reader is given first the latest
--- 'errorsKeptForFirstReaderCount' said before it came, in that order, the
--- oldest beyond them dropped. The stream ends when the session ends; for a
--- session this module opens with its client, once that client's closing
--- flush is done and what its transport's close met is said.
+-- 'Semiont.Timing.errorsKeptForFirstReaderCount' said before it came, in
+-- that order, the oldest beyond them dropped. The stream ends when the
+-- session ends; for a session this module opens with its client, once that
+-- client's closing flush is done and what its transport's close met is
+-- said. What is still kept then is dropped: a reader who comes after is
+-- given nothing.
 errors :: Session -> (Stream (Of (Either SessionError TransportError)) IO () -> IO result) -> IO result
 errors session consume = Broadcast.withSubscription (said session) $ \reader ->
   let reading = do
@@ -128,14 +130,8 @@ newSession :: Client.Client -> SessionOptions -> Retry.RetryOptions -> Timing.Se
 newSession owned options time settings = do
   initial <- SignIn.held (sessionKept options) >>= seed options
   shared <- atomically (State.newStateValue initial)
-  stream <- atomically newSaid
+  stream <- atomically Broadcast.newKeptEvents
   construct owned options time settings shared stream
-
--- | A session's errors stream, of which the latest
--- 'errorsKeptForFirstReaderCount' said before anyone reads are kept for the
--- first reader.
-newSaid :: STM (Broadcast.Broadcast (Either SessionError TransportError))
-newSaid = Broadcast.newKeptEvents (fromInteger errorsKeptForFirstReaderCount)
 
 seed :: SessionOptions -> Maybe StoredSession -> IO (Maybe Text)
 seed options stored = do
@@ -170,7 +166,7 @@ fromHttp http storage options = mask $ \restore -> do
   stored <- restore (SignIn.held (sessionKept options))
   initial <- restore (seed options stored)
   shared <- atomically (State.newStateValue initial)
-  stream <- atomically newSaid
+  stream <- atomically Broadcast.newKeptEvents
   holder <- newEmptyTMVarIO :: IO (TMVar (Either SomeException Session))
   let readToken = atomically (State.current shared)
       refreshRefused refused = do

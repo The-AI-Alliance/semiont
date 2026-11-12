@@ -56,7 +56,8 @@ keeps it and retries with reconnect backoff. What goes wrong, the session's
 own errors and its transport's failures, is said once each on `errors`, one
 stream in the order met; the first reader is given the latest
 `errorsKeptForFirstReaderCount` (`Semiont.Timing`) said before it came, in
-that order, the oldest beyond them dropped. Disposing a session
+that order, the oldest beyond them dropped, and what is still kept when
+`errors` ends is dropped: a reader who comes after is given nothing. Disposing a session
 joins its work, ends `errors` and leaves its client open, and once its client
 has closed, ends `errors` after what that client's transport said;
 `closeOpenedSession` closes the client first, its closing flush done, then
@@ -65,7 +66,8 @@ registry reads each session's `errors` itself: a refusal for want of a valid
 token is renewed by the transport that met it, and the registry does nothing
 with it. Closing a registry closes its sessions before the rest of its work,
 reading each one's `errors` to their end, so what a closing flush meets is
-said on the registry's `errors` before they end.
+said on the registry's `errors` before they end. The registry's `errors` keep
+for their first reader as a session's do, and drop what they kept as they end.
 
 ```haskell
 module DeviceSignIn where
@@ -496,7 +498,10 @@ reports the weakest durability evidence observed. Supply stable annotation ids
 across attempts, and count a unit completed only after its commit is established.
 
 Use the scoped `refused` and `stalled` streams for faults the host must judge,
-and `vitals` for activity snapshots. An empty queue is not a refusal. `trace`
+and `vitals` for activity snapshots. An empty queue is not a refusal. Each
+stream's first reader is given the latest `errorsKeptForFirstReaderCount` said
+before it came, in that order; what is still kept when the claims stop is
+dropped. `trace`
 exposes the carrier that handed over the job; a host exporting telemetry uses
 that carrier as the parent of its own job span. Claims start outside the trace
 of the previous job. The shared

@@ -227,10 +227,10 @@ issuerCases fixtures = do
     requests <- readTVarIO seen
     require "the client did not read the session's rotated token cell"
       (any (\request -> route request=="/api/users/me" && "Authorization: Bearer fresh" `Bytes.isInfixOf` request) requests)
-    Session.closeOpenedSession opened
+    startup <- Session.errors session (\given -> Session.closeOpenedSession opened >> Stream.toList_ given)
     require "opened session closer left the client open" . (==Transport.Closed)
       =<< atomically (State.current (Client.state (Session.client session)))
-    require "factory said a startup failure" . null . lefts =<< Session.errors session Stream.toList_
+    require "factory said a startup failure" (null (lefts startup))
   let agentKb=targetKb { kbTargetId="agent-factory" }
       agentOptions=sessionOptions { Session.sessionKb=agentKb }
   atomically (writeTVar identities [503,200])

@@ -92,7 +92,7 @@ broadcastCases = do
   require "close did not wake a blocked reader" (ended == (Nothing :: Maybe Int))
   -- A relay is handed what a first reader is kept, then each publication
   -- within the transaction that publishes it, until it is stopped.
-  kept <- atomically (Broadcast.newKeptEvents 1)
+  kept <- atomically Broadcast.newKeptEvents
   handed <- newTVarIO []
   let hand value = modifyTVar' handed (<>[value :: Int])
   stopRelay <- atomically (Broadcast.publish kept 1 >> Broadcast.relay kept hand)
@@ -100,6 +100,11 @@ broadcastCases = do
   atomically (stopRelay >> Broadcast.publish kept 3)
   require "a relay was not handed what was kept, and each publication within it" (withinPublishing == [1, 2])
   require "a stopped relay was handed a later publication" . (== [1, 2]) =<< readTVarIO handed
+  -- What was kept for a first reader is dropped when the events close.
+  closedKept <- atomically Broadcast.newKeptEvents
+  atomically (Broadcast.publish closedKept (1 :: Int) >> Broadcast.close closedKept)
+  afterClose <- Broadcast.withSubscription closedKept (atomically . Broadcast.next)
+  require "a reader who came after the close was given what was kept" (afterClose == Nothing)
 
 runningCases :: IO ()
 runningCases = do

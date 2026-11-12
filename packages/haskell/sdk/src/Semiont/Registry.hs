@@ -108,6 +108,12 @@ identityToken=identity
 setIdentityToken :: SemiontBrowser -> Maybe Text -> STM ()
 setIdentityToken owner=State.update (identity owner)
 
+-- | What went wrong, each said once, in the order met: what building a
+-- session, and each live session, said. The first reader is given first the
+-- latest 'Semiont.Timing.errorsKeptForFirstReaderCount' said before it came,
+-- in that order, the oldest beyond them dropped. The stream ends when the
+-- registry is disposed, and what is still kept then is dropped: a reader who
+-- comes after is given nothing.
 errors :: SemiontBrowser -> (Stream (Of SessionError) IO () -> IO result) -> IO result
 errors owner consume=Broadcast.withSubscription (failures owner) $ \reader ->
   let loop=do value<-liftIO (atomically (Broadcast.next reader)); case value of Nothing->pure (); Just next->Stream.yield next >> loop
@@ -140,7 +146,7 @@ newSemiontBrowser config = mask $ \restore -> do
   owner <- atomically $ SemiontBrowser config life turn <$> newTVar 0 <*> newTVar Nothing <*> newTVar 0
     <*> State.newStateValue initial <*> State.newStateValue chosen <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> State.newStateValue False <*> State.newStateValue [] <*> State.newStateValue Nothing <*> State.newStateValue Nothing
-    <*> Broadcast.newEvents <*> newTVar (fromMaybe KM.empty (document rawOpened)) <*> newTVar (fromMaybe KM.empty (document rawViewed))
+    <*> Broadcast.newKeptEvents <*> newTVar (fromMaybe KM.empty (document rawOpened)) <*> newTVar (fromMaybe KM.empty (document rawViewed))
     <*> newTVar (pure ()) <*> newTVar [] <*> pure applicationBus <*> newTQueue <*> newTVar 0 <*> pure closer <*> newTVar False
   let initialize=do
         saveKnowledgeBases store initial
