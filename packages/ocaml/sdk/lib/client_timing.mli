@@ -25,6 +25,7 @@ val device_poll_floor_ms : int
 val invalidation_window_ms : int
 val save_debounce_ms : int
 val max_stored_bytes_count : int
+val errors_kept_for_first_reader_count : int
 val job_silence_ms : int
 val job_status_poll_ms : int
 val job_poll_ms : int
