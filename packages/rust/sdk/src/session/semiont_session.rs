@@ -25,7 +25,8 @@
 //! record the person the gateway named, `session.keep-failed`; a write the
 //! storage refuses, `session.save-refused`). Of what it says before anyone
 //! reads its errors, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are kept
-//! for the first reader. The stream ends when the session ends.
+//! for the first reader. The stream ends when the session ends, and what was
+//! kept for a first reader who has not come by then is let go of.
 //!
 //! A session is built from where its sign-in is kept (`SignInKept`). A
 //! session whose issuer refuses to renew it, or whose gateway refuses a
@@ -160,7 +161,7 @@ struct Shared {
     validate: Option<Validate>,
     on_auth_failed: Option<OnAuthFailed>,
     /// What the session says on its errors stream.
-    errors: Arc<ErrorsStream>,
+    errors: Arc<ErrorsStream<SemiontError>>,
     random: Option<Arc<Mutex<dyn Rng + Send>>>,
     tasks: Tasks,
     closed: AtomicBool,
@@ -171,18 +172,19 @@ struct Shared {
     answering: tokio::sync::Mutex<()>,
 }
 
-/// A session's errors stream: what it says, and what of it is kept for the
-/// first reader.
-struct ErrorsStream {
-    /// The one sender, let go of as the session ends, so the stream ends then.
-    sender: Mutex<Option<broadcast::Sender<SemiontError>>>,
-    /// The latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` the session has said
-    /// since it was made, for the first reader of its errors.
-    first: Mutex<Option<broadcast::Receiver<SemiontError>>>,
+/// An errors stream, a session's or a registry's: what is said on it, and
+/// what of it is kept for its first reader.
+pub(super) struct ErrorsStream<T> {
+    /// The one sender, let go of as the stream ends, so it ends then.
+    sender: Mutex<Option<broadcast::Sender<T>>>,
+    /// The latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said since the stream
+    /// was made, for its first reader, until that reader comes or the stream
+    /// ends.
+    first: Mutex<Option<broadcast::Receiver<T>>>,
 }
 
-impl ErrorsStream {
-    fn new() -> ErrorsStream {
+impl<T: Clone + Send + 'static> ErrorsStream<T> {
+    pub(super) fn new() -> ErrorsStream<T> {
         let (sender, first) = broadcast::channel(STREAM_BACKLOG);
         ErrorsStream {
             sender: Mutex::new(Some(sender)),
@@ -190,13 +192,13 @@ impl ErrorsStream {
         }
     }
 
-    /// Say `error`, until the stream ends. While nobody has read, the oldest
+    /// Say `said`, until the stream ends. While nobody has read, the oldest
     /// kept beyond `ERRORS_KEPT_FOR_FIRST_READER_COUNT` is dropped, under the
     /// lock the first reader takes what is kept under, so it is given no more.
-    fn say(&self, error: SemiontError) {
+    pub(super) fn say(&self, said: T) {
         let mut first = locked(&self.first);
         if let Some(sender) = locked(&self.sender).as_ref() {
-            let _ = sender.send(error);
+            let _ = sender.send(said);
         }
         if let Some(first) = first.as_mut() {
             while first.len() > ERRORS_KEPT_FOR_FIRST_READER_COUNT {
@@ -206,8 +208,8 @@ impl ErrorsStream {
     }
 
     /// The first reader: what is kept, then what is said after. Each later
-    /// one: what is said from now on.
-    fn read(&self) -> Events<SemiontError> {
+    /// one: what is said from now on. One after the end: only the end.
+    pub(super) fn read(&self) -> Events<T> {
         if let Some(first) = locked(&self.first).take() {
             return Events::new(first);
         }
@@ -217,8 +219,10 @@ impl ErrorsStream {
         }
     }
 
-    /// End the stream: each reader is given what was said before, then its end.
-    fn end(&self) {
+    /// End the stream: each reader is given what was said before, then its
+    /// end. What was kept for a first reader who has not come is let go of.
+    pub(super) fn end(&self) {
+        locked(&self.first).take();
         locked(&self.sender).take();
     }
 }
@@ -335,7 +339,8 @@ impl SemiontSession {
     /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said since the session was made,
     /// the oldest dropped beyond that; each later one, what is said from then
     /// on. It ends when the session ends: a failure met before then is said
-    /// before it ends, and one met after is said nowhere. A refusal for want
+    /// before it ends, and one met after is said nowhere. A reader who comes
+    /// after the end, the first among them, is given nothing. A refusal for want
     /// of a valid token among the transport's failures is the transport's
     /// to renew, not its reader's. A registry is the one reader of the
     /// errors of each session it holds (`super::SemiontBrowser`).
@@ -929,6 +934,20 @@ mod tests {
         assert_eq!(
             hearing.await.expect("the reader reads to the end"),
             each_kind_in_turn()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_first_reader_who_comes_after_the_session_has_ended_hears_nothing() {
+        let test = create_test_session(TestSessionOptions::default());
+        meet(&test, &each_kind_in_turn());
+        // Whatever else the session runs has its turn before it ends.
+        tokio::task::yield_now().await;
+        test.session.dispose();
+
+        assert_eq!(
+            heard(test.session.errors()).await,
+            Vec::<SemiontError>::new()
         );
     }
 }
