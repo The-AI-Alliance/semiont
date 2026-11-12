@@ -44,7 +44,8 @@ public sealed class OpenedSession : IAsyncDisposable
 
 /// <summary>
 /// Opens an active knowledge base with the same kept session used for other HTTP clients. Its client keeps what it holds
-/// for the person the knowledge base's sign-in names, from when the sign-in names them.
+/// for the person the knowledge base's sign-in names, from when the sign-in names them. Its session tells the signals it
+/// is given why it ended, as it signs out.
 /// </summary>
 public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null) : SessionFactory
 {
@@ -52,12 +53,13 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
     {
         if (options.Kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "This factory requires an HTTP endpoint.");
-        var errors = new Broadcast<SemiontError>(keepForFirst: true);
+        var errors = new Broadcast<SemiontError>(keptForFirst: SemiontError.KeptForFirstReader);
         // The client writes only while the sign-in stored beside it names its person, read through what holds it there.
         var persistence = new CachePersistence(options.Storage, options.Kb.Id, RegistryStorage.KeptIn(options.Storage, options.Kb.Id), errors.Publish);
         var signIn = RegistryStorage.KeptFor(persistence);
         if (RegistryStorage.StoredSession(options.Storage, options.Kb.Id) is { PersonKey: { } named }) persistence.Attach(named);
-        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, errors, validates: true, answered: persistence.RecordAsync);
+        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, errors, validates: true, answered: persistence.RecordAsync,
+            onAuthFailed: options.Signals.NotifySessionEnded);
         HttpTransport? transport = null;
         try
         {

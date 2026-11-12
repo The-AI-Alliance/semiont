@@ -63,7 +63,7 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
         var stored = RegistryStorage.KeptIn(options.Storage, kb.Id);
         var identity = user;
         var delay = TimeSpan.FromTicks(Interlocked.Read(ref identityDelayTicks));
-        var kept = new KeptSession(stored, RenewAsync, IdentifyAsync, clock, random);
+        var kept = new KeptSession(stored, RenewAsync, IdentifyAsync, clock, random, options.Signals.NotifySessionEnded);
         SemiontClient? client = null;
         try
         {

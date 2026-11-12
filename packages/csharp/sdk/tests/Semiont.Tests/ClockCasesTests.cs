@@ -323,7 +323,7 @@ public sealed class ClockCasesTests
         {
             Interlocked.Increment(ref renewals);
             return Task.FromResult<string?>(Issued());
-        }, (_, _) => Task.FromResult(alice), play.Clock, play.Random));
+        }, (_, _) => Task.FromResult(alice), play.Clock, play.Random, onAuthFailed: null));
         await session.ReadyAsync();
         return new Subject(() => Volatile.Read(ref renewals), null);
     }

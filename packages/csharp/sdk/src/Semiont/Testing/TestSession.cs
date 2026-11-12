@@ -71,7 +71,7 @@ public static class TestSessions
         var credentials = new KeptSession(kept,
             (_, _) => throw new InvalidOperationException("An offline session does not renew."),
             (_, _) => throw new InvalidOperationException("An offline session does not validate."),
-            clock, random, offline: true);
+            clock, random, onAuthFailed: null, offline: true);
         SemiontClient? client = null;
         try
         {

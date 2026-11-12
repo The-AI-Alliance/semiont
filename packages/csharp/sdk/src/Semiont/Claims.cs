@@ -27,8 +27,8 @@ public sealed class Claims
     private readonly JsonElement[] filters;
     private readonly CancellationTokenSource watching = new();
     private readonly Channel<HeldJob> handed = Channel.CreateUnbounded<HeldJob>();
-    private readonly Broadcast<ClaimRefusal> refusals = new(keepForFirst: true);
-    private readonly Broadcast<HeldJobStall> stalls = new(keepForFirst: true);
+    private readonly Broadcast<ClaimRefusal> refusals = new(keptForFirst: int.MaxValue);
+    private readonly Broadcast<HeldJobStall> stalls = new(keptForFirst: int.MaxValue);
     private readonly TimeProvider clock;
     private readonly Timing timing;
     private Task? pending;

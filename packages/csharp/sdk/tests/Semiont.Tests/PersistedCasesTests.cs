@@ -235,7 +235,7 @@ public sealed partial class TransportTests
             storage.Release();
             await passing;
             await Assert.ThrowsAsync<TransportError>(() => refused);
-            Assert.Equal(SessionEndReason.Refused, await EndedAsync(session, deadline.Token));
+            Assert.Equal(SessionEndReason.Refused, await EndedAsync(session, signals, deadline.Token));
             Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, "the session forgot its sign-in");
         }
         finally
@@ -936,20 +936,20 @@ public sealed partial class TransportTests
                 gateway.Refuse(renewed);
                 await Assert.ThrowsAsync<TransportError>(() => opened.Client.Transport.GetStatusAsync(cancellation));
                 var session = opened.Session ?? throw new InvalidOperationException("The registry's session holds no sign-in.");
-                Assert.True(await EndedAsync(session, cancellation) == (by == "refusal" ? SessionEndReason.Refused : SessionEndReason.Expired), why + ": how the session ended");
+                Assert.True(await EndedAsync(session, signals, cancellation) == (by == "refusal" ? SessionEndReason.Refused : SessionEndReason.Expired), why + ": how the session ended");
             }
             Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, why + ": the session forgot its sign-in");
         }
         finally { await opened.DisposeAsync(); }
     }
 
-    /// <summary>Why <paramref name="session"/> ended, read from its errors as the registry reads them: the end of the
-    /// first of its own said once it has ended. A factory reads none of them.</summary>
-    private static async Task<SessionEndReason> EndedAsync(SemiontSession session, CancellationToken cancellation)
+    /// <summary>Why <paramref name="session"/> ended, as its factory's <paramref name="signals"/> were told: told before the
+    /// error that says so is said on its errors, which a factory reads none of.</summary>
+    private static async Task<SessionEndReason> EndedAsync(SemiontSession session, SessionSignals signals, CancellationToken cancellation)
     {
         await foreach (var error in session.Errors(cancellation))
-            if (error is SessionError && session.EndReason is { } reason) return reason;
-        throw new InvalidOperationException("The session's errors ended before it ended.");
+            if (error is SessionError && signals.SessionEnded.Value is { } ended) return ended.Reason;
+        throw new InvalidOperationException("The session's errors ended before its signals were told it ended.");
     }
 
     private static async Task StartupCaseAsync(JsonElement root, JsonElement row, bool namedLate)

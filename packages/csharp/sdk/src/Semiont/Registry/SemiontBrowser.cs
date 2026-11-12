@@ -35,7 +35,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
     private readonly object gate = new();
     private readonly CancellationTokenSource lifetime = new();
     private readonly Broadcast<BrowserState> states = new(replayLatest: true);
-    private readonly Broadcast<SessionError> errors = new(keepForFirst: true);
+    private readonly Broadcast<SessionError> errors = new(keptForFirst: int.MaxValue);
     private readonly AsyncLocal<bool> ownedWork = new();
     private readonly HashSet<Task> tasks = [];
     private readonly IDisposable? subscription;
@@ -374,35 +374,16 @@ public sealed class SemiontBrowser : IAsyncDisposable
 
     /// <summary>
     /// Reads <paramref name="session"/>'s errors, as their one reader, from the first thing it said until they end, when
-    /// the session ends. Each of its own it says on the registry's <see cref="Errors"/>, and the first said once the
-    /// session has ended it also says through <paramref name="signals"/> as that end. A refusal for want of a valid token
-    /// renews the session: it heals quietly, or the session ends itself and says so. A failure does not say which token
-    /// was refused: the one the session holds as it is read is. A refusal for lack of permission has no remedy, and is said
-    /// through <paramref name="signals"/>, its message the detail.
+    /// the session ends. Each of its own it says on the registry's <see cref="Errors"/>. A refusal for lack of permission
+    /// has no remedy, and is said through <paramref name="signals"/>, its message the detail. A refusal for want of a valid
+    /// token is renewed by the transport that met it, which knows the token it sent, so the registry does nothing with it,
+    /// nor with any other failure of the transport.
     /// </summary>
     private async Task ReadAsync(SemiontSession session, SessionSignals signals)
     {
-        var told = false;
         await foreach (var error in session.Errors().ConfigureAwait(Spawning.Captures))
         {
-            if (error is SessionError own)
-            {
-                if (!told && session.EndReason is { } ended)
-                {
-                    told = true;
-                    signals.NotifySessionEnded(ended);
-                }
-                errors.Publish(own);
-            }
-            else if (error.Code == ProtocolFacts.Error(401))
-            {
-                var refused = session.Token.Value;
-                lock (gate)
-                {
-                    var stop = lifetime.Token;
-                    _ = RunOwned(() => session.RefreshAsync(refused, stop), background: true);
-                }
-            }
+            if (error is SessionError own) errors.Publish(own);
             else if (error.Code == ProtocolFacts.Error(403)) signals.NotifyPermissionDenied(error.Message);
         }
     }

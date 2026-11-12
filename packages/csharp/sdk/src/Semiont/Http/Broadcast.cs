@@ -3,13 +3,17 @@ using System.Threading.Channels;
 
 namespace Semiont.Http;
 
-internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst = false)
+/// <summary>
+/// Hands each value published to every reader. Of the values published before anyone reads it, the latest
+/// <paramref name="keptForFirst"/> are kept for its first reader, in the order they were published.
+/// </summary>
+internal sealed class Broadcast<T>(bool replayLatest = false, int keptForFirst = 0)
 {
     private readonly object gate = new();
     private readonly HashSet<Channel<T>> subscribers = [];
     private readonly List<Action<T>> relays = [];
     private bool closed;
-    private readonly List<T> pending = [];
+    private readonly Queue<T> pending = [];
     private bool hadSubscriber;
     private Recorded? latest;
     private sealed record Recorded(T Value);
@@ -31,7 +35,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
                 {
                     channel.Writer.TryWrite(value.Value);
                 }
-                if (keepForFirst && !hadSubscriber)
+                if (!hadSubscriber)
                 {
                     foreach (var queued in pending)
                     {
@@ -60,7 +64,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
             if (replayLatest && latest is { } value) to(value.Value);
             if (closed) return relaying;
             relays.Add(to);
-            if (keepForFirst && !hadSubscriber)
+            if (!hadSubscriber)
             {
                 foreach (var queued in pending) to(queued);
                 pending.Clear();
@@ -106,9 +110,10 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
             {
                 latest = new Recorded(value);
             }
-            if (keepForFirst && !hadSubscriber)
+            if (!hadSubscriber)
             {
-                pending.Add(value);
+                pending.Enqueue(value);
+                if (pending.Count > keptForFirst) pending.Dequeue();
             }
             foreach (var subscriber in subscribers)
             {
@@ -129,6 +134,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
             }
             subscribers.Clear();
             relays.Clear();
+            pending.Clear();
         }
     }
 }
