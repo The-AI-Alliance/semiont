@@ -605,11 +605,11 @@ private func everythingTold(by failures: Events<TransportError>) async throws ->
   let said = (0..<(Timings.errorsKeptForFirstReaderCount + beyond)).map { n in
     TransportError(.unavailable, "failure \(n)", status: 503)
   }
-  for failure in said { transport.failureEvents.yield(failure) }
+  for failure in said { transport.fail(failure) }
   let first = transport.failures()
   let later = transport.failures()
   let last = TransportError(.unavailable, "a failure once the first listened", status: 503)
-  transport.failureEvents.yield(last)
+  transport.fail(last)
   transport.dispose()
   let firstHeard = try await everythingTold(by: first)
   let laterHeard = try await everythingTold(by: later)
@@ -618,7 +618,7 @@ private func everythingTold(by failures: Events<TransportError>) async throws ->
 }
 @Test func aFirstListenerWhoComesAfterAScriptedTransportIsDisposedHearsNothing() async throws {
   let transport = ScriptedTransport(channels: [])
-  transport.failureEvents.yield(TransportError(.unavailable, "HTTP 503", status: 503))
+  transport.fail(TransportError(.unavailable, "HTTP 503", status: 503))
   transport.dispose()
   #expect(try await everythingTold(by: transport.failures()) == [])
 }

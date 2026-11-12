@@ -281,7 +281,9 @@ delivers only those, and a resource-scoped frame only while its resource is held
 a test of a full client gives it `bridgedChannels`, and a worker's test
 `jobClaimChannels`. It keeps no
 deadline: a dropped reply never comes, and the client's bus fails the request
-at its own. A `LivenessSpec`'s `timeout` is the
+at its own. `fail(_:)` reports a `TransportError` on its `failures()`, as a
+transport does of a request the gateway refused; one reported before anyone
+listens is kept for the first listener. A `LivenessSpec`'s `timeout` is the
 time its composition gives a bus request, so its `setup` builds the client with
 that many milliseconds as its `busRequestTimeoutMs`.
 
