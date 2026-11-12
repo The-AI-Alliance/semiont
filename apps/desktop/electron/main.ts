@@ -538,6 +538,19 @@ function setApplicationMenu(): void {
   }
   appMenu.push({ type: 'separator' }, { role: 'quit' });
 
+  const fileMenu: MenuItemConstructorOptions[] = [
+    {
+      label: 'Print…',
+      accelerator: 'CommandOrControl+P',
+      click: () => {
+        if (mainWindow === null || mainWindow.isDestroyed()) return;
+        mainWindow.webContents.print({ printBackground: true }, (success, failureReason) => {
+          if (!success) appendLog(`${new Date().toISOString()} [print] ${failureReason}`);
+        });
+      },
+    },
+  ];
+
   const viewMenu: MenuItemConstructorOptions[] = [
     {
       label: 'Reload',
@@ -557,6 +570,7 @@ function setApplicationMenu(): void {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: app.getName(), submenu: appMenu },
+    { label: 'File', submenu: fileMenu },
     { role: 'editMenu' },
     { label: 'View', submenu: viewMenu },
     { role: 'windowMenu' },
