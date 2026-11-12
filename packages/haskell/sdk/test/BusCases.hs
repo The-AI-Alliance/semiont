@@ -70,7 +70,7 @@ requestOptions clock waits = do
 -- read with.
 busCases :: FrameAddEntityTypeCommand -> BrowseResourceRequest -> Value -> [(Maybe Text.Text, Code.BusRequestCode, Maybe Text.Text)] -> IO ()
 busCases command browse event failureRows = do
-  result <- timeout 10000000 (requests command >> requestFailures command browse failureRows >> scopesAndFrames event >> lifecycle >> contextCases command)
+  result <- timeout 10000000 (requests command >> requestFailures command browse failureRows >> scopesAndFrames event >> lifecycle >> keptForFirstReader >> contextCases command)
   require "typed bus liveness deadline expired" (result == Just ())
   putStrLn "PASS typed bus attachment, correlation, deadlines, scopes, identity, traces and disposal"
 
@@ -379,6 +379,32 @@ lifecycle = do
         wait closer
         noticed <- Stream.toList_ observations
         require "a closing transport published a late producer failure" (null noticed)
+
+-- | A transport nobody has read meets more failures than it keeps for a first
+-- reader: the first reader is given the latest errorsKeptForFirstReaderCount,
+-- in the order met, and then what comes after; a reader after it is given only
+-- what comes after. What one keeps when it closes is dropped: a reader who
+-- comes after is given nothing.
+keptForFirstReader :: IO ()
+keptForFirstReader = do
+  let beyond = 3
+      met = [TransportError Code.TransportUnavailable (Text.pack ("request " <> show serial <> " unanswered")) Nothing Nothing
+        | serial <- [1 .. fromInteger Timing.errorsKeptForFirstReaderCount + beyond]]
+      later = TransportError Code.TransportUnavailable "met once the first reader came" Nothing Nothing
+  rig (const (pure Nothing)) (pure ()) $ \transport input -> do
+    mapM_ (Transport.reportError input) met
+    (first, second) <- Transport.errors transport $ \firstReader -> Transport.errors transport $ \secondReader -> do
+      Transport.reportError input later
+      Transport.dispose transport
+      (,) <$> Stream.toList_ firstReader <*> Stream.toList_ secondReader
+    require "the first reader was not given the latest the transport met before it came, in order, and then what came after"
+      (first == drop beyond met <> [later])
+    require "a reader after the first was given what was kept for the first" (second == [later])
+  rig (const (pure Nothing)) (pure ()) $ \transport input -> do
+    Transport.reportError input (TransportError Code.TransportUnavailable "met before the transport closed" Nothing Nothing)
+    Transport.dispose transport
+    afterEnd <- Transport.errors transport Stream.toList_
+    require "a reader who came after the transport closed was given what was kept" (null afterEnd)
 
 contextCases :: FrameAddEntityTypeCommand -> IO ()
 contextCases command = do

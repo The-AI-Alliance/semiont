@@ -108,7 +108,9 @@ streamState :: Session -> State.StateValue Transport.ConnectionState
 streamState = Client.state . owner
 -- | What went wrong, each said once, in the order met: the session's own
 -- errors and its transport's failures, each said within the transaction
--- that reports it. The first reader is given first the latest
+-- that reports it. A session made before anyone has read its transport's
+-- failures is their first reader, and says what the transport kept for that
+-- reader as it is made. The first reader is given first the latest
 -- 'Semiont.Timing.errorsKeptForFirstReaderCount' said before it came, in
 -- that order, the oldest beyond them dropped. The stream ends when the
 -- session ends; for a session this module opens with its client, once that
@@ -130,8 +132,19 @@ newSession :: Client.Client -> SessionOptions -> Retry.RetryOptions -> Timing.Se
 newSession owned options time settings = do
   initial <- SignIn.held (sessionKept options) >>= seed options
   shared <- atomically (State.newStateValue initial)
-  stream <- atomically Broadcast.newKeptEvents
-  construct owned options time settings shared stream
+  mask $ \restore -> do
+    (stream, unrelay) <- atomically (saying owned)
+    restore (construct owned options time settings shared stream unrelay) `onException` atomically unrelay
+
+-- | A session's errors stream over @owned@, which says at once what the
+-- client's transport kept for its first reader, if it is that reader, and
+-- each failure the transport meets from now on, until the returned
+-- transaction stops that.
+saying :: Client.Client -> STM (Broadcast.Broadcast (Either SessionError TransportError), STM ())
+saying owned = do
+  stream <- Broadcast.newKeptEvents
+  unrelay <- Transport.relayErrors (Client.transport owned) (Broadcast.publish stream . Right)
+  pure (stream, unrelay)
 
 seed :: SessionOptions -> Maybe StoredSession -> IO (Maybe Text)
 seed options stored = do
@@ -166,7 +179,6 @@ fromHttp http storage options = mask $ \restore -> do
   stored <- restore (SignIn.held (sessionKept options))
   initial <- restore (seed options stored)
   shared <- atomically (State.newStateValue initial)
-  stream <- atomically Broadcast.newKeptEvents
   holder <- newEmptyTMVarIO :: IO (TMVar (Either SomeException Session))
   let readToken = atomically (State.current shared)
       refreshRefused refused = do
@@ -174,6 +186,8 @@ fromHttp http storage options = mask $ \restore -> do
         refresh session (Just refused)
       actual = http { Http.httpToken=readToken, Http.httpRenewToken=refreshRefused }
   owned <- restore (Client.fromHttp actual Nothing)
+  -- Before the keeper, so nothing it says comes before what the transport met first.
+  (stream, unrelay) <- atomically (saying owned)
   keeps <- case storage of
     Just kept -> do
       keeper <- Keeper kept (sessionKept options) owned (kbTargetId (sessionKb options)) ((*1000) <$> sessionWallNow options) stream
@@ -181,7 +195,7 @@ fromHttp http storage options = mask $ \restore -> do
       restore (mapM_ (attach keeper) (stored >>= storedSessionPersonKey)) `onException` Client.dispose owned
       pure (Just (keeper, options { sessionKept=forgetting keeper, sessionValidate=recording keeper <$> sessionValidate options }))
     Nothing -> pure Nothing
-  outcome <- try (restore (construct owned (maybe options snd keeps) (Http.httpTime http) (Http.httpTiming http) shared stream))
+  outcome <- try (restore (construct owned (maybe options snd keeps) (Http.httpTime http) (Http.httpTiming http) shared stream unrelay))
   atomically (putTMVar holder outcome)
   let stopped = mapM_ (stop . fst) keeps
   case outcome of
@@ -367,9 +381,12 @@ httpTarget options = case kbTargetEndpoint (sessionKb options) of
   KbEndpointBranch2 _ -> throwIO (SessionError Code.SessionConstructFailed
     "This sign-in requires an HTTP knowledge base" (kbTargetId (sessionKb options)))
 
+-- | The session over @stream@ and the relay @unrelay@ stops, both from
+-- 'saying'. Should this fail, its caller stops the relay, or closes the
+-- client, which ends it.
 construct :: Client.Client -> SessionOptions -> Retry.RetryOptions -> Timing.Settings
-  -> State.StateValue (Maybe Text) -> Broadcast.Broadcast (Either SessionError TransportError) -> IO Session
-construct owned options time settings shared stream = mask $ \restore -> do
+  -> State.StateValue (Maybe Text) -> Broadcast.Broadcast (Either SessionError TransportError) -> STM () -> IO Session
+construct owned options time settings shared stream unrelay = mask $ \restore -> do
   lifetime <- Lifetime.newLifetime "Session is closed"
   person <- atomically (State.newStateValue Nothing)
   handed <- newTVarIO Nothing
@@ -393,7 +410,6 @@ construct owned options time settings shared stream = mask $ \restore -> do
           writeTVar released True
           pure (not previous)
         when first (maybe (pure ()) Prelude.id detach)
-  unrelay <- atomically (Transport.relayErrors (Client.transport owned) (Broadcast.publish stream . Right))
   let session = Session options owned time settings lifetime shared handed person done queue flight generation detachOnce stream unrelay
       -- A refusal still waiting is given no token once this closes the lifetime.
       finish = do
@@ -406,7 +422,7 @@ construct owned options time settings shared stream = mask $ \restore -> do
         atomically (putTMVar done started)
         either throwIO (const (loop session schedule)) started
   void (Lifetime.start lifetime (restore work `finally` finish))
-    `onException` (unsubscribe session `finally` Lifetime.close lifetime `finally` atomically unrelay)
+    `onException` (unsubscribe session `finally` Lifetime.close lifetime)
   pure session
 
 -- | Refusal of an already replaced token returns the held token immediately,
