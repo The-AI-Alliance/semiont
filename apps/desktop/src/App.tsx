@@ -21,11 +21,12 @@ import {
   saveSessions,
   newSession,
   sessionsForKb,
+  sessionTitle,
   type AppChatSession,
 } from './lib/chat-sessions';
 import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout, type ResourcePresentation } from './lib/split-layout';
-import { KbNav } from './components/KbNav';
+import { KbNav, SemiontMenu } from './components/KbNav';
 import { WorkspaceTabs, localRootPathFromTabId, localRootTabId } from './components/WorkspaceTabs';
 import { AppearancePanel } from './components/AppearancePanel';
 import { LanguagePanel } from './components/LanguagePanel';
@@ -45,7 +46,7 @@ import { ChatPane, type LogEntry } from './components/ChatPane';
 import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_PROVIDER, type AgentModelId, type AgentProviderId } from './lib/agent-bridge';
 import { ResourceComposeModal } from './components/ResourceComposeModal';
 import { ResourceView } from './components/ResourceView';
-import type { ViewerPrefs } from './components/ViewerPrefControls';
+import { ViewerPrefControls, type ViewerPrefs } from './components/ViewerPrefControls';
 import {
   controlFailureText,
   type ControlAnswerState,
@@ -452,6 +453,7 @@ export function App() {
   // viewer. Mode is per-message (each MessageView's pencil); shape stays per-instance.
   const [clickAction, setClickAction] = useState<ClickAction>('follow');
   const [motivation, setMotivation] = useState<SelectionMotivation | null>('linking');
+  const [semiontMenuOpen, setSemiontMenuOpen] = useState(false);
   useEffect(() => {
     void getPref<ClickAction>(CLICK_ACTION_KEY, 'follow').then(setClickAction);
     void getPref<SelectionMotivation>(MOTIVATION_KEY, 'linking').then(setMotivation);
@@ -1014,11 +1016,32 @@ export function App() {
     ? activeKnowledgeBaseRoot?.activeSessionUri !== undefined
     : activeConn?.opened !== undefined;
   const showWorkspaceNav = activeKbTabUri === null || activeKbConnected;
+  const workspaceColumns = showWorkspaceNav
+    ? `${sidebarWidth}px 1px minmax(0, 1fr)${semiontMenuOpen ? ' minmax(16rem, 19rem)' : ''}`
+    : `0px minmax(0, 1fr)${semiontMenuOpen ? ' minmax(16rem, 19rem)' : ''}`;
 
   return (
     <>
       <div className={isElectron ? 'app app--electron' : 'app'}>
-        {isElectron && <div className="app__dragbar" aria-hidden="true" />}
+        <div className="app__chrome">
+          {isElectron && <div className="app__dragbar" aria-hidden="true" />}
+          <div className="app__chrome-controls" role="group" aria-label="Application controls">
+            <ViewerPrefControls prefs={viewerPrefs} placement="down" />
+            <button
+              type="button"
+              className={`app__menu-toggle${semiontMenuOpen ? ' app__menu-toggle--on' : ''}`}
+              aria-label={semiontMenuOpen ? 'Close Semiont menu' : 'Open Semiont menu'}
+              aria-haspopup="dialog"
+              aria-controls="semiont-panel"
+              aria-expanded={semiontMenuOpen}
+              title={semiontMenuOpen ? 'Close Semiont menu' : 'Open Semiont menu'}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={() => setSemiontMenuOpen((open) => !open)}
+            >
+              <PanelRightIcon />
+            </button>
+          </div>
+        </div>
         <WorkspaceTabs
           tabs={openKbTabUris.flatMap((id) => {
             const kb = config.kbs.find((entry) => entry.uri === id);
@@ -1037,13 +1060,11 @@ export function App() {
           onClose={closeKbTab}
           onAdd={() => openKnowledgeBases(true)}
         />
-        <div className="app__body" style={{ gridTemplateColumns: showWorkspaceNav ? `${sidebarWidth}px 1px 1fr` : '0px 1fr' }}>
+        <div className="app__body" style={{ gridTemplateColumns: workspaceColumns }}>
           <KbNav
             showWorkspaceContent={showWorkspaceNav}
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
-            hasActiveKbTab={activeKbTabUri !== null}
-            hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
             connections={connections}
             sessions={sessions}
             // doc and chat coexist now — both rows light up when both are live
@@ -1054,24 +1075,6 @@ export function App() {
             onNewChat={handleNewChat}
             onNewDocument={openNewDocument}
             onSelectSession={selectSession}
-            onOpenInference={openInference}
-            onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
-            onOpenRemoteService={setRemoteService}
-            onOpenSecrets={openSecrets}
-            onOpenMcp={openMcp}
-            mcpStatus={mcpStatus}
-            onOpenAppearance={() => setShowAppearance(true)}
-            onOpenLanguage={() => setShowLanguage(true)}
-            onOpenTelemetry={openTelemetry}
-            onOpenRuntime={openRuntime}
-            onOpenKnowledgeBase={() => {
-              setShowKnowledgeBaseDetails(true);
-              refreshKnowledgeBases();
-            }}
-            onOpenKnowledgeBaseUsers={() => {
-              setShowKnowledgeBaseUsers(true);
-              refreshKnowledgeBases();
-            }}
             queueRootPath={activeLocalRootPath}
             onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeLocalRootPath)}
           />
@@ -1123,6 +1126,30 @@ export function App() {
             setActiveCurrentMessageId={setActiveCurrentMessageId}
             onResourcesChanged={() => setDocsRefresh((n) => n + 1)}
             onConnect={() => activeKbUri && void connectKb(activeKbUri, true)}
+          />
+          <SemiontMenu
+            open={semiontMenuOpen}
+            onOpenChange={setSemiontMenuOpen}
+            hasActiveKbTab={activeKbTabUri !== null}
+            hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
+            onOpenInference={openInference}
+            onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
+            onOpenRemoteService={setRemoteService}
+            onOpenSecrets={openSecrets}
+            onOpenMcp={openMcp}
+            mcpStatus={mcpStatus}
+            onOpenAppearance={() => setShowAppearance(true)}
+            onOpenLanguage={() => setShowLanguage(true)}
+            onOpenTelemetry={openTelemetry}
+            onOpenRuntime={openRuntime}
+            onOpenKnowledgeBase={() => {
+              setShowKnowledgeBaseDetails(true);
+              refreshKnowledgeBases();
+            }}
+            onOpenKnowledgeBaseUsers={() => {
+              setShowKnowledgeBaseUsers(true);
+              refreshKnowledgeBases();
+            }}
           />
         </div>
       </div>
@@ -1218,6 +1245,15 @@ export function App() {
         />
       )}
     </>
+  );
+}
+
+function PanelRightIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M15 3v18" />
+    </svg>
   );
 }
 
@@ -1585,7 +1621,6 @@ function MainBody({
         key={activeResource.id}
         session={resourceSession}
         prefs={viewerPrefs}
-        showInteractionControls={layout === 'doc'}
         resourceId={activeResource.id}
         name={activeResource.name}
         onClose={onCloseResource}
@@ -1657,6 +1692,8 @@ function MainBody({
         onProviderChange={onChatProviderChange}
         onModelChange={onChatModelChange}
         sessionId={activeSession.id}
+        chatTitle={sessionTitle(activeSession)}
+        kbName={conn.description?.name ?? connectionRoot?.desktopAlias ?? connectionRoot?.siteName ?? 'Knowledge Base'}
         kbDid={`did:web:${conn.description?.domain ?? ''}`}
         {...(activeSession.currentMessageId !== undefined ? { currentMessageId: activeSession.currentMessageId } : {})}
         setCurrentMessageId={setActiveCurrentMessageId}

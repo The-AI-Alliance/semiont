@@ -8,7 +8,7 @@ import { AnswerView } from './AnswerView';
 import { MentionComposer, type MentionComposerHandle } from './MentionComposer';
 import type { MentionCandidate } from './MentionPicker';
 import { UploadRecord } from './UploadRecord';
-import { ViewerPrefControls, type ViewerPrefs } from './ViewerPrefControls';
+import type { ViewerPrefs } from './ViewerPrefControls';
 import { ResourceDiscoveryModal } from './ResourceDiscoveryModal';
 import {
   AGENT_MODELS,
@@ -64,6 +64,8 @@ export function ChatPane({
   onProviderChange,
   onModelChange,
   sessionId,
+  chatTitle,
+  kbName,
   kbDid,
   currentMessageId,
   setCurrentMessageId,
@@ -80,6 +82,8 @@ export function ChatPane({
   onProviderChange: (provider: AgentProviderId) => void;
   onModelChange: (model: AgentModelId) => void;
   sessionId: string;
+  chatTitle: string;
+  kbName: string;
   kbDid: string;
   currentMessageId?: ResourceId;
   setCurrentMessageId: (id: ResourceId) => void;
@@ -334,7 +338,14 @@ export function ChatPane({
         onTouchMove={onLogUserScroll}
       >
         {entries.length === 0 ? (
-          <p className="chat__placeholder">Ask a question about your documents.</p>
+          <div className="chat__empty-state">
+            <h1>{chatTitle}</h1>
+            <p className="chat__empty-kb">{kbName}</p>
+            <code className="chat__empty-did">{kbDid}</code>
+            <p className="chat__empty-prompt">
+              Ask a grounded question, explore connections, or enrich this knowledge base with resources and annotations.
+            </p>
+          </div>
         ) : (
           entries.map((entry) =>
             entry.kind === 'upload' ? (
@@ -460,9 +471,6 @@ export function ChatPane({
               </button>
             </div>
           </div>
-        </div>
-        <div className="chat__interaction-controls" role="group" aria-label="Document interaction controls">
-          <ViewerPrefControls prefs={prefs} />
         </div>
       </form>
       </section>

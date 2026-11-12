@@ -2257,14 +2257,61 @@ button.kb-location-picker__entry:hover {
   height: 100vh;
 }
 
-/* Keep only a narrow drag target for Electron's hidden native title bar. */
+/* Native title bar surface: keep the traffic lights in the drag region and controls in a
+   non-draggable area on its right edge. */
+.app__chrome {
+  display: flex;
+  align-items: center;
+  flex: 0 0 3rem;
+  min-width: 0;
+  background: var(--surface-sidebar);
+}
 .app__dragbar {
   display: none;
 }
 .app--electron .app__dragbar {
   display: block;
-  flex: 0 0 1.5rem;
+  flex: 1 1 auto;
+  align-self: stretch;
   -webkit-app-region: drag;
+}
+.app__chrome-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+  padding: 0 0.65rem;
+  -webkit-app-region: no-drag;
+}
+.app__chrome-controls .prefctl__btn,
+.app__menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.app__chrome-controls .prefctl__btn:hover,
+.app__menu-toggle:hover,
+.app__menu-toggle:focus-visible {
+  background: var(--hover);
+  color: var(--accent);
+  outline: none;
+}
+.app__menu-toggle--on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.app__menu-toggle--on:hover,
+.app__menu-toggle--on:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .workspace-tabs {
@@ -2363,42 +2410,18 @@ button.kb-location-picker__entry:hover {
   line-height: 1;
 }
 
-/* The lower-left SEMIONT wordmark is branding; the right-edge control opens settings. */
-.nav__footer {
-  position: relative;
-}
-.semiont-panel-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 19;
-  border: 0;
-  background: rgba(15, 23, 42, 0.18);
-  cursor: default;
-}
-.app--electron .semiont-panel-backdrop {
-  top: 1.5rem;
-}
+/* The lower-left SEMIONT wordmark is branding; the top chrome gear opens settings. */
 .semiont-panel {
-  position: fixed;
-  inset: 0 0 0 auto;
-  z-index: 20;
   display: flex;
   flex-direction: column;
-  width: min(19rem, calc(100vw - 1rem));
-  padding: 0 0.8rem 0.8rem;
+  min-width: 0;
+  min-height: 0;
   border-left: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
 }
-.app--electron .semiont-panel {
-  top: 1.5rem;
-}
-.semiont-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 3.6rem;
-  border-bottom: 1px solid var(--border-soft);
+.semiont-panel[hidden] {
+  display: none;
 }
 .semiont-panel__items {
   display: flex;
@@ -2414,13 +2437,54 @@ button.kb-location-picker__entry:hover {
 .semiont-menu__group > h2,
 .semiont-menu__subgroup > h3 {
   margin: 0 0 0.25rem;
-  padding: 0.15rem 0.7rem;
+  padding: 0;
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.07em;
   line-height: 1.4;
   text-transform: uppercase;
+}
+.semiont-menu__group-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0.7rem;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.semiont-menu__group-toggle:hover,
+.semiont-menu__group-toggle:focus-visible {
+  color: var(--text);
+  background: var(--hover);
+  outline: none;
+}
+.semiont-menu__group-toggle svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 120ms ease;
+  transform: rotate(90deg);
+}
+.semiont-menu__group-toggle[aria-expanded="false"] svg {
+  transform: rotate(0deg);
+}
+.semiont-menu__group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.semiont-menu__group-items[hidden] {
+  display: none;
 }
 .semiont-menu__subgroup {
   margin-top: 0.2rem;
@@ -2430,7 +2494,7 @@ button.kb-location-picker__entry:hover {
 .semiont-menu__subgroup > h3 {
   padding-left: 0.55rem;
 }
-.semiont-panel__items button {
+.semiont-menu__group-items > button {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -2445,11 +2509,11 @@ button.kb-location-picker__entry:hover {
   font-weight: 500;
   line-height: 1.4;
 }
-.semiont-panel__items button svg {
+.semiont-menu__group-items > button svg {
   flex-shrink: 0;
   color: var(--muted);
 }
-.semiont-panel__items button .semiont-menu__mcp-icon--running {
+.semiont-menu__group-items > button .semiont-menu__mcp-icon--running {
   color: var(--success);
 }
 .semiont-menu__item-copy {
@@ -2463,53 +2527,12 @@ button.kb-location-picker__entry:hover {
   font-size: 0.67rem;
   font-weight: 400;
 }
-.semiont-panel__items button:hover,
-.semiont-panel__items button:focus-visible {
+.semiont-menu__group-items > button:hover,
+.semiont-menu__group-items > button:focus-visible {
   background: var(--hover);
   outline: none;
 }
 
-.semiont-panel-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  color: var(--muted);
-  font: inherit;
-}
-.semiont-panel-toggle:hover,
-.semiont-panel-toggle:focus-visible {
-  color: var(--accent);
-  outline: none;
-}
-.semiont-panel-toggle--collapsed {
-  position: fixed;
-  top: 0.55rem;
-  right: 0.6rem;
-  z-index: 18;
-  min-width: 2.7rem;
-  height: 2.3rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-  font-size: 1.05rem;
-}
-.app--electron .semiont-panel-toggle--collapsed {
-  top: 1.8rem;
-}
-.semiont-panel-toggle--open {
-  width: 100%;
-  height: 3.6rem;
-  justify-content: flex-end;
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
 .semiont-brand {
   display: inline-flex;
   align-items: center;
@@ -2528,15 +2551,12 @@ button.kb-location-picker__entry:hover {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
-.semiont-panel-toggle:hover .app__powered-mark {
-  filter: brightness(1.25);
-}
 
 .app__body {
   display: grid;
 
-  /* sidebar | resizer | chat — the first column width is driven by inline style. */
-  grid-template-columns: 17rem 1px 1fr;
+  /* sidebar | resizer | workspace | optional settings panel */
+  grid-template-columns: 17rem 1px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
@@ -2660,38 +2680,6 @@ body.resizing {
 }
 .kb:hover {
   background: var(--hover);
-}
-
-.kb__head {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.kb__name {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.kb__branch {
-  flex: none;
-  font-family: ui-monospace, monospace;
-  font-size: 0.66rem;
-  font-weight: 400;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  background: var(--field);
-  border: 1px solid var(--border);
-  color: var(--muted);
 }
 
 .kb__icon {
@@ -3038,8 +3026,39 @@ body.resizing {
   gap: 1rem;
 }
 
-.chat__placeholder {
+.chat__empty-state {
+  align-self: center;
+  width: min(100%, 46rem);
+  margin-block: auto;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.chat__empty-state > h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.45rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.chat__empty-kb {
+  margin: 0.55rem 0 0;
   color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 550;
+}
+.chat__empty-did {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+.chat__empty-prompt {
+  max-width: 40rem;
+  margin: 1.6rem auto 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 /* ── Upload record (a durable upload event in the log) ────────────────── */
@@ -3080,12 +3099,6 @@ body.resizing {
   gap: 0.85rem;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border-soft);
-}
-.rview__interaction-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex: none;
 }
 
 /* Entity tags under the title bar are react-ui's ResourceTagsInline — give its strip the
@@ -3326,20 +3339,12 @@ body.resizing {
   gap: 0.75rem;
   min-height: 2.8rem;
   padding: 0.35rem 0.45rem 0.35rem 0.65rem;
-  border-top: 1px solid var(--border-soft);
 }
 .chat__composer-actions {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   flex: none;
-}
-.chat__interaction-controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.35rem;
-  flex: none;
-  padding-bottom: 0.35rem;
 }
 
 .chat__composer-add,
@@ -3350,13 +3355,12 @@ body.resizing {
   justify-content: center;
   width: 2.2rem;
   height: 2.2rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
 }
 .chat__composer-add:hover:not(:disabled) {
-  border-color: var(--accent);
   color: var(--accent);
   background: var(--surface-sidebar);
 }
@@ -3375,8 +3379,8 @@ body.resizing {
   max-width: 13rem;
   height: 2.2rem;
   padding: 0 1.75rem 0 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
   font: inherit;
@@ -3393,7 +3397,6 @@ body.resizing {
 }
 .chat__send {
   width: 2.35rem;
-  border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
   font-size: 1.5rem;
@@ -3418,8 +3421,8 @@ body.resizing {
   align-items: center;
   justify-content: center;
   padding: 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
 }
@@ -3427,7 +3430,6 @@ body.resizing {
 .chat__attach:hover {
   background: var(--surface-sidebar);
   color: var(--accent);
-  border-color: var(--accent);
 }
 
 /* The @-mention trigger — mirrors the attach button, with the glyph as text. */
@@ -3438,8 +3440,8 @@ body.resizing {
   justify-content: center;
   width: 2.15rem;
   padding: 0.55rem 0;
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
   font-size: 1.05rem;
@@ -3449,7 +3451,6 @@ body.resizing {
 .chat__mention:hover {
   background: var(--surface-sidebar);
   color: var(--accent);
-  border-color: var(--accent);
 }
 
 /* The @-mention popover — a filtered document list, opening upward above the compose row. */
@@ -4197,7 +4198,7 @@ body.resizing {
   border-color: var(--accent);
 }
 
-/* Footer viewer-pref controls (click action + motivation), left of the gear. */
+/* App chrome viewer preferences: click action and selection motivation. */
 .prefctl {
   position: relative;
 }
