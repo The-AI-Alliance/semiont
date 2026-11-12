@@ -9,13 +9,6 @@ import {
 import type { KbDescription, ResourceId } from '@semiont/core';
 
 /**
- * Entity type stamped on the question resources the GUI creates. Excluded from
- * `gather.resource`'s semantic recall (`excludeEntityTypes`) so prior questions
- * never ground a new answer.
- */
-export const QUESTION_ENTITY_TYPE = 'Question';
-
-/**
  * The single seam both lanes orchestrate over. A `ChatSession` IS a
  * `SemiontSession` — we use the wrapper (not a raw `SemiontClient`) because it
  * renews the bearer token; a raw client dies at the token's expiry. Namespaces

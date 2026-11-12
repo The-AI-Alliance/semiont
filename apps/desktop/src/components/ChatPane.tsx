@@ -3,7 +3,7 @@ import { useObservable } from '@semiont/react-ui';
 import type { ResourceId } from '@semiont/core';
 import { chatTurn, type PendingReference, type TurnPhase } from '../lib/chat-turn';
 import { questionHistory } from '../lib/question-history';
-import { QUESTION_ENTITY_TYPE, type ChatSession } from '../lib/session';
+import type { ChatSession } from '../lib/session';
 import { AnswerView } from './AnswerView';
 import { MentionComposer, type MentionComposerHandle } from './MentionComposer';
 import type { MentionCandidate } from './MentionPicker';
@@ -37,7 +37,7 @@ export interface Turn {
   // entity types already marked on the answer — the chip shows these as done. (Annotations
   // themselves are NOT stored: the message viewers load them live from the backend.)
   markedEntityTypes?: string[];
-  // the question is its own (Question-typed) resource, so it can be marked too — tracked here
+  // The user message is its own resource and can be marked too — tracked here.
   questionId?: ResourceId;
   questionMarkedEntityTypes?: string[];
   error?: string;
@@ -97,16 +97,15 @@ export function ChatPane({
 }) {
   const entityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
   const entityTypes = entityTypesState?.status === 'ready' ? entityTypesState.value : [];
-  // Enrich uploads/answers against the corpus vocabulary, never as a Question.
-  const docEntityTypes = entityTypes.filter((t) => t !== QUESTION_ENTITY_TYPE);
+  // Use the KB's entity vocabulary for on-demand reference finding.
+  const docEntityTypes = entityTypes;
 
-  // The KB's documents, offered for `@`-mention (Questions excluded, same as the nav list).
+  // The KB's resources, offered for `@`-mention (chat messages are excluded).
   const resourcesState = useObservable(useMemo(() => session.client.browse.resources(), [session]));
   const resources = resourcesState?.status === 'ready' ? resourcesState.value.resources : undefined;
   const mentionDocs: MentionCandidate[] = useMemo(
     () =>
       (resources ?? [])
-        .filter((r) => !(r.entityTypes ?? []).includes(QUESTION_ENTITY_TYPE))
         .filter((r) => !isDesktopChatResource(r.name))
         .map((r) => ({ id: String(r['@id']), name: r.name ?? String(r['@id']) })),
     [resources],

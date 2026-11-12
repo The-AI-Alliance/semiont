@@ -44,7 +44,7 @@ interface MessageProps {
   content?: string;
   /** App-global click action + motivation (controlled props on the viewer). */
   prefs: ViewerPrefs;
-  /** The KB's delegable entity types (Question excluded) — params for `find-references`. */
+  /** The KB's delegable entity types — params for `find-references`. */
   markableEntityTypes: string[];
   /** Types already delegated on this resource (per-turn provenance) — dimmed in the form. */
   delegatedEntityTypes?: string[];

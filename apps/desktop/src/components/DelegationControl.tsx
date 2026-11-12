@@ -82,7 +82,7 @@ export function DelegationControl({
 }: {
   session: ChatSession;
   resourceId: ResourceId;
-  /** The KB's delegable entity types (Question excluded by the caller). */
+  /** The KB's delegable entity types. */
   entityTypes: string[];
   /** Types already delegated for find-references on this resource — shown dimmed. */
   delegated: string[];

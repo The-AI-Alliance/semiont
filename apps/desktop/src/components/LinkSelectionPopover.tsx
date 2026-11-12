@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useObservable } from '@semiont/react-ui';
-import { QUESTION_ENTITY_TYPE, type ChatSession } from '../lib/session';
+import type { ChatSession } from '../lib/session';
 import { isDesktopChatResource } from '../lib/agent-bridge';
 import { MentionPicker, type MentionCandidate } from './MentionPicker';
 
@@ -8,7 +8,7 @@ import { MentionPicker, type MentionCandidate } from './MentionPicker';
  * The post-send "link this selection to a resource" chooser (UNIFY plan, D2 path b): a small
  * fixed-position popover with a filter box over the KB's documents, reusing `MentionPicker`'s
  * list. The caller owns what picking does (create the pre-resolved reference) and where the
- * popover sits (the selection's rect). Questions and the message itself are excluded.
+ * popover sits (the selection's rect). Chat messages and the message itself are excluded.
  */
 export function LinkSelectionPopover({
   session,
@@ -33,7 +33,6 @@ export function LinkSelectionPopover({
   const candidates: MentionCandidate[] = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (resources ?? [])
-      .filter((r) => !(r.entityTypes ?? []).includes(QUESTION_ENTITY_TYPE))
       .filter((r) => !isDesktopChatResource(r.name))
       .map((r) => ({ id: String(r['@id']), name: r.name ?? String(r['@id']) }))
       .filter((c) => c.id !== excludeId && (q.length === 0 || c.name.toLowerCase().includes(q)))

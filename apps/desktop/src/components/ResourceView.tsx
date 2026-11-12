@@ -23,7 +23,7 @@ import {
 } from '@semiont/core';
 import { resourceId as brandResourceId, type ResourceId } from '@semiont/sdk';
 import { findAnnotation } from '../lib/annotation-detail';
-import { QUESTION_ENTITY_TYPE, type ChatSession } from '../lib/session';
+import type { ChatSession } from '../lib/session';
 import { AnnotationDetailCard } from './AnnotationDetailCard';
 import { PendingCreationPopover, useAnnotationCreation } from './AnnotationCreator';
 import { DelegationControl } from './DelegationControl';
@@ -119,11 +119,11 @@ export function ResourceView({
   // selections by `source`; chat's wrapper dispatches.
   const { pending, clearPending } = useAnnotationCreation(session, rid, annotate);
 
-  // Find-references delegation params: the KB's entity types (Question excluded, as
-  // everywhere). No per-document provenance store here — the form starts undimmed.
+  // Find-references delegation params use the KB's entity vocabulary. No per-document
+  // provenance store here — the form starts undimmed.
   const kbEntityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
   const kbEntityTypes = kbEntityTypesState?.status === 'ready' ? kbEntityTypesState.value : [];
-  const markableEntityTypes = kbEntityTypes.filter((t) => t !== QUESTION_ENTITY_TYPE);
+  const markableEntityTypes = kbEntityTypes;
 
   return (
     <section className="rview">
@@ -213,7 +213,7 @@ export function ResourceView({
       </header>
       {/* react-ui's tags strip: editable in annotate mode (the pencil), updates through the
           SDK (`mark.updateEntityTypes`), then a descriptor poke repaints. `vocabulary` is the
-          KB's registered types (Question excluded, as everywhere) — entity tags are a
+          KB's registered types — entity tags are a
           controlled vocabulary, so the add picker offers only these. */}
       <ResourceTagsInline
         resourceId={String(rid)}
