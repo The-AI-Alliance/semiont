@@ -72,8 +72,12 @@ public actor SemiontSession: StateUnit {
   deinit { lifetime.end() }
   /// Ends the session, and its errors with it. Whoever ends its client too closes that first and
   /// waits for its closing flush (``OpenedSession/dispose()``), so what the flush meets is said
-  /// before they end; what the client meets once the session has ended is said nowhere.
+  /// before they end; what the client meets once the session has ended is said nowhere. Each
+  /// refusal waiting on the renewal of its sign-in under way is given no token at once; the renewal
+  /// itself runs to its end, so what the issuer rotated is kept (``renewalEnded()``).
   public nonisolated func dispose() { lifetime.end() }
+  /// Waits for the renewal of its sign-in under way, when there is one, to end.
+  func renewalEnded() async { _ = await renewal?.result }
   nonisolated func failed(_ error: SessionError) { failures.yield(error) }
   nonisolated func relay(_ error: any Error) { failures.yield(error) }
   public nonisolated func errors() -> Events<any Error> { failures.listen() }
@@ -99,18 +103,21 @@ public actor SemiontSession: StateUnit {
   /// The gateway refused `refused`, the token a request carried (nil when it carried none): renew it,
   /// and ask the gateway who the new one is. A caller that wants the token renewed passes the token
   /// the session holds. A token the session no longer holds was answered already: the token it holds
-  /// is given, and nothing is renewed or asked.
+  /// is given, and nothing is renewed or asked. Once the session is disposed, a refusal is given
+  /// nil, whatever token it refused, and nothing is renewed, and one waiting on the renewal under
+  /// way is given nil at once: the dispose signs nobody out, and the session takes nothing that
+  /// renewal brings.
   public func refresh(_ refused: String?) async throws -> String? {
-    guard !lifetime.ended else { throw CancellationError() }
+    guard !lifetime.ended else { return nil }
     if token.value != refused { return token.value }
     if let (credential, task) = validation, credential == refused {
-      return try await sharedValue(task, lifetime: lifetime)
+      return try await sharedAnswer(task, lifetime: lifetime)
     }
     let id = UUID()
     let task = spawn(on: self) { session in try await session.renewedAndConfirmed(refused, id: id) }
     validation = (refused, task)
     lifetime.keep(task, id: id)
-    return try await sharedValue(task, lifetime: lifetime)
+    return try await sharedAnswer(task, lifetime: lifetime)
   }
   /// The validation `id` of `refused`: it renews the token, asks the gateway who the renewed one is,
   /// and gives the token then held. It begins after `refresh` spawned it, so a renewal that ended in
@@ -133,51 +140,59 @@ public actor SemiontSession: StateUnit {
     }
     return token.value
   }
+  /// Holds `value` in one step with the check that the session is open: a token is the session's
+  /// before the dispose or never.
   private func setToken(_ value: String?) async {
-    guard !lifetime.ended else { return }
+    var taken = false
+    lifetime.whileOpen {
+      token.set(value)
+      taken = true
+    }
+    guard taken else { return }
     if let value { lastHeld = value }
-    token.set(value)
     await publish(value)
   }
   /// Renews the token it holds, or, holding none, the one it last held. Only the issuer's refusal
   /// forgets the sign-in; a renewal that gets no answer, whatever failed, leaves the session no
   /// token, says so (`session.auth-failed` at the start, `session.refresh-exhausted` later) and
-  /// renews again on the reconnect backoff.
+  /// renews again on the reconnect backoff. A renewal is begun in one step with the check that the
+  /// session is open, so a disposed session begins none, and one under way at the dispose is one
+  /// ``renewalEnded()`` waits for.
   private func renewed(startup: Bool = false) async throws -> String? {
     if let renewal { return try await sharedValue(renewal, lifetime: lifetime) }
     let holding = token.value ?? lastHeld
-    let id = UUID()
-    let task = spawn(on: self) { session in
-      try await session.renewing(holding, startup: startup, id: id)
+    var begun: Task<String?, any Error>?
+    lifetime.whileOpen {
+      begun = spawn(on: self) { session in
+        try await session.renewing(holding, startup: startup)
+      }
     }
+    guard let task = begun else { throw CancellationError() }
     renewal = task
-    lifetime.keep(task, id: id)
     return try await sharedValue(task, lifetime: lifetime)
   }
-  /// The renewal `id` of `holding`, at the start or later.
-  private func renewing(_ holding: String?, startup: Bool, id: UUID) async throws -> String? {
-    defer {
-      lifetime.forget(id)
-      renewal = nil
-    }
+  /// The renewal of `holding`, at the start or later. The dispose does not end it: it runs to its
+  /// end, so what the issuer rotated is kept, and the ended session takes nothing of what it brings
+  /// and acts on nothing of how it ended.
+  private func renewing(_ holding: String?, startup: Bool) async throws -> String? {
+    defer { renewal = nil }
     do {
       if let next = try await renew(holding) {
-        try Task.checkCancellation()
+        guard !lifetime.ended else { throw CancellationError() }
         unanswered = false
         retryCap = reconnectMs
         await setToken(next)
         schedule()
         return next
       }
-      try Task.checkCancellation()
       guard try await kept.held() != nil else {
         await setToken(nil)
         return nil
       }
     } catch let failure as SignInError where refusedAtIssuer(failure) {
-      if Task.isCancelled { throw CancellationError() }
+      // The issuer refused it: the session is over, below.
     } catch {
-      if Task.isCancelled { throw CancellationError() }
+      if lifetime.ended { throw CancellationError() }
       await setToken(nil)
       unanswered = true
       failed(
@@ -187,7 +202,9 @@ public actor SemiontSession: StateUnit {
       schedule()
       return nil
     }
-    // The issuer refused it, or its renewal gave nothing while the sign-in is still kept.
+    // The issuer refused it, or its renewal gave nothing while the sign-in is still kept: an ended
+    // session signs nobody out on either.
+    guard !lifetime.ended else { throw CancellationError() }
     if startup {
       await setToken(nil)
       try await forget()

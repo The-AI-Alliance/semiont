@@ -353,6 +353,73 @@ private func form(_ data: Data) -> [String: String] {
       #expect(agent.token.value == renewed)
     })
 }
+// The issuer holds its answer to a refusal's grant, on the server's own thread, while the agent is
+// disposed.
+@Test func anAgentDisposedWhileItsTokenIsRenewedGivesTheRefusalNoTokenAndRenewsNothingAfter()
+  async throws
+{
+  let origin = Mutex("")
+  let grants = Mutex(0)
+  let holding = Watched(false)
+  let granting = DispatchSemaphore(value: 0)
+  let now = Date().timeIntervalSince1970
+  let first = try jwt(.object(["exp": .number(now + 3600), "name": .string("first")]))
+  let second = try jwt(.object(["exp": .number(now + 3600), "name": .string("second")]))
+  let late = try jwt(.object(["exp": .number(now + 3600), "name": .string("late")]))
+  try await issuerServer(
+    { path, _, _ in
+      if path.hasSuffix("openid-configuration") {
+        return (200, ["token_endpoint": .string(origin.withLock { $0 } + "/token")])
+      }
+      if path == "/token" {
+        let count = grants.withLock { value in
+          value += 1
+          return value
+        }
+        switch count {
+        case 1: return (200, ["access_token": .string(first)])
+        case 2: return (200, ["access_token": .string(second)])
+        default: break
+        }
+        holding.set(true)
+        _ = granting.wait(timeout: .now() + 10)
+        return (200, ["access_token": .string(late)])
+      }
+      return (
+        200,
+        [
+          "did": .string("did:web:kb:agents:worker"), "domain": .string("kb"), "email": .null,
+          "name": .null, "image": .null,
+        ]
+      )
+    },
+    run: { base, http in
+      defer { granting.signal() }
+      origin.withLock { $0 = base }
+      let service = ServiceToken(
+        credential: .secret(issuer: base, clientId: "worker", clientSecret: "secret"),
+        httpClient: http)
+      let agent = AgentToken(gateway: base, service: service, httpClient: http)
+      defer { agent.dispose() }
+      try await agent.signIn()
+      #expect(try await agent.refresh(first) == second)
+      let refusing = Task { try await agent.refresh(second) }
+      try await withinTestDeadline { for await held in holding where held { return } }
+      agent.dispose()
+      // The dispose ended the renewal: the refusal is given no token, rather than a cancellation
+      // it never had.
+      #expect(try await withinTestDeadline { try await refusing.value } == nil)
+      // A disposed agent gives no token, whatever token was refused, and asks the issuer for
+      // nothing.
+      #expect(try await agent.refresh(second) == nil)
+      #expect(try await agent.refresh(first) == nil)
+      // The answer that comes later is not taken.
+      granting.signal()
+      #expect(try await withinTestDeadline { try await service.token(renewed: false) } == late)
+      #expect(agent.token.value == second)
+      #expect(grants.withLock { $0 } == 3)
+    })
+}
 @Test func immediateStreamAndStartupRefusalsShareTheSessionsRenewal() async throws {
   let grants = Mutex(0)
   let asks = Mutex(0)
