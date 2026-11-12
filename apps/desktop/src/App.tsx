@@ -1037,7 +1037,7 @@ export function App() {
               onMouseDown={(event) => event.stopPropagation()}
               onClick={() => setSemiontMenuOpen((open) => !open)}
             >
-              <GearIcon />
+              <PanelRightIcon />
             </button>
           </div>
         </div>
@@ -1249,11 +1249,11 @@ export function App() {
   );
 }
 
-function GearIcon() {
+function PanelRightIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
-      <path d="m19.4 15 .1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5v.2a1.8 1.8 0 1 1-3.6 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1h-.2a1.8 1.8 0 1 1 0-3.6h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a1.8 1.8 0 1 1 2.6-2.6l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5v-.2a1.8 1.8 0 1 1 3.6 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1h.2a1.8 1.8 0 1 1 0 3.6h-.2a1.7 1.7 0 0 0-1.5 1 1.7 1.7 0 0 0 .3 1.8Z" />
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M15 3v18" />
     </svg>
   );
 }
