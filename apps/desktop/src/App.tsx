@@ -21,6 +21,7 @@ import {
   saveSessions,
   newSession,
   sessionsForKb,
+  sessionTitle,
   type AppChatSession,
 } from './lib/chat-sessions';
 import { getPref, setPref } from './lib/prefs';
@@ -1691,6 +1692,8 @@ function MainBody({
         onProviderChange={onChatProviderChange}
         onModelChange={onChatModelChange}
         sessionId={activeSession.id}
+        chatTitle={sessionTitle(activeSession)}
+        kbName={conn.description?.name ?? connectionRoot?.desktopAlias ?? connectionRoot?.siteName ?? 'Knowledge Base'}
         kbDid={`did:web:${conn.description?.domain ?? ''}`}
         {...(activeSession.currentMessageId !== undefined ? { currentMessageId: activeSession.currentMessageId } : {})}
         setCurrentMessageId={setActiveCurrentMessageId}
