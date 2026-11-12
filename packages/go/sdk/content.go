@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
@@ -97,7 +98,7 @@ type UploadProgress struct {
 // Upload is an upload under way: its progress as it is sent, and what the
 // gateway answers. It is consumed once.
 type Upload struct {
-	progress *queue[UploadProgress]
+	progress *kept.Queue[UploadProgress]
 	done     chan struct{}
 	result   api.CreateResourceResponse
 	err      error
@@ -110,11 +111,11 @@ type Upload struct {
 // sent through report, and returns what the gateway answered. What
 // implements ContentTransport makes each upload it starts with it.
 func NewUpload(work func(report func(UploadProgress)) (api.CreateResourceResponse, error)) *Upload {
-	upload := &Upload{progress: newQueue[UploadProgress](), done: make(chan struct{})}
+	upload := &Upload{progress: kept.NewQueue[UploadProgress](), done: make(chan struct{})}
 	go func() {
 		defer close(upload.done)
-		defer upload.progress.close()
-		upload.result, upload.err = work(func(progress UploadProgress) { upload.progress.push(progress) })
+		defer upload.progress.Close()
+		upload.result, upload.err = work(func(progress UploadProgress) { upload.progress.Push(progress) })
 	}()
 	return upload
 }
@@ -122,7 +123,7 @@ func NewUpload(work func(report func(UploadProgress)) (api.CreateResourceRespons
 // Progress is how much has been sent, each time more has, never less than it
 // last said, until the upload ends or the loop over it stops.
 func (u *Upload) Progress() iter.Seq[UploadProgress] {
-	return u.progress.all(nil, func() {})
+	return u.progress.All(nil, func() {})
 }
 
 // Wait is what the gateway answers: the new resource's id. A second Wait is

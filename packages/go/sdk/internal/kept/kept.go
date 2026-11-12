@@ -1,6 +1,8 @@
-// Package kept is what a stream keeps for a reader who has not come yet: the
-// latest errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json)
-// of what it said, the oldest dropped beyond them.
+// Package kept is what a stream keeps for its readers: for each reader, every
+// item given to it, in order, however far behind it falls (Queue, Broadcast);
+// and for a reader who has not come yet, the latest
+// errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) of
+// what it said, the oldest dropped beyond them (Stream, Telling).
 package kept
 
 import (
@@ -8,9 +10,9 @@ import (
 	"sync"
 )
 
-// Latest is the last n of items; those before them are cleared, so that
+// latest is the last n of items; those before them are cleared, so that
 // nothing is held by them.
-func Latest[T any](items []T, n int) []T {
+func latest[T any](items []T, n int) []T {
 	beyond := len(items) - n
 	if beyond <= 0 {
 		return items
@@ -25,8 +27,10 @@ func Latest[T any](items []T, n int) []T {
 // reported before anyone listens, the latest keptForFirst are kept for the
 // first listener, until the stream closes, and told to it as it starts
 // listening. A transport's failures are told so, because the transport opens
-// before whatever listens to it is returned to its caller
-// (protocol/contract/TRANSPORT-CONTRACT.md § Failures).
+// before whatever listens to it is returned to its caller, and each failure
+// is told as it is thrown to its caller (protocol/contract/TRANSPORT-CONTRACT.md
+// § Failures), where a Stream's readers each take what it reports at their
+// own pace.
 type Telling[T any] struct {
 	mu        sync.Mutex
 	listeners []*listener[T]
@@ -81,7 +85,7 @@ func (t *Telling[T]) Report(item T) T {
 	switch {
 	case t.closed:
 	case !t.heard:
-		t.kept = Latest(append(t.kept, item), t.keptForFirst)
+		t.kept = latest(append(t.kept, item), t.keptForFirst)
 	default:
 		for _, l := range t.listeners {
 			l.told(item)

@@ -1,8 +1,8 @@
 package registry
 
-// What a registry keeps of what it says before anyone reads its errors.
-// Nothing from outside makes it say many of its own with nobody reading, so
-// these say them themselves.
+// What a registry keeps of what it says before anyone reads its errors, and
+// what it gives a reader who falls behind. Nothing from outside makes it say
+// many of its own while nobody reads, so these say them themselves.
 
 import (
 	"context"
@@ -58,6 +58,28 @@ func TestARegistryNobodyHasReadKeepsTheLatestOfWhatItSaysForItsFirstReader(t *te
 	}
 	if !slices.Equal(heard, said[beyond:]) {
 		t.Errorf("the first reader heard %d errors, want the latest %d said, in order", len(heard), len(said)-beyond)
+	}
+}
+
+// Each reader of a registry's errors hears everything said from when it
+// reads, in order, however far behind it falls.
+func TestEachReaderOfARegistrysErrorsHearsEverythingSaidFromWhenItReadsHoweverFarBehindItFalls(t *testing.T) {
+	b := unread(t)
+	first, later := b.Errors(context.Background()), b.Errors(context.Background())
+	said := make([]*semiont.SessionError, semiont.DefaultTiming().ErrorsKeptForFirstReaderCount+5)
+	for n := range said {
+		said[n] = failure(n)
+		b.failed(said[n])
+	}
+	if err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if heard := slices.Collect(first); !slices.Equal(heard, said) {
+		t.Errorf("the first reader heard %d errors, want all %d said after it read, in order", len(heard), len(said))
+	}
+	if heard := slices.Collect(later); !slices.Equal(heard, said) {
+		t.Errorf("a later reader heard %d errors, want all %d said after it read, in order", len(heard), len(said))
 	}
 }
 

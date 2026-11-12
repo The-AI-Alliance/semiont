@@ -138,8 +138,8 @@ func (r *refresher) start() {
 			select {
 			case <-ctx.Done():
 				return
-			case <-events.ready:
-				arrivals, closed := events.drain()
+			case <-events.Ready():
+				arrivals, closed := events.Drain()
 				for _, one := range arrivals {
 					r.took(one)
 				}

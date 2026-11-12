@@ -12,6 +12,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 )
 
 // EventBus is a client's own bus. A client makes one and hands it to its
@@ -32,10 +33,10 @@ type EventBus struct {
 	mu sync.Mutex
 	// views is the readers of each channel: of what is published to
 	// everyone, and of each scope.
-	views map[eventView]*broadcast[arrival]
+	views map[eventView]*kept.Broadcast[arrival]
 	// among is the readers of several channels at once, each with the
 	// channels it reads.
-	among  map[*queue[arrival]][]bus.Channel
+	among  map[*kept.Queue[arrival]][]bus.Channel
 	closed bool
 }
 
@@ -49,7 +50,7 @@ var _ FrameSink = (*EventBus)(nil)
 
 // NewEventBus is a bus with no reader.
 func NewEventBus() *EventBus {
-	return &EventBus{views: map[eventView]*broadcast[arrival]{}, among: map[*queue[arrival]][]bus.Channel{}}
+	return &EventBus{views: map[eventView]*kept.Broadcast[arrival]{}, among: map[*kept.Queue[arrival]][]bus.Channel{}}
 }
 
 // Deliver publishes frame as it is: to everyone, or into the scope its
@@ -69,7 +70,7 @@ func (b *EventBus) DeliverRefusal(refusal *FrameRefusal) {
 func (b *EventBus) publish(channel bus.Channel, scope api.ResourceId, one arrival) {
 	b.mu.Lock()
 	view := b.views[eventView{channel, scope}]
-	var among []*queue[arrival]
+	var among []*kept.Queue[arrival]
 	if scope.IsZero() {
 		for q, channels := range b.among {
 			if slices.Contains(channels, channel) {
@@ -79,10 +80,10 @@ func (b *EventBus) publish(channel bus.Channel, scope api.ResourceId, one arriva
 	}
 	b.mu.Unlock()
 	for _, q := range among {
-		q.push(one)
+		q.Push(one)
 	}
 	if view != nil {
-		view.give(one)
+		view.Give(one)
 	}
 }
 
@@ -94,19 +95,19 @@ func (b *EventBus) publish(channel bus.Channel, scope api.ResourceId, one arriva
 func (b *EventBus) FramesOn(ctx context.Context, channel bus.Channel, scope api.ResourceId) iter.Seq2[Frame, error] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	q := newQueue[arrival]()
+	q := kept.NewQueue[arrival]()
 	if b.closed {
-		q.close()
-		return toldFrames(q.all(nil, func() {}))
+		q.Close()
+		return toldFrames(q.All(nil, func() {}))
 	}
 	key := eventView{channel, scope}
 	view, ok := b.views[key]
 	if !ok {
-		view = newBroadcast[arrival]()
+		view = kept.NewBroadcast[arrival]()
 		b.views[key] = view
 	}
-	view.join(q)
-	return toldFrames(q.all(ctx.Done(), func() { view.leave(q) }))
+	view.Join(q)
+	return toldFrames(q.All(ctx.Done(), func() { view.Leave(q) }))
 }
 
 // FramesAmong is the frames published to everyone on any of channels from
@@ -116,17 +117,17 @@ func (b *EventBus) FramesOn(ctx context.Context, channel bus.Channel, scope api.
 // closed bus, a sequence that has ended.
 func (b *EventBus) FramesAmong(ctx context.Context, channels ...bus.Channel) iter.Seq2[Frame, error] {
 	q, leave := b.listenAmong(channels...)
-	return toldFrames(q.all(ctx.Done(), leave))
+	return toldFrames(q.All(ctx.Done(), leave))
 }
 
 // listenAmong is a reader of what is published to everyone on any of
 // channels from now on, and what lets it go.
-func (b *EventBus) listenAmong(channels ...bus.Channel) (q *queue[arrival], leave func()) {
+func (b *EventBus) listenAmong(channels ...bus.Channel) (q *kept.Queue[arrival], leave func()) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	q = newQueue[arrival]()
+	q = kept.NewQueue[arrival]()
 	if b.closed {
-		q.close()
+		q.Close()
 		return q, func() {}
 	}
 	b.among[q] = channels
@@ -134,7 +135,7 @@ func (b *EventBus) listenAmong(channels ...bus.Channel) (q *queue[arrival], leav
 		b.mu.Lock()
 		delete(b.among, q)
 		b.mu.Unlock()
-		q.close()
+		q.Close()
 	}
 }
 
@@ -145,10 +146,10 @@ func (b *EventBus) Close() {
 	defer b.mu.Unlock()
 	b.closed = true
 	for _, view := range b.views {
-		view.close()
+		view.Close()
 	}
 	for q := range b.among {
-		q.close()
+		q.Close()
 	}
 	clear(b.views)
 	clear(b.among)

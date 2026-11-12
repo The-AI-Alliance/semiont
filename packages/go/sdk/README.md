@@ -695,9 +695,11 @@ func Run(ctx context.Context, client *semiont.Client) error {
   transport refused, which it cannot tell it does not accept), and when its
   stream opens again. A claim answered with nothing pending is no refusal, and the worker
   waits. A `*ClaimRefusal` is a claim the dispatcher refused or did not
-  answer. Of the refusals nobody has taken, the latest
-  `ErrorsKeptForFirstReaderCount` wait for whoever ranges over the claims
-  next, the oldest dropped beyond them; a job claimed is never dropped.
+  answer. A range over the claims is handed every refusal, however slowly it
+  takes them. While nobody ranges over them, the latest
+  `ErrorsKeptForFirstReaderCount` of the refusals met wait for whoever ranges
+  over them next, the oldest dropped beyond them; a job claimed is never
+  dropped.
 - **A held job settles once**: `Complete`, with what its verb reports,
   `Fail`, or `Cancel`. Each says the outcome and lets the job go, and a second
   is refused. `Start` comes first, and `Progress` and `Checkpoint` as often as
@@ -786,8 +788,10 @@ made again over the same storage picks up where the last one was.
 - **The registry is the one reader of each session's errors**, from the first
   thing the session said; a factory reads none of them, so a session a host's
   own factory builds is read the same way. Each of the session's own
-  `*SessionError`s is said on the registry's `Errors`, and a request refused
-  for lack of permission raises `PermissionDenied`. A refusal for want of a
+  `*SessionError`s is said on the registry's `Errors`: each reader is given
+  every one said from when it reads, however far behind it falls, and the
+  first reader the latest `ErrorsKeptForFirstReaderCount` said before it. A
+  request refused for lack of permission raises `PermissionDenied`. A refusal for want of a
   valid token is renewed by the transport that met it, and the registry does
   nothing with it.
 

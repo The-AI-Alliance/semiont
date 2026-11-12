@@ -79,6 +79,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 )
 
 // JobClaimChannels is what a worker's stream names for its claims: the
@@ -791,8 +792,8 @@ type Claims struct {
 	// filtersErr is why the filters could not be read, which refuses the
 	// claims when they are first ranged over.
 	filtersErr error
-	handed     *queue[handedOut]
-	stalls     *failureStream[*HeldJobStall]
+	handed     *kept.Queue[handedOut]
+	stalls     *kept.Stream[*HeldJobStall]
 	// life is the claims': done once they have ended. What watches for an
 	// idle moment runs in it; a claim in flight does not, and is left to be
 	// answered.
@@ -804,7 +805,10 @@ type Claims struct {
 	begun    bool
 	beginErr error
 	stopped  bool
-	held     *heldJob
+	// ranging is how many ranges over All are under way: their loop's body
+	// entered and not yet returned.
+	ranging int
+	held    *heldJob
 	// The loop's two bits: one claim in flight at a time, and a wake-up that
 	// arrived during it, honoured with exactly one more claim.
 	claiming      bool
@@ -824,8 +828,8 @@ func newClaims(l *links, accepts []api.JobFilter) *Claims {
 	c := &Claims{
 		links:   l,
 		accepts: slices.Clone(accepts),
-		handed:  newQueue[handedOut](),
-		stalls:  newFailureStream[*HeldJobStall](l.timing.ErrorsKeptForFirstReaderCount),
+		handed:  kept.NewQueue[handedOut](),
+		stalls:  kept.NewStream[*HeldJobStall](l.timing.ErrorsKeptForFirstReaderCount),
 		life:    life,
 		end:     end,
 	}
@@ -852,20 +856,29 @@ func newClaims(l *links, accepts []api.JobFilter) *Claims {
 
 // All is the claims as they are ranged over: each job the worker comes to
 // hold, or, as its error, a claim that was refused. Ranging it the first time
-// begins claiming; the sequence ends when the claims do. While nobody takes
-// what they hand out, they keep every job claimed and, of the refusals, the
-// latest ErrorsKeptForFirstReaderCount (Timing), the oldest dropped beyond
-// them, for whoever ranges over them next. A transport whose stream does not
-// name JobClaimChannels cannot carry a worker's claims, and is refused as
-// unsubscribed.
+// begins claiming; the sequence ends when the claims do. A range under way is
+// handed every job claimed and every refusal, in order, however slowly it
+// takes them. While none is, the claims keep every job claimed and, as each
+// refusal is met, the latest ErrorsKeptForFirstReaderCount (Timing) of the
+// refusals, the oldest dropped beyond them, for whoever ranges over them
+// next. A transport whose stream does not name JobClaimChannels cannot carry
+// a worker's claims, and is refused as unsubscribed.
 func (c *Claims) All() iter.Seq2[HeldJob, error] {
 	return func(yield func(HeldJob, error) bool) {
+		c.mu.Lock()
+		c.ranging++
+		c.mu.Unlock()
+		defer func() {
+			c.mu.Lock()
+			c.ranging--
+			c.mu.Unlock()
+		}()
 		if err := c.begin(); err != nil {
 			yield(nil, err)
 			return
 		}
 		for {
-			item, ok := c.handed.next(nil)
+			item, ok := c.handed.Next(nil)
 			if !ok {
 				return
 			}
@@ -918,7 +931,7 @@ func utc(t time.Time) time.Time {
 // is reported from then on; reporting never waits for a reader. It ends when
 // the claims end, and a reader who comes after that, the first among them,
 // is given nothing.
-func (c *Claims) Stalled() iter.Seq[*HeldJobStall] { return c.stalls.failures() }
+func (c *Claims) Stalled() iter.Seq[*HeldJobStall] { return c.stalls.Reported(nil) }
 
 // Close stops claiming. A job still held is failed first, and Close returns
 // once that has been said, or could not be. A claim in flight is waited for,
@@ -945,8 +958,8 @@ func (c *Claims) stop() {
 	}
 	c.stopped = true
 	c.mu.Unlock()
-	c.handed.close()
-	c.stalls.close()
+	c.handed.Close()
+	c.stalls.Close()
 	c.end()
 }
 
@@ -1121,7 +1134,7 @@ func (c *Claims) lookForStalls() {
 			SilentFor: silentFor, Threshold: timing.HeldJobStall,
 		}
 		c.mu.Unlock()
-		c.stalls.report(stall)
+		c.stalls.Report(stall)
 	}
 }
 
@@ -1186,15 +1199,17 @@ func (c *Claims) claim() {
 		c.wakePending = false
 		c.held = job.held()
 		c.mu.Unlock()
-		c.handed.push(handedOut{job: job})
+		c.handed.Push(handedOut{job: job})
 		return
 	}
 	if refusal != nil {
-		c.handed.push(handedOut{refusal: refusal})
+		c.handed.Push(handedOut{refusal: refusal})
 		// What the queue holds here is refusals alone: a job claimed is held
 		// until it is settled, which its reader does once it has taken it,
 		// and nothing is claimed meanwhile.
-		c.handed.keepLatest(c.links.timing.ErrorsKeptForFirstReaderCount)
+		if c.ranging == 0 {
+			c.handed.KeepLatest(c.links.timing.ErrorsKeptForFirstReaderCount)
+		}
 	}
 	if c.wakePending {
 		c.wakePending = false
