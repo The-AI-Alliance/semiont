@@ -74,7 +74,7 @@ public class Delegation<C : JobCompleteCommand> internal constructor(private val
     public suspend fun await(): C = completionOf(following.await())
 
     /** `await`, for Java: cancelling the future abandons the following. */
-    public fun awaitFuture(): CompletableFuture<C> = following.awaitFuture().thenApply(::completionOf)
+    public fun awaitFuture(): CompletableFuture<C> = following.awaitFuture(::completionOf)
 
     private fun completionOf(last: JobEvent<C>): C = when (last) {
         is JobCompleted -> last.data

@@ -349,14 +349,20 @@ class ClaimsTest {
     }
 
     @Test
-    fun aStreamThatDoesNotNameWhatClaimingReadsCannotCarryAWorkersClaims() = runTest(timeout = LIMIT) {
+    fun aStreamThatDoesNotNameWhatClaimingReadsCannotCarryAWorkersClaimsAndTheyEnd() = runTest(timeout = LIMIT) {
         // The stream names both broadcasts and none of the claim's replies: only the claims can say it cannot carry them.
         val w = World(this, listOf(Channels.JOB_QUEUED.name, Channels.JOB_CANCEL_REQUESTED.name))
         val claims = w.client.job.claim(EVERYTHING)
+        val refusals = claims.refused()
+        val stalls = claims.stalled()
+        val readers = listOf(backgroundScope.launch { refusals.collect {} }, backgroundScope.launch { stalls.collect {} })
         val refused = assertThrows<BusRequestError> { claims.next() }
         assertEquals(BusRequestErrorCode.Unsubscribed, refused.reason)
         assertTrue(refused.message.contains(Channels.JOB_CLAIMED.name), refused.message)
         assertEquals(emptyList<JsonObject>(), w.desk.sent("job:claim"))
+        runCurrent()
+        assertTrue(readers.all { it.isCompleted }, "refusals and stalls end with the claims")
+        assertNull(claims.next(), "and no job is handed out")
         w.over()
     }
 
@@ -697,6 +703,34 @@ class ClaimsTest {
         // Stalled, and kept for a first reader who comes only after the end.
         claims.stop()
         assertEquals(emptyList<HeldJobStall>(), claims.stalled().toList())
+        w.over()
+    }
+
+    @Test
+    fun refusalsAndStallsEndWhenTheStreamEndsAndWhatTheyKeptIsDropped() = runTest(timeout = LIMIT) {
+        val w = World(this, WORKER)
+        w.desk.offered += running("job-1")
+        val claims = w.client.job.claim(EVERYTHING, heldJobStallMs = 400, heldJobStallCheckMs = 100)
+        val job = held(claims)
+        advanceTimeBy(600)
+        runCurrent()
+        // The settle claims, and the claim is refused: a stall and a refusal, kept for a first reader.
+        w.desk.refusals += obj("message" to "no worker role", "code" to "unauthorized")
+        finish(job)
+        runCurrent()
+        assertEquals(2, w.desk.sent("job:claim").size)
+        val reading = async { claims.next() }
+        runCurrent()
+        w.desk.transport.close()
+        runCurrent()
+        assertTrue(reading.isCompleted, "the claims end with the stream")
+        assertNull(reading.await())
+        val refused = mutableListOf<ClaimRefusal>()
+        val stalls = mutableListOf<HeldJobStall>()
+        val readers = listOf(backgroundScope.launch { claims.refused().collect { refused += it } }, backgroundScope.launch { claims.stalled().collect { stalls += it } })
+        runCurrent()
+        assertTrue(readers.all { it.isCompleted }, "refusals and stalls end with the stream")
+        assertEquals(emptyList<ClaimRefusal>() to emptyList<HeldJobStall>(), refused to stalls, "what was kept for a first reader is dropped")
         w.over()
     }
 

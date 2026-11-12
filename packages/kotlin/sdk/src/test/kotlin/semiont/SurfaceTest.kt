@@ -324,8 +324,6 @@ class SurfaceTest {
                         assertEquals(expected to step.name, did.route to did.name)
                         assertTrue(sameJson(step.sends, did.sends), "sent ${did.sends}, not ${step.sends}")
                     }
-                    // Ended before the client closes: a delegated call cancelled before it waited on its work would
-                    // otherwise be handed the work's bus.closed, which the closing gives it.
                     running.cancelAndJoin()
                 }
             }
