@@ -244,7 +244,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     private val openResourcesHeld = Variable<List<OpenResource>>(emptyList())
     private val lastViewedHeld = Variable<ResourceId?>(null)
     private val identityTokenHeld = Variable<String?>(null)
-    private val failures = Broadcast<SessionError>(keptForFirst = Long.MAX_VALUE)
+    private val failures = Broadcast<SessionError>(keptForFirst = Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT)
     private var openByKb: Map<String, List<OpenResource>> = storedAs(OPEN_BY_KB, storage.get(OPEN_RESOURCES_BY_KB_KEY))
     private var viewedByKb: Map<String, ResourceId> = storedAs(VIEWED_BY_KB, storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY))
     private var activations = 0
@@ -293,7 +293,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         if (active != null) spawn { setActive(active) }
     }
 
-    /** Each session that could not be built, and each error a session says of its own, from now on, until the registry is closed. What is said before anyone listens is kept for the first listener. */
+    /** Each session that could not be built, and each error a session says of its own, from now on, until the registry is closed. Of what is said before anyone listens, the latest `errorsKeptForFirstReaderCount` are kept for the first listener, in the order said. */
     public fun errors(): Events<SessionError> = failures.listen()
 
     /** Set the identity token; null for none. */

@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
+import semiont.Timings
 import semiont.bus.Bus
 import semiont.bus.Operations
 import semiont.bus.decoded
@@ -103,7 +104,7 @@ public class Claims internal constructor(
     private val client = parent
     private val holder = Holder(transport, Bus(transport, parent.coroutineContext, clock), clock, parent, markCommitTimeoutMs, ::active, ::releasedJob)
     private val handed = Channel<HeldJob>(Channel.UNLIMITED)
-    private val refusals = Broadcast<ClaimRefusal>(keptForFirst = Long.MAX_VALUE)
+    private val refusals = Broadcast<ClaimRefusal>(keptForFirst = Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT)
     private val stall = Variable<HeldJobStall?>(null)
     private val listening = mutableListOf<Events<Carried>>()
 
@@ -153,7 +154,7 @@ public class Claims internal constructor(
     /** `next`, for Java. */
     public fun nextFuture(): CompletableFuture<HeldJob?> = client.futureOf { next() }
 
-    /** Each claim refused from now on; the first reader is also given those refused before it read. */
+    /** Each claim refused from now on; the first reader is also given the latest `errorsKeptForFirstReaderCount` of those refused before it read, in the order refused. */
     public fun refused(): Events<ClaimRefusal> = refusals.listen()
 
     /** What this worker can say of itself now. */
