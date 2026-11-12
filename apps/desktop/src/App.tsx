@@ -1383,8 +1383,8 @@ function KnowledgeBaseConnectionPrompt({
       action = () => onOpenServiceGroup('gateway-archivist');
     }
   } else if (root?.status === 'running') {
-    title = 'Knowledge Base is running, but Desktop is not connected';
-    message = 'Review the Knowledge Base session and sign in, or connect directly if you already have a session.';
+    title = 'Connect to this Knowledge Base';
+    message = 'The stack is running. Sign in or connect to use its resources and chats.';
     actionLabel = 'Open Knowledge Base details';
     action = onOpenKnowledgeBaseDetails;
   } else if (connection?.error !== undefined) {
