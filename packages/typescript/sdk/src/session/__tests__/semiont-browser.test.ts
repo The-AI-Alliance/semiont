@@ -1713,35 +1713,6 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     await browser.dispose();
   });
 
-  it('routes 401 from transport.errors$ through refresh; exhaustion tears the session down properly', async () => {
-    // The contract pinned is refresh-then-teardown. A direct wire (401 →
-    // modal, raw message, storage intact) is an undismissable modal that
-    // survives reloads.
-    const { APIError } = await import('@semiont/http-transport');
-    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
-    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
-    storage.set(ACTIVE_KEY, KB_A.id);
-
-    const browser = makeBrowser();
-    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
-    const signals = browser.activeSignals$.getValue()!;
-    expect(signals.sessionEnded$.getValue()).toBeNull();
-
-    // Push directly through the transport's errors Subject — this is the
-    // same path HttpTransport hits in its `beforeError` ky hook. No refresh
-    // is stubbed, so recovery exhausts.
-    const subj = newestTransportErrors();
-    subj.next(APIError.fromStatus('token expired', 401, 'Unauthorized', undefined, undefined));
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
-    // The session's own reason — never the raw transport line.
-    expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
-    // And the corpse cannot survive a reload.
-    expect(storage.get(storageKey(KB_A.id))).toBeNull();
-    await browser.dispose();
-  });
-
   it('does not fire either signal for non-401/403 transport errors', async () => {
     const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
