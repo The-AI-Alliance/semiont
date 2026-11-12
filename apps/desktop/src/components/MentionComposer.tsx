@@ -33,20 +33,21 @@ export interface MentionComposerHandle {
  * mentions; serialization walks the editor emitting text (chips as their `@Name` token,
  * which the send path anchors annotations on) plus the `{name, resourceId}` list.
  *
- * Enter submits and Shift+Enter inserts a line break; Esc closes the picker leaving the
- * literal `@`, and paste is forced to plain text.
+ * Enter submits; Shift+Enter and Option+Enter insert a line break. Esc closes the picker
+ * leaving the literal `@`, and paste is forced to plain text.
  *
- * Up/Down are readline-style question recall (the vertical arrows are free in a
- * single-line box, and sent questions are immutable resources — so terminal history, not
- * Slack edit-last): Up walks back through `history` (newest first, clamps at oldest),
- * Down walks forward and past the newest restores the stashed draft (chips intact —
- * stashed as DOM). A recalled question's chips rebuild from **its own resource's
- * annotations** (a chat turn IS a resource; the turn persists only the questionId): the
- * text paints immediately, then the resolved linking annotations arrive and become chip
- * spans — so recall reflects the KB's current reference structure, including references
- * added or deleted since composing. Typing while cycling adopts the recalled line as the
- * new draft; Esc while cycling restores the stash. Picker-open arrows keep their
- * candidate-navigation meaning.
+ * With an empty editor, Up/Down recall questions (sent questions are immutable KB
+ * resources, so recall replaces the draft rather than editing a past message): Up walks
+ * back through `history` (newest first, clamps at oldest), Down walks forward and past
+ * the newest restores the stashed draft (chips intact — stashed as DOM). With text in the
+ * editor, Up/Down keep their native caret movement. Once recall starts, arrows continue
+ * walking history until typing resumes. A recalled question's chips rebuild from **its own
+ * resource's annotations** (a chat turn IS a resource; the turn persists only the
+ * questionId): the text paints immediately, then the resolved linking annotations arrive
+ * and become chip spans — so recall reflects the KB's current reference structure,
+ * including references added or deleted since composing. Typing while cycling adopts the
+ * recalled line as the new draft; Esc while cycling restores the stash. Picker-open arrows
+ * keep their candidate-navigation meaning.
  */
 export const MentionComposer = forwardRef<
   MentionComposerHandle,
@@ -74,9 +75,9 @@ export const MentionComposer = forwardRef<
   const [chipHover, setChipHover] = useState<{ rid: string; name: string; rect: DOMRect } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Question recall (Up/Down): the readline cursor and the stashed draft. The stash is
-  // innerHTML so an in-progress draft's chips survive a cycle away and back. Refs, not
-  // state — recall mutates the DOM directly and nothing else re-renders on it.
+  // Question recall: the history cursor and stashed draft. The stash is innerHTML so an
+  // in-progress draft's chips survive a cycle away and back. Refs, not state — recall
+  // mutates the DOM directly and nothing else re-renders on it.
   const histIndexRef = useRef<number | null>(null);
   const draftStashRef = useRef<string | null>(null);
 
@@ -279,6 +280,15 @@ export const MentionComposer = forwardRef<
   }));
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Option+Enter is the macOS equivalent of Shift+Enter: insert text at the caret even
+    // while the mention picker is open, instead of selecting its active result.
+    if (event.key === 'Enter' && (event.shiftKey || event.altKey)) {
+      event.preventDefault();
+      document.execCommand('insertText', false, '\n');
+      syncMention();
+      emitEmpty();
+      return;
+    }
     if (pickerOpen) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -290,7 +300,7 @@ export const MentionComposer = forwardRef<
         setActive((i) => Math.max(i - 1, 0));
         return;
       }
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.key === 'Enter') {
         const pick = candidates[activeIndex];
         if (pick) {
           event.preventDefault();
@@ -304,27 +314,19 @@ export const MentionComposer = forwardRef<
         return;
       }
     }
-    if (event.key === 'Enter' && event.shiftKey) {
-      event.preventDefault();
-      document.execCommand('insertText', false, '\n');
-      syncMention();
-      emitEmpty();
-      return;
-    }
     if (event.key === 'Enter') {
       event.preventDefault();
       doSubmit();
       return;
     }
-    // Readline recall — only when the picker isn't consuming the arrows.
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      recallStep('up');
-      return;
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      recallStep('down');
+    // Empty composer starts history recall. While composing, leave arrows to native
+    // caret movement; once recall has started, keep stepping through history.
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      const hasDraft = serialize(editorRef.current).text.trim().length > 0;
+      if (histIndexRef.current !== null || !hasDraft) {
+        event.preventDefault();
+        recallStep(event.key === 'ArrowUp' ? 'up' : 'down');
+      }
       return;
     }
     if (event.key === 'Escape' && histIndexRef.current !== null) {
