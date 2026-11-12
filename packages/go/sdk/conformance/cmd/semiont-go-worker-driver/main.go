@@ -260,13 +260,16 @@ func (w *worker) open(args protocol.Arguments) error {
 	transport := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
 		BaseURL: baseURL, Token: semiont.NewVariable(token), Channels: channels, HTTP: &http.Client{}, Timing: timing,
 	})
-	// Taken at once, so every failure from the first request on is heard.
-	failures := transport.Failures()
+	// Taken at once, so every failure from the first request on is said, each
+	// before the call that met it returns, until the transport closes.
+	transport.Failures(func(failed *semiont.TransportError) {
+		protocol.Say(map[string]any{"error": protocol.Failure(failed)})
+	})
 	c := semiont.NewClient(semiont.ClientConfig{Transport: transport, Content: semiont.NewHTTPContentTransport(transport), Gateway: transport, Timing: timing})
 	w.mu.Lock()
 	w.transport, w.client = transport, c
 	w.mu.Unlock()
-	w.reporters.Add(2)
+	w.reporters.Add(1)
 	go func() {
 		defer w.reporters.Done()
 		for state := range transport.State().Changes(context.Background()) {
@@ -274,12 +277,6 @@ func (w *worker) open(args protocol.Arguments) error {
 			if state == semiont.ConnectionStateClosed {
 				return
 			}
-		}
-	}()
-	go func() {
-		defer w.reporters.Done()
-		for failed := range failures {
-			protocol.Say(map[string]any{"error": protocol.Failure(failed)})
 		}
 	}()
 	return nil

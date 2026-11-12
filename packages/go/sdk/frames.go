@@ -1,9 +1,10 @@
 package semiont
 
 // What a transport delivers, and to whom: frames by channel, and the failures
-// it met. Each listener has a queue of its own, and delivering to it never
-// waits: a slow listener delays no other listener and no reply, and is given
-// every item, in order.
+// it met. Each listener of frames, and of what a session says went wrong, has
+// a queue of its own, and delivering to it never waits: a slow listener delays
+// no other listener and no reply, and is given every item, in order. Each
+// failure a transport meets is told to its listeners within its report.
 
 import (
 	"context"
@@ -176,6 +177,24 @@ func (q *queue[T]) next(stop <-chan struct{}) (T, bool) {
 			return zero, false
 		}
 	}
+}
+
+// keepLatest drops the oldest items the queue holds beyond n.
+func (q *queue[T]) keepLatest(n int) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.items = latest(q.items, n)
+}
+
+// latest is the last n of items; those before them are cleared, so that
+// nothing is held by them.
+func latest[T any](items []T, n int) []T {
+	beyond := len(items) - n
+	if beyond <= 0 {
+		return items
+	}
+	clear(items[:beyond])
+	return items[beyond:]
 }
 
 // drain takes every item the queue holds now, without waiting; closed is
@@ -379,26 +398,27 @@ func (h *FrameHub) Close() {
 	h.bridged = nil
 }
 
-// failureStream is the failures a transport met, or a session: T is what
-// each is. Its first listener's queue is made with it and held until a
-// listener takes it, because the stream opens before whatever reports to it
-// is returned to its caller: a failure reported before anyone has asked to
-// hear failures is not lost to the first who does
-// (protocol/contract/TRANSPORT-CONTRACT.md § Failures). Reporting never waits
-// for a reader.
+// failureStream is what a session says went wrong: T is what each is. Its
+// first listener's queue is made with it and held until a listener takes it,
+// because the stream opens before whatever reads it is handed the session:
+// the first who asks to hear it is given the latest keptForFirst of what was
+// said before. Reporting never waits for a reader.
 type failureStream[T any] struct {
 	b     *broadcast[T]
 	mu    sync.Mutex
 	first *queue[T]
+	// keptForFirst is how many the first listener's queue holds while it is
+	// held: the latest, the oldest dropped beyond them.
+	keptForFirst int
 }
 
-func newFailureStream[T any]() *failureStream[T] {
+func newFailureStream[T any](keptForFirst int) *failureStream[T] {
 	b := newBroadcast[T]()
-	return &failureStream[T]{b: b, first: b.listen()}
+	return &failureStream[T]{b: b, first: b.listen(), keptForFirst: keptForFirst}
 }
 
-// failures is the failures reported from now on; for its first listener,
-// every one since the stream was made.
+// failures is the failures reported from now on; its first listener is given
+// first the latest keptForFirst reported since the stream was made.
 func (f *failureStream[T]) failures() iter.Seq[T] {
 	f.mu.Lock()
 	q := f.first
@@ -410,10 +430,90 @@ func (f *failureStream[T]) failures() iter.Seq[T] {
 	return q.all(nil, func() { f.b.leave(q) })
 }
 
-// report hands err to every listener, and returns it for its caller.
+// report hands err to every listener, and returns it for its caller. While
+// the first listener's queue is held, the oldest it holds beyond keptForFirst
+// is dropped, under the lock it is handed over under, so its listener is
+// given no more.
 func (f *failureStream[T]) report(err T) T {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.b.give(err)
+	if f.first != nil {
+		f.first.keepLatest(f.keptForFirst)
+	}
 	return err
 }
 
 func (f *failureStream[T]) close() { f.b.close() }
+
+// failureTelling is the failures a transport meets, each told to every
+// listener within its report, before the call that met it returns, and all
+// under one lock, so each listener is told them in the order they were met.
+// Of what is reported before anyone listens, the latest keptForFirst are kept
+// for the first listener, and told to it as it starts listening, because the
+// transport opens before whatever listens to it is returned to its caller
+// (protocol/contract/TRANSPORT-CONTRACT.md § Failures).
+type failureTelling struct {
+	mu        sync.Mutex
+	listeners []*failureListener
+	// heard holds once anyone has listened: nothing is kept after that.
+	heard bool
+	// kept is the latest keptForFirst reported before anyone listened.
+	kept         []*TransportError
+	keptForFirst int
+	closed       bool
+}
+
+// failureListener is one listener of a transport's failures.
+type failureListener struct{ told func(*TransportError) }
+
+// listen tells told each failure reported from now on; the first listener is
+// told first the latest keptForFirst reported since the transport was made.
+// stop ends the telling: once it returns, a telling under way has ended and
+// nothing more is told. Stopping twice is stopping once.
+func (f *failureTelling) listen(told func(*TransportError)) (stop func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.heard {
+		f.heard = true
+		for _, failure := range f.kept {
+			told(failure)
+		}
+		f.kept = nil
+	}
+	l := &failureListener{told: told}
+	if !f.closed {
+		f.listeners = append(f.listeners, l)
+	}
+	return func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.listeners = slices.DeleteFunc(f.listeners, func(each *failureListener) bool { return each == l })
+	}
+}
+
+// report tells err to every listener, or keeps it for the first, the oldest
+// kept dropped beyond keptForFirst, and returns it for its caller. Once the
+// transport has closed, it is told nowhere.
+func (f *failureTelling) report(err *TransportError) *TransportError {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	switch {
+	case f.closed:
+	case !f.heard:
+		f.kept = latest(append(f.kept, err), f.keptForFirst)
+	default:
+		for _, l := range f.listeners {
+			l.told(err)
+		}
+	}
+	return err
+}
+
+// close ends every listener's telling: nothing more is told, or kept.
+func (f *failureTelling) close() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = true
+	f.listeners = nil
+}

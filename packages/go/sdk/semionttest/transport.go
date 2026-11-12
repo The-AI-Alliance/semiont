@@ -218,8 +218,8 @@ func (f *FaultyTransport) RefuseWhen(refuse Refuse) {
 	f.refuse = refuse
 }
 
-// Fail reports a failure on the failure stream, as a transport does of a
-// request the gateway refused.
+// Fail tells a failure to every listener of the transport's failures before
+// it returns, as a transport does of a request the gateway refused.
 func (f *FaultyTransport) Fail(err *semiont.TransportError) { f.failures.give(err) }
 
 // SetState changes the connection's state, as a wire would. A closed
@@ -486,9 +486,11 @@ func (f *FaultyTransport) State() semiont.Watched[semiont.ConnectionState] { ret
 
 func (f *FaultyTransport) BridgeInto(sink semiont.FrameSink) { f.hub.Bridge(sink) }
 
-// Failures is the failures Fail reports from now on, until the transport
-// closes.
-func (f *FaultyTransport) Failures() iter.Seq[*semiont.TransportError] { return f.failures.listen() }
+// Failures tells told each failure Fail reports from now on, until stop or
+// the transport closes.
+func (f *FaultyTransport) Failures(told func(*semiont.TransportError)) (stop func()) {
+	return f.failures.listen(told)
+}
 
 func (f *FaultyTransport) Close() {
 	f.mu.Lock()

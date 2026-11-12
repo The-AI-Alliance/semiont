@@ -44,7 +44,6 @@ type workerWire struct {
 	mu    sync.Mutex
 	said  []sentFrame
 	asked []sentFrame
-	done  chan struct{}
 	once  sync.Once
 }
 
@@ -57,7 +56,7 @@ type sentFrame struct {
 var _ Transport = (*workerWire)(nil)
 
 func newWorkerWire() *workerWire {
-	return &workerWire{hub: NewFrameHub(), router: NewReplyRouter(), state: NewVariable(ConnectionStateOpen), done: make(chan struct{})}
+	return &workerWire{hub: NewFrameHub(), router: NewReplyRouter(), state: NewVariable(ConnectionStateOpen)}
 }
 
 func (w *workerWire) BaseURL() string { return "http://worker.test" }
@@ -110,16 +109,13 @@ func (w *workerWire) State() Watched[ConnectionState] { return w.state }
 
 func (w *workerWire) BridgeInto(sink FrameSink) { w.hub.Bridge(sink) }
 
-func (w *workerWire) Failures() iter.Seq[*TransportError] {
-	return func(func(*TransportError) bool) { <-w.done }
-}
+func (w *workerWire) Failures(func(*TransportError)) (stop func()) { return func() {} }
 
 func (w *workerWire) Close() {
 	w.once.Do(func() {
 		w.state.Set(ConnectionStateClosed)
 		w.router.Close()
 		w.hub.Close()
-		close(w.done)
 	})
 }
 

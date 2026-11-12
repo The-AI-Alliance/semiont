@@ -227,7 +227,7 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
 		SkipAskingWhoTokenIs: config.SkipAskingWhoTokenIs, OnAuthFailed: config.OnAuthFailed,
 	}, baseURL)
-	failures := newFailureStream[Error]()
+	failures := newFailureStream[Error](config.Timing.ErrorsKeptForFirstReaderCount)
 	var keeps *keptFor
 	if keepsForAPerson {
 		keeps = &keptFor{SignInKept: config.Kept, storage: config.Storage, kbID: config.Kb.Id, client: client, transport: transport, failures: failures}

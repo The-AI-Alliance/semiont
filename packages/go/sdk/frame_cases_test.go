@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -181,7 +182,13 @@ func TestEachFrameOfTheTableIsDeliveredAsItStatesOrRefusedAndToldToWhomItStates(
 		Timing:   DefaultTiming(),
 	})
 	defer transport.Close()
-	told := transport.shared.failures.b.listen()
+	var toldMu sync.Mutex
+	var told []*TransportError
+	defer transport.Failures(func(failure *TransportError) {
+		toldMu.Lock()
+		defer toldMu.Unlock()
+		told = append(told, failure)
+	})()
 	reading, stop := context.WithTimeout(context.Background(), time.Minute)
 	defer stop()
 	raw, err := transport.Frames(reading, channels...)
@@ -265,7 +272,10 @@ func TestEachFrameOfTheTableIsDeliveredAsItStatesOrRefusedAndToldToWhomItStates(
 				}
 			}
 		}
-		failures, _ := told.drain()
+		toldMu.Lock()
+		failures := told
+		told = nil
+		toldMu.Unlock()
 		var reported []string
 		for _, failure := range failures {
 			_, stated := failure.Status()

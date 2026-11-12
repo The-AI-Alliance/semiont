@@ -242,12 +242,12 @@ func TestAListenerTakenAfterTheFirstConnectWasRefusedStillHearsTheRefusal(t *tes
 func firstFailure(t *testing.T, transport *HTTPTransport) *TransportError {
 	t.Helper()
 	heard := make(chan *TransportError, 1)
-	go func() {
-		for failure := range transport.Failures() {
-			heard <- failure
-			return
+	defer transport.Failures(func(failure *TransportError) {
+		select {
+		case heard <- failure:
+		default:
 		}
-	}()
+	})()
 	select {
 	case failure := <-heard:
 		return failure
@@ -365,11 +365,12 @@ func TestALineThatNamesNoChannelIsToldToTheFailureReportAndTheStreamGoesOn(t *te
 	transport := gateway.transport(nil, nil)
 	defer transport.Close()
 	told := make(chan *TransportError, 3)
-	go func() {
-		for failure := range transport.Failures() {
-			told <- failure
+	defer transport.Failures(func(failure *TransportError) {
+		select {
+		case told <- failure:
+		default:
 		}
-	}()
+	})()
 	heard, err := transport.Frames(context.Background(), bus.MarkAdded.Channel())
 	if err != nil {
 		t.Fatal(err)

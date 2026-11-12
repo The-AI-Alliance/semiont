@@ -30,9 +30,9 @@
 //     left as it was written;
 //   - no answer is no verdict, and changes nothing.
 //
-// A request the gateway refuses for want of a valid token renews the session,
-// and only a session whose issuer refuses to renew it is said to have
-// expired. A request refused for lack of permission is said at once.
+// A request refused for lack of permission is said at once. A refusal for
+// want of a valid token is renewed by the transport that met it, and the
+// registry does nothing with it, nor with any other failure of the transport.
 //
 // Every change to what is open is made against what the storage holds, as one
 // step, so two contexts that each open a resource both keep theirs. A write the
@@ -899,11 +899,10 @@ func constructFailed(err error, kbID string) *semiont.SessionError {
 
 // route reads the session's errors, as their one reader, and so from what
 // was said at its start: each of the session's own it says on the registry's
-// Errors, and each failure of its transport it routes. A refusal for want of
-// a valid token renews the session: it heals quietly, or the session ends
-// itself and says so once. A refusal for lack of permission has no remedy,
-// and is said through signals. It ends when the session's errors do, when
-// the session ends.
+// Errors. A refusal for lack of permission has no remedy, and is said through
+// signals; any other failure of its transport, a refusal for want of a valid
+// token among them, is not acted on. It ends when the session's errors do,
+// when the session ends.
 func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.SessionSignals) {
 	for each := range session.Errors() {
 		var own *semiont.SessionError
@@ -912,20 +911,7 @@ func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.Sessio
 			continue
 		}
 		var failure *semiont.TransportError
-		if !errors.As(each, &failure) {
-			continue
-		}
-		switch failure.Code {
-		case semiont.TransportErrorCodeUnauthorized:
-			// Refusals that arrive together are answered by one renewal: the
-			// session holds them while it renews. A failure does not say which
-			// token was refused: the one the session holds as it is read is.
-			refused := session.Token().Value()
-			b.spawn(func() error {
-				session.Refresh(b.alive, refused)
-				return nil
-			})
-		case semiont.TransportErrorCodeForbidden:
+		if errors.As(each, &failure) && failure.Code == semiont.TransportErrorCodeForbidden {
 			detail := failure.Message
 			signals.NotifyPermissionDenied(&detail)
 		}

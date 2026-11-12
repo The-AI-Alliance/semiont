@@ -77,7 +77,7 @@ type transportShared struct {
 	random   *rand.Rand
 	hub      *FrameHub
 	router   *ReplyRouter
-	failures *failureStream[*TransportError]
+	failures *failureTelling
 }
 
 // HTTPTransport is the Transport over HTTP. Its stream opens in the
@@ -109,7 +109,7 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		random:    config.Random,
 		hub:       NewFrameHub(),
 		router:    NewReplyRouter(),
-		failures:  newFailureStream[*TransportError](),
+		failures:  &failureTelling{keptForFirst: config.Timing.ErrorsKeptForFirstReaderCount},
 	}
 	state := NewVariable(ConnectionStateInitial)
 	s := newStream(shared, state, config.Bookmarks)
@@ -229,12 +229,13 @@ func (t *HTTPTransport) TrackReply(correlationID string, channels ...bus.Channel
 
 func (t *HTTPTransport) State() Watched[ConnectionState] { return t.state.Reading() }
 
-// Failures is the failures the transport meets from now on: what a server
-// refused, and what the gateway never answered, each as it is returned to
-// its caller. The first listener hears every one since the transport was
-// made.
-func (t *HTTPTransport) Failures() iter.Seq[*TransportError] {
-	return t.shared.failures.failures()
+// Failures tells told each failure the transport meets from now on: what a
+// server refused, and what the gateway never answered, each before it is
+// returned to its caller, until stop or the transport closes. The first
+// listener is told first the latest ErrorsKeptForFirstReaderCount (Timing)
+// since the transport was made.
+func (t *HTTPTransport) Failures(told func(*TransportError)) (stop func()) {
+	return t.shared.failures.listen(told)
 }
 
 // Close stops the transport: the state becomes closed, every sequence ends,

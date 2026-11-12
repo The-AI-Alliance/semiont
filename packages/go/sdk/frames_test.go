@@ -46,3 +46,23 @@ func TestALoopThatStopsLetsGoOfEveryChannelItListenedTo(t *testing.T) {
 		}
 	}
 }
+
+// The first listener of a transport's failures is told, of those reported
+// before it listened, the latest ErrorsKeptForFirstReaderCount, in order.
+func TestTheFirstListenerOfATransportsFailuresIsToldTheLatestReportedBeforeIt(t *testing.T) {
+	most := DefaultTiming().ErrorsKeptForFirstReaderCount
+	failures := &failureTelling{keptForFirst: most}
+	beyond := 5
+	reported := make([]*TransportError, most+beyond)
+	for n := range reported {
+		reported[n] = failures.report(&TransportError{Code: TransportErrorCodeUnavailable, Message: fmt.Sprintf("failure %d", n)})
+	}
+
+	var told []*TransportError
+	stop := failures.listen(func(failure *TransportError) { told = append(told, failure) })
+	stop()
+
+	if !slices.Equal(told, reported[beyond:]) {
+		t.Errorf("the first listener was told %d failures, want the latest %d reported, in order", len(told), most)
+	}
+}

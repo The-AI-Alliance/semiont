@@ -782,9 +782,10 @@ made again over the same storage picks up where the last one was.
 - **The registry is the one reader of each session's errors**, from the first
   thing the session said; a factory reads none of them, so a session a host's
   own factory builds is read the same way. Each of the session's own
-  `*SessionError`s is said on the registry's `Errors`; a request the gateway
-  refuses for want of a valid token renews the session, and one refused for
-  lack of permission raises `PermissionDenied`.
+  `*SessionError`s is said on the registry's `Errors`, and a request refused
+  for lack of permission raises `PermissionDenied`. A refusal for want of a
+  valid token is renewed by the transport that met it, and the registry does
+  nothing with it.
 
 Package `discovery` reads the document a launcher publishes of the knowledge
 bases it manages: whole or not at all, a launcher that is not there told from
@@ -955,13 +956,15 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
 - **Failures** are `semiont.Error`s under the codes of
   [`protocol/specs/src/errors/codes.json`][codes]: `*TransportError`,
   `*BusRequestError`, `*SessionError`, `*SignInError` and `*JobError`. What a
-  server refused is also on `transport.Failures()`. A session says once, on
-  `session.Errors()`, its transport's failures and its own `*SessionError`s
-  (a write the storage refused among them, `session.save-refused`); the first
-  reader hears what was said before it listened, and the stream ends when the
-  session ends. Whoever ends both closes the client first, so what its closing
+  server refused is also told to each listener of `transport.Failures(told)`,
+  before the call that met it returns; the `stop` it gives ends the telling.
+  A session says once, on `session.Errors()`, its transport's failures and its
+  own `*SessionError`s (a write the storage refused among them,
+  `session.save-refused`), in the order they were met; the first reader hears
+  the latest `ErrorsKeptForFirstReaderCount` (`Timing`) of what was said
+  before it listened, and the stream ends when the session ends. Whoever ends both closes the client first, so what its closing
   flush meets is said before the stream ends; what the client meets once the
-  session has ended is said nowhere.
+  session is closing is said nowhere.
 - **The token** is a `*Variable[string]` the transport watches: when it
   changes, the next request carries the new one. A stream refused for its
   token asks its `Refresher` for another, once per outage, and with none

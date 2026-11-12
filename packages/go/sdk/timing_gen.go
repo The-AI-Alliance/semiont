@@ -167,6 +167,15 @@ type Timing struct {
 	// an origin may keep is a few megabytes, and the cache shares it with
 	// everything else the origin keeps.
 	MaxStoredBytesCount int
+	// ErrorsKeptForFirstReaderCount is errorsKeptForFirstReaderCount: How many
+	// of the errors a session says, its own and its transport's failures, it
+	// keeps for the first reader of its errors while none has come. One more
+	// drops the oldest kept, so the first reader hears the latest this many, in
+	// the order they were met. A registry reads a session as soon as it is
+	// handed back, so it hears everything the opening said, which is a handful;
+	// the bound is for a session nobody reads, which would otherwise keep every
+	// failure it meets until it ends.
+	ErrorsKeptForFirstReaderCount int
 	// JobSilence is jobSilenceMs: How long a job a client is following may say
 	// nothing before the client asks for its status. A job's progress and its
 	// end reach the client as passing frames, which a dropped stream loses and
@@ -300,6 +309,7 @@ func DefaultTiming() Timing {
 		InvalidationWindow:                1000 * time.Millisecond,
 		SaveDebounce:                      50 * time.Millisecond,
 		MaxStoredBytesCount:               2097152,
+		ErrorsKeptForFirstReaderCount:     100,
 		JobSilence:                        10000 * time.Millisecond,
 		JobStatusPoll:                     5000 * time.Millisecond,
 		JobPoll:                           1000 * time.Millisecond,

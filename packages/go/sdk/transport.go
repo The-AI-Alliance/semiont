@@ -50,12 +50,16 @@ type Transport interface {
 	// makes one (protocol/contract/TRANSPORT-CONTRACT.md § The bus belongs to the
 	// client).
 	BridgeInto(sink FrameSink)
-	// Failures is the failures the transport meets from now on, each as it is
-	// returned to its caller, and each line its stream carried that names no
-	// reader: one that is no frame, and whose channel or scope cannot be
-	// read. A listener taken as soon as the transport is made hears every
-	// one, from its first request.
-	Failures() iter.Seq[*TransportError]
+	// Failures tells told each failure the transport meets from now on,
+	// within its telling, before the call that met it returns, and each line
+	// its stream carried that names no reader: one that is no frame, and
+	// whose channel or scope cannot be read. They are told in the order they
+	// were met. A listener taken as soon as the transport is made is told
+	// every one, from its first request. stop ends the telling: once it
+	// returns, a telling under way has ended and nothing more is told.
+	// Stopping twice is stopping once. It ends when the transport closes too.
+	// The transport waits for told, which must not wait, nor listen or stop.
+	Failures(told func(*TransportError)) (stop func())
 	// Close stops the transport: the state becomes closed, every sequence
 	// ends, and every request still pending fails as closed. Closing twice is
 	// closing once.

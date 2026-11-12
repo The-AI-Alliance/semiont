@@ -828,90 +828,10 @@ func (f *startedSessions) last() *semionttest.FaultyTransport {
 	return f.transports[len(f.transports)-1]
 }
 
-// A refusal for want of a valid token that a renewal answers leaves the
-// session signed in, on the renewed token, with its credential still stored.
-// That the renewal is handed the token the session held is the case table's
-// (registry_errors_cases_test.go).
-func TestARefusalForWantOfATokenRenewsTheSessionQuietlyWhenItCan(t *testing.T) {
-	bubble(t, func(t *testing.T, w *world) {
-		w.with(kbOfA())
-		person := alice()
-		sessions := &startedSessions{who: &person, renewed: jwt(2 * time.Hour)}
-		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: sessions})
-		must(t, err)
-		closedAtTheEnd(t, browser)
-		session := live(t, browser)
-
-		sessions.last().Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
-		settle()
-
-		if session.Token().Value() != sessions.renewed || sessionEnded(browser) != nil {
-			t.Error("the session was not renewed quietly")
-		}
-		if _, ok := registry.StoredSessionOf(w.storage, kbA); !ok {
-			t.Error("the credential is gone")
-		}
-	})
-}
-
-func TestASessionThatCannotBeRenewedIsSaidToHaveExpiredAndItsCredentialIsGone(t *testing.T) {
-	bubble(t, func(t *testing.T, w *world) {
-		w.with(kbOfA())
-		// The issuer has nothing to renew it with.
-		w.factory.sessions.QueueRenewals(semionttest.Renewal{})
-		browser := w.browser()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-		errs := browser.Errors(ctx)
-		live(t, browser)
-
-		w.factory.sessions.Transports(kbA)[0].Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
-		settle()
-
-		if got := sessionEnded(browser); got == nil || *got != (semiont.SessionEnded{Reason: semiont.SessionEndExpired}) {
-			t.Errorf("the session ended as %+v", got)
-		}
-		if _, ok := registry.StoredSessionOf(w.storage, kbA); ok {
-			t.Error("the credential is still stored")
-		}
-		var said *semiont.SessionError
-		for err := range errs {
-			said = err
-			break
-		}
-		if said == nil || said.Code != semiont.SessionErrorCodeRefreshExhausted {
-			t.Errorf("the failure said is %+v", said)
-		}
-
-		// The refusals that follow find nothing stored, and say nothing more.
-		browser.ActiveSignals().Value().AcknowledgeSessionEnded()
-		w.factory.sessions.Transports(kbA)[0].Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
-		settle()
-		if got := sessionEnded(browser); got != nil {
-			t.Errorf("the session ended again, as %+v", got)
-		}
-	})
-}
-
-func TestARefusalWithNothingStoredIsBeingSignedOutAndNotAnExpiry(t *testing.T) {
-	bubble(t, func(t *testing.T, w *world) {
-		must(t, registry.SaveKnowledgeBases(w.storage, []api.KnowledgeBase{kbOfA()}))
-		browser := w.browser()
-		live(t, browser)
-
-		w.factory.sessions.Transports(kbA)[0].Fail(refusal(semiont.TransportErrorCodeUnauthorized, 401))
-		settle()
-
-		if got := sessionEnded(browser); got != nil {
-			t.Errorf("a session signed out ended as %+v", got)
-		}
-	})
-}
-
 // What the case table's rows do not say of a session's transport failures
 // (registry_errors_cases_test.go holds what they do): a conflict is acted on
-// in no way, and no failure but a refusal of the session's token ends the
-// session, a refusal for lack of permission among them.
+// in no way, and no failure of the session's transport ends the session, a
+// refusal for lack of permission among them.
 func TestAConflictIsNotActedOnAndNoOtherFailureEndsTheSession(t *testing.T) {
 	bubble(t, func(t *testing.T, w *world) {
 		browser := w.with(kbOfA()).browser()
