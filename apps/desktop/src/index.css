@@ -3490,7 +3490,10 @@ body.resizing {
 @container (max-width: 16rem) {
   .rview-annotations__header { padding: 0.55rem 0.55rem 0.4rem; }
   .rview-annotations__filter { margin-inline: 0.45rem; }
-  .rview-annotations__filter summary { flex-wrap: wrap; gap: 0.2rem 0.35rem; }
+  .rview-annotations__filter summary {
+    flex-wrap: wrap;
+    gap: 0.2rem 0.35rem;
+  }
   .rview-annotations__filter summary strong { margin-left: 0; }
   .rview-annotations__list { padding-inline: 0.4rem; }
   .rview-annotations__item { padding: 0.4rem; }
