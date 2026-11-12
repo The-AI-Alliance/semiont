@@ -187,10 +187,12 @@ public actor AgentToken {
   }
   public func refresh(_ refused: String?) async throws -> String? {
     guard !lifetime.ended else { throw CancellationError() }
-    if token.value != refused { return token.value }
-    do { return try await renew() } catch is SignInError { return nil }
+    do { return try await renew(refused) } catch is SignInError { return nil }
   }
-  private func renew() async throws -> String {
+  /// Renews `held` while it is the token the agent holds, in the renewal in flight or in one it
+  /// starts. A token the agent no longer holds was renewed already: the token it holds is given.
+  private func renew(_ held: String?) async throws -> String? {
+    if token.value != held { return token.value }
     if let renewal { return try await sharedValue(renewal, lifetime: lifetime) }
     let id = UUID()
     let task = spawn(on: self) { agent in
@@ -226,16 +228,22 @@ public actor AgentToken {
       do {
         try await sleepMilliseconds(Int(due * 1000), on: clock)
         guard !life.ended else { return }
-        await self?.due()
+        await self?.due(id, counted: current)
       } catch {}
     }
     scheduled = id
     life.keep(task, id: id)
   }
-  private func due() async {
+  /// The wait `id`, counted from the token `counted`, has run out. A wait that ran out as `schedule`
+  /// replaced it reaches here all the same, so only the wait still scheduled renews, and each of its
+  /// attempts renews `counted` only while it is still the token held.
+  private func due(_ id: UUID, counted: String) async {
+    guard scheduled == id else { return }
     scheduled = nil
     do {
-      _ = try await retryRenewal(clock: service.clock, random: random) { try await self.renew() }
+      _ = try await retryRenewal(clock: service.clock, random: random) {
+        try await self.renew(counted)
+      }
     } catch is CancellationError {} catch { schedule() }
   }
   public nonisolated func dispose() { lifetime.end() }
