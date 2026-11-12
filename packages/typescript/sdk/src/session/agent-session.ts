@@ -36,7 +36,9 @@
  *   - the proactive timer covers the listen-only case, where nothing ever
  *     401s because nothing is being requested.
  * Either asks the issuer for a new grant, and never the gateway: the DID the
- * gateway named the account by does not change.
+ * gateway named the account by does not change. Both share one renewal: a
+ * refusal, or a wait that runs out, while a renewal is in flight joins it and
+ * is given the token it brings, so the issuer grants once.
  */
 
 import { BehaviorSubject } from 'rxjs';
@@ -74,7 +76,8 @@ export interface AgentSession {
   /**
    * The gateway refused `refused`: ask the issuer for a new token, and push
    * it. A token the agent no longer holds was renewed already: the one it
-   * holds is given, and the issuer is not asked. HttpTransport's
+   * holds is given, and the issuer is not asked. A refusal while the token
+   * held is being renewed joins that renewal. HttpTransport's
    * `tokenRefresher`.
    */
   refresh(refused: string | null): Promise<string | null>;
@@ -109,11 +112,13 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
       });
     },
   });
-  const token$ = new BehaviorSubject<AccessToken | null>(makeAccessToken(first.token));
+  const token$ = new BehaviorSubject<AccessToken>(makeAccessToken(first.token));
   logger.info('Authenticated', { did: first.did, expiresAt: parseJwtExpiry(first.token)?.toISOString() ?? null });
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+  /** The renewal in flight. It ends in the same run that writes the token it brings. */
+  let renewal: Promise<string> | null = null;
 
   /**
    * Re-arm from the token just received rather than on a fixed cadence: the
@@ -122,13 +127,19 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
    *
    * A token with no readable `exp` schedules nothing. The floor keeps a token
    * that arrives already near expiry from spinning the loop hot.
+   *
+   * The new wait replaces the last, so a token renewed on a refusal leaves
+   * one wait, its own. A wait that runs out renews the token it was counted
+   * from as a refusal of that token would: only while it is still held, and
+   * by joining a renewal already in flight.
    */
   const rearm = (token: string): void => {
+    if (timer) clearTimeout(timer);
     if (stopped) return;
     const delay = refreshDelayMs(token);
     if (delay === null) return;
     timer = setTimeout(() => {
-      renew().catch((error: unknown) => {
+      refresh(token).catch((error: unknown) => {
         const detail = { error: error instanceof Error ? error.message : String(error) };
         // The issuer's answer is the verdict; its absence never is. A refused
         // credential cannot become valid again, so re-arming against it is an
@@ -141,23 +152,31 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
           return;
         }
         logger.error('Proactive re-authentication failed', detail);
-        rearm(token$.value ?? '');
+        rearm(token$.value);
       });
     }, delay);
     // Do not hold the event loop open on this alone.
     timer.unref?.();
   };
 
-  const renew = async (): Promise<string> => {
-    const next = await service.token({ renewed: true });
-    token$.next(makeAccessToken(next));
-    rearm(next);
-    return next;
+  const renewed = async (): Promise<string> => {
+    try {
+      const next = await service.token({ renewed: true });
+      token$.next(makeAccessToken(next));
+      rearm(next);
+      return next;
+    } finally {
+      renewal = null;
+    }
   };
 
+  // The check, and joining or starting the renewal, are one run: nothing
+  // else can run between them.
   const refresh = async (refused: string | null): Promise<string | null> => {
     const held = token$.value;
-    return held !== refused ? held : renew();
+    if (held !== refused) return held;
+    if (renewal === null) renewal = renewed();
+    return renewal;
   };
 
   rearm(first.token);

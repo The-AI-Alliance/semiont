@@ -119,6 +119,8 @@ struct Staged {
     /// What it accepts a request for and never answers: `who`, `metadata`,
     /// `issuer`, `token`, `revoke`, `document`, `content`.
     silent: Mutex<HashSet<&'static str>>,
+    /// Told when the test answers from now on what it held silent.
+    unsilenced: tokio::sync::Notify,
     /// The status with which, asked who a token is, it begins its answer and
     /// never finishes it; none when it answers.
     trails_off: Mutex<Option<StatusCode>>,
@@ -169,10 +171,14 @@ fn json_answer(status: u16, body: Value) -> Response {
 }
 
 impl Staged {
-    /// Never returns when the test said this is never answered.
+    /// Returns once this is answered: never while the test holds it silent.
     async fn held(&self, what: &str) {
-        if self.silent.lock().unwrap().contains(what) {
-            std::future::pending::<()>().await;
+        loop {
+            let unsilenced = self.unsilenced.notified();
+            if !self.silent.lock().unwrap().contains(what) {
+                return;
+            }
+            unsilenced.await;
         }
     }
 }
@@ -482,6 +488,7 @@ impl World {
             refused_on_the_bus: Mutex::default(),
             asked_who: Mutex::default(),
             silent: Mutex::default(),
+            unsilenced: tokio::sync::Notify::new(),
             trails_off: Mutex::default(),
             upload_takes: Mutex::default(),
             describes: Mutex::new(Describes::As(
@@ -3037,6 +3044,79 @@ async fn a_refusal_of_the_agents_token_is_answered_by_a_new_grant() {
     assert_eq!(agent.token().borrow().as_deref(), Some(second.as_str()));
 }
 
+// Two requests refused one token at once: the second finds the first's
+// renewal under way, and is given the token it grants. One grant, not two.
+#[tokio::test]
+async fn refusals_of_the_agents_token_that_overlap_cost_one_grant() {
+    let world = World::start().await;
+    let (first, second) = (agent_jwt(3600, 1, INDEXER), agent_jwt(3600, 2, INDEXER));
+    world.answers([
+        granted(&first, None),
+        granted(&second, None),
+        granted(&agent_jwt(3600, 3, INDEXER), None),
+    ]);
+    let agent = world
+        .sign_agent_in("semiont-indexer")
+        .await
+        .expect("signed in");
+
+    // The issuer holds the grant until both refusals have asked for it.
+    world.never_answers("token");
+    let (a, b, ()) = tokio::join!(
+        agent.refresh(Some(&first)),
+        agent.refresh(Some(&first)),
+        async {
+            until("the grant is asked for", || world.token_forms().len() == 2).await;
+            world.answers_from_now_on("token");
+        }
+    );
+
+    assert_eq!([a, b], [Some(second.clone()), Some(second.clone())]);
+    assert_eq!(world.token_forms().len(), 2);
+    assert_eq!(agent.token().borrow().as_deref(), Some(second.as_str()));
+}
+
+// The agent's token falls due while a refusal's grant replacing it is under
+// way. The wait was for the token that grant replaces: the schedule waits for
+// the grant, finds the token replaced, and asks for none of its own.
+#[tokio::test(start_paused = true)]
+async fn an_agents_token_that_falls_due_while_a_refusal_renews_it_costs_one_grant() {
+    let world = World::on_a_quick_clock().await;
+    // Twenty seconds: due at the schedule's floor, ten.
+    let (first, second) = (agent_jwt(20, 1, INDEXER), agent_jwt(3600, 2, INDEXER));
+    world.answers([
+        granted(&first, None),
+        granted(&second, None),
+        granted(&agent_jwt(3600, 3, INDEXER), None),
+    ]);
+    let agent = world
+        .sign_agent_in("semiont-indexer")
+        .await
+        .expect("signed in");
+
+    world.never_answers("token");
+    let refusing = tokio::spawn({
+        let (agent, first) = (agent.clone(), first.clone());
+        async move { agent.refresh(Some(&first)).await }
+    });
+    until("the refusal's grant is asked for", || {
+        world.token_forms().len() == 2
+    })
+    .await;
+    // The wait runs out while the grant is under way, well inside the
+    // grant's own deadline.
+    tokio::time::sleep(Duration::from_secs(12)).await;
+    world.answers_from_now_on("token");
+
+    assert_eq!(
+        refusing.await.expect("the refusal ran"),
+        Some(second.clone())
+    );
+    tokio::time::sleep(Duration::from_secs(30)).await;
+    assert_eq!(world.token_forms().len(), 2);
+    assert_eq!(agent.token().borrow().as_deref(), Some(second.as_str()));
+}
+
 #[tokio::test]
 async fn an_agent_whose_token_the_gateway_refuses_is_not_signed_in() {
     let world = World::start().await;
@@ -3372,6 +3452,13 @@ fn a_worker_reads_its_key_from_a_pkcs8_pem_and_nothing_else() {
 impl World {
     fn never_answers(&self, what: &'static str) {
         self.staged.silent.lock().unwrap().insert(what);
+    }
+
+    /// Answer `what` from now on, which `never_answers` held silent: what
+    /// was waiting for its answer is given it.
+    fn answers_from_now_on(&self, what: &str) {
+        self.staged.silent.lock().unwrap().remove(what);
+        self.staged.unsilenced.notify_waiters();
     }
 
     /// A client of the gateway, signed in with `token`.

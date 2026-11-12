@@ -8,6 +8,7 @@ import Synchronization
 import Testing
 
 @testable import Semiont
+@testable import SemiontTesting
 
 private final class IssuerHandler: ChannelInboundHandler {
   typealias InboundIn = HTTPServerRequestPart
@@ -283,6 +284,73 @@ private func form(_ data: Data) -> [String: String] {
         _ = try await service.token(renewed: true)
         Issue.record("Refused grant succeeded")
       } catch let error as SignInError { #expect(!error.description.contains("secret")) }
+    })
+}
+// A wait is for the token it was counted from. The issuer answers an agent's renewal on its
+// schedule "not now", so it is tried again on the refresh backoff; a refusal renews the token in
+// between, and the attempt after it renews nothing.
+@Test func anAgentsScheduledRenewalRenewsNothingOnceARefusalHasRenewedItsToken() async throws {
+  let origin = Mutex("")
+  let grants = Mutex(0)
+  let now = Date().timeIntervalSince1970
+  // It falls due minRefreshDelayMs after the agent signs in.
+  let first = try jwt(.object(["exp": .number(now + 20), "iat": .number(now)]))
+  let renewed = try jwt(.object(["exp": .number(now + 3600), "name": .string("renewed")]))
+  let again = try jwt(.object(["exp": .number(now + 3600), "name": .string("again")]))
+  try await issuerServer(
+    { path, _, _ in
+      if path.hasSuffix("openid-configuration") {
+        return (200, ["token_endpoint": .string(origin.withLock { $0 } + "/token")])
+      }
+      if path == "/token" {
+        let count = grants.withLock { value in
+          value += 1
+          return value
+        }
+        switch count {
+        case 1: return (200, ["access_token": .string(first)])
+        case 2: return (503, [:])
+        case 3: return (200, ["access_token": .string(renewed)])
+        default: return (200, ["access_token": .string(again)])
+        }
+      }
+      return (
+        200,
+        [
+          "did": .string("did:web:kb:agents:worker"), "domain": .string("kb"), "email": .null,
+          "name": .null, "image": .null,
+        ]
+      )
+    },
+    run: { base, http in
+      origin.withLock { $0 = base }
+      let clock = TestClock()
+      let service = ServiceToken(
+        credential: .secret(issuer: base, clientId: "worker", clientSecret: "secret"),
+        httpClient: http, clock: clock)
+      let agent = AgentToken(gateway: base, service: service, httpClient: http)
+      defer { agent.dispose() }
+      try await agent.signIn()
+      let due = clock.now.advanced(by: .milliseconds(Timings.minRefreshDelayMs))
+      try await withinTestDeadline {
+        while !clock.wakes.contains(where: { $0 <= due }) {
+          try await Task.sleep(for: .milliseconds(1))
+        }
+      }
+      clock.advance(by: .milliseconds(Timings.minRefreshDelayMs))
+      let retried = clock.now.advanced(by: .milliseconds(Timings.refreshRetry.initialDelayMs))
+      try await withinTestDeadline {
+        while !clock.wakes.contains(where: { $0 <= retried }) {
+          try await Task.sleep(for: .milliseconds(1))
+        }
+      }
+      #expect(grants.withLock { $0 } == 2)
+      #expect(try await agent.refresh(first) == renewed)
+      clock.advance(by: .milliseconds(Timings.refreshRetry.initialDelayMs))
+      // An attempt that renewed anyway would have reached the issuer by now.
+      try await Task.sleep(for: .milliseconds(240))
+      #expect(grants.withLock { $0 } == 3, "the scheduled renewal renewed the refusal's token")
+      #expect(agent.token.value == renewed)
     })
 }
 @Test func immediateStreamAndStartupRefusalsShareTheSessionsRenewal() async throws {

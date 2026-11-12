@@ -109,7 +109,8 @@ public class SemiontSession internal constructor(
     private val ended = MutableStateFlow(false)
     private val readied = CompletableDeferred<Unit>()
 
-    // Held while a refusal is being answered, so that the refusals that arrive during it are answered by it.
+    // Held while a refusal is being answered, and while a token whose wait ran out is renewed, so that the refusals and
+    // the waits that run out during it are answered by it: each finds the token it was for replaced.
     private val answering = Mutex()
 
     // Holds while a renewal that got no answer is owed another attempt.
@@ -186,7 +187,7 @@ public class SemiontSession internal constructor(
         if (found != null && !isTokenExpired(found.access, now()) && tokens.value == null) tokens.value = found.access
         val scope = CoroutineScope(client.links.scope.coroutineContext.minusKey(Job) + SupervisorJob())
         work = scope
-        scope.launch { renewWhenDue(tokens) { renewed() } }
+        scope.launch { renewWhenDue(tokens) { due -> renewDue(due) } }
         scope.launch { renewWhenUnanswered() }
         scope.launch {
             try {
@@ -215,7 +216,8 @@ public class SemiontSession internal constructor(
         answering.withLock {
             // The first of refusals that arrive together renews and asks; the rest find the token is no longer theirs.
             if (tokens.value != refused) return@withLock tokens.value
-            val renewed = renewed()
+            // The token checked is the one handed, never one read again: a renewal made meanwhile is answered by what keeps the sign-in.
+            val renewed = renewed(refused ?: lastHeld)
             if (renewed == null || validate == null) return@withLock renewed
             // While the session is starting, its start is what asks: it takes the renewed token up as the just-issued one.
             if (!readied.isCompleted) return@withLock renewed
@@ -237,18 +239,18 @@ public class SemiontSession internal constructor(
     public fun refreshFuture(refused: String?): CompletableFuture<String?> = client.links.future { refresh(refused) }
 
     /**
-     * Ask the renewal, handing it the token it renews: the one the session
-     * holds, expired or not, or, holding none, the one it held last, which is
-     * the one found kept at its start or the one a renewal that got no answer
-     * was for. One that could not be made and one that was refused both leave
-     * the session without a token. A renewal that fails otherwise than the
-     * issuer refusing it, a sign-in that cannot be read to renew with among
-     * them, got no answer.
+     * Ask the renewal, handing it `holding`, the token it renews, as its caller
+     * checked it: the one the session holds, expired or not, or, holding none,
+     * the one it held last, which is the one found kept at its start or the
+     * one a renewal that got no answer was for. One that could not be made and
+     * one that was refused both leave the session without a token. A renewal
+     * that fails otherwise than the issuer refusing it, a sign-in that cannot
+     * be read to renew with among them, got no answer.
      */
-    private suspend fun tryRefresh(): Pair<String?, Exception?> {
+    private suspend fun tryRefresh(holding: String?): Pair<String?, Exception?> {
         val renewing = renew ?: return null to null
         return try {
-            renewing(tokens.value ?: lastHeld) to null
+            renewing(holding) to null
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -262,10 +264,10 @@ public class SemiontSession internal constructor(
         tokens.value = null
     }
 
-    /** Renew the token at the issuer, with nobody asked afterwards: what the session does on its own schedule. */
-    private suspend fun renewed(): String? {
+    /** Renew `holding` at the issuer, with nobody asked afterwards: what the session does on its own schedule. */
+    private suspend fun renewed(holding: String?): String? {
         if (closing || renew == null) return null
-        val (token, failure) = tryRefresh()
+        val (token, failure) = tryRefresh(holding)
         if (closing) return null
         if (token != null) {
             unanswered.value = false
@@ -291,6 +293,14 @@ public class SemiontSession internal constructor(
     }
 
     /**
+     * Renew `due`, the token whose wait ran out, under the lock a refusal is answered under, and only while it is still
+     * the token the session holds: one renewed some other way meanwhile has a wait of its own, and renews nothing here.
+     */
+    private suspend fun renewDue(due: String) {
+        answering.withLock { if (tokens.value == due) renewed(due) }
+    }
+
+    /**
      * After a renewal that got no answer, renew again on the reconnect backoff: each wait is the equal jitter of its
      * step, the step `RECONNECT_MS` doubling to `MAX_RECONNECT_MS`. It ends when a renewal is made or refused, when a
      * token arrives some other way, and when the session ends. A renewal made while nobody has said who the session's
@@ -306,7 +316,7 @@ public class SemiontSession internal constructor(
                     tokens.value != null -> unanswered.value = false
                     !unanswered.value -> {}
                     users.value == null -> refresh(null)
-                    else -> renewed()
+                    else -> renewed(lastHeld)
                 }
                 step = minOf(2 * step, Timings.MAX_RECONNECT_MS)
             }
@@ -348,7 +358,7 @@ public class SemiontSession internal constructor(
         var justIssued = isTokenExpired(found.access, now())
         var token = found.access
         if (justIssued) {
-            val (renewed, failure) = tryRefresh()
+            val (renewed, failure) = tryRefresh(token)
             if (renewed == null) {
                 if (failure == null || refused(failure)) {
                     // There was no session to end: the sign-in is forgotten, and nothing is said.
@@ -389,7 +399,7 @@ public class SemiontSession internal constructor(
                 if (now != token) {
                     now to null
                 } else {
-                    val renewal = tryRefresh()
+                    val renewal = tryRefresh(token)
                     renewal.first?.let { if (!closing) tokens.value = it }
                     now to renewal
                 }

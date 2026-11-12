@@ -6,6 +6,11 @@ let token claims =
   ^ Base64.encode_exn ~pad:false ~alphabet:Base64.uri_safe_alphabet claims
   ^ ".signature"
 
+let settle () =
+  for _ = 1 to 24 do
+    Fiber.yield ()
+  done
+
 (* The generated data comes from session/cases.json. *)
 let table () =
   let open Yojson.Safe.Util in
@@ -117,11 +122,6 @@ let backoff () =
   Alcotest.(check (option string))
     "a renewal that got no answer gives no token" None
     (Session.refresh_refused session ~refused);
-  let settle () =
-    for _ = 1 to 24 do
-      Fiber.yield ()
-    done
-  in
   settle ();
   Eio_mock.Clock.Mono.set_time mono
     (Option.get
@@ -134,6 +134,97 @@ let backoff () =
   Alcotest.(check (option string))
     "the backoff renews it" (Some "replacement")
     (Session.credential session);
+  Session.close session;
+  Session.await_closed session
+
+(* The wait runs out and the refusal's renewal is let go with no yield between,
+   so the session's timer runs before the renewal publishes its token, and the
+   schedule only after it. *)
+let replaced_before_due () =
+  let open Semiont in
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono = Eio_mock.Clock.Mono.make () in
+  let wall = Eio_mock.Clock.make () in
+  let clock =
+    Clock.make ~monotonic:mono ~wall ~jitter:(Random.State.make [| 1 |])
+  in
+  let initial = token {|{"iat":0,"exp":3600}|} in
+  let release, finish = Promise.create () in
+  let handed = ref [] in
+  let session =
+    Session.start ~sw ~clock ~initial_token:(Some initial)
+      ~renew:(fun ~holding ->
+        handed := holding :: !handed;
+        Promise.await release;
+        Session.Renewed "replacement")
+      ()
+  in
+  let refused =
+    Fiber.fork_promise ~sw (fun () ->
+        Session.refresh_refused session ~refused:initial)
+  in
+  settle ();
+  Eio_mock.Clock.Mono.set_time mono
+    (Option.get
+       (Mtime.add_span (Clock.monotonic_now clock) Mtime.Span.(3600 * s)));
+  Promise.resolve finish ();
+  Alcotest.(check (option string))
+    "the refusal is given the renewed token" (Some "replacement")
+    (Promise.await_exn refused);
+  settle ();
+  Alcotest.(check (list (option string)))
+    "the wait for the replaced token renews nothing" [ Some initial ]
+    (List.rev !handed);
+  Session.close session;
+  Session.await_closed session
+
+let replaced_before_backoff () =
+  let open Semiont in
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono = Eio_mock.Clock.Mono.make () in
+  let wall = Eio_mock.Clock.make () in
+  let clock =
+    Clock.make ~monotonic:mono ~wall ~jitter:(Random.State.make [| 1 |])
+    |> fun clock -> Clock.with_jitter clock (fun () -> 0.)
+  in
+  let advance span =
+    Eio_mock.Clock.Mono.set_time mono
+      (Option.get (Mtime.add_span (Clock.monotonic_now clock) span))
+  in
+  let initial = token {|{"iat":0,"exp":3600}|} in
+  let release, finish = Promise.create () in
+  let handed = ref [] in
+  let session =
+    Session.start ~keep_on_unavailable:true ~sw ~clock
+      ~initial_token:(Some initial)
+      ~renew:(fun ~holding ->
+        handed := holding :: !handed;
+        match !handed with
+        | [ _ ] -> Session.Unavailable
+        | _ ->
+            Promise.await release;
+            Session.Renewed "replacement")
+      ()
+  in
+  advance Mtime.Span.(3600 * s);
+  settle ();
+  let refused =
+    Fiber.fork_promise ~sw (fun () ->
+        Session.refresh_refused session ~refused:initial)
+  in
+  settle ();
+  advance Mtime.Span.(6000 * ms);
+  Promise.resolve finish ();
+  Alcotest.(check (option string))
+    "the refusal is given the renewed token" (Some "replacement")
+    (Promise.await_exn refused);
+  settle ();
+  Alcotest.(check (list (option string)))
+    "the backoff for the replaced token renews nothing"
+    [ Some initial; Some initial ]
+    (List.rev !handed);
   Session.close session;
   Session.await_closed session
 
@@ -322,11 +413,6 @@ let lifecycle phase row =
   (match member "then" row with
   | `Null -> ()
   | expected ->
-      let settle () =
-        for _ = 1 to 24 do
-          Fiber.yield ()
-        done
-      in
       settle ();
       Eio_mock.Clock.Mono.set_time mono
         (Option.get
@@ -361,5 +447,11 @@ let () =
             "the backoff after an unanswered renewal is handed the token it \
              renews"
             `Quick backoff;
+          Alcotest.test_case
+            "a wait that runs out after a refusal's renewal renews nothing"
+            `Quick replaced_before_due;
+          Alcotest.test_case
+            "a backoff that runs out after a refusal's renewal renews nothing"
+            `Quick replaced_before_backoff;
         ] );
     ]

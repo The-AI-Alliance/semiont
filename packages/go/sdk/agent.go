@@ -225,9 +225,23 @@ type AgentToken struct {
 	token  *Variable[string]
 	did    api.UserId
 
+	// renewing is held to check the token held, to join the renewal under way
+	// or start one, and to end it. A renewal ends only once the token it
+	// brought is held, so whoever checks after it is given that token.
+	renewing sync.Mutex
+	underWay *agentRenewal
+
 	alive  context.Context
 	cancel context.CancelFunc
 	work   sync.WaitGroup
+}
+
+// agentRenewal is one grant of an agent's token. Every renewal asked for while
+// it is under way is given its answer, token or err, once done is closed.
+type agentRenewal struct {
+	done  chan struct{}
+	token string
+	err   error
 }
 
 var _ TokenRefresher = (*AgentToken)(nil)
@@ -268,12 +282,12 @@ func (a *AgentToken) Gateway() string { return a.config.Gateway }
 
 // Refresh answers the gateway's refusal of refused, the agent's token: it asks
 // its issuer for another. The new token; false when the issuer gave none. A
-// token renewed since is the answer, and nothing is asked.
-func (a *AgentToken) Refresh(ctx context.Context, refused string) (string, bool) {
-	if current := a.token.Value(); current != refused {
-		return current, true
-	}
-	token, err := a.renew(ctx)
+// token renewed since is the answer, and nothing is asked; a refusal met while
+// a renewal is under way is given what that renewal brings. The renewal runs
+// under the agent's own lifetime, not ctx: its answer is every refusal's that
+// joins it.
+func (a *AgentToken) Refresh(_ context.Context, refused string) (string, bool) {
+	token, err := a.renew(refused)
 	return token, err == nil
 }
 
@@ -283,21 +297,43 @@ func (a *AgentToken) Close() {
 	a.work.Wait()
 }
 
-func (a *AgentToken) renew(ctx context.Context) (string, error) {
-	token, err := a.config.Service.token(ctx, true)
-	if err != nil {
-		return "", err
+// renew renews renewing, the agent's token, at its issuer, while the agent
+// still holds it: a token renewed since is given, and nothing is asked. A
+// renewal asked for while one is under way is that one.
+func (a *AgentToken) renew(renewing string) (string, error) {
+	a.renewing.Lock()
+	if held := a.token.Value(); held != renewing {
+		a.renewing.Unlock()
+		return held, nil
 	}
-	a.token.Set(token)
-	return token, nil
+	if joined := a.underWay; joined != nil {
+		a.renewing.Unlock()
+		<-joined.done
+		return joined.token, joined.err
+	}
+	underWay := &agentRenewal{done: make(chan struct{})}
+	a.underWay = underWay
+	a.renewing.Unlock()
+	token, err := a.config.Service.token(a.alive, true)
+	a.renewing.Lock()
+	if err == nil {
+		a.token.Set(token)
+	}
+	underWay.token, underWay.err, a.underWay = token, err, nil
+	a.renewing.Unlock()
+	close(underWay.done)
+	return token, err
 }
 
-// renewWithinBudget is a due renewal. One that fails is tried again inside the
-// renewal budget when the failure is transient; spent or refused, the token is
-// left as it is and the next is due an interval later, by the schedule's
-// floor.
-func (a *AgentToken) renewWithinBudget() {
-	_, _ = RetryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.config.Random, a.renew, transientRenewal,
+// renewWithinBudget is the renewal of due, the token whose wait ran out, while
+// the agent still holds it: a token renewed some other way meanwhile has a
+// wait of its own, and is not renewed again. One that fails is tried again
+// inside the renewal budget when the failure is transient; spent or refused,
+// the token is left as it is and the next is due an interval later, by the
+// schedule's floor.
+func (a *AgentToken) renewWithinBudget(due string) {
+	_, _ = RetryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.config.Random,
+		func(context.Context) (string, error) { return a.renew(due) }, transientRenewal,
 		func(error) (time.Duration, bool) { return 0, false })
 }
 

@@ -184,10 +184,11 @@ type Session struct {
 	ready  chan struct{}
 	once   sync.Once
 	work   sync.WaitGroup
-	// answering is held while Refresh answers a refusal, so the refusals
-	// that arrive during it are answered by it. An answer that ends the
-	// session has ended it in full before it lets go: the token gone, the
-	// sign-in forgotten, and why told.
+	// answering is held while Refresh answers a refusal, and while the
+	// schedule renews a token that fell due, so the refusals that arrive
+	// during either are answered by it. An answer that ends the session has
+	// ended it in full before it lets go: the token gone, the sign-in
+	// forgotten, and why told.
 	answering sync.Mutex
 
 	// id is which live session this is: a new one for the same knowledge
@@ -250,7 +251,7 @@ func startSession(ctx context.Context, config SessionConfig, failures *failureSt
 	s.work.Add(3)
 	go func() {
 		defer s.work.Done()
-		renewWhenDue(s.alive, config.Token, config.Timing, func() { s.renew(config.Token.Value()) })
+		renewWhenDue(s.alive, config.Token, config.Timing, s.renewDue)
 	}()
 	go func() {
 		defer s.work.Done()
@@ -418,8 +419,20 @@ func (s *Session) renewing(holding string) string {
 	return s.renewed
 }
 
+// renewDue renews due, the token whose wait ran out, while the session still
+// holds it: a token renewed some other way meanwhile has a wait of its own,
+// and is not renewed again. It renews under answering, as a refusal is
+// answered, so a refusal met during it is answered by it.
+func (s *Session) renewDue(due string) {
+	s.answering.Lock()
+	defer s.answering.Unlock()
+	if s.config.Token.Value() == due {
+		s.renew(due)
+	}
+}
+
 // renew renews renewing, the session's token, at the issuer, with nobody asked
-// afterwards: what the session does on its own schedule.
+// afterwards.
 func (s *Session) renew(renewing string) (string, bool) {
 	if s.closing() || s.config.Refresh == nil {
 		return "", false
@@ -621,12 +634,13 @@ func (s *Session) answerAtStart(token, held string, justIssued bool) (string, bo
 	return renewed, true
 }
 
-// renewWhenDue renews the token whenever it is due, until alive ends. The
-// wait is counted from each token as it arrives, so one renewed some other way
-// starts a wait of its own, and a renewal that changed nothing is due again a
-// floor later. A token that names no expiry schedules nothing: it is renewed
-// when whoever it is shown to refuses it.
-func renewWhenDue(alive context.Context, token *Variable[string], timing Timing, renew func()) {
+// renewWhenDue renews the token whenever it is due, until alive ends: renew is
+// handed the token whose wait ran out, to renew only while it is still the one
+// held. The wait is counted from each token as it arrives, so one renewed some
+// other way starts a wait of its own, and a renewal that changed nothing is
+// due again a floor later. A token that names no expiry schedules nothing: it
+// is renewed when whoever it is shown to refuses it.
+func renewWhenDue(alive context.Context, token *Variable[string], timing Timing, renew func(due string)) {
 	for {
 		current, changed := token.watch()
 		var due <-chan time.Time
@@ -641,7 +655,7 @@ func renewWhenDue(alive context.Context, token *Variable[string], timing Timing,
 		case <-alive.Done():
 		case <-changed:
 		case <-due:
-			renew()
+			renew(current)
 		}
 		if timer != nil {
 			timer.Stop()

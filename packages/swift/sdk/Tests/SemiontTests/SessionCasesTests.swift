@@ -604,3 +604,54 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
   try await withinTestDeadline { try await hearing.value }
   #expect(said.value == ["session.refresh-exhausted"])
 }
+
+// ── A wait for a token ──────────────────────────────────────────────────
+
+// A wait is for the token it was counted from: one that runs out as a refusal's renewal of that
+// token is ending renews nothing, and the renewal's own wait is the one kept. The case runs on one
+// thread, and the stored token's wait runs out while the renewed token is published, so that wait
+// comes to the session only once the renewal has ended and the renewed token is held.
+@Test func aWaitThatRunsOutForATokenARefusalReplacedRenewsNothing() async throws {
+  let now = Date().timeIntervalSince1970
+  // It falls due minRefreshDelayMs after the session starts.
+  let stored = try jwt(.object(["exp": .number(now + 20), "iat": .number(now)]))
+  let renewed = try jwt(.object(["exp": .number(now + 3600), "name": .string("renewed")]))
+  let kept = MemorySignIn(
+    HeldSignIn(
+      access: stored, clientId: scriptClientID, refresh: "refresh",
+      tokenEndpoint: "http://issuer/token"))
+  let clock = TestClock()
+  let executor = CaseExecutor()
+  defer { executor.stop() }
+  try await executor.run {
+    let handed = Mutex<[String?]>([])
+    let session = SemiontSession(
+      kb: target(),
+      client: try await SemiontClient(
+        transport: ProbeTransport(channels: bridgedChannels), clock: clock),
+      kept: kept, forget: { await kept.forget() },
+      renew: { holding in
+        handed.withLock { $0.append(holding) }
+        return renewed
+      },
+      validate: { _ in
+        try UserResponse(
+          did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
+      },
+      publish: { token in
+        if token == renewed { clock.advance(by: .milliseconds(Timings.minRefreshDelayMs)) }
+      }, random: RandomSource(SystemRandomNumberGenerator()))
+    defer { session.dispose() }
+    await session.start()
+    try await session.ready()
+    await executor.settle()
+    #expect(
+      clock.wakes.contains(clock.now.advanced(by: .milliseconds(Timings.minRefreshDelayMs))),
+      "the stored token's wait is not on the clock")
+    #expect(try await session.refresh(stored) == renewed)
+    await executor.settle()
+    #expect(handed.withLock { $0 } == [stored], "a wait renewed the token a refusal renewed")
+    #expect(session.token.value == renewed)
+    #expect(clock.strays == 0, "sleeps begun off the case's executor")
+  }
+}

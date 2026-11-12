@@ -1247,6 +1247,50 @@ async fn an_idle_session_renews_its_token_once_per_half_life_and_no_oftener() {
     drop(session);
 }
 
+// The stored token falls due while a refusal's renewal of it is under way.
+// The wait was for the token that renewal replaces: the schedule waits for
+// the renewal, finds the token replaced, and renews nothing.
+#[tokio::test(start_paused = true)]
+async fn a_token_that_falls_due_while_a_refusal_renews_it_is_renewed_once() {
+    // A minute: due at half of it.
+    let (access, renewed) = (token(60, 1), token(3600, 2));
+    let world = World::new().storing(&access);
+    // An issuer that holds its answer until released.
+    let release = Arc::new(tokio::sync::Notify::new());
+    let renewals = Arc::new(Mutex::new(0usize));
+    let (renewing, holding, issued) = (renewals.clone(), release.clone(), renewed.clone());
+    let session = world.session_of(SemiontSessionConfig {
+        refresh: Some(Arc::new(move |_holding| {
+            *renewing.lock().expect("renewals") += 1;
+            let (holding, issued) = (holding.clone(), issued.clone());
+            Box::pin(async move {
+                holding.notified().await;
+                Ok(Some(issued))
+            })
+        })),
+        ..world.config()
+    });
+    ready(&session).await;
+
+    let refreshing = tokio::spawn({
+        let renewer = session.renewer();
+        let refused = held_by(&session);
+        async move { renewer.refresh(refused.as_deref()).await }
+    });
+    settle().await;
+    tokio::time::sleep(Duration::from_secs(60)).await;
+    assert_eq!(*renewals.lock().expect("renewals"), 1);
+    release.notify_waiters();
+
+    assert_eq!(
+        refreshing.await.expect("the refresh ran"),
+        Some(renewed.clone())
+    );
+    settle().await;
+    assert_eq!(*renewals.lock().expect("renewals"), 1);
+    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_session_that_cannot_be_renewed_is_over_and_says_so_once() {
     let world = World::new().storing(&token(3600, 1));

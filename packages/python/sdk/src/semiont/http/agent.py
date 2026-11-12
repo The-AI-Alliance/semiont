@@ -36,6 +36,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from semiont._reading import Reading
 from semiont._required import Fault, read_as
+from semiont._shared_task import answer, heard
 from semiont.errors import SemiontError, SignInError, TransportError
 from semiont.http._client_assertion import JWT_BEARER, client_assertion
 from semiont.http._withheld import why_unanswered
@@ -165,7 +166,8 @@ class ServiceToken:
         self._token_endpoint: str | None = None
         self._held: tuple[str, float] | None = None
         """The token, and until when it is used, by the loop's clock."""
-        # One grant at a time: those who ask while one is under way are given what it brings.
+        # One grant at a time: those who ask while one is under way are given
+        # what it brings, unless they ask for a renewal, which is a grant of its own.
         self._asking: Final = asyncio.Lock()
 
     async def _endpoint(self, http: httpx.AsyncClient) -> str:
@@ -260,6 +262,8 @@ class AgentToken:
         self._did: UserId | None = None
         self._closing: Final = asyncio.Event()
         self._keeping: asyncio.Task[None] | None = None
+        self._renewing: asyncio.Task[str] | None = None
+        """The renewal under way: each refusal of the token it renews, and the schedule, wait for it rather than make another."""
 
     @property
     def gateway(self) -> str:
@@ -294,6 +298,11 @@ class AgentToken:
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
         self._closing.set()
+        renewing = self._renewing
+        if renewing is not None:
+            # A renewal still under way has nobody left to give its token to: each refusal waiting on it is given none.
+            renewing.cancel()
+            await asyncio.gather(renewing, return_exceptions=True)
         keeping = self._keeping
         if keeping is not None:
             keeping.cancel()
@@ -306,31 +315,58 @@ class AgentToken:
         """The gateway refused `refused`: ask the issuer for another. The new token, or nothing when it gave none.
 
         A token the agent no longer holds was renewed already: the one it holds
-        is given, and the issuer is not asked.
+        is given, and the issuer is not asked. A refusal of the token it holds
+        while that token is being renewed, for another refusal or on its
+        schedule, is given what that renewal brings: one renewal answers them
+        all. Once the agent is closed, a refusal is given nothing and the
+        issuer is not asked, and one waiting on the renewal the close ended is
+        given nothing too.
         """
-        if self._token.value != refused:
-            return self._token.value
         try:
-            return await self._renew()
+            return await self._renewal(refused)
         except SemiontError:
             return None
 
+    async def _renewal(self, of: str | None) -> str | None:
+        """The token that replaces `of`: the one held, when it is no longer `of`, or what the renewal under way brings, joined or begun.
+
+        The check and the joining are one step, with nothing awaited between.
+        A renewal makes its token the agent's before it is no longer under way,
+        so a check made after it ends sees that token, and makes no other.
+        """
+        held = self._token.value
+        if held != of:
+            return held
+        if self._closing.is_set():
+            # A closed agent renews nothing.
+            return None
+        if self._renewing is None:
+            self._renewing = asyncio.create_task(self._renew())
+            # A renewal everyone stopped waiting for has nobody to tell how it ended.
+            self._renewing.add_done_callback(heard)
+        # Whoever stops waiting does not stop the renewal; one the close ended gives no token.
+        return await answer(self._renewing)
+
     async def _renew(self) -> str:
         """Ask the issuer for another, and make it the token."""
-        token = await self._service.token(renewed=True)
-        self._token.set(token)
-        return token
+        try:
+            token = await self._service.token(renewed=True)
+            self._token.set(token)
+            return token
+        finally:
+            self._renewing = None
 
-    async def _renew_within_budget(self) -> None:
-        """A due renewal.
+    async def _renew_within_budget(self, due: str) -> None:
+        """A due renewal of `due`, the token whose wait ran out.
 
-        One that fails is tried again inside the renewal budget when the
-        failure is transient (`semiont.retry.REFRESH`); spent or refused, the
-        token is left as it is and the next is due an interval later, by the
-        schedule's floor.
+        Each attempt renews `due` only while the agent still holds it: one
+        renewed some other way meanwhile is not renewed again. One that fails
+        is tried again inside the renewal budget when the failure is transient
+        (`semiont.retry.REFRESH`); spent or refused, the token is left as it is
+        and the next is due an interval later, by the schedule's floor.
         """
         try:
-            await retry_with_backoff(REFRESH_RETRY, self._renew, retryable=_transient, give_up=self._closing)
+            await retry_with_backoff(REFRESH_RETRY, lambda: self._renewal(due), retryable=_transient, give_up=self._closing)
         except SemiontError:
             return
 

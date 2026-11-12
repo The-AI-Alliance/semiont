@@ -32,6 +32,7 @@ from typing import Final, final, override
 
 import httpx
 
+from semiont._shared_task import answer, heard
 from semiont.bus import reply_channels_for
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
@@ -74,12 +75,6 @@ __all__ = [
 ]
 
 
-def _heard(renewal: asyncio.Task[str | None]) -> None:
-    """Take a renewal's failure as heard: each of its waiters was told, and there may be none."""
-    if not renewal.cancelled():
-        renewal.exception()
-
-
 @final
 class _Renewing:
     """A kept sign-in's renewals at its issuer, one at a time: a renewal asked for while one is under way is that one."""
@@ -93,9 +88,9 @@ class _Renewing:
         if self._under_way is None:
             self._under_way = asyncio.create_task(self._once(holding))
             # A renewal everyone stopped waiting for has nobody to tell how it ended.
-            self._under_way.add_done_callback(_heard)
-        # Whoever stops waiting does not stop the renewal.
-        return await asyncio.shield(self._under_way)
+            self._under_way.add_done_callback(heard)
+        # Whoever stops waiting does not stop the renewal; one the close ended gives no token.
+        return await answer(self._under_way)
 
     async def _once(self, holding: str | None) -> str | None:
         try:
@@ -104,7 +99,7 @@ class _Renewing:
             self._under_way = None
 
     async def close(self) -> None:
-        """End the renewal under way, when there is one: nobody is left to give its token to."""
+        """End the renewal under way, when there is one: nobody is left to give its token to, and each caller waiting is given none."""
         under_way = self._under_way
         if under_way is not None:
             under_way.cancel()

@@ -15,7 +15,7 @@ from urllib.parse import parse_qs
 
 import httpx
 import pytest
-from aio import Heard, hurried, pass_time, run, settle, soon
+from aio import Heard, hurried, pass_time, run, settle, soon, turns
 from gateway_server import NOT_FOUND, Answer, Asked, GatewayServer, Recording
 from issuer import (
     ALICE,
@@ -817,6 +817,90 @@ def test_an_agent_renews_its_token_when_it_is_due_and_keeps_the_one_it_has_when_
                 assert loop.time() - tried[0] < MIN_REFRESH_DELAY_MS / 1000
                 # A renewal is the issuer's alone: the gateway was asked who the agent is once.
                 assert len(gateway.of("GET", ME)) == 1
+
+    run(scenario())
+
+
+def test_refusals_of_an_agents_token_while_it_is_renewed_are_answered_by_that_one_renewal() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[ME] = agent_named("semiont-smelter")
+            first, second, third = token(3600, 1), token(300, 2), token(3600, 3)
+            granting, granting_when_due = asyncio.Event(), asyncio.Event()
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": first}), replace(says({"access_token": second}), after=granting)]
+
+            async with AgentToken(gateway.origin, service=ServiceToken(account(gateway))) as agent:
+                # Two requests refused with the token it holds, the second while the issuer is answering the first's renewal.
+                refusals = asyncio.gather(agent.refresh(first), agent.refresh(first))
+                await soon(gateway.arrived("POST", TOKEN, 2))
+                granting.set()
+                assert list(await soon(refusals)) == [second, second]
+                assert len(gateway.of("POST", TOKEN)) == 2
+                assert agent.token.value == second
+
+                # A request refused while the token is renewed on its schedule is answered by that renewal too.
+                gateway.scripted[("POST", TOKEN)] = [replace(says({"access_token": third}), after=granting_when_due)]
+                await pass_time(152)
+                await soon(gateway.arrived("POST", TOKEN, 3))
+                refused = asyncio.create_task(agent.refresh(second))
+                await turns()
+                granting_when_due.set()
+                assert await soon(refused) == third
+                assert len(gateway.of("POST", TOKEN)) == 3
+                assert agent.token.value == third
+
+    run(scenario())
+
+
+def test_an_agents_due_renewal_tried_again_renews_nothing_once_a_refusal_has_renewed_its_token() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[ME] = agent_named("semiont-smelter")
+            first, second = token(300, 1), token(3600, 2)
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": first}), Answer(status=503), says({"access_token": second})]
+
+            async with AgentToken(gateway.origin, service=ServiceToken(account(gateway))) as agent:
+                # Due, and the issuer is out: the renewal is to be tried again inside its budget.
+                # The clock passes the time it is due in one step, and no further: the wait before the next attempt is not over.
+                await pass_time(140)
+                await pass_time(10, step=10)
+                await soon(gateway.arrived("POST", TOKEN, 2))
+                await settle()
+                # A request refused before it is tried again renews the token.
+                assert await soon(agent.refresh(first)) == second
+                # Tried again, the due renewal finds the token it was for replaced, and asks the issuer nothing.
+                await pass_time(1, step=0.1)
+                await settle()
+                assert len(gateway.of("POST", TOKEN)) == 3
+                assert agent.token.value == second
+
+    run(scenario())
+
+
+def test_an_agent_that_closes_while_its_token_is_renewed_gives_the_refusal_no_token_and_renews_nothing_after() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[ME] = agent_named("semiont-smelter")
+            first, second = token(3600, 1), token(3600, 2)
+            granting = asyncio.Event()
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": first}), replace(says({"access_token": second}), after=granting)]
+
+            async with AgentToken(gateway.origin, service=ServiceToken(account(gateway))) as agent:
+                # A request refused with the token it holds, and the issuer holds its answer to the grant.
+                refusing = asyncio.create_task(agent.refresh(first))
+                await soon(gateway.arrived("POST", TOKEN, 2))
+
+            # The close ended the renewal: the refusal is given no token, rather than a cancellation it never had.
+            assert await soon(refusing) is None
+            # The answer that comes later is not taken, and a closed agent asks the issuer for nothing.
+            granting.set()
+            await settle()
+            assert agent.token.value == first
+            assert await agent.refresh(first) is None
+            assert len(gateway.of("POST", TOKEN)) == 2
 
     run(scenario())
 

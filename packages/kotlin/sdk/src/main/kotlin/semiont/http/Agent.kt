@@ -3,9 +3,11 @@
 package semiont.http
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -232,6 +234,9 @@ public class AgentToken @JvmOverloads constructor(
     private var keeping: Job? = null
     private var signedInAs: UserId? = null
 
+    // The renewal under way, when there is one: read and written under the agent's monitor, with the check of the token held.
+    private var underWay: Deferred<String>? = null
+
     /** The agent's token: the current one, and each one after it. */
     public val token: StateFlow<String?> = current.asStateFlow()
 
@@ -254,7 +259,7 @@ public class AgentToken @JvmOverloads constructor(
         val token = service.token(renewed = false)
         signedInAs = named(token)
         current.value = token
-        synchronized(this) { keeping = scope.launch { renewWhenDue(current) { renewWithinBudget() } } }
+        synchronized(this) { keeping = scope.launch { renewWhenDue(current) { due -> renewWithinBudget(due) } } }
         return this
     }
 
@@ -263,24 +268,47 @@ public class AgentToken @JvmOverloads constructor(
 
     /**
      * The gateway refused `refused`: ask the issuer for another. The new token, or null when the issuer gave none.
-     * A token the agent no longer holds was renewed already: the one it holds is given, and the issuer is not asked.
+     * Refusals that arrive while a renewal is under way are answered by it. A token the agent no longer holds was
+     * renewed already: the one it holds is given, and the issuer is not asked.
      */
-    override suspend fun refresh(refused: String?): String? {
-        val held = current.value
-        if (held != refused) return held
-        return try {
-            renew()
-        } catch (_: SemiontError) {
-            null
-        }
+    override suspend fun refresh(refused: String?): String? = try {
+        renewed(refused)
+    } catch (_: SemiontError) {
+        null
     }
 
-    private suspend fun renew(): String = service.token(renewed = true).also { current.value = it }
+    /**
+     * Renew `holding` while it is still the agent's token, and give the token the agent then holds. The check and the
+     * joining or starting of a renewal are one step: a renewal asked for while one is under way is that one, and
+     * whoever stops waiting does not stop it. Its grant is the agent's token before it is no longer under way, so a
+     * check after it finds the token it renewed replaced.
+     */
+    private suspend fun renewed(holding: String?): String? {
+        val renewal = synchronized(this) {
+            val held = current.value
+            if (held != holding) return held
+            underWay ?: scope.async {
+                var granted: String? = null
+                try {
+                    service.token(renewed = true).also { granted = it }
+                } finally {
+                    synchronized(this@AgentToken) {
+                        granted?.let { current.value = it }
+                        underWay = null
+                    }
+                }
+            }.also { underWay = it }
+        }
+        return renewal.await()
+    }
 
-    /** A due renewal: tried again inside the renewal budget when its failure is transient; spent or refused, the token is left as it is. */
-    private suspend fun renewWithinBudget() {
+    /**
+     * The renewal of `due`, whose wait ran out: tried again inside the renewal budget when its failure is transient;
+     * spent or refused, the token is left as it is. A token renewed some other way meanwhile is not renewed again.
+     */
+    private suspend fun renewWithinBudget(due: String) {
         try {
-            retryWithBackoff(Timings.REFRESH_RETRY, ::transient, random) { renew() }
+            retryWithBackoff(Timings.REFRESH_RETRY, ::transient, random) { renewed(due) }
         } catch (_: SemiontError) {
             // The next renewal is due a floor later.
         }

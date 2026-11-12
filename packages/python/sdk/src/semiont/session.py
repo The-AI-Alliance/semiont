@@ -33,7 +33,9 @@ it. The margin before expiry is half the token's lifetime, capped at
 mints, and then every renewal is due the moment it is issued; half a lifetime
 cannot, for any lifetime. The wait is never under `MIN_REFRESH_DELAY_MS`, so a
 token already past its renewal point is renewed once per interval, not in a
-loop.
+loop. A wait is for the token it was counted from: a token renewed some other
+way meanwhile has a wait of its own, so a wait that ran out for a token since
+replaced renews nothing.
 
 **What a session does at its start, and when the gateway refuses its token**,
 is the same table's `startup` and `refusal`: a token the gateway refuses is
@@ -178,27 +180,32 @@ def refresh_delay(token: str, *, now: float) -> float | None:
     return renewal_delay(remaining if issued is None else max(expiry - issued, 0), remaining)
 
 
-async def renew_when_due(token: Watched[str | None], renew: Callable[[], Awaitable[object]]) -> None:
+async def renew_when_due(token: Watched[str | None], renew: Callable[[str], Awaitable[object]]) -> None:
     """Renew a token whenever it is due, for as long as it can change.
 
-    Waits what `refresh_delay` says of the token as it is, and calls `renew`.
-    The wait is counted from each token as it arrives, so one renewed some
-    other way starts a wait of its own, and a renewal that changed nothing is
-    due again a floor later. A token that names no expiry schedules nothing:
-    it is renewed when whoever it is shown to refuses it.
+    Waits what `refresh_delay` says of the token as it is, and hands `renew`
+    the token the wait was counted from, to renew only while it is still the
+    token held. The wait is counted from each token as it arrives, so one
+    renewed some other way starts a wait of its own, even when it arrives as
+    the last one's wait runs out, and a renewal that changed nothing is due
+    again a floor later. A token that names no expiry schedules nothing: it is
+    renewed when whoever it is shown to refuses it.
     """
     changes = aiter(token)
     try:
         current = await anext(changes)
         while True:
-            due = None if not current else refresh_delay(current, now=time.time())
+            if not current:
+                current = await anext(changes)
+                continue
+            due = current
             try:
-                async with asyncio.timeout(due):
+                async with asyncio.timeout(refresh_delay(due, now=time.time())):
                     current = await anext(changes)
                 continue
             except TimeoutError:
                 pass
-            await renew()
+            await renew(due)
             current = token.value
     except StopAsyncIteration:
         return
@@ -479,7 +486,7 @@ class SemiontSession[T: Transport](StateUnit):
     async def _run(self, kept: HeldSignIn | None, failures: Events[SemiontError]) -> None:
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(self._relay(failures))
-            tasks.create_task(renew_when_due(self._token, self._renew))
+            tasks.create_task(renew_when_due(self._token, self._renew_due))
             tasks.create_task(self._renew_when_unanswered())
             try:
                 await self._start(kept)
@@ -576,6 +583,15 @@ class SemiontSession[T: Transport](StateUnit):
                 return None
         await self._unrenewed(failure, holding)
         return None
+
+    async def _renew_due(self, due: str) -> None:
+        """Renew `due`, whose wait on the session's own schedule ran out, while it is still the token the session holds.
+
+        One replaced meanwhile was renewed some other way, and has a wait of
+        its own: nothing is renewed now.
+        """
+        if self._token.value == due:
+            await self._renew()
 
     async def _renew_when_unanswered(self) -> None:
         """After a renewal that got no answer, renew again on the reconnect backoff.

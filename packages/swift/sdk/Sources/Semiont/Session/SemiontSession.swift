@@ -283,20 +283,27 @@ public actor SemiontSession: StateUnit {
     }
     let wait = timer(.milliseconds(delay))
     let id = UUID()
+    let counted = token.value
     let life = lifetime
     let task = spawn { [weak self] in
       defer { life.forget(id) }
       do {
         try await wait()
         guard !life.ended, let self else { return }
-        try await self.due()
+        try await self.due(id, counted: counted)
       } catch is CancellationError {} catch { self?.relay(error) }
     }
     scheduled = id
     life.keep(task, id: id)
   }
-  private func due() async throws {
+  /// The wait `id`, counted from the token `counted` (nil while the session holds none), has run
+  /// out. A wait that ran out as `schedule` replaced it reaches here all the same, so it renews
+  /// only while it is still the wait scheduled and `counted` still the token held. A renewal made
+  /// some other way meanwhile has a wait of its own.
+  private func due(_ id: UUID, counted: String?) async throws {
+    guard scheduled == id else { return }
     scheduled = nil
+    guard token.value == counted else { return }
     if unanswered, user.value == nil {
       _ = try await refresh(nil)
     } else {

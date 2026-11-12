@@ -113,7 +113,7 @@ let worker t =
 
 let wait t seconds =
   let changed = fst t.changed in
-  let elapsed () =
+  let until_due () =
     let nanos = seconds *. 1_000_000_000. in
     let due =
       if nanos >= Int64.to_float Int64.max_int then Mtime.max_stamp
@@ -123,12 +123,13 @@ let wait t seconds =
           (Mtime.Span.of_uint64_ns (Int64.of_float nanos))
         |> Option.value ~default:Mtime.max_stamp
     in
-    Clock.sleep_until t.clock due;
-    not (Promise.is_resolved changed)
+    Clock.sleep_until t.clock due
   in
-  Fiber.first elapsed (fun () ->
-      Promise.await changed;
-      false)
+  Fiber.first until_due (fun () -> Promise.await changed);
+  (* Checked in the caller's fiber, which starts its renewal with no effect
+     between: a renewal that published while the caller waited to run again
+     has replaced the token this wait was for. *)
+  not (Promise.is_resolved changed)
 
 let schedule t =
   let rec loop () =
