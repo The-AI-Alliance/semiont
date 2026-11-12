@@ -30,6 +30,7 @@ import {
   FrameRefusal,
   getPrimaryRepresentation,
   kbDid,
+  KeptForFirstReader,
   type EventMap,
   type KbDescription,
   type ResourceId,
@@ -68,7 +69,6 @@ import {
 import { SemiontSession } from './semiont-session';
 import { createSessionSignals, type SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
-import { KeptForFirstReader } from '../kept-for-first-reader';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
 

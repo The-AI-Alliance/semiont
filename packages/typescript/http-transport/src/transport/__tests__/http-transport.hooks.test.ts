@@ -13,7 +13,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { BRIDGED_CHANNELS, baseUrl, resourceId, type SemiontError } from '@semiont/core';
+import { BRIDGED_CHANNELS, ERRORS_KEPT_FOR_FIRST_READER_COUNT, baseUrl, resourceId, type SemiontError } from '@semiont/core';
 
 // Mock `ky` with a real `HTTPError` class — defined *inside* the factory to
 // avoid vitest's mock-hoisting TDZ — so the hook's `error instanceof HTTPError`
@@ -195,6 +195,58 @@ describe('HttpTransport ky hooks', () => {
     });
 
     expect(returned).toBe(response);
+  });
+
+  describe('what errors$ keeps for its first reader', () => {
+    /** Refuse one request, saying `said`, through the hook every refused request goes through. */
+    async function refuse(said: string): Promise<void> {
+      const beforeError = hooks.beforeError![0]!;
+      type State = Parameters<typeof beforeError>[0];
+      await expect(
+        beforeError({
+          request: {} as unknown as State['request'],
+          options: {} as unknown as State['options'],
+          error: httpError({ headers: new Headers(), status: 404, statusText: 'Not Found' }, { error: said }),
+          retryCount: 0,
+        }),
+      ).rejects.toBeInstanceOf(APIError);
+    }
+
+    function heard(): string[] {
+      const messages: string[] = [];
+      transport.errors$.subscribe((failure) => messages.push(failure.message));
+      return messages;
+    }
+
+    test('its first reader, taken late, hears the latest ERRORS_KEPT_FOR_FIRST_READER_COUNT failures met before it, in order, the oldest dropped', async () => {
+      const beyond = 5;
+      const refusals = Array.from({ length: ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond }, (_, n) => `refusal ${n}`);
+      for (const said of refusals) await refuse(said);
+
+      expect(heard()).toEqual(refusals.slice(beyond));
+    });
+
+    test('a later reader hears only the failures met from when it reads', async () => {
+      await refuse('before anyone read');
+      const first = heard();
+      await refuse('before the second read');
+      const second = heard();
+      await refuse('after both read');
+
+      expect(first).toEqual(['before anyone read', 'before the second read', 'after both read']);
+      expect(second).toEqual(['after both read']);
+    });
+
+    test('a reader taken after dispose hears nothing of what was met before it', async () => {
+      await refuse('before anyone read');
+      transport.dispose();
+
+      let ended = false;
+      const messages: string[] = [];
+      transport.errors$.subscribe({ next: (failure) => messages.push(failure.message), complete: () => { ended = true; } });
+      expect(messages).toEqual([]);
+      expect(ended).toBe(true);
+    });
   });
 });
 
@@ -429,7 +481,7 @@ describe('HttpTransport afterResponse — a refused credential is renewed once, 
 // harness; the ky mock above is irrelevant to the SSE path).
 
 import { BehaviorSubject } from 'rxjs';
-import { Bus, accessToken, type AccessToken } from '@semiont/core';
+import { Bus, accessToken, type AccessToken, type ConnectionState } from '@semiont/core';
 import { mockFetch } from './helpers/mock-conn';
 
 describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
@@ -453,6 +505,30 @@ describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
     // a refused stream as it hears a refused request.
     expect(seen[0]).toBeInstanceOf(APIError);
     expect((seen[0] as APIError).status).toBe(401);
+    expect(seen[0]!.code).toBe('unauthorized');
+
+    transport.dispose();
+  });
+
+  test('a refused SSE connect met before anyone listened is heard by the first listener', async () => {
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 401, body: null }));
+
+    const transport = new HttpTransport({
+      baseUrl: testBaseUrl,
+      channels: BRIDGED_CHANNELS,
+      timeout: 10_000,
+      token$: new BehaviorSubject<AccessToken | null>(accessToken('real-but-refused-tok')),
+    });
+    const states: ConnectionState[] = [];
+    transport.state$.subscribe((state) => states.push(state));
+    // The stream is refused its credential, and waits for another: the refusal has been met.
+    await vi.waitFor(() => expect(states).toContain('unauthenticated'));
+
+    const seen: SemiontError[] = [];
+    transport.errors$.subscribe((e) => seen.push(e));
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBeInstanceOf(APIError);
     expect(seen[0]!.code).toBe('unauthorized');
 
     transport.dispose();

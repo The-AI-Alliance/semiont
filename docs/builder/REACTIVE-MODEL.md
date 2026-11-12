@@ -248,7 +248,7 @@ These are the guided-tour moves: they drive *other* participants' viewers, and t
 **Plain `Observable<T>` / `BehaviorSubject<T>`** (no thenable wrapper, by design — observed continuously, not awaited):
 
 - `client.transport.state$` — connection-state machine
-- `client.transport.errors$` — transport-level error stream. Each emission is a `SemiontError` subclass (HTTP emits `APIError`); the `code` field uses the neutral `TransportErrorCode` vocabulary so consumers route on `'unauthorized'` / `'forbidden'` / etc. without knowing the wire kind.
+- `client.transport.errors$` — transport-level error stream. Each emission is a `SemiontError` subclass (HTTP emits `APIError`); the `code` field uses the neutral `TransportErrorCode` vocabulary so consumers route on `'unauthorized'` / `'forbidden'` / etc. without knowing the wire kind. Its first reader is also given the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` failures met before it read, in order.
 - `session.token$` — current access token
 - `session.user$` — current authenticated user
 - `session.streamState$` — connection state at session scope

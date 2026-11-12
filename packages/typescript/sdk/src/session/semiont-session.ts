@@ -50,6 +50,7 @@ import {
   baseUrl,
   BRIDGED_CHANNELS,
   equalJitter,
+  KeptForFirstReader,
   MAX_RECONNECT_MS,
   RECONNECT_MS,
   RETRY_RULES,
@@ -59,7 +60,6 @@ import {
 } from '@semiont/core';
 import type { components, StateUnit } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
-import { KeptForFirstReader } from '../kept-for-first-reader';
 import type { SemiontError } from '@semiont/core';
 import { watched, type Watched } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
