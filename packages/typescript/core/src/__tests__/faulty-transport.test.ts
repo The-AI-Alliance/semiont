@@ -1,5 +1,6 @@
 /**
- * FaultyTransport: sequenced replies, and what a reader is given.
+ * FaultyTransport: sequenced replies, what a reader is given, and what
+ * `errors$` keeps for its first reader.
  *
  * The division of labor the queue introduces: the fault SCHEDULE scripts the
  * WIRE (deliver / drop / delay / duplicate / reject-emit), the reply QUEUE
@@ -20,7 +21,9 @@ import { Bus } from '../bus';
 import { BUS_OPERATIONS, type BusOperationKey } from '../bus-operations';
 import { BRIDGED_CHANNELS } from '../bridged-channels';
 import { EventBus } from '../event-bus';
+import { SemiontError } from '../errors';
 import { FaultyTransport } from '../faulty-transport';
+import { ERRORS_KEPT_FOR_FIRST_READER_COUNT } from '../generated/client-timing';
 import { annotationId, resourceId, userId, type ResourceId } from '../identifiers';
 import type { EventMap } from '../bus-protocol';
 import type { GatheredContext } from '../payload-types';
@@ -392,5 +395,52 @@ describe('what a reader is given', () => {
     expect(archives.map((frame) => frame.payload)).toEqual([archived(RID)]);
     bridged.destroy();
     transport.dispose();
+  });
+});
+
+describe('what errors$ keeps for its first reader', () => {
+  const failure = (said: string): SemiontError => new SemiontError(said, 'unavailable');
+
+  /** The message of every failure `transport` says on `errors$` from now on. */
+  function heard(transport: FaultyTransport): string[] {
+    const messages: string[] = [];
+    transport.errors$.subscribe((said) => messages.push(said.message));
+    return messages;
+  }
+
+  it('its first reader, taken late, hears the latest ERRORS_KEPT_FOR_FIRST_READER_COUNT failures before it, in order, the oldest dropped', () => {
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
+    const beyond = 5;
+    const failures = Array.from({ length: ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond }, (_, n) => `failure ${n}`);
+    for (const said of failures) transport.fail(failure(said));
+
+    expect(heard(transport)).toEqual(failures.slice(beyond));
+    transport.dispose();
+  });
+
+  it('a later reader hears only the failures from when it reads', () => {
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
+    transport.fail(failure('before anyone read'));
+    const first = heard(transport);
+    transport.fail(failure('before the second read'));
+    const second = heard(transport);
+    transport.fail(failure('after both read'));
+
+    expect(first).toEqual(['before anyone read', 'before the second read', 'after both read']);
+    expect(second).toEqual(['after both read']);
+    transport.dispose();
+  });
+
+  it('a reader taken after dispose hears nothing, of what failed before it or after, and is ended', () => {
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
+    transport.fail(failure('before anyone read'));
+    transport.dispose();
+    transport.fail(failure('after dispose'));
+
+    let ended = false;
+    const messages: string[] = [];
+    transport.errors$.subscribe({ next: (said) => messages.push(said.message), complete: () => { ended = true; } });
+    expect(messages).toEqual([]);
+    expect(ended).toBe(true);
   });
 });

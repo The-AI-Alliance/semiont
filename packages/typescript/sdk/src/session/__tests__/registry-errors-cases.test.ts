@@ -25,7 +25,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { BehaviorSubject, Subject, filter, firstValueFrom, lastValueFrom, map, toArray, type Observable } from 'rxjs';
+import { BehaviorSubject, filter, firstValueFrom, lastValueFrom, map, toArray } from 'rxjs';
 import { BRIDGED_CHANNELS, SemiontError, resourceId } from '@semiont/core';
 import type { AccessToken, NewKnowledgeBase, SemiontSessionErrorCode, TransportErrorCode } from '@semiont/core';
 import { isReady } from '../../cache';
@@ -65,24 +65,8 @@ const KB: NewKnowledgeBase = { did: 'did:web:kb.example.org:kb-a', label: 'KB A'
 
 const JO = { did: 'did:web:example.org:users:jo', email: 'jo@example.org', name: 'Jo', image: null, domain: 'example.org' };
 
-/** A scripted transport: a `FaultyTransport` whose failures are what `fail` is given, and nothing else. */
-class FailingTransport extends FaultyTransport {
-  readonly #failures = new Subject<SemiontError>();
-  override readonly errors$: Observable<SemiontError> = this.#failures.asObservable();
-
-  /** Say `failure` on the transport's errors, as a transport says a request's failure. */
-  fail(failure: SemiontError): void {
-    this.#failures.next(failure);
-  }
-
-  override dispose(): void {
-    super.dispose();
-    this.#failures.complete();
-  }
-}
-
 /** Say each of `entries` on `session`'s errors, in order: its own through `sayOn`, its transport's failures through `transport`. Gives each error as it was said. */
-function sayAll(session: SemiontSession, transport: FailingTransport, entries: readonly Said[]): SemiontError[] {
+function sayAll(session: SemiontSession, transport: FaultyTransport, entries: readonly Said[]): SemiontError[] {
   return entries.map((entry): SemiontError => {
     if ('own' in entry) {
       const own = new SemiontSessionError(entry.own, `the session says ${entry.own}`, session.kb.id);
@@ -97,21 +81,21 @@ function sayAll(session: SemiontSession, transport: FailingTransport, entries: r
 
 /**
  * A factory that builds a scripted session and reads none of its errors: a
- * real session and client over a `FailingTransport`, whose renewal records
+ * real session and client over a `FaultyTransport`, whose renewal records
  * each token it is handed and gives a new one. What `row` says `opening`, the
  * factory says as it builds the session, before handing it back.
  */
 function scripted(row: Case): {
   factory: SessionFactory;
-  transports: Map<SemiontSession, FailingTransport>;
+  transports: Map<SemiontSession, FaultyTransport>;
   sayings: Map<SemiontSession, SemiontError[]>;
   handed: (string | null)[];
 } {
-  const transports = new Map<SemiontSession, FailingTransport>();
+  const transports = new Map<SemiontSession, FaultyTransport>();
   const sayings = new Map<SemiontSession, SemiontError[]>();
   const handed: (string | null)[] = [];
   const factory: SessionFactory = ({ kb, storage }) => {
-    const transport = new FailingTransport({ channels: BRIDGED_CHANNELS });
+    const transport = new FaultyTransport({ channels: BRIDGED_CHANNELS });
     const session = new SemiontSession({
       kb,
       kept: keptIn(storage, kb.id),

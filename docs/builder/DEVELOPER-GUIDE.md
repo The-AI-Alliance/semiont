@@ -691,7 +691,9 @@ transport.state$.next('connecting');            // hold the attach gate
 
 `queueReply` takes the `response`. A reply that names what it answers for beside
 it, as a gathered context names its resource, takes that from the request, as a
-gateway's does.
+gateway's does. `fail` reports a `SemiontError` on the transport's `errors$`, as a
+transport reports a request the gateway refused, so a session over it says the
+failure on its own errors.
 
 For state-unit factories — which take a `SemiontSession` — `createTestSession()`
 returns a real session over the same transport (`{ session, client, transport,
