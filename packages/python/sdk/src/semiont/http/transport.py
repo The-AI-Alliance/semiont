@@ -21,9 +21,10 @@ from pydantic import JsonValue, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
-from semiont.events import Broadcast, Events
+from semiont.events import Events
 from semiont.http._withheld import why_unanswered
 from semiont.http.content import HttpContentTransport
 from semiont.http.exchange import Exchange, TokenRefresher, refusal
@@ -108,7 +109,7 @@ class HttpTransport(Transport, GatewayOperations):
         self._client_id: Final = str(uuid.uuid4())
         self._hub: Final = FrameHub()
         self._router: Final = ReplyRouter()
-        self._failures: Final[Broadcast[SemiontError]] = Broadcast()
+        self._failures: Final = KeptForFirstReader[SemiontError]()
         # Its own reads no environment variable: no proxy and no certificate file it was not given.
         self._http: Final = httpx.AsyncClient(timeout=None, trust_env=False) if http is None else http
         self._owns_http: Final = http is None

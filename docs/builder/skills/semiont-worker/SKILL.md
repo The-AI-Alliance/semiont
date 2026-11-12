@@ -545,11 +545,11 @@ async def work(gateway: str, issuer: str, client_id: str, key: str) -> None:
 
 What differs from TypeScript is what the language gives:
 
-- `async for` over the claims gives each held job, or a `ClaimRefusal`. A stream that does not name `JOB_CLAIM_CHANNELS` raises at the first read, as `bus.unsubscribed`.
+- `async for` over the claims gives each held job, or a `ClaimRefusal`. While nobody reads them, a job claimed waits for the next read, and of the refusals the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` wait before it, in order. A stream that does not name `JOB_CLAIM_CHANNELS` raises at the first read, as `bus.unsubscribed`.
 - A held job is a `HeldMarkJob` or a `HeldYieldJob`, told apart before `complete` is called.
 - A held job commits its own annotations: `await job.commit(job.resource_id, annotations)` sends the batch as `mark:commit`, citing the job, and returns once the record has it. A worker that commits gives its transport `JOB_COMMIT_CHANNELS` beside `JOB_CLAIM_CHANNELS`.
 - `async with job` fails a job its block left unsettled. Leaving the claims' block, or `await claims.aclose()`, stops the worker and fails the job it still holds.
-- `job.cancelled` and `claims.stalled` are watched values: `.value` now, and `async for` each value after it.
+- `job.cancelled` is a watched value: `.value` now, and `async for` each value after it. `claims.stalled()` is a stream, read with `async for`: its first reader is given the stalls found before it came, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT`.
 - A process is stopped by cancelling the task that runs `work`: the blocks it leaves on the way out stop the worker and close the client.
 
 ## When a worker does nothing

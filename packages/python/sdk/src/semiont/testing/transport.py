@@ -32,10 +32,11 @@ from typing import Final, Literal, NoReturn, final, override
 
 from pydantic import JsonValue, TypeAdapter
 
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont._reading import Reading
 from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
-from semiont.events import Broadcast, Events
+from semiont.events import Events
 from semiont.identifiers import ResourceId
 from semiont.operations import OPERATIONS
 from semiont.transport import (
@@ -191,7 +192,7 @@ class FaultyTransport(Transport):
         self._hub: Final = FrameHub()
         self._router: Final = ReplyRouter()
         self._state: Final = Variable[ConnectionState]("open")
-        self._failures: Final = Broadcast[SemiontError]()
+        self._failures: Final = KeptForFirstReader[SemiontError]()
         self._closed = False
 
     # ── What a test says ────────────────────────────────────────────────

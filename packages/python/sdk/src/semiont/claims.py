@@ -73,6 +73,7 @@ from typing import Final, Literal, Self, assert_never, final
 from pydantic import JsonValue, TypeAdapter
 
 from semiont import telemetry
+from semiont._kept_for_first_reader import KeptForFirstReader, Latest
 from semiont._reading import Reading
 from semiont.bus import Bus, answer_of, reply_channels_for, request
 from semiont.channel import Operation
@@ -666,23 +667,18 @@ type HeldJob = HeldMarkJob | HeldYieldJob
 
 
 @final
-class _Ended:
-    """The claiming has ended: nothing more is handed out."""
-
-
-_ENDED: Final = _Ended()
-
-
-@final
 class Claims:
     """A worker's claims, from `job.claim`: each job the worker comes to hold, one at a time, and each claim it was refused.
 
     Iterated (`async for`). The next job is claimed when the one held is
     settled, and a refusal does not end the iteration: the worker waits for
     its next idle moment, and what the refusal means is its host's to judge.
-    Claiming begins when the claims are first read. It ends when `aclose` is
-    called, which leaving `async with` does, or when the transport's stream
-    ends; a job still held when it is stopped is failed first.
+    While nobody reads, every job claimed is kept for the next read and, of
+    the refusals, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT`, in order,
+    the oldest dropped beyond them. Claiming begins when the claims are first
+    read. It ends when `aclose` is called, which leaving `async with` does,
+    or when the transport's stream ends; a job still held when it is stopped
+    is failed first.
     """
 
     def __init__(
@@ -712,11 +708,16 @@ class Claims:
             active=self._active,
             released=self._released,
         )
-        self._handed: Final[asyncio.Queue[HeldJob | ClaimRefusal | _Ended]] = asyncio.Queue()
+        self._refused: Final = Latest[ClaimRefusal]()
+        """The refusals not read yet. Nothing is claimed while a job is held, so each is older than a job claimed and not read yet."""
+        self._claimed: HeldJob | None = None
+        """The job claimed and not read yet."""
+        self._handing: Final = asyncio.Event()
+        """Set when a refusal or a job is handed out, and when the claiming ends: the reader looks again."""
         self._tasks: Final[set[asyncio.Task[None]]] = set()
         self._claim_in_flight: asyncio.Task[None] | None = None
         self._listening: Final[list[Events[Frame | FrameRefusal]]] = []
-        self._stall: Final = Variable[HeldJobStall | None](None)
+        self._stalls: Final = KeptForFirstReader[HeldJobStall]()
         self._begun = False
         self._stopped = False
         self._held: HeldJob | None = None
@@ -835,7 +836,7 @@ class Claims:
             if silent_for_ms <= self._held_job_stall_ms:
                 continue
             self._stall_reported = True
-            self._stall.set(
+            self._stalls.deliver(
                 HeldJobStall(
                     job_id=held.job_id,
                     job_type=held.job_type,
@@ -877,11 +878,12 @@ class Claims:
                 self._stall_reported = False
                 # A wake-up that arrived during the claim is moot: the settle claims.
                 self._wake_pending = False
-                self._held = handed
-                self._handed.put_nowait(handed)
+                self._held = self._claimed = handed
+                self._handing.set()
                 return
             if handed is not None:
-                self._handed.put_nowait(handed)
+                self._refused.append(handed)
+                self._handing.set()
             if self._wake_pending:
                 self._wake_pending = False
                 self._pull()
@@ -913,7 +915,7 @@ class Claims:
         if self._stopped:
             return
         self._stopped = True
-        self._handed.put_nowait(_ENDED)
+        self._handing.set()
         current = asyncio.current_task()
         for task in self._tasks:
             # A claim in flight is left to be answered: a job it is answered
@@ -931,14 +933,16 @@ class Claims:
             self._begun = True
             self._begin()
         while True:
-            handed = await self._handed.get()
-            if isinstance(handed, _Ended):
-                # Whoever reads next is told the same.
-                self._handed.put_nowait(handed)
-                raise StopAsyncIteration
+            if self._refused:
+                return self._refused.popleft()
+            claimed, self._claimed = self._claimed, None
             # Claimed, and failed by the worker's stop before anybody read it.
-            if isinstance(handed, ClaimRefusal) or not handed.settled:
-                return handed
+            if claimed is not None and not claimed.settled:
+                return claimed
+            if self._stopped:
+                raise StopAsyncIteration
+            self._handing.clear()
+            await self._handing.wait()
 
     def vitals(self) -> WorkerVitals:
         """What this worker can say of itself now."""
@@ -954,13 +958,17 @@ class Claims:
             jobs_completed=self._jobs_completed,
         )
 
-    @property
-    def stalled(self) -> Watched[HeldJobStall | None]:
-        """The last stall found: a held job that has shown no activity for `held_job_stall_ms`, reported once.
+    def stalled(self) -> Events[HeldJobStall]:
+        """Each stall found: a held job that has shown no activity for `held_job_stall_ms`, reported once.
 
-        Nothing until there is one, and each one after is a change.
+        Its first reader is given first the latest
+        `ERRORS_KEPT_FOR_FIRST_READER_COUNT` found before it came, in the
+        order they were found, the oldest beyond them dropped; every later
+        one, what is found from then on. It ends as `aclose` returns, once a
+        job still held has been failed, and what is still kept then is
+        dropped: a reader that comes after is given nothing.
         """
-        return Reading(self._stall)
+        return self._stalls.listen()
 
     async def aclose(self) -> None:
         """Stop claiming.
@@ -978,7 +986,7 @@ class Claims:
         for listening in self._listening:
             await listening.aclose()
         self._listening.clear()
-        self._stall.end()
+        self._stalls.close()
 
     async def __aenter__(self) -> Self:
         return self

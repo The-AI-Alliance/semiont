@@ -317,6 +317,38 @@ def test_what_a_session_says_is_on_its_one_errors_stream_beside_its_transports_f
     run(scenario())
 
 
+def test_what_its_transport_met_before_the_session_was_made_is_said_first_since_the_session_is_its_transports_first_reader() -> None:
+    world = World(kept=token(3600, 1), validations=[BusRequestError("bus.timeout", "nobody answered")])
+    keeping = Broadcast[SessionError]()
+    early = TransportError("unavailable", "the gateway could not be reached before the session was made")
+    between = SessionError("session.save-refused", "said between the session's making and its start", kb_id=KB)
+
+    async def scenario() -> None:
+        client = create_test_client().client
+        # Nobody reads the transport's failures yet: what it meets is kept for whoever reads them first.
+        client.transport.fail(early)
+        session = SemiontSession(
+            kb=TARGET,
+            client=client,
+            token=world.token,
+            kept=world.kept,
+            refresh=world.refresh,
+            validate=world.validate,
+            said=keeping.listen(),
+        )
+        errors = Heard(session.errors())
+        keeping.deliver(between)
+        async with session:
+            await soon(session.ready())
+        assert [(error.code, error.message) for error in await errors.ended()] == [
+            ("unavailable", early.message),
+            ("session.save-refused", between.message),
+            ("session.auth-failed", "nobody answered"),
+        ]
+
+    run(scenario())
+
+
 def say_each_in_turn(session: SemiontSession[FaultyTransport], keeping: Broadcast[SessionError]) -> list[tuple[str, str]]:
     """Say an own error and a transport failure, twice over, with no turn of the loop between: what was said, in order."""
     said: list[SessionError | TransportError] = [

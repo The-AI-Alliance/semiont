@@ -581,7 +581,9 @@ async def work(gateway: str, issuer: str, client_id: str, key: str) -> None:
   settles, when a job it accepts is announced, and when its stream opens
   again. A claim answered with nothing pending is no refusal, and the worker
   waits. A `ClaimRefusal` is a claim the dispatcher refused or did not
-  answer.
+  answer. While nobody reads the claims, a job claimed waits for the next
+  read, and of the refusals the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT`
+  wait before it, in order, the oldest dropped beyond them.
 - **A held job settles once**: `complete`, with what its verb reports,
   `fail`, or `cancel`. Each says the outcome and lets the job go, and a
   second is refused. `start` comes first, and `progress` and `checkpoint` as
@@ -610,8 +612,11 @@ async def work(gateway: str, issuer: str, client_id: str, key: str) -> None:
   `with semiont.telemetry.continuing(job.trace):`.
 - **`claims.vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
-  and how many it has completed. **`claims.stalled`** tells of a held job that
-  has shown no activity for fifteen minutes.
+  and how many it has completed. **`claims.stalled()`** tells of each held
+  job that has shown no activity for fifteen minutes. Its first reader is
+  given the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` found before it came,
+  in order; it ends when the claims are closed, once a job still held has
+  been failed, and what is still kept then is dropped.
 
 What a worker promises the dispatcher is [the worker contract][worker-contract],
 and [its conformance suite][worker-conformance] holds this package to it.
@@ -953,7 +958,9 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
   opens again by itself.
 - **Failures** are `SemiontError`s under the codes of
   [`protocol/specs/src/errors/codes.json`][codes]. What a server refused is also on
-  `transport.failures()`.
+  `transport.failures()`, whose first reader is given the latest
+  `ERRORS_KEPT_FOR_FIRST_READER_COUNT` met before it came, in the order met;
+  what is still kept when the transport closes is dropped.
 - **The token** is a value the transport watches: when it changes, the next
   request carries the new one. The gateway refuses a token with a `401`, or
   with a `429` whose `code` is `refusal-rate`, and either fails as
