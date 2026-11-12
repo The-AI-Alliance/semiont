@@ -2422,6 +2422,9 @@ button.kb-location-picker__entry:hover {
   background: var(--surface);
   overflow: hidden;
 }
+.semiont-panel[hidden] {
+  display: none;
+}
 .semiont-panel__items {
   display: flex;
   flex-direction: column;
@@ -2436,13 +2439,54 @@ button.kb-location-picker__entry:hover {
 .semiont-menu__group > h2,
 .semiont-menu__subgroup > h3 {
   margin: 0 0 0.25rem;
-  padding: 0.15rem 0.7rem;
+  padding: 0;
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.07em;
   line-height: 1.4;
   text-transform: uppercase;
+}
+.semiont-menu__group-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0.7rem;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.semiont-menu__group-toggle:hover,
+.semiont-menu__group-toggle:focus-visible {
+  color: var(--text);
+  background: var(--hover);
+  outline: none;
+}
+.semiont-menu__group-toggle svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 120ms ease;
+  transform: rotate(90deg);
+}
+.semiont-menu__group-toggle[aria-expanded="false"] svg {
+  transform: rotate(0deg);
+}
+.semiont-menu__group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.semiont-menu__group-items[hidden] {
+  display: none;
 }
 .semiont-menu__subgroup {
   margin-top: 0.2rem;
@@ -2452,7 +2496,7 @@ button.kb-location-picker__entry:hover {
 .semiont-menu__subgroup > h3 {
   padding-left: 0.55rem;
 }
-.semiont-panel__items button {
+.semiont-menu__group-items > button {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -2467,11 +2511,11 @@ button.kb-location-picker__entry:hover {
   font-weight: 500;
   line-height: 1.4;
 }
-.semiont-panel__items button svg {
+.semiont-menu__group-items > button svg {
   flex-shrink: 0;
   color: var(--muted);
 }
-.semiont-panel__items button .semiont-menu__mcp-icon--running {
+.semiont-menu__group-items > button .semiont-menu__mcp-icon--running {
   color: var(--success);
 }
 .semiont-menu__item-copy {
@@ -2485,8 +2529,8 @@ button.kb-location-picker__entry:hover {
   font-size: 0.67rem;
   font-weight: 400;
 }
-.semiont-panel__items button:hover,
-.semiont-panel__items button:focus-visible {
+.semiont-menu__group-items > button:hover,
+.semiont-menu__group-items > button:focus-visible {
   background: var(--hover);
   outline: none;
 }

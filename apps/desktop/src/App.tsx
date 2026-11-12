@@ -1126,32 +1126,30 @@ export function App() {
             onResourcesChanged={() => setDocsRefresh((n) => n + 1)}
             onConnect={() => activeKbUri && void connectKb(activeKbUri, true)}
           />
-          {semiontMenuOpen && (
-            <SemiontMenu
-              open={semiontMenuOpen}
-              onOpenChange={setSemiontMenuOpen}
-              hasActiveKbTab={activeKbTabUri !== null}
-              hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
-              onOpenInference={openInference}
-              onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
-              onOpenRemoteService={setRemoteService}
-              onOpenSecrets={openSecrets}
-              onOpenMcp={openMcp}
-              mcpStatus={mcpStatus}
-              onOpenAppearance={() => setShowAppearance(true)}
-              onOpenLanguage={() => setShowLanguage(true)}
-              onOpenTelemetry={openTelemetry}
-              onOpenRuntime={openRuntime}
-              onOpenKnowledgeBase={() => {
-                setShowKnowledgeBaseDetails(true);
-                refreshKnowledgeBases();
-              }}
-              onOpenKnowledgeBaseUsers={() => {
-                setShowKnowledgeBaseUsers(true);
-                refreshKnowledgeBases();
-              }}
-            />
-          )}
+          <SemiontMenu
+            open={semiontMenuOpen}
+            onOpenChange={setSemiontMenuOpen}
+            hasActiveKbTab={activeKbTabUri !== null}
+            hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
+            onOpenInference={openInference}
+            onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
+            onOpenRemoteService={setRemoteService}
+            onOpenSecrets={openSecrets}
+            onOpenMcp={openMcp}
+            mcpStatus={mcpStatus}
+            onOpenAppearance={() => setShowAppearance(true)}
+            onOpenLanguage={() => setShowLanguage(true)}
+            onOpenTelemetry={openTelemetry}
+            onOpenRuntime={openRuntime}
+            onOpenKnowledgeBase={() => {
+              setShowKnowledgeBaseDetails(true);
+              refreshKnowledgeBases();
+            }}
+            onOpenKnowledgeBaseUsers={() => {
+              setShowKnowledgeBaseUsers(true);
+              refreshKnowledgeBases();
+            }}
+          />
         </div>
       </div>
       {showAppearance && (

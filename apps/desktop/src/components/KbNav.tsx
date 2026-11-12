@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { KbEntry } from '../lib/user-config';
 import type { KbConnection } from '../lib/session';
 import { sessionsForKb, sessionTitle, type AppChatSession } from '../lib/chat-sessions';
@@ -77,18 +77,61 @@ export function KbNav(props: KbNavProps) {
   );
 }
 
+type MenuGroupId = 'knowledge-base' | 'app' | 'shared-local' | 'shared-remote';
+
+function MenuGroup({ id, label, expanded, onToggle, children }: {
+  id: MenuGroupId;
+  label: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const headingId = `semiont-menu-${id}`;
+  const contentId = `${headingId}-content`;
+  return (
+    <section className="semiont-menu__group" aria-labelledby={headingId}>
+      <h2 id={headingId}>
+        <button
+          type="button"
+          className="semiont-menu__group-toggle"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={onToggle}
+        >
+          <span>{label}</span>
+          <Chevron open={expanded} />
+        </button>
+      </h2>
+      <div id={contentId} className="semiont-menu__group-items" hidden={!expanded}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
 export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: SemiontMenuProps) {
   const menuRef = useRef<HTMLElement>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<MenuGroupId>>(() => new Set());
+
+  const toggleGroup = (id: MenuGroupId) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!open) return;
     const dismiss = (event: MouseEvent) => {
       if (!(event.target instanceof Node) || menuRef.current?.contains(event.target)) return;
       if (event.target instanceof Element && event.target.closest('.app__chrome-controls') !== null) return;
+      if (event.target instanceof Element && event.target.closest('.modal') !== null) return;
       onOpenChange(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false);
+      if (event.key === 'Escape' && document.querySelector('.modal [aria-modal="true"]') === null) onOpenChange(false);
     };
     document.addEventListener('mousedown', dismiss);
     document.addEventListener('keydown', onKeyDown);
@@ -99,32 +142,28 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
   }, [open, onOpenChange]);
 
   const choose = (action: () => void) => {
-    onOpenChange(false);
     action();
   };
 
-  return open ? (
-          <aside id="semiont-panel" className="semiont-panel" ref={menuRef} aria-label="Semiont menu">
+  return (
+          <aside id="semiont-panel" className="semiont-panel" ref={menuRef} aria-label="Semiont menu" hidden={!open}>
             <nav className="semiont-panel__items" aria-label="Semiont menu items">
-              <section className="semiont-menu__group" aria-labelledby="semiont-menu-app">
-                <h2 id="semiont-menu-app">App</h2>
-                <button type="button" onClick={() => choose(onOpenLanguage)}><LanguageIcon /><span>Language</span></button>
-                <button type="button" onClick={() => choose(onOpenAppearance)}><ThemeIcon /><span>Appearance</span></button>
-                <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
-                <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secret Managers</span></button>
-              </section>
               {hasActiveKbTab && (
-                <section className="semiont-menu__group" aria-labelledby="semiont-menu-kb">
-                  <h2 id="semiont-menu-kb">Knowledge Base</h2>
+                <MenuGroup id="knowledge-base" label="Knowledge Base" expanded={!collapsedGroups.has('knowledge-base')} onToggle={() => toggleGroup('knowledge-base')}>
                   <button type="button" onClick={() => choose(onOpenKnowledgeBase)}><KnowledgeBaseIcon /><span>Record</span></button>
                   <button type="button" onClick={() => choose(onOpenKnowledgeBaseUsers)}><WorkersIcon /><span>Users</span></button>
                   <button type="button" onClick={() => choose(() => onOpenServiceGroup('gateway-archivist'))}><RecordIcon /><span>Gateway &amp; Archivist</span></button>
                   <button type="button" onClick={() => choose(() => onOpenServiceGroup('dispatcher-messaging'))}><RecordIcon /><span>Dispatcher &amp; Messaging</span></button>
                   {hasConfiguredIndex && <button type="button" onClick={() => choose(() => onOpenServiceGroup('index'))}><IndexIcon /><span>Index</span></button>}
-                </section>
+                </MenuGroup>
               )}
-              <section className="semiont-menu__group" aria-labelledby="semiont-menu-shared">
-                <h2 id="semiont-menu-shared">Shared, Local Services</h2>
+              <MenuGroup id="app" label="App" expanded={!collapsedGroups.has('app')} onToggle={() => toggleGroup('app')}>
+                <button type="button" onClick={() => choose(onOpenLanguage)}><LanguageIcon /><span>Language</span></button>
+                <button type="button" onClick={() => choose(onOpenAppearance)}><ThemeIcon /><span>Appearance</span></button>
+                <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
+                <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secret Managers</span></button>
+              </MenuGroup>
+              <MenuGroup id="shared-local" label="Shared, Local Services" expanded={!collapsedGroups.has('shared-local')} onToggle={() => toggleGroup('shared-local')}>
                 <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
                 <button type="button" onClick={() => choose(() => onOpenServiceGroup('browser'))}><BrowserIcon /><span>Browser</span></button>
@@ -138,16 +177,15 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
                   </span>
                 </button>
                 <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
-              </section>
-              <section className="semiont-menu__group" aria-labelledby="semiont-menu-remote">
-                <h2 id="semiont-menu-remote">Shared, Remote Services</h2>
+              </MenuGroup>
+              <MenuGroup id="shared-remote" label="Shared, Remote Services" expanded={!collapsedGroups.has('shared-remote')} onToggle={() => toggleGroup('shared-remote')}>
                 <button type="button" onClick={() => choose(() => onOpenRemoteService('inference'))}><InferenceIcon /><span>Inference &amp; Embedding</span></button>
                 <button type="button" onClick={() => choose(() => onOpenRemoteService('knowledge-workers'))}><WorkersIcon /><span>Knowledge Workers</span></button>
                 <button type="button" onClick={() => choose(() => onOpenRemoteService('identity'))}><IdentityIcon /><span>Identity</span></button>
-              </section>
+              </MenuGroup>
             </nav>
           </aside>
-  ) : null;
+  );
 }
 
 function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
