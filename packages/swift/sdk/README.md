@@ -167,8 +167,9 @@ transport. Dispose that owner before shutting down the HTTP client. The session 
 gateway who its token is unless it is opened with `validate: false`. Its `ready()` raises
 startup task failures; `errors()` is its one stream of what went wrong: its own
 `SessionError`s (a sign-in it could not check, renew, read or record, a write its storage
-refused) and its transport’s failures, each said once. What it says before anyone reads
-`errors()` is kept for the first reader. The stream ends when the session ends. Disposing the
+refused) and its transport’s failures, each said once, in the order they were met. Of what it
+says before anyone reads `errors()`, the latest `errorsKeptForFirstReaderCount` are kept for
+the first reader. The stream ends when the session ends. Disposing the
 `OpenedSession` closes the client first and ends the session once the client’s closing flush
 has written, so what that flush meets arrives first; what the client meets once its session has
 ended is said nowhere. Startup is bounded, overlapping refusals share
@@ -228,10 +229,10 @@ managed knowledge bases, and changes by address.
 
 The registry is the one reader of each session's `errors()`, from the first
 thing the session said. It says each of the session's own `SessionError`s on
-its own `errors()`. A refusal for want of a valid token renews the session,
-handed the token it holds as the refusal is read. A refusal for lack of
-permission is said through the session's `SessionSignals.permissionDenied`,
-with the refusal's message. A `SessionFactory` reads none of them, so a
+its own `errors()`. A refusal for lack of permission is said through the
+session's `SessionSignals.permissionDenied`, with the refusal's message. A
+refusal for want of a valid token is renewed by the transport that met it, and
+the registry does nothing with it. A `SessionFactory` reads none of them, so a
 session from a factory you write is read the same way.
 
 State units expose read-only `Watched` values for a viewer or application.

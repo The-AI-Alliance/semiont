@@ -40,8 +40,8 @@ public sealed class SessionTests
             TokenEndpoint = "https://issuer.example/token",
         });
         var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("{\"kind\":\"http\",\"host\":\"kb.example\",\"port\":443,\"protocol\":\"https\"}") ?? throw new InvalidOperationException("No endpoint");
-        using (var session = new KeptSession(endpoint, kept, client, clock, new ZeroRandom(), new Broadcast<SemiontError>(keepForFirst: true), validates: true,
-            static (_, _, _) => Task.CompletedTask))
+        using (var session = new KeptSession(endpoint, kept, client, clock, new ZeroRandom(), new Broadcast<SemiontError>(keptForFirst: SemiontError.KeptForFirstReader), validates: true,
+            static (_, _, _) => Task.CompletedTask, onAuthFailed: null))
         {
             await session.ReadyAsync();
             Assert.Equal(token, session.State.Token);
@@ -62,7 +62,7 @@ public sealed class SessionTests
         var error = Assert.Throws<SessionError>(() =>
         {
             using var session = new KeptSession(endpoint, new MemorySignIn(), null, new TestClock(), new ZeroRandom(),
-                new Broadcast<SemiontError>(keepForFirst: true), validates: true, static (_, _, _) => Task.CompletedTask);
+                new Broadcast<SemiontError>(keptForFirst: SemiontError.KeptForFirstReader), validates: true, static (_, _, _) => Task.CompletedTask, onAuthFailed: null);
         });
         Assert.Equal("session.construct-failed", error.Code);
     }
@@ -98,7 +98,7 @@ public sealed class SessionTests
             entered.TrySetResult();
             return await issued.Task.WaitAsync(cancellation);
         }
-        using var session = new KeptSession(kept, Renew, (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+        using var session = new KeptSession(kept, Renew, (_, _) => Task.FromResult(User()), clock, new ZeroRandom(), onAuthFailed: null);
         await session.ReadyAsync();
         var token = session.State.Token;
         using var cancellation = new CancellationTokenSource();
@@ -136,8 +136,9 @@ public sealed class SessionTests
             await answer.Task.WaitAsync(cancellation);
             return (late, "refresh-3");
         }
+        var ended = new ConcurrentQueue<SessionEndReason>();
         using var session = new KeptSession(kept, (holding, cancellation) => KeptRenewal.RenewAsync(kept, holding, Grant, clock, cancellation),
-            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom(), ended.Enqueue);
         await session.ReadyAsync();
         Assert.Equal(renewed, await session.RefreshAsync(stored));
         await using var observer = session.States().GetAsyncEnumerator();
@@ -162,7 +163,7 @@ public sealed class SessionTests
         Assert.Equal(late, keptNow?.Access);
         Assert.Equal("refresh-3", keptNow?.Refresh);
         Assert.Equal(before, session.State);
-        Assert.Null(session.EndReason);
+        Assert.Empty(ended);
         // A refusal once disposed, of the token held or of the one it replaced, is given no token, and nothing is renewed.
         Assert.Null(await session.RefreshAsync(renewed));
         Assert.Null(await session.RefreshAsync(stored));
@@ -185,7 +186,7 @@ public sealed class SessionTests
             await refuse.Task.WaitAsync(cancellation);
             throw new TransportError(ProtocolFacts.Error(401), "refused");
         }
-        using var session = new KeptSession(kept, (_, _) => { renewals++; return Task.FromResult<string?>("renewed"); }, Validate, clock, new ZeroRandom());
+        using var session = new KeptSession(kept, (_, _) => { renewals++; return Task.FromResult<string?>("renewed"); }, Validate, clock, new ZeroRandom(), onAuthFailed: null);
         await validating.Task;
         var waiting = session.RefreshAsync(session.State.Token);
         refuse.SetResult();
@@ -201,7 +202,7 @@ public sealed class SessionTests
         var kept = Stored(clock);
         var failure = new IOException("Storage was read-only.");
         using var session = new KeptSession(kept, (_, _) => Task.FromException<string?>(failure),
-            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom(), onAuthFailed: null);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await session.ReadyAsync(deadline.Token);
         var original = await kept.HeldAsync(deadline.Token);
@@ -211,6 +212,28 @@ public sealed class SessionTests
         Assert.Equal("session.refresh-exhausted", errors.Current.Code);
         Assert.Same(failure, errors.Current.InnerException);
         Assert.Equal(original, await kept.HeldAsync(deadline.Token));
+    }
+
+    // A session keeps the latest errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) of what it says
+    // before anyone reads its errors, the oldest dropped beyond that: its first reader hears those, in the order said.
+    [Fact]
+    public async Task TheFirstReaderOfASessionNobodyReadHearsTheLatestItKeptInOrder()
+    {
+        var clock = new TestClock();
+        var most = ProtocolFacts.Timing("errorsKeptForFirstReaderCount").GetInt32();
+        using var session = new KeptSession(Stored(clock), (_, _) => Task.FromResult<string?>(null), (_, _) => Task.FromResult(User()),
+            clock, new ZeroRandom(), onAuthFailed: null);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await session.ReadyAsync(deadline.Token);
+        var said = Enumerable.Range(0, most + 3).Select<int, SemiontError>(at => new TransportError(ProtocolFacts.Error(0), $"failure {at}")).ToArray();
+        foreach (var error in said) session.Say(error);
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        Assert.True(await errors.MoveNextAsync(), "the first reader heard nothing");
+        var heard = new List<SemiontError> { errors.Current };
+        // Ending the session ends its errors once what they hold is read, so the reading below stops at the last kept.
+        session.Dispose();
+        while (await errors.MoveNextAsync()) heard.Add(errors.Current);
+        Assert.Equal(said.TakeLast(most), heard);
     }
 
     [Fact]
@@ -224,7 +247,7 @@ public sealed class SessionTests
         {
             renewed.TrySetResult();
             return Task.FromResult<string?>(TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600 }));
-        }, (_, _) => { asks++; return Task.FromResult(User()); }, clock, new ZeroRandom());
+        }, (_, _) => { asks++; return Task.FromResult(User()); }, clock, new ZeroRandom(), onAuthFailed: null);
         await session.ReadyAsync();
         var before = session.State.Token;
         var delay = TimeSpan.FromSeconds(Tokens.RefreshDelay(before ?? throw new InvalidOperationException("No token"), clock.GetUtcNow().ToUnixTimeSeconds()) ?? throw new InvalidOperationException("No schedule"));
@@ -234,6 +257,54 @@ public sealed class SessionTests
         await renewed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await EventuallyAsync(() => session.State.Token != before);
         Assert.Equal(1, asks);
+    }
+
+    // A renewal that gives no token while the sign-in is still kept has nothing left to renew with: the session signs out
+    // as the issuer's refusal signs it out, its sign-in forgotten, onAuthFailed told it expired, and that said as
+    // session.refresh-exhausted.
+    [Fact]
+    public async Task ARenewalThatGivesNoTokenWhileTheSignInIsKeptSignsOut()
+    {
+        var clock = new TestClock();
+        var kept = Stored(clock);
+        var ended = new ConcurrentQueue<SessionEndReason>();
+        using var session = new KeptSession(kept, (_, _) => Task.FromResult<string?>(null), (_, _) => Task.FromResult(User()),
+            clock, new ZeroRandom(), ended.Enqueue);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        await session.ReadyAsync(deadline.Token);
+        Assert.Null(await session.RefreshAsync(session.State.Token, deadline.Token));
+        Assert.True(await errors.MoveNextAsync(), "the session's end was not said");
+        Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+        Assert.Equal([SessionEndReason.Expired], ended.ToArray());
+        Assert.Equal(new SessionState(null, null), session.State);
+        Assert.Null(await kept.HeldAsync(deadline.Token));
+    }
+
+    // At the start there was no session to end (protocol/specs/src/session/cases.json): a renewal of the expired token
+    // found stored that gives no token while the sign-in is still kept forgets it, and tells onAuthFailed and the errors
+    // nothing.
+    [Fact]
+    public async Task AStartsRenewalThatGivesNoTokenWhileTheSignInIsKeptForgetsItAndSaysNothing()
+    {
+        var clock = new TestClock();
+        var kept = new MemorySignIn(new StoredSession
+        {
+            Access = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() - 1 }),
+            Refresh = "refresh",
+            ClientId = SignInPolicy.ScriptClientId,
+            TokenEndpoint = "https://issuer.example/token",
+        });
+        var ended = new ConcurrentQueue<SessionEndReason>();
+        using var session = new KeptSession(kept, (_, _) => Task.FromResult<string?>(null), (_, _) => Task.FromResult(User()),
+            clock, new ZeroRandom(), ended.Enqueue);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var said = FirstSaidAsync(session.Errors(deadline.Token));
+        await session.ReadyAsync(deadline.Token);
+        Assert.Null(await kept.HeldAsync(deadline.Token));
+        Assert.Empty(ended);
+        Assert.Equal(new SessionState(null, null), session.State);
+        Assert.False(said.IsCompleted, "the start said something");
     }
 
     // A renewal that cannot read the sign-in it renews got no answer (protocol/specs/src/session/cases.json): at the start
@@ -254,7 +325,7 @@ public sealed class SessionTests
         var kept = new SignInUnreadableAfter(signIn, reads: 1);
         using var issuer = new Issuer(timeProvider: clock, random: new ZeroRandom());
         using var session = new KeptSession(kept, (holding, cancellation) => issuer.RenewAsync(kept, holding, cancellation),
-            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom(), onAuthFailed: null);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
         await session.ReadyAsync(deadline.Token);
@@ -285,7 +356,7 @@ public sealed class SessionTests
         var kept = new SignInUnreadableAfter(signIn, reads: 1);
         using var issuer = new Issuer(timeProvider: clock, random: new ZeroRandom());
         using var session = new KeptSession(kept, (holding, cancellation) => issuer.RenewAsync(kept, holding, cancellation),
-            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom(), onAuthFailed: null);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
         await session.ReadyAsync(deadline.Token);
@@ -327,7 +398,7 @@ public sealed class SessionTests
             handed.Enqueue(holding);
             return KeptRenewal.RenewAsync(kept, holding, Grant, clock, cancellation);
         }
-        using var session = new KeptSession(kept, Renew, (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+        using var session = new KeptSession(kept, Renew, (_, _) => Task.FromResult(User()), clock, new ZeroRandom(), onAuthFailed: null);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
         await session.ReadyAsync(deadline.Token);
@@ -402,57 +473,53 @@ public sealed class SessionTests
                 if (found is null) return null;
                 return await kept.RenewedAsync(found, renewed, "refresh-" + renewals, cancellation);
             }
-            using var session = new KeptSession(kept, Renew, Validate, clock, new ZeroRandom());
-            await using var errors = session.Errors().GetAsyncEnumerator();
-            var errorRead = errors.MoveNextAsync().AsTask();
-            try
+            var ended = new ConcurrentQueue<SessionEndReason>();
+            using var session = new KeptSession(kept, Renew, Validate, clock, new ZeroRandom(), ended.Enqueue);
+            var errorRead = FirstSaidAsync(session.Errors());
+            await session.ReadyAsync();
+            running = true;
+            if (part == "refusal")
             {
-                await session.ReadyAsync();
-                running = true;
-                if (part == "refusal")
+                var refused = row.GetProperty("refused").GetString() switch
                 {
-                    var refused = row.GetProperty("refused").GetString() switch
-                    {
-                        "held" => session.State.Token,
-                        "replaced" => TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600, sub = "alice", replaced = true }),
-                        var said => throw new InvalidOperationException("Unknown refused token " + said),
-                    };
-                    var given = await session.RefreshAsync(refused);
-                    Assert.Equal(row.GetProperty("given").GetBoolean(), given is not null);
-                    if (given is not null) Assert.Equal(session.State.Token, given);
-                }
-                Assert.Equal(row.GetProperty("asks").GetInt32(), asks);
-                Assert.Equal(row.GetProperty("renewals").GetInt32(), renewals);
-                static string End(KeptSession session) => session.State.Token is null ? "signed-out" : session.State.User is null ? "unconfirmed" : "signed-in";
-                Assert.Equal(row.GetProperty("ends").GetString(), End(session));
-                Assert.Equal(row.GetProperty("kept").GetBoolean(), await kept.HeldAsync() is not null);
-                var told = row.GetProperty("told");
-                SessionEndReason? reason = told.ValueKind == JsonValueKind.Null ? null : told.Deserialize<SessionEndReason>();
-                Assert.Equal(reason, session.EndReason);
-                if (row.GetProperty("error").ValueKind != JsonValueKind.Null)
-                {
-                    Assert.True(await errorRead.WaitAsync(TimeSpan.FromSeconds(10)));
-                    Assert.Equal(row.GetProperty("error").GetString(), errors.Current.Code);
-                }
-                else Assert.False(errorRead.IsCompleted);
-                if (row.TryGetProperty("then", out var next))
-                {
-                    var pause = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectMs").GetDouble() / 2);
-                    await clock.WaitForAsync(pause);
-                    clock.Advance(pause);
-                    await EventuallyAsync(() => renewals == next.GetProperty("renewals").GetInt32() && asks == next.GetProperty("asks").GetInt32() && End(session) == next.GetProperty("ends").GetString());
-                }
-                // Each renewal is handed the token the row stored (startup), or the one its session started on (refusal).
-                foreach (var token in handed)
-                    Assert.True(token == original.Access, part + ", " + row.GetProperty("why").GetString() + ": a renewal was handed " + (token ?? "no token"));
+                    "held" => session.State.Token,
+                    "replaced" => TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600, sub = "alice", replaced = true }),
+                    var said => throw new InvalidOperationException("Unknown refused token " + said),
+                };
+                var given = await session.RefreshAsync(refused);
+                Assert.Equal(row.GetProperty("given").GetBoolean(), given is not null);
+                if (given is not null) Assert.Equal(session.State.Token, given);
             }
-            finally
+            Assert.Equal(row.GetProperty("asks").GetInt32(), asks);
+            Assert.Equal(row.GetProperty("renewals").GetInt32(), renewals);
+            static string End(KeptSession session) => session.State.Token is null ? "signed-out" : session.State.User is null ? "unconfirmed" : "signed-in";
+            Assert.Equal(row.GetProperty("ends").GetString(), End(session));
+            Assert.Equal(row.GetProperty("kept").GetBoolean(), await kept.HeldAsync() is not null);
+            var told = row.GetProperty("told");
+            SessionEndReason[] reasons = told.ValueKind == JsonValueKind.Null ? [] : [told.Deserialize<SessionEndReason>()];
+            Assert.Equal(reasons, ended.ToArray());
+            if (row.GetProperty("error").ValueKind != JsonValueKind.Null)
+                Assert.Equal(row.GetProperty("error").GetString(), (await errorRead.WaitAsync(TimeSpan.FromSeconds(10)))?.Code);
+            else Assert.False(errorRead.IsCompleted);
+            if (row.TryGetProperty("then", out var next))
             {
-                // Finish the pending MoveNext before the enumerator is disposed.
-                session.Dispose();
-                await errorRead;
+                var pause = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectMs").GetDouble() / 2);
+                await clock.WaitForAsync(pause);
+                clock.Advance(pause);
+                await EventuallyAsync(() => renewals == next.GetProperty("renewals").GetInt32() && asks == next.GetProperty("asks").GetInt32() && End(session) == next.GetProperty("ends").GetString());
             }
+            // Each renewal is handed the token the row stored (startup), or the one its session started on (refusal).
+            foreach (var token in handed)
+                Assert.True(token == original.Access, part + ", " + row.GetProperty("why").GetString() + ": a renewal was handed " + (token ?? "no token"));
         }
+    }
+
+    /// <summary>The first error <paramref name="errors"/> says, or null if it ends having said none. The read is taken at
+    /// once, and the stream's enumerator is the read's own, so whoever ends the stream ends the read.</summary>
+    private static async Task<SemiontError?> FirstSaidAsync(IAsyncEnumerable<SemiontError> errors)
+    {
+        await foreach (var error in errors) return error;
+        return null;
     }
 
     private static async Task EventuallyAsync(Func<bool> condition)

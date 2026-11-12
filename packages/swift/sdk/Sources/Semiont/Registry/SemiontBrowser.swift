@@ -89,7 +89,7 @@ public actor SemiontBrowser {
   public nonisolated let identityToken = Watched<String?>(nil)
   public nonisolated let bus = EventBus()
 
-  private nonisolated let failures = Broadcast<any Error>()
+  private nonisolated let failures = Broadcast<any Error>(keepingForFirst: true)
   nonisolated let clock: any Clock<Duration>
   nonisolated let random: RandomSource
   private let factory: any SessionFactory
@@ -140,6 +140,9 @@ public actor SemiontBrowser {
     activate()
   }
 
+  /// What went wrong: each of its sessions' own errors, and its own. The first listener is given
+  /// first the latest `Timings.errorsKeptForFirstReaderCount` said before it listened; one who
+  /// comes after they have ended, nothing.
   public nonisolated func errors() -> Events<any Error> { failures.listen() }
   public nonisolated func setIdentityToken(_ value: String?) { identityToken.set(value) }
 
@@ -429,9 +432,9 @@ public actor SemiontBrowser {
   }
 
   /// Reads `session`'s errors as their one reader, and so from the first thing it said, until they
-  /// end: each of its own it says on the registry's errors. A refusal for want of a valid token
-  /// renews the session; a refusal for lack of permission has no remedy, and is said through
-  /// `signals`.
+  /// end: each of its own it says on the registry's errors. A refusal for lack of permission has no
+  /// remedy, and is said through `signals`; any other failure of its transport, a refusal for want
+  /// of a valid token among them, is not acted on.
   private func read(_ session: SemiontSession, signals: SessionSignals) {
     let errors = session.errors()
     readers[session.id] = registryTask { [weak self] in
@@ -441,15 +444,8 @@ public actor SemiontBrowser {
             await self?.said(own)
             continue
           }
-          guard let failure = error as? TransportError else { continue }
-          switch failure.reason {
-          case .unauthorized:
-            // A failure does not say which token was refused: the one the session holds as it is
-            // read is.
-            let refused = session.token.value
-            await self?.renew(session, refused: refused)
-          case .forbidden: signals.notifyPermissionDenied(failure.description)
-          default: break
+          if let failure = error as? TransportError, failure.reason == .forbidden {
+            signals.notifyPermissionDenied(failure.description)
           }
         }
       } catch {
@@ -458,20 +454,8 @@ public actor SemiontBrowser {
     }
   }
 
-  /// Renews `session`, handed `refused`, on a task of its own, so that its errors' reader goes on
-  /// reading. Refusals read together are answered by one renewal: the session holds them while it
-  /// renews.
-  private func renew(_ session: SemiontSession, refused: String?) {
-    guard !closed else { return }
-    _ = registryTask(abandonOnClose: true) { [weak self] in
-      do { _ = try await session.refresh(refused) } catch is CancellationError {} catch {
-        await self?.said(error)
-      }
-    }
-  }
-
-  /// Says `error`, which a session or its renewal met, on the registry's errors until they end.
-  private func said(_ error: any Error) {
+  /// Says `error`, which a session met, on the registry's errors until they end.
+  private func said(_ error: SessionError) {
     guard !errorsEnded else { return }
     record(error)
   }

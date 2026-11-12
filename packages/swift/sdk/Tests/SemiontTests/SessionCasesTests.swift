@@ -1,3 +1,4 @@
+import AsyncHTTPClient
 import Foundation
 import Synchronization
 import Testing
@@ -683,4 +684,161 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
     #expect(session.token.value == renewed)
     #expect(clock.strays == 0, "sleeps begun off the case's executor")
   }
+}
+
+// ── The order its errors are said in ────────────────────────────────────
+
+/// `run` with a session sessionFromKept makes over a sign-in that holds nothing, and its transport.
+/// The session renews nothing and asks nobody, and its transport, holding no token, connects
+/// nowhere: all its errors say is what `run` says.
+private func overAQuietSession(_ run: (OpenedSession, HttpTransport) async throws -> Void)
+  async throws
+{
+  let http = HTTPClient(eventLoopGroupProvider: .singleton)
+  let ran: Result<Void, any Error>
+  do {
+    let opened = try await sessionFromKept(
+      kb: target(), kept: MemorySignIn(), httpClient: http, validate: false, clock: TestClock())
+    defer { opened.dispose() }
+    let transport = try #require(opened.client.transport as? HttpTransport)
+    try await run(opened, transport)
+    opened.dispose()
+    await opened.closed()
+    ran = .success(())
+  } catch {
+    ran = .failure(error)
+  }
+  try await http.shutdown()
+  try ran.get()
+}
+
+/// Meets one error of each kind in turn on `opened`'s session: one of its own, a failure of its
+/// transport, one of its own, a failure of its transport. Gives what each says of itself, in the
+/// order they were met.
+private func meetEachKindInTurn(_ opened: OpenedSession, _ transport: HttpTransport) -> [String] {
+  let kb = opened.session.kb.id
+  let unread = SessionError(.sessionKeepFailed, "The sign-in could not be read", kbId: kb)
+  let unavailable = TransportError(.unavailable, "HTTP 503", status: 503)
+  let unsaved = SessionError(.sessionSaveRefused, "The storage refused a write", kbId: kb)
+  let refused = TransportError(.unauthorized, "HTTP 401", status: 401)
+  opened.session.failed(unread)
+  transport.failureEvents.yield(unavailable)
+  opened.session.failed(unsaved)
+  transport.failureEvents.yield(refused)
+  let met: [any Error] = [unread, unavailable, unsaved, refused]
+  return met.map { "\($0)" }
+}
+
+/// The first `count` things `errors` says, as what each says of itself.
+private func firstSaid(_ count: Int, by errors: Events<any Error>) async throws -> [String] {
+  try await withinTestDeadline {
+    var heard: [String] = []
+    for try await error in errors {
+      heard.append("\(error)")
+      if heard.count == count { break }
+    }
+    return heard
+  }
+}
+
+/// Everything `errors` says until it ends, as what each says of itself.
+private func everythingSaid(by errors: Events<any Error>) async throws -> [String] {
+  try await withinTestDeadline {
+    var heard: [String] = []
+    for try await error in errors { heard.append("\(error)") }
+    return heard
+  }
+}
+
+@Test func aSessionsOwnErrorsAndItsTransportsFailuresAreSaidInTheOrderTheyWereMet() async throws {
+  try await overAQuietSession { opened, transport in
+    // Each kind in turn, before anyone reads: all kept for the first reader.
+    let met = meetEachKindInTurn(opened, transport)
+    let heard = try await firstSaid(met.count, by: opened.session.errors())
+    #expect(heard == met)
+  }
+}
+
+@Test func aReaderListeningHearsEveryFailureMetBeforeTheCloseInOrderAndNoneMetAfter()
+  async throws
+{
+  try await overAQuietSession { opened, transport in
+    let errors = opened.session.errors()
+    let met = meetEachKindInTurn(opened, transport)
+    opened.session.dispose()
+    transport.failureEvents.yield(TransportError(.unavailable, "HTTP 503 once the session ended"))
+    let heard = try await everythingSaid(by: errors)
+    #expect(heard == met)
+  }
+}
+
+@Test func whatATransportToldBeforeItsSessionWasMadeIsSaidAheadOfWhatTheSessionSays()
+  async throws
+{
+  let relayed = RelayedFailures()
+  let unavailable = TransportError(.unavailable, "HTTP 503", status: 503)
+  let refused = TransportError(.unauthorized, "HTTP 401", status: 401)
+  relayed.told(unavailable)
+  relayed.told(refused)
+  let session = SemiontSession(
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: MemorySignIn(), forget: {}, renew: { _ in nil }, validate: nil,
+    random: RandomSource(SystemRandomNumberGenerator()))
+  defer { session.dispose() }
+  relayed.made(session)
+  let unread = SessionError(.sessionKeepFailed, "The sign-in could not be read", kbId: target().id)
+  session.failed(unread)
+  let late = TransportError(.unavailable, "HTTP 503 once the session was made", status: 503)
+  relayed.told(late)
+  let errors = session.errors()
+  session.dispose()
+  let met: [any Error] = [unavailable, refused, unread, late]
+  #expect(try await everythingSaid(by: errors) == met.map { "\($0)" })
+}
+
+// ── What is kept for a first reader ─────────────────────────────────────
+
+@Test func aSessionNobodyHasReadKeepsTheLatestOfWhatItSaysForItsFirstReader() async throws {
+  try await overAQuietSession { opened, transport in
+    let kb = opened.session.kb.id
+    let beyond = 5
+    var met: [String] = []
+    // Before anyone reads: its own as the session says them, its transport's as the transport tells them.
+    for n in 0..<(Timings.errorsKeptForFirstReaderCount + beyond) {
+      if n.isMultiple(of: 2) {
+        let own = SessionError(.sessionKeepFailed, "failure \(n)", kbId: kb)
+        opened.session.failed(own)
+        met.append("\(own)")
+      } else {
+        let failure = TransportError(.unavailable, "failure \(n)", status: 503)
+        transport.failureEvents.yield(failure)
+        met.append("\(failure)")
+      }
+    }
+    let errors = opened.session.errors()
+    opened.session.dispose()
+    let heard = try await everythingSaid(by: errors)
+    #expect(heard == Array(met.dropFirst(beyond)))
+  }
+}
+
+@Test func ofWhatATransportToldBeforeItsSessionWasMadeTheLatestAreSaid() async throws {
+  let relayed = RelayedFailures()
+  let beyond = 5
+  let told = (0..<(Timings.errorsKeptForFirstReaderCount + beyond)).map { n in
+    TransportError(.unavailable, "failure \(n)", status: 503)
+  }
+  for failure in told { relayed.told(failure) }
+  let session = SemiontSession(
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: MemorySignIn(), forget: {}, renew: { _ in nil }, validate: nil,
+    random: RandomSource(SystemRandomNumberGenerator()))
+  defer { session.dispose() }
+  // Read before the session is told what was held, so what the session keeps for a first reader is not what is heard.
+  let errors = session.errors()
+  relayed.made(session)
+  session.dispose()
+  #expect(try await everythingSaid(by: errors) == told.dropFirst(beyond).map { "\($0)" })
 }

@@ -1224,6 +1224,194 @@ func TestASessionEndedAloneEndsItsErrors(t *testing.T) {
 	}
 }
 
+// A failure the transport met just before the session is closed is said on
+// the session's errors before they end: it is among them before the call
+// that met it returns, with no wait between that and the close. On the
+// test's own clock.
+func TestATransportFailureSaidJustBeforeTheCloseIsSaidBeforeTheErrorsEnd(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := testClient()
+		_, heard, closed := started(t, client, semiont.SessionConfig{
+			Kb: api.KbTarget{Id: kb}, Token: semiont.NewVariable(""), Kept: &semiont.MemorySignIn{},
+			Timing: semiont.DefaultTiming(),
+		})
+		forbidden := &semiont.TransportError{Code: semiont.TransportErrorCodeForbidden, Message: "HTTP 403"}
+		client.Transport.Fail(forbidden)
+		closed()
+		synctest.Wait()
+		select {
+		case <-heard.ended:
+		default:
+			t.Fatal("the session's errors did not end once the session was closed")
+		}
+		if said := heard.sofar(); len(said) != 1 || said[0] != forbidden {
+			t.Errorf("the session said %v on its errors stream, want its transport's refusal", said)
+		}
+	})
+}
+
+// metInTurn is a session's own errors and its transport's failures, met in
+// turn: its own, its transport's, its own, its transport's. Each of its own is
+// a renewal that got no answer, met as Refresh answers a refusal of the token
+// the session holds, so it is said on the goroutine that called Refresh.
+type metInTurn struct {
+	failures [2]*semiont.TransportError
+	renewals atomic.Int32
+}
+
+func newMetInTurn() *metInTurn {
+	return &metInTurn{failures: [2]*semiont.TransportError{
+		{Code: semiont.TransportErrorCodeUnavailable, Message: "HTTP 503"},
+		{Code: semiont.TransportErrorCodeForbidden, Message: "HTTP 403"},
+	}}
+}
+
+// unanswered is how the issuer fails the nth renewal: with no answer, told
+// apart from every other.
+func unanswered(n int32) *semiont.SignInError {
+	return &semiont.SignInError{Code: semiont.SignInErrorCodeExchange, Message: fmt.Sprintf("renewal %d got no answer", n)}
+}
+
+// config is what makes a session whose kept sign-in has not expired and
+// whose every renewal gets no answer.
+func (m *metInTurn) config(t *testing.T) semiont.SessionConfig {
+	kept := &semiont.MemorySignIn{}
+	keptUnexpired(t, kept)
+	return semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Token: semiont.NewVariable(""), Kept: kept,
+		Refresh: func(context.Context, string) (string, error) { return "", unanswered(m.renewals.Add(1)) },
+		Timing:  semiont.DefaultTiming(),
+	}
+}
+
+// meet has session meet them in turn, once it is ready.
+func (m *metInTurn) meet(t *testing.T, session *semiont.Session, transport *semionttest.FaultyTransport) {
+	t.Helper()
+	if err := session.Ready(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	session.Refresh(context.Background(), session.Token().Value())
+	transport.Fail(m.failures[0])
+	// The unanswered renewal left the session holding no token.
+	session.Refresh(context.Background(), "")
+	transport.Fail(m.failures[1])
+}
+
+// inTurn is whether said is what was met, in the order it was met.
+func (m *metInTurn) inTurn(said []error) bool {
+	unansweredRenewal := func(failure error, n int32) bool {
+		own := sessionError(failure)
+		return own != nil && own.Code == semiont.SessionErrorCodeRefreshExhausted && strings.HasSuffix(own.Message, unanswered(n).Message)
+	}
+	return len(said) == 4 && unansweredRenewal(said[0], 1) && said[1] == m.failures[0] && unansweredRenewal(said[2], 2) && said[3] == m.failures[1]
+}
+
+// A session's own errors and its transport's failures, met before anyone
+// reads, are given to the first reader in the order they were met: each
+// failure is said within the transport's telling of it, so the own error the
+// session says next cannot overtake it. On the test's own clock.
+func TestASessionsOwnErrorsAndItsTransportsFailuresAreSaidInTheOrderTheyWereMet(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		met := newMetInTurn()
+		client := testClient()
+		config := met.config(t)
+		config.Client = client.Client
+		session, err := semiont.StartSession(context.Background(), config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			client.Client.Close()
+			session.Close()
+			client.Transport.Close()
+		})
+		met.meet(t, session, client.Transport)
+
+		heard := hear(session)
+		synctest.Wait()
+		if said := heard.sofar(); !met.inTurn(said) {
+			t.Errorf("the session said %v on its errors stream, want an unanswered renewal, its transport's unavailability, another unanswered renewal and its transport's refusal, in that order", said)
+		}
+	})
+}
+
+// A reader already listening hears a session's own errors and its
+// transport's failures in the order they were met. On the test's own clock.
+func TestASessionsOwnErrorsAndItsTransportsFailuresAreHeardInTheOrderTheyWereMet(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		met := newMetInTurn()
+		client := testClient()
+		session, heard, _ := started(t, client, met.config(t))
+		met.meet(t, session, client.Transport)
+
+		synctest.Wait()
+		if said := heard.sofar(); !met.inTurn(said) {
+			t.Errorf("the session said %v on its errors stream, want an unanswered renewal, its transport's unavailability, another unanswered renewal and its transport's refusal, in that order", said)
+		}
+	})
+}
+
+// A session nobody has read keeps, of what it says, the latest
+// ErrorsKeptForFirstReaderCount for its first reader, the oldest dropped, and
+// its first reader hears them in the order they were met.
+func TestASessionNobodyHasReadKeepsTheLatestOfWhatItSaysForItsFirstReader(t *testing.T) {
+	timing := semiont.DefaultTiming()
+	client := testClient()
+	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Client: client.Client, Token: semiont.NewVariable(""), Kept: &semiont.MemorySignIn{}, Timing: timing,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := sync.OnceFunc(func() {
+		client.Client.Close()
+		session.Close()
+		client.Transport.Close()
+	})
+	t.Cleanup(closed)
+	if err := session.Ready(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	beyond := 5
+	met := make([]error, timing.ErrorsKeptForFirstReaderCount+beyond)
+	for n := range met {
+		failure := &semiont.TransportError{Code: semiont.TransportErrorCodeUnavailable, Message: fmt.Sprintf("failure %d", n)}
+		met[n] = failure
+		client.Transport.Fail(failure)
+	}
+
+	if said := hear(session).rest(t, closed); !slices.Equal(said, met[beyond:]) {
+		t.Errorf("the first reader heard %d failures, want the latest %d met, in order: %v", len(said), timing.ErrorsKeptForFirstReaderCount, said)
+	}
+}
+
+// A first reader who comes after the session has ended hears nothing: what
+// was kept for it was let go of at the end.
+func TestAFirstReaderWhoComesAfterTheSessionHasEndedHearsNothing(t *testing.T) {
+	client := testClient()
+	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Client: client.Client, Token: semiont.NewVariable(""), Kept: &semiont.MemorySignIn{}, Timing: semiont.DefaultTiming(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := sync.OnceFunc(func() {
+		client.Client.Close()
+		session.Close()
+		client.Transport.Close()
+	})
+	t.Cleanup(closed)
+	if err := session.Ready(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	client.Transport.Fail(&semiont.TransportError{Code: semiont.TransportErrorCodeUnavailable, Message: "HTTP 503"})
+	closed()
+
+	if said := hear(session).rest(t, closed); len(said) != 0 {
+		t.Errorf("a first reader after the end heard %v, want nothing", said)
+	}
+}
+
 // errUnreadable is why a sign-in cannot be read.
 var errUnreadable = errors.New("the sign-in cannot be read")
 

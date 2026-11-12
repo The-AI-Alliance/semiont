@@ -44,21 +44,15 @@ private fun saidAs(said: JsonObject): SemiontError = when {
     else -> throw AssertionError("$said is neither the session's own error nor its transport's failure")
 }
 
-/** What a case's session says, in order, and the token it held as it said it. */
+/** What a case's session says, in order. */
 private class Saying(case: JsonObject) {
     private val said = case.getValue("said").jsonArray.map { saidAs(it.jsonObject) }
 
     /** The last of what is said: what the registry does with it is what a runner waits for. */
     val last: SemiontError = said.last()
 
-    /** The token the session held as it said what it says: the one a refusal for want of a valid token refuses. */
-    @Volatile
-    var held: String? = null
-        private set
-
     /** Have `session` say each, in order: its own errors on its own, its transport's failures through `transport`, each with its exact code and message. */
     fun by(session: SemiontSession, transport: FaultyTransport) {
-        held = session.token.value
         for (error in said) {
             if (error is SessionError) session.say(error) else transport.fail(error)
         }
@@ -69,9 +63,9 @@ private class Saying(case: JsonObject) {
  * A factory a host writes, which reads none of its sessions' errors: each
  * session a real one over a test client of its own, whose transport fails
  * only as it is told to, whose gateway says it is Alice's, and whose renewal
- * gives a token good for an hour and records the token it was handed. A case
- * said `opening` the session says as the factory builds it, before handing it
- * back.
+ * gives a token good for an hour and records the token it was handed, so a
+ * case fails if the registry renews anything. A case said `opening` the
+ * session says as the factory builds it, before handing it back.
  */
 private class Recording(private val saying: Saying, private val opening: Boolean) : SessionFactory {
     /** The token each renewal was handed, in order. */
@@ -108,18 +102,13 @@ private class Recording(private val saying: Saying, private val opening: Boolean
 /**
  * Wait for what the registry does with the last of what a case's session
  * said: one of its own errors is said on the registry's errors; a refusal for
- * want of a valid token renews the session; one for lack of permission is
- * said through the session's signals. Returns what was said on the
- * registry's errors up to then.
+ * lack of permission is said through the session's signals. Returns what was
+ * said on the registry's errors up to then.
  */
-private suspend fun waitedFor(last: SemiontError, heard: List<SessionError>, factory: Recording, signals: SessionSignals): List<SessionError> = when {
+private suspend fun waitedFor(last: SemiontError, heard: List<SessionError>, signals: SessionSignals): List<SessionError> = when {
     last is SessionError -> {
         eventually("the last of what the session said is said on the registry's errors") { heard.any { it === last } }
         heard.toList().let { said -> said.take(said.indexOfFirst { it === last } + 1) }
-    }
-    last is TransportError && last.reason == TransportErrorCode.Unauthorized -> {
-        eventually("the session's renewal was handed a token") { factory.handed.isNotEmpty() }
-        heard.toList()
     }
     last is TransportError && last.reason == TransportErrorCode.Forbidden -> {
         eventually("a refusal for lack of permission is said through the signals") { signals.permissionDenied.value != null }
@@ -138,9 +127,8 @@ class RegistryErrorsCasesTest {
      * The knowledge base's session says what the case says, while its factory
      * builds it or once it is active. Once the registry has done what it does
      * with the last of it, what was said on the registry's errors up to then
-     * is what the case says; the session was renewed, handed the token it
-     * held, or not; and a refusal for lack of permission was said through its
-     * signals, or not.
+     * is what the case says; the session was not renewed; and a refusal for
+     * lack of permission was said through its signals, or not.
      */
     @TestFactory
     fun whatASessionSaysIsReadAsTheTableSays(): List<DynamicTest> = table.getValue("cases").jsonArray.map { it.jsonObject }.map { case ->
@@ -162,18 +150,11 @@ class RegistryErrorsCasesTest {
                     val session = live(browser)
                     val signals = checkNotNull(browser.activeSignals.value)
                     if (!opening) saying.by(session, factory.transports.single())
-                    val upToThen = waitedFor(saying.last, heard, factory, signals)
+                    val upToThen = waitedFor(saying.last, heard, signals)
                     assertEquals(case.texts("registryErrors"), upToThen.map { it.code })
-                    if ("renewedWith" in case) {
-                        val renewedWith = case.text("renewedWith")
-                        if (renewedWith != "held") throw AssertionError("a session is renewed with $renewedWith, which no case says")
-                        val held = checkNotNull(saying.held) { "the session held no token as it said the refusal" }
-                        assertEquals(listOf(held), factory.handed.take(1), "the token the session's renewal was handed")
-                    } else {
-                        // The registry starts a renewal beside its reading: one started wrongly is let run before it is looked for.
-                        settle()
-                        assertEquals(emptyList<String?>(), factory.handed.toList(), "the tokens a renewal was handed")
-                    }
+                    // A renewal is made beside what reads the errors: one made wrongly is let run before it is looked for.
+                    settle()
+                    assertEquals(emptyList<String?>(), factory.handed.toList(), "the tokens a renewal was handed")
                     if ("permissionDenied" in case) {
                         assertEquals(PermissionDenied(case.text("permissionDenied")), signals.permissionDenied.value)
                     } else {

@@ -297,6 +297,9 @@ pub type Frames = Events<Result<Frame, FrameRefusal>>;
 /// never answered, and each line its stream carried that names no reader.
 /// Each is reported here as it is returned to its caller.
 pub type Failures = Events<TransportError>;
+/// Told each failure a transport meets, within the transport's telling of it
+/// (`Transport::tell_failures_to`).
+pub type FailureListener = Box<dyn Fn(&TransportError) + Send + Sync>;
 
 /// The sender of one channel's broadcast: its frames, and the refusals
 /// delivered in their place.
@@ -536,6 +539,14 @@ pub trait Transport: Send + Sync + 'static {
     /// stream carried that names no reader. A listener taken as soon as the
     /// transport is made hears every one, from its first request.
     fn failures(&self) -> Failures;
+
+    /// Tell `listener` each failure `failures` reports, within the telling:
+    /// before the call that met it returns, so in the order they were met.
+    /// A listener taken as soon as the transport is made is told every one,
+    /// as `failures` hears them. It is held until the transport closes, and
+    /// told under the transport's own lock, so it must not call back into
+    /// the transport.
+    fn tell_failures_to(&self, listener: FailureListener);
 
     /// Await the reply to `correlation_id` on one of `reply_channels`. A
     /// request calls this before it emits, so its reply cannot arrive

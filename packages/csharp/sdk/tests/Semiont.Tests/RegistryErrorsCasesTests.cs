@@ -17,14 +17,15 @@ namespace Semiont.Tests;
 // How a registry reads the errors of each session it activates, held to
 // protocol/specs/src/session/registry-errors-cases.json, the table every SDK runs. Neither factory here reads any of
 // the session's errors. A `cases` row's session is scripted: it says each error the row says on its errors stream as
-// given, its transport heals no refusal itself, and its renewal records the token it is handed. A `closing` row's is the
-// one SemiontSession.FromKeptAsync makes, its client keeping in a storage that refuses every write.
+// given, its transport heals no refusal itself, and its renewal records the token it is handed, so a runner fails a
+// registry that renews it. A `closing` row's is the one SemiontSession.FromKeptAsync makes, its client keeping in a
+// storage that refuses every write.
 public sealed partial class TransportTests
 {
     private const string RegistryErrorsCases = "session/registry-errors-cases.json";
 
     /// <summary>What a runner waits for once a case's last error is said.</summary>
-    private enum SaidEffect { RegistryError, Renewal, PermissionRefusal }
+    private enum SaidEffect { RegistryError, PermissionRefusal }
 
     [Fact]
     public async Task ARegistryReadsEachSessionsErrorsAsTheirCasesSay()
@@ -44,49 +45,47 @@ public sealed partial class TransportTests
         foreach (var row in rows) await RegistryClosingCaseAsync(row);
     }
 
-    // C#'s reader does one thing more than the table holds: the first of a session's own errors said once the session has
-    // ended it also says through the session's signals as that end, which C#'s factories have no other way to raise. The
-    // refusal that ends the session here is read once a renewal has changed its token, which no row says: the registry
-    // hands the renewal the token the session then holds, which the issuer refuses.
+    // Of what the registry says before anyone reads its errors, the latest errorsKeptForFirstReaderCount
+    // (protocol/specs/src/client/timing.json) are kept, the oldest dropped beyond that: its first reader hears those, in
+    // the order said. The session says them once it is active, so the registry, its one reader, hears every one.
     [Fact]
-    public async Task TheFirstOwnErrorSaidOnceASessionHasEndedIsSaidThroughItsSignalsAsThatEnd()
+    public async Task TheFirstReaderOfARegistryNobodyReadHearsTheLatestItKeptInOrder()
     {
+        var most = ProtocolFacts.Timing("errorsKeptForFirstReaderCount").GetInt32();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var clock = new TestClock();
-        var now = clock.GetUtcNow().ToUnixTimeSeconds();
-        var access = TokenTests.Jwt(new { exp = now + 3600 });
-        var renewed = TokenTests.Jwt(new { exp = now + 7200 });
+        var built = new TaskCompletionSource<(SessionSignals Signals, KeptSession Kept)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var factory = ScriptedErrorsFactory(clock, TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600 }),
+            (_, _) => Task.FromResult<string?>(null), (signals, kept) => built.SetResult((signals, kept)));
         var store = new MemoryStorage();
         var kb = RegistryKb("one", "one.test");
         RegistryStorage.SaveKnowledgeBases(store, [kb]);
-        var built = new TaskCompletionSource<(SemiontSession Session, KeptSession Kept)>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var factory = ScriptedErrorsFactory(clock, access,
-            (holding, _) => holding == access ? Task.FromResult<string?>(renewed)
-                : Task.FromException<string?>(new SignInError(ProtocolFacts.SignInError("exchange"), "the issuer refuses the grant", 400)),
-            (_, session, kept) => built.SetResult((session, kept)));
         await using var browser = new SemiontBrowser(new SemiontBrowserConfig(store, factory, clock));
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await browser.SetActiveKbAsync(kb.Id, deadline.Token);
-        var (session, kept) = await built.Task.WaitAsync(deadline.Token);
-        var signals = Assert.IsType<SessionSignals>(browser.State.ActiveSignals);
-        await using var errors = browser.Errors(deadline.Token).GetAsyncEnumerator();
+        var (signals, kept) = await built.Task.WaitAsync(deadline.Token);
 
-        kept.Say(new TransportError(ProtocolFacts.Error(401), "the gateway refuses the token", 401));
-        await foreach (var token in session.Token.WithCancellation(deadline.Token))
-            if (token == renewed) break;
-        // Joins the renewal if it is still finishing, and renews nothing: the session no longer holds that token. A refusal
-        // read before that renewal finished would share it, and the session would not end.
-        Assert.Equal(renewed, await session.RefreshAsync(access, deadline.Token));
-        kept.Say(new TransportError(ProtocolFacts.Error(401), "the gateway refuses the renewed token", 401));
-        Assert.True(await errors.MoveNextAsync(), "the registry's errors ended before the session said it ended");
-        Assert.Equal(ProtocolFacts.SessionError("refresh-exhausted"), errors.Current.Code);
-        Assert.Equal(new SessionEnded(SessionEndReason.Expired), signals.SessionEnded.Value);
+        var said = Enumerable.Range(0, most + 3)
+            .Select<int, SemiontError>(at => new SessionError(ProtocolFacts.SessionError("keep-failed"), $"error {at}")).ToArray();
+        foreach (var error in said) kept.Say(error);
+        // The registry reads the session's errors in the order said: once the refusal said after them reaches the signals,
+        // it has said every one.
+        kept.Say(new TransportError(ProtocolFacts.Error(403), "said after them", 403));
+        await foreach (var denied in signals.PermissionDenied.WithCancellation(deadline.Token))
+            if (denied is not null) break;
+
+        await using IAsyncEnumerator<SemiontError> errors = browser.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        await browser.DisposeAsync();
+        Assert.Equal(said.TakeLast(most), await SaidUntilEndAsync(errors, told, deadline.Token));
     }
 
     /// <summary>
     /// A registry whose session says the row's errors as its factory builds it or once it is active. The runner waits for
-    /// the effect of the last, then closes the registry, and holds every code the registry said until its errors end and
-    /// every refusal for lack of permission said through the session's signals until they close: the scripted session
-    /// keeps nothing, so a correct registry says nothing more once that effect is seen.
+    /// the effect of the last, and holds that the session's signals have said by then the last refusal for lack of
+    /// permission said before it. It then closes the registry, and holds every code the registry said until its errors
+    /// end, every refusal for lack of permission said through the session's signals until they close, and that nothing
+    /// renewed the session: the scripted session keeps nothing, so a correct registry says nothing more once that effect
+    /// is seen.
     /// </summary>
     private static async Task RegistryErrorsCaseAsync(JsonElement row)
     {
@@ -100,27 +99,22 @@ public sealed partial class TransportTests
             "active" => false,
             var other => throw new InvalidOperationException(why + ": no session says its errors while " + other),
         };
-        var renews = row.TryGetProperty("renewedWith", out _);
-        if (renews && Text(row, "renewedWith") != "held")
-            throw new InvalidOperationException(why + ": no session is renewed with " + Text(row, "renewedWith"));
+        string?[] refused = row.TryGetProperty("permissionDenied", out _) ? [Text(row, "permissionDenied")] : [];
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var clock = new TestClock();
         var now = clock.GetUtcNow().ToUnixTimeSeconds();
         var renewed = TokenTests.Jwt(new { exp = now + 7200 });
         var handed = Channel.CreateUnbounded<string?>();
-        var built = new TaskCompletionSource<(SessionSignals Signals, SemiontSession Session, KeptSession Kept)>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var told = new TaskCompletionSource<(string Held, IAsyncEnumerator<PermissionDenied?> Notices, Task<bool> NextNotice)>(
+        var built = new TaskCompletionSource<(SessionSignals Signals, KeptSession Kept)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var told = new TaskCompletionSource<(IAsyncEnumerator<PermissionDenied?> Notices, Task<bool> NextNotice)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        (string, IAsyncEnumerator<PermissionDenied?>, Task<bool>) Tell(SessionSignals signals, SemiontSession session, KeptSession kept)
+        (IAsyncEnumerator<PermissionDenied?>, Task<bool>) Tell(SessionSignals signals, KeptSession kept)
         {
             // Read from before the first error is said, so each refusal said through them is read, not only the latest.
             var notices = signals.PermissionDenied.GetAsyncEnumerator(deadline.Token);
             var next = notices.MoveNextAsync().AsTask();
-            // Nothing renews the session before the registry reads a refusal, so the token it holds as that is read is the
-            // one it holds now.
-            var held = session.Token.Value ?? throw new InvalidOperationException(why + ": the session holds no token");
             foreach (var error in saying) kept.Say(error);
-            return (held, notices, next);
+            return (notices, next);
         }
         var factory = ScriptedErrorsFactory(clock, TokenTests.Jwt(new { exp = now + 3600 }),
             (holding, _) =>
@@ -128,10 +122,10 @@ public sealed partial class TransportTests
                 handed.Writer.TryWrite(holding);
                 return Task.FromResult<string?>(renewed);
             },
-            (signals, session, kept) =>
+            (signals, kept) =>
             {
-                if (opening) told.SetResult(Tell(signals, session, kept));
-                built.SetResult((signals, session, kept));
+                if (opening) told.SetResult(Tell(signals, kept));
+                built.SetResult((signals, kept));
             });
         var store = new MemoryStorage();
         var kb = RegistryKb("one", "one.test");
@@ -141,12 +135,11 @@ public sealed partial class TransportTests
         var active = await built.Task.WaitAsync(deadline.Token);
         await using IAsyncEnumerator<SemiontError> errors = browser.Errors(deadline.Token).GetAsyncEnumerator();
         var nextError = errors.MoveNextAsync().AsTask();
-        if (!opening) told.SetResult(Tell(active.Signals, active.Session, active.Kept));
-        var (held, notices, nextNotice) = await told.Task.WaitAsync(deadline.Token);
+        if (!opening) told.SetResult(Tell(active.Signals, active.Kept));
+        var (notices, nextNotice) = await told.Task.WaitAsync(deadline.Token);
 
         var codes = new List<string>();
         var refusals = new List<string?>();
-        var renewals = new List<string?>();
         switch (effect)
         {
             case SaidEffect.RegistryError:
@@ -159,9 +152,9 @@ public sealed partial class TransportTests
                     nextError = errors.MoveNextAsync().AsTask();
                     if (ReferenceEquals(error, saying[^1])) break;
                 }
-                break;
-            case SaidEffect.Renewal:
-                renewals.Add(await handed.Reader.ReadAsync(deadline.Token));
+                var latest = active.Signals.PermissionDenied.Value?.Detail;
+                Assert.True(refused.LastOrDefault() == latest,
+                    why + ": as the registry said the session's last error, its signals had said " + (latest ?? "nothing") + " as a refusal for lack of permission");
                 break;
             case SaidEffect.PermissionRefusal:
                 while (refusals.Count == 0)
@@ -173,7 +166,6 @@ public sealed partial class TransportTests
                 }
                 break;
         }
-        if (renews && renewals.Count == 0) renewals.Add(await handed.Reader.ReadAsync(deadline.Token));
 
         await browser.DisposeAsync();
         codes.AddRange((await SaidUntilEndAsync(errors, nextError, deadline.Token)).Select(error => error.Code));
@@ -185,14 +177,9 @@ public sealed partial class TransportTests
         await notices.DisposeAsync();
 
         Assert.True(RegistryErrors(row).SequenceEqual(codes), why + ": the registry said [" + string.Join(", ", codes) + "]");
-        string?[] refused = row.TryGetProperty("permissionDenied", out _) ? [Text(row, "permissionDenied")] : [];
         Assert.True(refused.SequenceEqual(refusals),
             why + ": the session's signals said [" + string.Join(", ", refusals) + "] as refusals for lack of permission");
-        if (renews)
-        {
-            Assert.True(renewals[0] == held, why + ": the renewal was handed another token than the one the session held");
-            return;
-        }
+        var renewals = new List<string?>();
         while (handed.Reader.TryRead(out var stray)) renewals.Add(stray);
         Assert.True(renewals.Count == 0, why + ": the session was renewed, handed " + string.Join(", ", renewals));
     }
@@ -253,12 +240,11 @@ public sealed partial class TransportTests
         return new TransportError(Text(said, "transport"), Text(said, "message"));
     }
 
-    /// <summary>The effect of a case's last `said`: its own error said on the registry's errors, a refusal for want of a
-    /// valid token renewing the session, or a refusal for lack of permission said through its signals.</summary>
+    /// <summary>The effect of a case's last `said`: its own error said on the registry's errors, or a refusal for lack of
+    /// permission said through its signals.</summary>
     private static SaidEffect EffectOf(JsonElement said, string why) =>
         said.TryGetProperty("own", out _) ? SaidEffect.RegistryError : Text(said, "transport") switch
         {
-            "unauthorized" => SaidEffect.Renewal,
             "forbidden" => SaidEffect.PermissionRefusal,
             var other => throw new InvalidOperationException(why + ": a registry does nothing a runner can wait for with " + other),
         };
@@ -269,11 +255,11 @@ public sealed partial class TransportTests
     /// <summary>
     /// A factory that builds a scripted session and reads none of its errors. Its sign-in holds <paramref name="access"/>,
     /// whom the gateway names as one person of the knowledge base; each renewal is <paramref name="renew"/>, handed the token
-    /// the session holds; its transport renews nothing itself. <paramref name="built"/> is given the session's signals, the
-    /// session and what keeps its sign-in, which says on its errors, before the factory hands the session back.
+    /// the session holds; its transport renews nothing itself. <paramref name="built"/> is given the session's signals and
+    /// what keeps its sign-in, which says on its errors, before the factory hands the session back.
     /// </summary>
     private static RegistryFactory ScriptedErrorsFactory(TimeProvider clock, string access,
-        Func<string?, CancellationToken, Task<string?>> renew, Action<SessionSignals, SemiontSession, KeptSession> built) =>
+        Func<string?, CancellationToken, Task<string?>> renew, Action<SessionSignals, KeptSession> built) =>
         new(async (options, cancellation) =>
         {
             var domain = options.Kb.Did["did:web:".Length..];
@@ -286,7 +272,7 @@ public sealed partial class TransportTests
                 image = (string?)null,
             }));
             var kept = new KeptSession(new MemorySignIn(RegistryTokens() with { Access = access }), renew,
-                (_, _) => Task.FromResult(user), clock, new ZeroRandom());
+                (_, _) => Task.FromResult(user), clock, new ZeroRandom(), options.Signals.NotifySessionEnded);
             await kept.ReadyAsync(cancellation);
             var server = new Handler();
             var http = new HttpClient(server);
@@ -295,7 +281,7 @@ public sealed partial class TransportTests
             var client = new SemiontClient(new HttpTransport("https://kb.test", kept.State.Token, BusRegistry.BridgedChannels,
                 httpClient: http, timeProvider: clock));
             var session = new SemiontSession(Target(options.Kb), client, kept);
-            built(options.Signals, session, kept);
+            built(options.Signals, kept);
             return new OpenedSession(client, async () =>
             {
                 client.Dispose();

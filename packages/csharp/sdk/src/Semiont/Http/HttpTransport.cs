@@ -31,7 +31,7 @@ public sealed partial class HttpTransport : IDisposable
     private readonly CancellationTokenSource lifetime = new();
     private readonly Channel<Change> changed = Channel.CreateUnbounded<Change>();
     private readonly Broadcast<ConnectionState> states = new(replayLatest: true);
-    private readonly Broadcast<SemiontError> failures = new(keepForFirst: true);
+    private readonly Broadcast<SemiontError> failures = new(keptForFirst: SemiontError.KeptForFirstReader);
     private readonly List<FrameView> listeners = [];
     private readonly List<EventBus> buses = [];
     private readonly Dictionary<string, Pending> pending = [];
@@ -84,6 +84,8 @@ public sealed partial class HttpTransport : IDisposable
     public string BaseUrl { get; }
     public ConnectionState State { get { lock (gate) { return state; } } }
     public IAsyncEnumerable<ConnectionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
+    /// <summary>The transport's failures. Of those it meets before anyone reads them, the latest
+    /// errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) are kept for the first reader.</summary>
     public IAsyncEnumerable<SemiontError> Errors(CancellationToken cancellation = default) => failures.Observe(cancellation);
 
     /// <summary>Hands <paramref name="to"/> each failure as the transport meets it, a reader of <see cref="Errors"/> as any

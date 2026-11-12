@@ -420,8 +420,11 @@ func (l *live) open(args protocol.Arguments) error {
 	transport := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
 		BaseURL: baseURL, Token: semiont.NewVariable(token), Channels: bus.BridgedChannels, HTTP: &http.Client{}, Timing: timing,
 	})
-	// Taken at once, so every failure from the first request on is heard.
-	failures := transport.Failures()
+	// Taken at once, so every failure from the first request on is said, each
+	// before the call that met it returns, until the transport closes.
+	transport.Failures(func(failed *semiont.TransportError) {
+		protocol.Say(map[string]any{"error": protocol.Failure(failed)})
+	})
 	config := semiont.ClientConfig{Transport: transport, Content: semiont.NewHTTPContentTransport(transport), Gateway: transport, Timing: timing}
 	if persist {
 		config.Persistence = &semiont.CachePersistence{Storage: l.storage, KbID: "conformance", PersonKey: semiont.PersonKey(conformancePerson)}
@@ -432,7 +435,7 @@ func (l *live) open(args protocol.Arguments) error {
 	l.observers = map[string]context.CancelFunc{}
 	l.reported = ""
 	l.mu.Unlock()
-	l.reporters.Add(2)
+	l.reporters.Add(1)
 	go func() {
 		defer l.reporters.Done()
 		for state := range transport.State().Changes(context.Background()) {
@@ -440,12 +443,6 @@ func (l *live) open(args protocol.Arguments) error {
 			if state == semiont.ConnectionStateClosed {
 				return
 			}
-		}
-	}()
-	go func() {
-		defer l.reporters.Done()
-		for failed := range failures {
-			protocol.Say(map[string]any{"error": protocol.Failure(failed)})
 		}
 	}()
 	return nil

@@ -300,7 +300,9 @@ So is every line the stream carried that names no reader (§ The transport).
 
 - **A listener taken as soon as the client is made hears every failure**,
   from the transport's first request on, even when that request was refused
-  before the listener was taken.
+  before the listener was taken. Of what was met before the first listener
+  was taken, the latest `errorsKeptForFirstReaderCount` are kept for it, in
+  the order met; the oldest is dropped beyond that.
   *Held by `sdk/wire/stream-rate-limited`, `packages/rust/http-transport/tests/stream.rs`.*
 - A refused stream is reported, and opened again no sooner than the
   refusal's `Retry-After`; a stream whose credential was refused waits for

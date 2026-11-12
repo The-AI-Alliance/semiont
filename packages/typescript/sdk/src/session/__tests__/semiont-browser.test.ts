@@ -30,7 +30,7 @@ vi.mock('../../client', async () => {
     transport = (() => {
       const errorsSubject = new Subject<SemiontError>();
       mockTransportErrors.push(errorsSubject);
-      return { errorsSubject, errors$: errorsSubject.asObservable() };
+      return { errors$: errorsSubject.asObservable() };
     })();
     // Tab revalidation reads descriptors through `browse`. `.fresh()` is the
     // one-shot read (a live query is not `await`able), and it REJECTS on
@@ -62,7 +62,9 @@ import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
 import { mockResource } from '../../__tests__/fixtures/resource';
-import { BusRequestError, resourceId } from '@semiont/core';
+import { sayOn, type SemiontSession } from '../semiont-session';
+import { SemiontSessionError } from '../errors';
+import { BusRequestError, ERRORS_KEPT_FOR_FIRST_READER_COUNT, resourceId } from '@semiont/core';
 import type { SemiontError } from '@semiont/core';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -944,83 +946,6 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  /**
-   * A transport-level 401 routes through REFRESH, never straight to the modal.
-   *
-   * Raising the session-ended notice on any single `unauthorized` transport
-   * error has two failure modes, both traps: a request losing the refresh
-   * race 401s while the session heals a beat later — modal over a healthy
-   * session, on every load; and a truly dead session reaches the modal
-   * WITHOUT `clearStoredSession`, so every reload restores the corpse and
-   * re-arms it — and both modal buttons navigate, into the same loop: an
-   * undismissable "Session Expired — HTTP 401" that survives hard reloads.
-   * Routing into `session.refresh(refused)` covers both: success is silence;
-   * exhaustion runs the session's own teardown — storage cleared, the modal
-   * fired once with the session's own reason.
-   */
-  describe('transport 401s route through refresh, not straight to the modal', () => {
-    const pushError = (browser: SemiontBrowser, e: unknown) => {
-      const session = browser.activeSession$.getValue()!;
-      (session.client.transport as unknown as { errorsSubject: { next: (v: unknown) => void } })
-        .errorsSubject.next(e);
-    };
-
-    it('a working refresh keeps the modal silent and the stored session intact', async () => {
-      const browser = await makeConnectedBrowser();
-      const signals = browser.activeSignals$.getValue()!;
-      tokenEndpointAnswers(issuerReply({ access_token: freshJwt() }));
-
-      pushError(browser, { code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
-      await settled();
-
-      expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
-      expect(signals.sessionEnded$.getValue()).toBeNull();
-      expect(storage.get(storageKey(KB_A.id))).not.toBeNull();
-
-      await browser.dispose();
-    });
-
-    it('refresh exhausted: the modal fires with the session teardown message, and the stored session is CLEARED', async () => {
-      const browser = await makeConnectedBrowser();
-      const signals = browser.activeSignals$.getValue()!;
-      fetchMock.mockResolvedValue(issuerReply({ error: 'invalid_grant', error_description: 'Token is not active' }, 400));
-
-      pushError(browser, { code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
-      await settled();
-
-      // The session's own reason — never the raw transport line.
-      expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
-      // The loop-breaker: a dead session must not survive a reload.
-      expect(storage.get(storageKey(KB_A.id))).toBeNull();
-
-      await browser.dispose();
-    });
-
-    it('a 401 with NO stored credentials is not an expiry: no modal, no teardown theater', async () => {
-      // activeKnowledgeBaseId persists forever, so every load activates the
-      // KB signed-out; the actor connects with a null token and 401s, and
-      // `refresh(null)` has NOTHING to refresh. Declaring "session expired" there
-      // would re-arm the modal on every load. You cannot
-      // expire a session that never existed: the signed-out shell is the
-      // correct and sufficient UX, and the modal must stay silent.
-      storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
-      storage.set(ACTIVE_KEY, KB_A.id);
-      // Deliberately NO seedStoredSession: registered + active, signed out.
-      const browser = makeBrowser();
-      const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
-      const signals = browser.activeSignals$.getValue()!;
-
-      (session!.client.transport as unknown as { errorsSubject: { next: (v: unknown) => void } })
-        .errorsSubject.next({ code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
-      await settled();
-
-      expect(signals.sessionEnded$.getValue()).toBeNull();
-
-      await browser.dispose();
-    });
-  });
-
-
   it('is inert with no live session: nothing visible, nothing persisted', async () => {
     const browser = makeBrowser();
     browser.addOpenResource(resourceId('r1'), 'One');
@@ -1649,6 +1574,42 @@ describe('SemiontBrowser — asking the gateway who a stored token is', () => {
   });
 });
 
+describe('SemiontBrowser — what error$ keeps for its first reader', () => {
+  const connected = async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(filter((live): live is SemiontSession => live !== null)));
+    return { browser, session };
+  };
+
+  it('gives its first reader the latest ERRORS_KEPT_FOR_FIRST_READER_COUNT said before it read, in order, the oldest dropped', async () => {
+    const { browser, session } = await connected();
+    const beyond = 3;
+    const messages = Array.from({ length: ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond }, (_, n) => `write ${n} refused`);
+    for (const message of messages) sayOn(session, new SemiontSessionError('session.save-refused', message, KB_A.id));
+
+    const said: string[] = [];
+    browser.error$.subscribe((error) => said.push(error.message));
+    expect(said).toEqual(messages.slice(beyond));
+
+    await browser.dispose();
+  });
+
+  it('gives a reader who comes once it has ended nothing of what it kept', async () => {
+    const { browser, session } = await connected();
+    sayOn(session, new SemiontSessionError('session.save-refused', 'a write refused', KB_A.id));
+    await browser.dispose();
+
+    const said: string[] = [];
+    let ended = false;
+    browser.error$.subscribe({ next: (error) => said.push(error.message), complete: () => { ended = true; } });
+    expect(said).toEqual([]);
+    expect(ended).toBe(true);
+  });
+});
+
 describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
   it('emits a non-null SessionSignals when activeSession$ is non-null', async () => {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
@@ -1749,35 +1710,6 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     await session!.refresh(session!.token$.getValue());
     expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
 
-    await browser.dispose();
-  });
-
-  it('routes 401 from transport.errors$ through refresh; exhaustion tears the session down properly', async () => {
-    // The contract pinned is refresh-then-teardown. A direct wire (401 →
-    // modal, raw message, storage intact) is an undismissable modal that
-    // survives reloads.
-    const { APIError } = await import('@semiont/http-transport');
-    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
-    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
-    storage.set(ACTIVE_KEY, KB_A.id);
-
-    const browser = makeBrowser();
-    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
-    const signals = browser.activeSignals$.getValue()!;
-    expect(signals.sessionEnded$.getValue()).toBeNull();
-
-    // Push directly through the transport's errors Subject — this is the
-    // same path HttpTransport hits in its `beforeError` ky hook. No refresh
-    // is stubbed, so recovery exhausts.
-    const subj = newestTransportErrors();
-    subj.next(APIError.fromStatus('token expired', 401, 'Unauthorized', undefined, undefined));
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
-    // The session's own reason — never the raw transport line.
-    expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
-    // And the corpse cannot survive a reload.
-    expect(storage.get(storageKey(KB_A.id))).toBeNull();
     await browser.dispose();
   });
 

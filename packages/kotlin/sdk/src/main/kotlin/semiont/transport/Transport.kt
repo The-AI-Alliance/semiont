@@ -153,12 +153,13 @@ internal class Variable<T>(initial: T) {
 /**
  * Everyone who listens hears each thing delivered from when they began to
  * listen, in order: each listener has a queue of its own, so a slow one delays
- * nobody and loses nothing. What is delivered before anyone has listened is
- * kept for the first listener, when `keepForFirst` says so.
+ * nobody and loses nothing. Of what is delivered before anyone has listened,
+ * the latest `keptForFirst` are kept for the first listener: the oldest is
+ * dropped beyond that.
  */
-internal class Broadcast<T : Any>(private val keepForFirst: Boolean = false) {
+internal class Broadcast<T : Any>(private val keptForFirst: Long = 0) {
     private val listeners = CopyOnWriteArrayList<Channel<T>>()
-    private val early = mutableListOf<T>()
+    private val early = ArrayDeque<T>()
 
     /** How many listen now. */
     val listening: Int get() = listeners.size
@@ -171,7 +172,7 @@ internal class Broadcast<T : Any>(private val keepForFirst: Boolean = false) {
             if (closed) {
                 queue.close()
             } else {
-                if (!listened && keepForFirst) early.forEach { queue.trySend(it) }
+                if (!listened) early.forEach { queue.trySend(it) }
                 listened = true
                 early.clear()
                 listeners += queue
@@ -185,7 +186,10 @@ internal class Broadcast<T : Any>(private val keepForFirst: Boolean = false) {
     fun deliver(value: T): Int {
         synchronized(this) {
             if (closed) return 0
-            if (!listened && keepForFirst) early += value
+            if (!listened) {
+                early.addLast(value)
+                if (early.size > keptForFirst) early.removeFirst()
+            }
         }
         val now = listenersNow()
         now.forEach { it.trySend(value) }
@@ -482,9 +486,9 @@ public interface Transport : AutoCloseable {
      * The failures the transport meets: everything a server
      * refused, every request never answered, and every line its stream
      * carried that names no reader: one that is no frame, or a frame refused
-     * whose channel or scope cannot be read. What it met before anyone
-     * listened is kept for its first listener; every later listener hears
-     * from when it listens.
+     * whose channel or scope cannot be read. Of what it met before anyone
+     * listened, the latest `errorsKeptForFirstReaderCount` are kept for its
+     * first listener; every later listener hears from when it listens.
      */
     public fun failures(): Events<SemiontError>
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for how a registry of knowledge bases reads the errors of each session it activates (client/surface.json's registry module): it is their one reader, from the first thing the session said, and a factory reads none of them. Every SDK runs every case against its own registry, over a factory that builds a scripted session and reads none of its errors, and fails on a difference. READING A CASE. `said` is what the active knowledge base's session says on its errors, in order: `{\"own\": code}` one of the session's own errors, by its code in errors/codes.json's session group; `{\"transport\": code, \"message\": text}` a failure of its transport, by its code in errors/codes.json's transport group, with that message. `while` is when the session says them: `opening`, as the factory builds it, before the registry has read anything; `active`, once the session is active. Every case's last `said` has an effect a runner can wait for: one of the session's own errors, said on the registry's errors; a refusal for want of a valid token, which renews the session; or a refusal for lack of permission, said through the session's signals. A runner waits for that effect, and then holds the case: the registry reads the session's errors in order, so by then it has read everything before. `registryErrors` is the codes said on the registry's errors up to then, in order. `renewedWith` is `held` when the session is renewed, handed the token it holds as the refusal is read, and nothing else; when it is absent, the session is not renewed. `permissionDenied` is the detail said through the session's signals as a refusal for lack of permission; when it is absent, no such refusal is said through them. A failure of the transport for any other reason the registry does nothing with. `closing` holds what a registry's close reads: the registry closes while its active session's client does or does not owe a save (`owed`) to a storage that refuses every write, and `registryErrors` is every code the registry says from its close until its errors end, in order: what the session's closing flush meets is said before they end.",
+  "$comment": "AUTHORITY for how a registry of knowledge bases reads the errors of each session it activates (client/surface.json's registry module): it is their one reader, from the first thing the session said, and a factory reads none of them. Every SDK runs every case against its own registry, over a factory that builds a scripted session and reads none of its errors, and fails on a difference. READING A CASE. `said` is what the active knowledge base's session says on its errors, in order: `{\"own\": code}` one of the session's own errors, by its code in errors/codes.json's session group; `{\"transport\": code, \"message\": text}` a failure of its transport, by its code in errors/codes.json's transport group, with that message. `while` is when the session says them: `opening`, as the factory builds it, before the registry has read anything; `active`, once the session is active. Every case's last `said` has an effect a runner can wait for: one of the session's own errors, said on the registry's errors; or a refusal for lack of permission, said through the session's signals. A runner waits for that effect, and then holds the case: the registry reads the session's errors in order, so by then it has read everything before. `registryErrors` is the codes said on the registry's errors up to then, in order. A registry renews no session: a refusal for want of a valid token is renewed by the transport that met it, which knows the token it sent (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential), so a runner fails if the registry renews the session in any case. `permissionDenied` is the detail said through the session's signals as a refusal for lack of permission; when it is absent, no such refusal is said through them. A refusal for want of a valid token, and a failure of the transport for any other reason, the registry does nothing with. `closing` holds what a registry's close reads: the registry closes while its active session's client does or does not owe a save (`owed`) to a storage that refuses every write the client makes, and `registryErrors` is every code the registry says from its close until its errors end, in order: what the session's closing flush meets is said before they end. A save owed is one still waiting out its debounce as the close begins, never yet tried: the close makes it once, so its refusal is said once. The close waits for that write without limit: a storage's write returns or throws (protocol/contract/CACHE-SEMANTICS.md, B17).",
   "runBy": {
     "typescript": ["packages/typescript/sdk/src/session/__tests__/registry-errors-cases.test.ts"],
     "rust": ["packages/rust/sdk/tests/browser.rs"],
@@ -34,11 +34,14 @@
       "registryErrors": ["session.save-refused", "session.keep-failed"]
     },
     {
-      "why": "a refusal for want of a valid token renews the session, handed the token it holds as the refusal is read, and is not said on the registry's errors",
+      "why": "a refusal for want of a valid token is its transport's to renew: the registry renews nothing for it, and says it neither on its errors nor through a signal: once a refusal for lack of permission read after it is said, nothing else has been",
       "while": "active",
-      "said": [{ "transport": "unauthorized", "message": "the gateway refuses the token" }],
+      "said": [
+        { "transport": "unauthorized", "message": "the gateway refuses the token" },
+        { "transport": "forbidden", "message": "read after the refusal" }
+      ],
       "registryErrors": [],
-      "renewedWith": "held"
+      "permissionDenied": "read after the refusal"
     },
     {
       "why": "a refusal for lack of permission is said through the session's signals, with the failure's message as its detail, and is neither said on the registry's errors nor renews the session",
@@ -58,11 +61,22 @@
       ],
       "registryErrors": [],
       "permissionDenied": "read after the others"
+    },
+    {
+      "why": "a session says its own errors and its transport's failures on one stream, in the order it met them: once the own error said after a refusal for lack of permission is said on the registry's errors, that refusal has been said through the session's signals, and the own error before it on the registry's errors. A client that cannot keep keeps nothing more, so its refused save comes first",
+      "while": "active",
+      "said": [
+        { "own": "session.save-refused" },
+        { "transport": "forbidden", "message": "between two of its own" },
+        { "own": "session.keep-failed" }
+      ],
+      "registryErrors": ["session.save-refused", "session.keep-failed"],
+      "permissionDenied": "between two of its own"
     }
   ],
   "closing": [
     {
-      "why": "a registry's close reads its active session's errors to their end: the save its client owes, which the storage refuses as the client's closing flush makes it, is said on the registry's errors before they end",
+      "why": "a registry's close reads its active session's errors to their end: the save its client owes, still waiting out its debounce, which the storage refuses as the client's closing flush makes it once, is said on the registry's errors once before they end",
       "owed": true,
       "registryErrors": ["session.save-refused"]
     },

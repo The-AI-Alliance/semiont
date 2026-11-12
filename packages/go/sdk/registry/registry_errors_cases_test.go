@@ -5,15 +5,17 @@ package registry_test
 // run here, over a factory that reads none of its sessions' errors, and a
 // difference fails.
 //
-// Two factories build the sessions, because no Go session does both things
-// the rows need. A session's own keep-failed and save-refused are said only by
-// one whose client keeps what it holds, which semiont.SessionFromKept makes
-// over the stage's gateway (keepingSessions): the rows of the session's own
-// errors, and closing, run over it. A transport that fails with exactly a
-// row's code and message, and does not renew a refused token itself, is the
-// scripted one (startedSessions), whose renewal records the token it is
-// handed: the rows of the transport's failures run over it, so the renewal
-// held is the registry's.
+// Two factories build the sessions. A session's own keep-failed and
+// save-refused are said only by one whose client keeps what it holds, which
+// semiont.SessionFromKept makes over the stage's gateway (keepingSessions):
+// every row that says any of the session's own errors, and closing, runs over
+// it. A refusal for lack of permission among them is the gateway's refusal of
+// a read of a resource's bytes, in the row's message, which the transport
+// says as the gateway's words. A row of only the transport's failures runs
+// over the scripted transport (startedSessions), which fails with exactly a
+// row's code and message and does not renew a refused token itself, and
+// whose renewal records the token it is handed: a renewal it records is the
+// registry's, which no row allows.
 
 import (
 	"bytes"
@@ -55,8 +57,6 @@ type registryErrorsCase struct {
 		Message   *string                     `json:"message"`
 	} `json:"said"`
 	RegistryErrors []semiont.SessionErrorCode `json:"registryErrors"`
-	// RenewedWith is nil for a case whose session is not renewed.
-	RenewedWith *string `json:"renewedWith"`
 	// PermissionDenied is nil for a case that says no refusal for lack of
 	// permission through the session's signals.
 	PermissionDenied *string `json:"permissionDenied"`
@@ -102,24 +102,20 @@ func runRegistryErrorsCase(t *testing.T, c registryErrorsCase) {
 	if len(c.Said) == 0 || c.RegistryErrors == nil {
 		t.Fatal("the case states nothing said, or no registryErrors")
 	}
-	own, failures := 0, 0
+	failures := 0
 	for _, each := range c.Said {
 		switch {
 		case each.Own != nil && each.Transport == nil && each.Message == nil:
-			own++
 		case each.Own == nil && each.Transport != nil && each.Message != nil:
 			failures++
 		default:
 			t.Fatalf("%s is neither one of the session's own errors nor a failure of its transport with its message", marshal(each))
 		}
 	}
-	switch {
-	case own == len(c.Said):
-		runOwnErrorsCase(t, c)
-	case failures == len(c.Said):
+	if failures == len(c.Said) {
 		runTransportFailuresCase(t, c)
-	default:
-		t.Fatal("the case says both the session's own errors and its transport's failures, which no one Go session can say")
+	} else {
+		runOwnErrorsCase(t, c)
 	}
 }
 
@@ -173,13 +169,15 @@ func keptNamingAlice(ctx context.Context, t *testing.T, s *stage, kept semiont.S
 	must(t, kept.Keep(ctx, s.heldSignIn(jwt(time.Hour), "r1", &person)))
 }
 
-// runOwnErrorsCase has kb-a's session over the stage say each of the case's
-// own errors. While its factory builds it, a keep-failed is its sign-in
+// runOwnErrorsCase has kb-a's session over the stage say each of what the
+// case says, its own errors and its transport's refusals for lack of
+// permission. While its factory builds it, a keep-failed is its sign-in
 // unable to record the person the gateway names. Once it is active, a
-// save-refused is the caches refusing the save a fresh resource makes, and a
-// keep-failed its sign-in unable to be read at that save. Each is read off
-// the registry's errors before the next is made, since each needs a save of
-// its own.
+// save-refused is the caches refusing the save a fresh resource makes, a
+// keep-failed its sign-in unable to be read at that save, and a refusal for
+// lack of permission the gateway's refusal of a read of a resource's bytes.
+// Each is read off the registry's errors, or said through the signals, before
+// the next is made, since each own error needs a save of its own.
 func runOwnErrorsCase(t *testing.T, c registryErrorsCase) {
 	s := newStage(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -190,8 +188,8 @@ func runOwnErrorsCase(t *testing.T, c registryErrorsCase) {
 	switch c.While {
 	case "opening":
 		for _, each := range c.Said {
-			if *each.Own != semiont.SessionErrorCodeKeepFailed {
-				t.Fatalf("this runner cannot have a session say %s as its factory builds it", *each.Own)
+			if each.Own == nil || *each.Own != semiont.SessionErrorCodeKeepFailed {
+				t.Fatalf("this runner cannot have a session over the stage say %s as its factory builds it", marshal(each))
 			}
 		}
 		kept = unrecordable{&semiont.MemorySignIn{}}
@@ -210,6 +208,20 @@ func runOwnErrorsCase(t *testing.T, c registryErrorsCase) {
 
 	codes := []semiont.SessionErrorCode{}
 	for n, each := range c.Said {
+		resource := id(fmt.Sprintf("res-%d", n+1))
+		if each.Transport != nil {
+			if *each.Transport != semiont.TransportErrorCodeForbidden {
+				t.Fatalf("over the stage this runner has the gateway refuse a read for lack of permission only, not %s", *each.Transport)
+			}
+			s.refuseRead(resource, *each.Message)
+			if _, err := session.Client().Browse.ResourceRepresentation(ctx, resource); err == nil {
+				t.Fatal("the gateway's refusal of a read was not met")
+			}
+			until(t, "the refusal for lack of permission is said", func() bool {
+				return slices.ContainsFunc(refusals.said(), detailed(*each.Message))
+			})
+			continue
+		}
 		if c.While == "active" {
 			switch *each.Own {
 			case semiont.SessionErrorCodeSaveRefused:
@@ -219,7 +231,7 @@ func runOwnErrorsCase(t *testing.T, c registryErrorsCase) {
 			default:
 				t.Fatalf("this runner cannot have an active session say %s", *each.Own)
 			}
-			_, err := session.Client().Browse.Resource(id(fmt.Sprintf("res-%d", n+1))).Fresh(ctx)
+			_, err := session.Client().Browse.Resource(resource).Fresh(ctx)
 			must(t, err)
 		}
 		for {
@@ -233,17 +245,12 @@ func runOwnErrorsCase(t *testing.T, c registryErrorsCase) {
 	}
 
 	holdSaid(t, c, codes, refusals.said())
-	// Over the stage a renewal is a request of its issuer, and the token
-	// SessionFromKept hands it is not seen: a case's renewal is held over
-	// the scripted transport.
-	if c.RenewedWith != nil {
-		t.Fatal("this runner holds a renewal only over the scripted transport, whose failures a case of the session's own errors does not say")
-	}
+	// Over the stage a renewal is a request of its issuer.
 	s.mu.Lock()
 	asked := len(s.tokenForms)
 	s.mu.Unlock()
 	if asked != 0 {
-		t.Errorf("the issuer was asked for a token %d times; the case renews nothing", asked)
+		t.Errorf("the issuer was asked for a token %d times; nothing renews the session", asked)
 	}
 }
 
@@ -251,12 +258,10 @@ func runOwnErrorsCase(t *testing.T, c registryErrorsCase) {
 
 // failingAsItBuilds is startedSessions whose session's transport fails with
 // each of failures before the session is handed back: as its factory builds
-// it, before the registry has read anything. held is set to the token the
-// session held then.
+// it, before the registry has read anything.
 type failingAsItBuilds struct {
 	*startedSessions
 	failures []*semiont.TransportError
-	held     *string
 }
 
 func (f failingAsItBuilds) Session(ctx context.Context, options registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
@@ -264,7 +269,6 @@ func (f failingAsItBuilds) Session(ctx context.Context, options registry.Session
 	if err != nil {
 		return nil, nil, err
 	}
-	*f.held = session.Token().Value()
 	for _, failure := range f.failures {
 		f.last().Fail(failure)
 	}
@@ -272,13 +276,16 @@ func (f failingAsItBuilds) Session(ctx context.Context, options registry.Session
 }
 
 // runTransportFailuresCase has kb-a's session's scripted transport fail with
-// each of the case's failures, and waits for the last's effect: a renewal
-// handed a token, or a refusal for lack of permission said through the
-// session's signals. Once the session is active each is read before the next
-// is said, so each refusal said through the signals is seen; as its factory
-// builds it, all are said before the registry reads any.
+// each of the case's failures, and waits for the last's effect: a refusal for
+// lack of permission said through the session's signals. Once the session is
+// active each is read before the next is said, so each refusal said through
+// the signals is seen; as its factory builds it, all are said before the
+// registry reads any.
 func runTransportFailuresCase(t *testing.T, c registryErrorsCase) {
 	last := c.Said[len(c.Said)-1]
+	if *last.Transport != semiont.TransportErrorCodeForbidden {
+		t.Fatalf("a case whose last failure is %s has no effect this runner can wait for", *last.Transport)
+	}
 	failures := make([]*semiont.TransportError, len(c.Said))
 	for i, each := range c.Said {
 		failures[i] = &semiont.TransportError{Code: *each.Transport, Message: *each.Message}
@@ -287,11 +294,10 @@ func runTransportFailuresCase(t *testing.T, c registryErrorsCase) {
 		w.with(kbOfA())
 		person := alice()
 		sessions := &startedSessions{who: &person, renewed: jwt(2 * time.Hour)}
-		var held string
 		var factory registry.SessionFactory
 		switch c.While {
 		case "opening":
-			factory = failingAsItBuilds{startedSessions: sessions, failures: failures, held: &held}
+			factory = failingAsItBuilds{startedSessions: sessions, failures: failures}
 		case "active":
 			factory = sessions
 		default:
@@ -305,44 +311,23 @@ func runTransportFailuresCase(t *testing.T, c registryErrorsCase) {
 		defer cancel()
 		heard := hearRegistry(ctx, browser)
 		close(gate.open)
-		session := live(t, browser)
+		live(t, browser)
 		refusals := watchPermissionRefusals(ctx, t, browser)
 		if c.While == "active" {
-			held = session.Token().Value()
 			for _, failure := range failures {
 				sessions.last().Fail(failure)
 				settle()
 			}
 		}
-		if held == "" {
-			t.Fatal("the session held no token for its gateway to refuse")
-		}
 
-		switch *last.Transport {
-		case semiont.TransportErrorCodeUnauthorized:
-			until(t, "the session's renewal is handed a token", func() bool { return len(sessions.renewals()) > 0 })
-		case semiont.TransportErrorCodeForbidden:
-			until(t, "the last refusal for lack of permission is said", func() bool {
-				return slices.ContainsFunc(refusals.said(), detailed(*last.Message))
-			})
-		default:
-			t.Fatalf("a case whose last failure is %s has no effect this runner can wait for", *last.Transport)
-		}
+		until(t, "the last refusal for lack of permission is said", func() bool {
+			return slices.ContainsFunc(refusals.said(), detailed(*last.Message))
+		})
 		settle()
 
 		holdSaid(t, c, codesOf(heard.sofar()), refusals.said())
-		handed := sessions.renewals()
-		switch {
-		case c.RenewedWith == nil:
-			if len(handed) != 0 {
-				t.Errorf("renewals were handed %v; the case renews nothing", handed)
-			}
-		case *c.RenewedWith == "held":
-			if len(handed) == 0 || slices.ContainsFunc(handed, func(token string) bool { return token != held }) {
-				t.Errorf("renewals were handed %v; the case's is handed the token the session held as the refusal was read, %s", handed, held)
-			}
-		default:
-			t.Fatalf("renewedWith %q is none this runner knows", *c.RenewedWith)
+		if handed := sessions.renewals(); len(handed) != 0 {
+			t.Errorf("the registry renewed the session, handing %v", handed)
 		}
 	})
 }

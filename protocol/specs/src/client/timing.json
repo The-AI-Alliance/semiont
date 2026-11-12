@@ -120,6 +120,11 @@
       "docs": "The largest document, in bytes, a cache keeps of its values (CACHE-SEMANTICS B17). One larger loses the entries that have gone longest without a new value until it fits: what an origin may keep is a few megabytes, and the cache shares it with everything else the origin keeps."
     },
     {
+      "name": "errorsKeptForFirstReaderCount",
+      "value": 100,
+      "docs": "How many of what a stream says it keeps for its first reader while none has come: a session's errors, its own and its transport's failures, a transport's failures, a registry's own errors, and a worker's claim refusals and stalls. One more drops the oldest kept, so the first reader hears the latest this many, in the order they were said. A registry reads a session as soon as it is handed back, so it hears everything the opening said, which is a handful; the bound is for a stream nobody reads, which would otherwise keep everything it says until it ends."
+    },
+    {
       "name": "jobSilenceMs",
       "value": 10000,
       "docs": "How long a job a client is following may say nothing before the client asks for its status. A job's progress and its end reach the client as passing frames, which a dropped stream loses and nothing redelivers; `job:status-requested` is how a follower learns what it missed. Every frame of the job starts the wait again."

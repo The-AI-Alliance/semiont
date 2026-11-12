@@ -51,7 +51,7 @@
  * does not reach.
  */
 
-import { Observable, Subject, type Subscriber, type Subscription } from 'rxjs';
+import { Observable, type Subscriber, type Subscription } from 'rxjs';
 import {
   BusRequestError,
   HELD_JOB_STALL_CHECK_MS,
@@ -68,6 +68,7 @@ import {
 } from '@semiont/core';
 import type { Annotation, AnnotationId, BusOperationKey, BusRequestErrorCode, BusPrimitive, EventMap, JobFilter, JobId, JobType, ResourceId, TraceCarrier, UnitCursor, components } from '@semiont/core';
 import { getActiveTraceparent, withTraceparent, withoutTrace } from '@semiont/observability';
+import { KeptForFirstReader } from './kept-for-first-reader';
 
 /** The job a `job:claimed` reply carries, running under this worker: the spec's `JobRunning`. */
 type ClaimedJob = EventMap['job:claimed']['response'];
@@ -568,8 +569,8 @@ type ClaimOutcome = { job: AnyHeldJob } | { declined: true } | { refused: ClaimR
 
 /** One worker's claiming, from the first read of its claims until it stops. */
 class ClaimLoop implements Holder {
-  readonly refused$ = new Subject<ClaimRefusal>();
-  readonly stalled$ = new Subject<HeldJobStall>();
+  readonly refused = new KeptForFirstReader<ClaimRefusal>();
+  readonly stalled = new KeptForFirstReader<HeldJobStall>();
 
   private phase: 'unread' | 'claiming' | 'stopped' = 'unread';
   private reader: Subscriber<HeldJob> | undefined;
@@ -654,8 +655,8 @@ class ClaimLoop implements Holder {
     const unnamed = JOB_CLAIM_CHANNELS.filter((channel) => !this.bus.isSubscribed(channel));
     if (unnamed.length > 0) {
       this.phase = 'stopped';
-      this.refused$.complete();
-      this.stalled$.complete();
+      this.refused.end();
+      this.stalled.end();
       reader.error(new BusRequestError(
         `This transport's stream does not name ${unnamed.join(', ')}: a worker on it would never be answered, woken or told of a cancellation. Give the transport JOB_CLAIM_CHANNELS.`,
         'bus.unsubscribed',
@@ -746,7 +747,7 @@ class ClaimLoop implements Holder {
         withTraceparent(outcome.job.trace, () => this.reader?.next(outcome.job));
         return;
       }
-      if ('refused' in outcome) this.refused$.next(outcome.refused);
+      if ('refused' in outcome) this.refused.say(outcome.refused);
       if (this.wakePending) {
         this.wakePending = false;
         this.pull();
@@ -778,7 +779,7 @@ class ClaimLoop implements Holder {
     const silentForMs = Date.now() - this.lastActivityAt;
     if (silentForMs <= this.heldJobStallMs) return;
     this.stallReported = held;
-    this.stalled$.next({
+    this.stalled.say({
       jobId: held.jobId,
       jobType: held.jobType,
       heldSince: new Date(this.heldSince).toISOString(),
@@ -803,8 +804,8 @@ class ClaimLoop implements Holder {
     // left for the dispatcher's sweep of running jobs. The failure states no
     // class, so the record's retry budget decides what becomes of the job.
     if (held !== null && !held.settled) await held.fail(STOPPED_WHILE_HELD).catch(() => {});
-    this.refused$.complete();
-    this.stalled$.complete();
+    this.refused.end();
+    this.stalled.end();
     this.reader?.complete();
   }
 
@@ -840,14 +841,24 @@ export class ClaimsObservable extends Observable<HeldJob> {
     this.loop = loop;
   }
 
-  /** Claims refused for a reason the worker's host must judge. See `ClaimRefusal`. */
+  /**
+   * Claims refused for a reason the worker's host must judge. See
+   * `ClaimRefusal`. Its first reader is given the latest
+   * `ERRORS_KEPT_FOR_FIRST_READER_COUNT` refused before it came, in order;
+   * it ends when the claiming does, and what is still kept then is dropped.
+   */
   get refused$(): Observable<ClaimRefusal> {
-    return this.loop.refused$.asObservable();
+    return this.loop.refused.said$;
   }
 
-  /** A held job that has shown no activity for `heldJobStallMs`, reported once. */
+  /**
+   * A held job that has shown no activity for `heldJobStallMs`, reported
+   * once. Its first reader is given the latest
+   * `ERRORS_KEPT_FOR_FIRST_READER_COUNT` reported before it came, in order;
+   * it ends when the claiming does, and what is still kept then is dropped.
+   */
   get stalled$(): Observable<HeldJobStall> {
-    return this.loop.stalled$.asObservable();
+    return this.loop.stalled.said$;
   }
 
   /** What this worker can say of itself now. */

@@ -102,7 +102,7 @@ newClaims carrier configuration = do
     (throwIO InvalidWorkerTiming)
   cell <- newTVarIO (Runtime Unread Nothing Nothing Nothing Nothing Nothing Nothing 0 False)
   Claims configuration carrier (Bus.newBus (workerBusOptions configuration) carrier) cell
-    <$> newEmptyTMVarIO <*> newTQueueIO <*> atomically Broadcast.newEvents <*> atomically Broadcast.newEvents
+    <$> newEmptyTMVarIO <*> newTQueueIO <*> atomically Broadcast.newKeptEvents <*> atomically Broadcast.newKeptEvents
     <*> newMVar [] <*> newMVar () <*> newMVar Nothing <*> newEmptyTMVarIO
 
 jobId :: HeldJob result -> JobId
@@ -158,8 +158,16 @@ observe broadcast consume = Broadcast.withSubscription broadcast $ \reader ->
         value <- liftIO (atomically (Broadcast.next reader))
         case value of Nothing -> pure (); Just item -> Stream.yield item >> loop
   in consume loop
+-- | Each claim that failed for any reason but no job pending, in the order
+-- met. The first reader is given
+-- first the latest 'Semiont.Timing.errorsKeptForFirstReaderCount' said
+-- before it came, in that order, the oldest beyond them dropped. The stream
+-- ends when the claims stop, and what is still kept then is dropped: a
+-- reader who comes after is given nothing.
 refused :: Claims -> (Stream (Of ClaimRefusal) IO () -> IO result) -> IO result
 refused = observe . refusals
+-- | Each held job that went quiet too long, once per job, kept for a first
+-- reader and dropped at the stop as 'refused' is.
 stalled :: Claims -> (Stream (Of HeldJobStall) IO () -> IO result) -> IO result
 stalled = observe . stalls
 

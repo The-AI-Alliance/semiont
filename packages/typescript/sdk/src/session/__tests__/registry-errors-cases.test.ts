@@ -5,19 +5,20 @@
  * `cases` runs a registry over a factory that builds a scripted session and
  * reads none of its errors: a real session and client over a transport whose
  * failures are exactly the code and message a case says, and a renewal that
- * records the token it is handed. The session says its own errors as a
- * factory's keeping says them (`sayOn`). What a case says `opening`, the
- * factory says as it builds the session; what it says `active`, it says once
- * the registry has activated it. Each case is held once the effect of what
- * the session said last is seen: its own error said on the registry's errors,
- * a renewal handed a token, or a refusal for lack of permission said through
- * the session's signals.
+ * records each token it is handed, so that a case fails if the registry
+ * renews anything. The session says its own errors as a factory's keeping
+ * says them (`sayOn`). What a case says `opening`, the factory says as it
+ * builds the session; what it says `active`, it says once the registry has
+ * activated it. Each case is held once the effect of what the session said
+ * last is seen: its own error said on the registry's errors, or a refusal for
+ * lack of permission said through the session's signals.
  *
  * `closing` runs a registry over the HTTP session factory, over a gateway
  * that is `fetch` and nothing else (fake-gateway.ts), as a registry's
  * sessions are: the session's client keeps for jo in the registry's storage,
  * which refuses every write once the session is active, and a read of a
- * resource leaves the client owing its save.
+ * resource, made while the clock is held, leaves the client owing its save,
+ * still waiting out its debounce as the close begins.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -47,7 +48,6 @@ interface Case {
   while: 'opening' | 'active';
   said: Said[];
   registryErrors: SemiontSessionErrorCode[];
-  renewedWith?: 'held';
   permissionDenied?: string;
 }
 
@@ -81,16 +81,9 @@ class FailingTransport extends FaultyTransport {
   }
 }
 
-/** What a scripted session said, each error as it said it, and the token it held as it began. */
-interface Saying {
-  readonly said: readonly SemiontError[];
-  readonly held: AccessToken | null;
-}
-
-/** Say each of `entries` on `session`'s errors, in order: its own through `sayOn`, its transport's failures through `transport`. */
-function sayAll(session: SemiontSession, transport: FailingTransport, entries: readonly Said[]): Saying {
-  const held = session.token$.getValue();
-  const said = entries.map((entry): SemiontError => {
+/** Say each of `entries` on `session`'s errors, in order: its own through `sayOn`, its transport's failures through `transport`. Gives each error as it was said. */
+function sayAll(session: SemiontSession, transport: FailingTransport, entries: readonly Said[]): SemiontError[] {
+  return entries.map((entry): SemiontError => {
     if ('own' in entry) {
       const own = new SemiontSessionError(entry.own, `the session says ${entry.own}`, session.kb.id);
       sayOn(session, own);
@@ -100,7 +93,6 @@ function sayAll(session: SemiontSession, transport: FailingTransport, entries: r
     transport.fail(failure);
     return failure;
   });
-  return { said, held };
 }
 
 /**
@@ -112,11 +104,11 @@ function sayAll(session: SemiontSession, transport: FailingTransport, entries: r
 function scripted(row: Case): {
   factory: SessionFactory;
   transports: Map<SemiontSession, FailingTransport>;
-  sayings: Map<SemiontSession, Saying>;
+  sayings: Map<SemiontSession, SemiontError[]>;
   handed: (string | null)[];
 } {
   const transports = new Map<SemiontSession, FailingTransport>();
-  const sayings = new Map<SemiontSession, Saying>();
+  const sayings = new Map<SemiontSession, SemiontError[]>();
   const handed: (string | null)[] = [];
   const factory: SessionFactory = ({ kb, storage }) => {
     const transport = new FailingTransport({ channels: BRIDGED_CHANNELS });
@@ -153,24 +145,18 @@ describe('protocol/specs/src/session/registry-errors-cases.json', () => {
         const signals = browser.activeSignals$.getValue();
         if (signals === null) throw new Error('the registry activated a session without its signals');
         if (row.while === 'active') sayings.set(active, sayAll(active, transport, row.said));
-        const saying = sayings.get(active);
-        if (saying === undefined) throw new Error('the session said nothing');
-        const last = saying.said[saying.said.length - 1];
+        const said = sayings.get(active);
+        if (said === undefined) throw new Error('the session said nothing');
+        const last = said[said.length - 1];
         if (last === undefined) throw new Error('the case says nothing');
 
         // The effect of what the session said last.
         if (last instanceof SemiontSessionError) await vi.waitFor(() => expect(read).toContain(last));
-        else if (last.code === 'unauthorized') await vi.waitFor(() => expect(handed.length).toBeGreaterThan(0));
         else if (last.code === 'forbidden') await vi.waitFor(() => expect(signals.permissionDenied$.getValue()).toEqual({ detail: last.message }));
         else throw new Error(`the case's last said, ${last.code}, has no effect to wait for`);
 
         expect(read.map((error) => error.code)).toEqual(row.registryErrors);
-        if (row.renewedWith === 'held') {
-          await vi.waitFor(() => expect(handed.length).toBeGreaterThan(0));
-          expect(handed[0]).toBe(saying.held);
-        } else {
-          expect(handed).toEqual([]);
-        }
+        expect(handed, 'the tokens a renewal was handed').toEqual([]);
         if (row.permissionDenied === undefined) expect(signals.permissionDenied$.getValue()).toBeNull();
         else expect(signals.permissionDenied$.getValue()).toEqual({ detail: row.permissionDenied });
       } finally {
@@ -188,12 +174,18 @@ describe('protocol/specs/src/session/registry-errors-cases.json', () => {
         browser.addKb(KB, { ...testSession(freshJwt(), 'refresh'), personKey: personKey(JO.did) });
         const active = await firstValueFrom(browser.activeSession$.pipe(filter((live): live is SemiontSession => live !== null)));
         storage.refusing = true;
-        // A value the client holds, whose save it owes until its closing: a save its debounce makes first is refused, and owed still.
-        if (row.owed) await firstValueFrom(active.client.browse.resource(resourceId('res-1')).pipe(filter(isReady)));
+        if (row.owed) {
+          // The clock is held until the close begins: the save the read leaves the client owing waits out its debounce
+          // on a timer that never falls due, so the close is the first to make it.
+          vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+          await firstValueFrom(active.client.browse.resource(resourceId('res-1')).pipe(filter(isReady)));
+          vi.useRealTimers();
+        }
         const said = lastValueFrom(browser.error$.pipe(map((error) => error.code), toArray()));
         await browser.dispose();
         expect(await said).toEqual(row.registryErrors);
       } finally {
+        vi.useRealTimers();
         gateway.close();
       }
     });

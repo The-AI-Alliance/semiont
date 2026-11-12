@@ -548,3 +548,52 @@ func nativeRequestsReadFailuresByTheirChannelsSchema(failure: String) async thro
     }
   }
 }
+/// What `run` gives, over a transport that names no channel and so connects nowhere: all its
+/// failures say is what `run` has it meet.
+private func overAQuietTransport(_ run: (HttpTransport) async throws -> [String]) async throws
+  -> [String]
+{
+  let http = HTTPClient(eventLoopGroupProvider: .singleton)
+  let ran: Result<[String], any Error>
+  do {
+    let transport = HttpTransport(
+      baseUrl: "http://127.0.0.1:1", httpClient: http, token: nil, channels: [])
+    defer { transport.dispose() }
+    ran = .success(try await run(transport))
+  } catch {
+    ran = .failure(error)
+  }
+  try await http.shutdown()
+  return try ran.get()
+}
+/// Everything `failures` says until it ends, as what each says of itself.
+private func everythingTold(by failures: Events<TransportError>) async throws -> [String] {
+  try await withinTestDeadline {
+    var heard: [String] = []
+    for try await failure in failures { heard.append("\(failure)") }
+    return heard
+  }
+}
+@Test func aTransportNobodyHasListenedToKeepsTheLatestOfItsFailuresForItsFirstListener()
+  async throws
+{
+  let beyond = 5
+  let met = (0..<(Timings.errorsKeptForFirstReaderCount + beyond)).map { n in
+    TransportError(.unavailable, "failure \(n)", status: 503)
+  }
+  let heard = try await overAQuietTransport { transport in
+    for failure in met { transport.failureEvents.yield(failure) }
+    let failures = transport.failures()
+    transport.dispose()
+    return try await everythingTold(by: failures)
+  }
+  #expect(heard == met.dropFirst(beyond).map { "\($0)" })
+}
+@Test func aFirstListenerWhoComesAfterTheTransportIsDisposedHearsNothing() async throws {
+  let heard = try await overAQuietTransport { transport in
+    transport.failureEvents.yield(TransportError(.unavailable, "HTTP 503", status: 503))
+    transport.dispose()
+    return try await everythingTold(by: transport.failures())
+  }
+  #expect(heard == [])
+}

@@ -28,7 +28,9 @@ import (
 // a token is, holds streams, and answers on every stream a request to
 // describe itself, as it describes itself or refusing, and a request for a
 // resource, naming it fresh; an emit carrying a token it refuses on the bus
-// is refused. The issuer grants what it is told to.
+// is refused, and so is a read of the bytes of a resource it is told to
+// refuse, for lack of permission, in the words it is told. The issuer grants
+// what it is told to.
 type stage struct {
 	gateway, issuer *httptest.Server
 
@@ -51,6 +53,8 @@ type stage struct {
 	askedWho []string
 	// refusedOnTheBus is the tokens whose emits the gateway refuses.
 	refusedOnTheBus map[string]bool
+	// refusedReads is the words the gateway refuses a read with, by its path.
+	refusedReads map[string]string
 	// subscriptions is every stream asked for.
 	subscriptions []api.BusSubscribeRequest
 	streams       []chan string
@@ -63,6 +67,7 @@ func newStage(t *testing.T) *stage {
 		who:             json.RawMessage(`{"did":"did:web:example.org:users:alice","email":"alice@example.org","domain":"example.org","name":"Alice","image":null}`),
 		refusesWho:      map[string]bool{},
 		refusedOnTheBus: map[string]bool{},
+		refusedReads:    map[string]string{},
 	}
 	s.issuer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -134,6 +139,13 @@ func newStage(t *testing.T) *stage {
 		case "/bus/emit":
 			s.emitted(w, r, token)
 		default:
+			s.mu.Lock()
+			words, refused := s.refusedReads[r.URL.Path]
+			s.mu.Unlock()
+			if refused {
+				answerJSON(w, http.StatusForbidden, map[string]any{"error": words})
+				return
+			}
 			http.NotFound(w, r)
 		}
 	}))
@@ -251,6 +263,14 @@ func (s *stage) resumedWith(scope, with string) (from *string, named bool) {
 		}
 	}
 	return nil, false
+}
+
+// refuseRead has the gateway refuse a read of resource's bytes for lack of
+// permission, in words.
+func (s *stage) refuseRead(resource api.ResourceId, words string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.refusedReads["/resources/"+resource.String()] = words
 }
 
 func (s *stage) grant(access, refresh string) {

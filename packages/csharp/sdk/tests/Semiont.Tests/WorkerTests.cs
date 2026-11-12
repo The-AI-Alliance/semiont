@@ -2,6 +2,7 @@ using System.Text.Json;
 using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Jobs;
+using Semiont.Protocol;
 using Semiont.Types;
 using Xunit;
 
@@ -277,6 +278,97 @@ public sealed partial class TransportTests
         Reply(server, settled, BusOperations.JobClaim.Failure.Name, new { message = "No pending job matches", code = "none-pending" });
         await worker.StopAsync().WaitAsync(deadline.Token);
         Assert.False(server.Emits.Reader.TryPeek(out _), "the settle claims, and nothing was owed");
+    }
+
+    // Of the claims refused before anyone reads the refusals, the latest errorsKeptForFirstReaderCount
+    // (protocol/specs/src/client/timing.json) are kept, the oldest dropped beyond that: the first reader hears those, in
+    // the order refused.
+    [Fact]
+    public async Task TheFirstReaderOfRefusalsNobodyReadHearsTheLatestInOrder()
+    {
+        var most = ProtocolFacts.Timing("errorsKeptForFirstReaderCount").GetInt32();
+        var details = Enumerable.Range(0, most + 3).Select(at => $"refusal {at}").ToArray();
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", WorkerRules.JobClaimChannels, httpClient: http);
+        using var client = new SemiontClient(transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(transport);
+        var worker = client.Job.Claim(HighlightingFilters());
+        var next = worker.NextAsync(deadline.Token);
+        foreach (var detail in details)
+        {
+            var (claim, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+            Assert.Equal(BusOperations.JobClaim.Request.Name, Text(claim, "channel"));
+            Reply(server, claim, BusOperations.JobClaim.Failure.Name, new { message = detail, code = "unauthorized" });
+            PushRawFrame(server, BusChannels.JobQueued.Name, "job-8");
+        }
+        // A claim is made only once the one before it has said its refusal, so by this one each has been said.
+        var (last, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Reply(server, last, BusOperations.JobClaim.Failure.Name, new { message = "No pending job matches", code = "none-pending" });
+
+        await using var refused = worker.Refused(deadline.Token).GetAsyncEnumerator();
+        var told = refused.MoveNextAsync().AsTask();
+        await worker.StopAsync().WaitAsync(deadline.Token);
+        var heard = new List<string>();
+        while (await told.WaitAsync(deadline.Token))
+        {
+            heard.Add(refused.Current.Detail);
+            told = refused.MoveNextAsync().AsTask();
+        }
+        Assert.Equal(details.TakeLast(most), heard);
+        Assert.Null(await next);
+    }
+
+    // Of the stalls found before anyone reads them, the latest errorsKeptForFirstReaderCount
+    // (protocol/specs/src/client/timing.json) are kept, the oldest dropped beyond that: the first reader hears those, in
+    // the order found. A held job stalls once, so each stall is another job's. The case runs on one thread, its clock
+    // moving only here, so once what a pass made ready has run, the job's stall has been found, before it is settled.
+    [Fact]
+    public async Task TheFirstReaderOfStallsNobodyReadHearsTheLatestInOrder()
+    {
+        var most = ProtocolFacts.Timing("errorsKeptForFirstReaderCount").GetInt32();
+        var quiet = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("heldJobStallMs").GetInt32() + ProtocolFacts.Timing("heldJobStallCheckMs").GetInt32());
+        await CaseContext.PlayAsync(async context =>
+        {
+            var clock = new StateCaseClock(DateTimeOffset.UnixEpoch);
+            using var server = new Handler();
+            using var http = new HttpClient(server);
+            using var transport = new HttpTransport("http://unit.test", "token", WorkerRules.JobClaimChannels, httpClient: http, timeProvider: clock);
+            using var client = new SemiontClient(transport);
+            await OpenAsync(transport);
+            var worker = client.Job.Claim(HighlightingFilters());
+            var claimedAt = new List<DateTimeOffset>();
+            for (var at = 0; at < most + 3; at++)
+            {
+                var next = worker.NextAsync();
+                var (claim, _) = await server.Emits.Reader.ReadAsync();
+                Reply(server, claim, BusOperations.JobClaim.Result.Name, new JobClaimedResult { Response = RunningMarkJob() });
+                var job = Assert.IsType<HeldMarkJob>(await next);
+                claimedAt.Add(clock.GetUtcNow());
+                // Past the stall threshold by one look: the first look past it finds the job stalled.
+                var until = clock.GetTimestamp() + quiet.Ticks;
+                while (clock.FireNext(until)) await context.DrainAsync();
+                await context.DrainAsync();
+                await job.CompleteAsync(new MarkJobResult.MarkJobDoneCase(new MarkJobDone { Found = 0, Persisted = 0 }));
+                var (completion, _) = await server.Emits.Reader.ReadAsync();
+                Assert.Equal(BusChannels.JobComplete.Name, Text(completion, "channel"));
+            }
+            var (last, _) = await server.Emits.Reader.ReadAsync();
+            Reply(server, last, BusOperations.JobClaim.Failure.Name, new { message = "No pending job matches", code = "none-pending" });
+            await context.DrainAsync();
+
+            await using var stalls = worker.Stalled().GetAsyncEnumerator();
+            var told = stalls.MoveNextAsync().AsTask();
+            await worker.StopAsync();
+            var heard = new List<DateTimeOffset>();
+            while (await told)
+            {
+                heard.Add(stalls.Current.HeldSince);
+                told = stalls.MoveNextAsync().AsTask();
+            }
+            Assert.Equal(claimedAt.TakeLast(most), heard);
+        });
     }
 
     private static JobFilter[] HighlightingFilters() =>

@@ -8,6 +8,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -17,7 +18,11 @@ import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import semiont.Timings
 import semiont.errors.SessionError
+import semiont.errors.SessionErrorCode
+import semiont.errors.TransportError
+import semiont.errors.TransportErrorCode
 import semiont.http.tokenFor
 import semiont.session.OpenedSession
 import semiont.storage.MemoryStorage
@@ -295,6 +300,24 @@ class RegistryTest {
             assertNull(sessionOf(browser))
             assertNull(browser.activeSignals.value)
             assertFalse(browser.sessionActivating.value)
+        }
+    }
+
+    @Test
+    fun aRegistryNobodyHasReadKeepsTheLatestOfWhatItSaysForItsFirstReaderInOrder() = runBlocking {
+        val world = World().with(kbOfA())
+        world.browser().use { browser ->
+            val session = live(browser)
+            val signals = checkNotNull(browser.activeSignals.value)
+            val beyond = 5
+            val said = List(Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT.toInt() + beyond) { SessionError(SessionErrorCode.KeepFailed, "error $it", KB_A) }
+            said.forEach(session::say)
+            // The registry reads the session's errors in the order said: once the refusal said after them reaches the signals, it has said every one.
+            world.factory.sessions.transports(KB_A).single().fail(TransportError(TransportErrorCode.Forbidden, "said after them"))
+            eventually("the refusal said after them reached the signals") { signals.permissionDenied.value != null }
+            val first = browser.errors()
+            browser.close()
+            assertEquals(said.drop(beyond), soon { first.toList() })
         }
     }
 

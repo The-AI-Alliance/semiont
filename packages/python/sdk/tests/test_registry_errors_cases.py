@@ -4,19 +4,23 @@
 while its factory builds it or once it is active, and reads none of it. Its
 own errors are said by what keeps its client's (`said`), its transport's
 failures by its transport, with the case's code and message, and its renewal
-records the token it is handed. `closing`: a registry over its HTTP factory,
-over a scripted gateway, whose session's client keeps the entity types it
-read in a storage that refuses every write of them: the save refused once it
-was made is still owed, and the registry's close is what makes it again.
+records each token it is handed, so a case fails if the registry renews
+anything. `closing`: a registry over its HTTP factory, over a scripted
+gateway, whose session's client keeps the entity types it read in a storage
+that refuses every write of them, on a loop whose clock does not move: the
+save the read leaves owed still waits out its debounce as the registry's close
+begins, and the close is the first to make it.
+
+Beside the table, over `Scripted`: what the registry's own errors keep for a
+first reader who has not come, and drop as the registry closes.
 """
 
-import asyncio
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Final, Literal, final, override
 
 import pytest
-from aio import Heard, pass_time, run, soon, turns
+from aio import Heard, run, run_still, soon
 from gateway_server import GatewayServer
 from issuer import ALICE, TOKEN, trusting
 from pydantic import BaseModel, Field
@@ -38,11 +42,12 @@ from semiont.registry import (
     save_knowledge_bases,
     store_session,
 )
-from semiont.session import SemiontSession, said_in_full
+from semiont.session import SemiontSession
 from semiont.session_signals import PermissionDenied
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import StoredSession, cache_key, person_key
 from semiont.testing import FaultyTransport, create_test_client
+from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT
 from semiont.transport import Transport
 from semiont.types import HttpEndpoint, KbTarget, KnowledgeBase
 from semiont.watched import Variable, reached
@@ -62,7 +67,6 @@ class Case(BaseModel, frozen=True, extra="forbid"):
     while_: Literal["opening", "active"] = Field(alias="while")
     said: list[Own | Failure] = Field(min_length=1)
     registry_errors: list[SemiontSessionErrorCode] = Field(alias="registryErrors")
-    renewed_with: Literal["held"] | None = Field(default=None, alias="renewedWith")
     permission_denied: str | None = Field(default=None, alias="permissionDenied")
 
 
@@ -129,21 +133,14 @@ class Speaking:
     def __init__(self, session: SemiontSession[FaultyTransport], keeping: Broadcast[SessionError]) -> None:
         self.session: Final = session
         self._keeping: Final = keeping
-        self.held_as_refused: Final[list[str | None]] = []
-        """The token the session held as each refusal for want of a valid token was said, in order."""
 
-    async def say(self, said: Sequence[SessionError | TransportError]) -> None:
+    def say(self, said: Sequence[SessionError | TransportError]) -> None:
         """Say each of `said`, in order."""
         for each in said:
             if isinstance(each, SessionError):
                 self._keeping.deliver(each)
             else:
-                if each.code == "unauthorized":
-                    self.held_as_refused.append(self.session.token.value)
                 self.session.client.transport.fail(each)
-            # Own errors and the transport's failures reach the session's errors by relays of their own:
-            # each is let through before the next is said, so the session says them in this order.
-            await turns()
 
 
 @final
@@ -160,7 +157,6 @@ class Scripted(SessionFactory):
         self.renewed: Final = token(7200, 2)
         self.handed: Final[list[str | None]] = []
         """The token each renewal was handed, in order."""
-        self.renewal_handed: Final = asyncio.Event()
         self.built: Final[list[Speaking]] = []
 
     @override
@@ -172,7 +168,6 @@ class Scripted(SessionFactory):
 
         async def renew(holding: str | None) -> str | None:
             self.handed.append(holding)
-            self.renewal_handed.set()
             return self.renewed
 
         session = SemiontSession(
@@ -184,19 +179,17 @@ class Scripted(SessionFactory):
             on_auth_failed=options.signals.notify_session_ended,
             said=keeping.listen(),
         )
-        # Entered client, session; left client, what keeps it, the wait until the session has said all it said, the
-        # session, then the transport.
+        # Entered client, session; left client, what keeps it, the session, then the transport.
         async with AsyncExitStack() as ending:
             ending.push_async_callback(transport.close)
             async with AsyncExitStack() as closing:
-                closing.push_async_callback(said_in_full, session)
                 closing.callback(keeping.close)
                 await closing.enter_async_context(client)
                 await ending.enter_async_context(session)
                 await session.ready()
                 speaking = Speaking(session, keeping)
                 self.built.append(speaking)
-                await speaking.say(self._opening)
+                speaking.say(self._opening)
                 yield session
 
     @override
@@ -226,13 +219,11 @@ def test_a_registry_reads_what_its_session_says_as_the_table_states(case: Case) 
             assert signals is not None
             (speaking,) = factory.built
             if case.while_ == "active":
-                await speaking.say(said)
+                speaking.say(said)
 
             # What the last thing said does: once it is done, the registry has read everything said before it.
             if isinstance(last, SessionError):
                 await soon(said_on(heard, last))
-            elif last.code == "unauthorized":
-                await soon(factory.renewal_handed.wait())
             elif last.code == "forbidden":
                 refused = PermissionDenied(detail=last.message)
                 await soon(reached(signals.permission_denied, lambda denied: denied == refused))
@@ -240,14 +231,58 @@ def test_a_registry_reads_what_its_session_says_as_the_table_states(case: Case) 
                 raise AssertionError(f"the case ends with a failure of its transport that does nothing to wait for: {last.code}")
 
             assert [error.code for error in await heard.so_far()] == case.registry_errors
-            match case.renewed_with:
-                case "held":
-                    await soon(factory.renewal_handed.wait())
-                    assert factory.handed[0] == speaking.held_as_refused[0]
-                case None:
-                    assert factory.handed == []
+            assert factory.handed == []
             stated = None if case.permission_denied is None else PermissionDenied(detail=case.permission_denied)
             assert signals.permission_denied.value == stated
+
+    run(scenario())
+
+
+# ── what the registry's errors keep for a first reader ──────────────────
+
+
+LAST_WORD: Final = TransportError("forbidden", "refused for lack of permission, said last")
+"""Said after what a case has the session say: once the registry has said it through the signals, it has read everything before it."""
+
+
+async def speaking_once_read(browser: SemiontBrowser, factory: Scripted, said: Sequence[SessionError]) -> None:
+    """Have the active session say each of `said`, then `LAST_WORD`, and wait until the registry has read them all."""
+    await active_session(browser)
+    signals = browser.active_signals.value
+    assert signals is not None
+    (speaking,) = factory.built
+    speaking.say([*said, LAST_WORD])
+    heard_last = PermissionDenied(detail=LAST_WORD.message)
+    await soon(reached(signals.permission_denied, lambda denied: denied == heard_last))
+
+
+def test_the_first_reader_of_a_registrys_errors_is_given_the_latest_said_before_it_came_in_order_and_no_more() -> None:
+    beyond = 3
+    said = [
+        SessionError("session.save-refused", f"write {serial} refused", kb_id=KB)
+        for serial in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
+    ]
+
+    async def scenario() -> None:
+        factory = Scripted([])
+        storage = holding_signed_in(MemoryStorage(), scripted_kb(), "https://issuer.test/token")
+        async with SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=factory)) as browser:
+            await speaking_once_read(browser, factory, said)
+            errors = browser.errors()
+            given = [(await soon(anext(errors))).message for _ in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT)]
+        assert given == [error.message for error in said[beyond:]]
+
+    run(scenario())
+
+
+def test_a_registry_drops_what_it_kept_for_a_first_reader_as_it_closes_so_a_reader_who_comes_after_hears_nothing() -> None:
+    async def scenario() -> None:
+        factory = Scripted([])
+        storage = holding_signed_in(MemoryStorage(), scripted_kb(), "https://issuer.test/token")
+        browser = SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=factory))
+        async with browser:
+            await speaking_once_read(browser, factory, [SessionError("session.save-refused", "said before anyone read", kb_id=KB)])
+        assert [error async for error in browser.errors()] == []
 
     run(scenario())
 
@@ -287,19 +322,17 @@ def test_a_registrys_close_reads_its_sessions_errors_to_their_end_as_the_table_s
             refusing = Refusing(cache_key(KB, ALICE_KEY, "entityTypes"), times=None)
             storage = holding_signed_in(refusing, registered(gateway), f"{gateway.origin}{TOKEN}")
             browser = SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=HttpSessionFactory()))
-            before = browser.errors()
             async with browser:
                 session = await active_session(browser)
                 # Ready once the gateway has named the person: what the client holds is kept for her from then on.
                 await soon(session.ready())
                 client = session.client
                 if case.owed:
+                    # The entity types the client now holds owe a save, whose debounce the still clock never ends.
                     await soon(client.browse.entity_types().fresh())
-                    # The entity types stop changing, and the save of them is refused: it is still owed.
-                    await pass_time(0.2, step=0.01)
-                    assert (await soon(anext(before))).code == "session.save-refused"
                 assert client.persistence_settled is not case.owed
                 from_close = browser.errors()
             assert await soon(every_code(from_close)) == case.registry_errors
 
-    run(scenario())
+    # The loop's clock moves only when the test moves it, and this one never does: no debounce falls due.
+    run_still(scenario())

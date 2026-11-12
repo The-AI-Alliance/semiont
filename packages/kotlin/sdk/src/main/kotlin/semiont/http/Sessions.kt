@@ -393,7 +393,8 @@ internal suspend fun sessionStarted(
  * A write the storage refuses is said on the session's errors
  * (`session.save-refused`) and owed still, for the client's next change or
  * its closing to make; what went wrong the session says there, once, and
- * what it said before its first reader came is kept for that reader. Closing
+ * of what it said before its first reader came, the latest
+ * `errorsKeptForFirstReaderCount` are kept for that reader. Closing
  * what this gives closes the client first, so what its closing flush meets is
  * said before the errors end. The gateway and the issuer are asked with
  * `http`. The session, its client, its renewals and its writes of what it

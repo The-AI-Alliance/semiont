@@ -19,9 +19,9 @@ use semiont::session::{
     ACTIVE_KEY, Expected, KNOWLEDGE_BASES_KEY, KbIdentityConflict, KbReadVerdict, KbSessionStatus,
     LAST_VIEWED_RESOURCE_BY_KB_KEY, MemorySignIn, OPEN_RESOURCES_BY_KB_KEY, OpenResource,
     PermissionDenied, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SemiontSessionConfig,
-    SessionEndReason, SessionEnded, SessionFactory, SessionFactoryOptions, SignInKept, SignedIn,
-    StoredSession, load_knowledge_bases, person_key, save_knowledge_bases, session_key,
-    store_session, stored_session,
+    SessionEnded, SessionFactory, SessionFactoryOptions, SignInKept, SignedIn, StoredSession,
+    load_knowledge_bases, person_key, save_knowledge_bases, session_key, store_session,
+    stored_session,
 };
 use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::testing::as_id;
@@ -1578,91 +1578,6 @@ fn denied(browser: &SemiontBrowser) -> Option<PermissionDenied> {
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_refusal_for_want_of_a_token_renews_the_session_quietly_when_it_can() {
-    let world = World::with(&[kb_a()]);
-    let (renewed, renewed_again) = (jwt(7200), jwt(10800));
-    world
-        .factory
-        .sessions
-        .queue_renewals([Ok(Some(renewed.clone())), Ok(Some(renewed_again.clone()))]);
-    let browser = world.browser();
-    let session = live(&browser).await;
-
-    world.factory.transports(A)[0].fail(refusal(401));
-    settle().await;
-
-    assert_eq!(world.factory.sessions.renewed(), 1);
-    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
-    assert_eq!(ended(&browser), None);
-    assert!(stored_session(world.storage.as_ref(), A).is_some());
-
-    // The session is handed the token it holds as the refusal is read, the
-    // one renewed just now. A session renews only a token it still holds:
-    // handed any other, it gives the one it holds and renews nothing.
-    world.factory.transports(A)[0].fail(refusal(401));
-    settle().await;
-
-    assert_eq!(world.factory.sessions.renewed(), 2);
-    assert_eq!(
-        session.token().borrow().as_deref(),
-        Some(renewed_again.as_str())
-    );
-    assert_eq!(ended(&browser), None);
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_session_that_cannot_be_renewed_is_said_to_have_expired_and_its_credential_is_gone() {
-    let world = World::with(&[kb_a()]);
-    // The issuer has nothing to renew it with.
-    world.factory.sessions.queue_renewals([Ok(None)]);
-    let browser = world.browser();
-    let mut errors = browser.errors();
-    live(&browser).await;
-
-    world.factory.transports(A)[0].fail(refusal(401));
-    settle().await;
-
-    assert_eq!(
-        ended(&browser),
-        Some(SessionEnded {
-            reason: SessionEndReason::Expired
-        })
-    );
-    assert!(stored_session(world.storage.as_ref(), A).is_none());
-    let said = tokio::time::timeout(Duration::from_secs(1), errors.next())
-        .await
-        .expect("the failure is said")
-        .expect("the browser lives")
-        .expect("no failure was missed");
-    assert_eq!(said.code, SessionErrorCode::RefreshExhausted);
-
-    // The refusals that follow find nothing stored, and say nothing more.
-    signals_acknowledged(&browser);
-    world.factory.transports(A)[0].fail(refusal(401));
-    settle().await;
-    assert_eq!(ended(&browser), None);
-}
-
-fn signals_acknowledged(browser: &SemiontBrowser) {
-    if let Some(signals) = browser.active_signals().borrow().clone() {
-        signals.acknowledge_session_ended();
-    }
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_refusal_with_nothing_stored_is_being_signed_out_and_not_an_expiry() {
-    let world = World::new();
-    save_knowledge_bases(world.storage.as_ref(), &[kb_a()]).expect("stored");
-    let browser = world.browser();
-    live(&browser).await;
-
-    world.factory.transports(A)[0].fail(refusal(401));
-    settle().await;
-
-    assert_eq!(ended(&browser), None);
-}
-
-#[tokio::test(start_paused = true)]
 async fn a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not() {
     let world = World::with(&[kb_a()]);
     let browser = world.browser();
@@ -1957,8 +1872,9 @@ impl SignInKept for Unrecording {
 /// alice, by a sign-in that will not record who the gateway named. Its
 /// client keeps what it keeps for her in a storage that refuses every
 /// write, and its gateway answers only what the entity types are. Each
-/// renewal is handed the token it renews, which is recorded, and gives a
-/// new one; nobody is asked who its token is.
+/// renewal is recorded, with the token it was handed, and gives a new one:
+/// a case holds that the registry made none. Nobody is asked who its token
+/// is.
 struct Tabled {
     session: SemiontSession,
     transport: FaultyTransport,
@@ -2065,15 +1981,7 @@ fn transport_code(named: &str) -> TransportErrorCode {
 /// Have `session` say each of `said` in turn, each once the one before it
 /// is said: one of its own errors by what makes a session say it, and a
 /// failure of its transport as `transport`'s, with its code and message.
-/// The token the session holds as each refusal for want of a valid token
-/// is said is put in `refused`.
-async fn say(
-    session: &SemiontSession,
-    transport: &FaultyTransport,
-    said: &[Value],
-    why: &str,
-    refused: &mut Vec<Option<String>>,
-) {
+async fn say(session: &SemiontSession, transport: &FaultyTransport, said: &[Value], why: &str) {
     for item in said {
         match (item["own"].as_str(), item["transport"].as_str()) {
             (Some("session.keep-failed"), None) => {
@@ -2105,9 +2013,6 @@ async fn say(
                 let message = item["message"]
                     .as_str()
                     .unwrap_or_else(|| panic!("{why}: {item} has no message"));
-                if code == TransportErrorCode::Unauthorized {
-                    refused.push(session.token().borrow().clone());
-                }
                 transport.fail(TransportError::without_response(message, code));
                 settle().await;
             }
@@ -2199,15 +2104,14 @@ async fn registry_errors_cases() {
             transport,
             handed,
         } = Tabled::new().await;
-        let mut refused = Vec::new();
         if opening {
-            say(&session, &transport, said, why, &mut refused).await;
+            say(&session, &transport, said, why).await;
         }
         let browser = over_prebuilt(&world, session);
         let mut errors = browser.errors();
         let session = live(&browser).await;
         if !opening {
-            say(&session, &transport, said, why, &mut refused).await;
+            say(&session, &transport, said, why).await;
         }
 
         // What is said last has an effect to wait for. The registry reads
@@ -2227,13 +2131,6 @@ async fn registry_errors_cases() {
                     codes.push(code);
                 }
                 codes
-            }
-            (None, Some("unauthorized")) => {
-                until(why, "a renewal", || {
-                    !handed.lock().expect("handed").is_empty()
-                })
-                .await;
-                said_so_far(&mut errors, why)
             }
             (None, Some("forbidden")) => {
                 let detail = last["message"].as_str();
@@ -2268,26 +2165,12 @@ async fn registry_errors_cases() {
             "{why}: what was said through the signals"
         );
 
-        match case.get("renewedWith").map(Value::as_str) {
-            Some(Some("held")) => {
-                until(why, "a renewal", || {
-                    !handed.lock().expect("handed").is_empty()
-                })
-                .await;
-                for token in handed.lock().expect("handed").iter() {
-                    assert!(
-                        refused.contains(token),
-                        "{why}: a renewal was handed {token:?}, not the token held as a refusal was read: {refused:?}"
-                    );
-                }
-            }
-            None => {
-                settle().await;
-                let handed = handed.lock().expect("handed");
-                assert!(handed.is_empty(), "{why}: renewals were handed {handed:?}");
-            }
-            other => panic!("{why}: renewed with {other:?}"),
-        }
+        settle().await;
+        let renewals = handed.lock().expect("handed").clone();
+        assert!(
+            renewals.is_empty(),
+            "{why}: the registry renewed the session, handing {renewals:?}"
+        );
         browser.close().await.expect("the registry closes");
     }
 }

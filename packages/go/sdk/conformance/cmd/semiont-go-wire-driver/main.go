@@ -275,24 +275,21 @@ func (w *wire) open(args protocol.Arguments) (any, error) {
 		config.Refresher = &renewals{tokens: tokens, token: token}
 	}
 	transport := semiont.NewHTTPTransport(config)
-	// Taken at once, so every failure from the first request on is heard.
-	failures := transport.Failures()
+	// Taken at once, so every failure from the first request on is said, each
+	// before the call that met it returns, until the transport closes.
+	transport.Failures(func(failure *semiont.TransportError) {
+		protocol.Say(map[string]any{"error": protocol.Failure(failure)})
+	})
 	reporting, stop := context.WithCancel(context.Background())
 	w.mu.Lock()
 	w.client = &client{token: token, transport: transport, wire: semiont.NewWire(transport), content: semiont.NewHTTPContentTransport(transport)}
 	w.stopReporting = stop
 	w.mu.Unlock()
-	w.reporters.Add(2)
+	w.reporters.Add(1)
 	go func() {
 		defer w.reporters.Done()
 		for state := range transport.State().Changes(reporting) {
 			w.report(state)
-		}
-	}()
-	go func() {
-		defer w.reporters.Done()
-		for failure := range failures {
-			protocol.Say(map[string]any{"error": protocol.Failure(failure)})
 		}
 	}()
 	return nil, nil

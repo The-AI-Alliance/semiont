@@ -20,8 +20,9 @@ use semiont::event_bus::EventBus;
 use semiont::retry::{self, RetryFacts, RetryPolicy, retry_after, retry_with_backoff};
 use semiont::timing;
 use semiont::transport::{
-    BoxFuture, ConnectionState, Envelope, Events, Failures, FrameHub, Frames, GatewayOperations,
-    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, TraceCarrier, Transport, unsubscribed,
+    BoxFuture, ConnectionState, Envelope, Events, FailureListener, Failures, FrameHub, Frames,
+    GatewayOperations, PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, TraceCarrier,
+    Transport, unsubscribed,
 };
 use semiont::types::{
     BusEmitAccepted, BusEmitRequest, ErrorResponse, HealthResponse, LimitRefusal, LimitRefusalCode,
@@ -35,6 +36,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
+use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 /// The header that names an emit or an upload: a new key for each, and the
@@ -178,10 +180,13 @@ pub(crate) struct Shared {
 /// The error stream. The stream opens before `HttpTransport::new` returns,
 /// so a failure can be reported before anyone has asked to hear failures:
 /// the first listener's receiver is made with the stream and held until a
-/// listener takes it, and nothing reported in the meantime is lost to it.
+/// listener takes it, and it holds the latest
+/// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` reported in the meantime.
 pub(crate) struct FailureStream {
     sender: broadcast::Sender<TransportError>,
     first: Option<broadcast::Receiver<TransportError>>,
+    /// Told each failure as it is reported (`Transport::tell_failures_to`).
+    listeners: Vec<FailureListener>,
 }
 
 impl FailureStream {
@@ -190,15 +195,49 @@ impl FailureStream {
         FailureStream {
             sender,
             first: Some(first),
+            listeners: Vec::new(),
         }
     }
 
-    /// A listener: the first one taken hears every failure reported since the
-    /// stream was made, and each after it those reported from now on.
+    /// A listener: the first one taken hears the latest
+    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` failures reported since the stream
+    /// was made, and each after it those reported from now on.
     pub(crate) fn listen(&mut self) -> broadcast::Receiver<TransportError> {
         match self.first.take() {
             Some(first) => first,
             None => self.sender.subscribe(),
+        }
+    }
+
+    /// Tell `listener` each failure reported from now on, as it is reported.
+    /// Taken first, it is told at once what the first receiver holds: the
+    /// latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` reported since the stream
+    /// was made.
+    fn tell_to(&mut self, listener: FailureListener) {
+        if let Some(mut first) = self.first.take() {
+            loop {
+                match first.try_recv() {
+                    Ok(reported) => listener(&reported),
+                    Err(TryRecvError::Lagged(_)) => {}
+                    Err(TryRecvError::Empty | TryRecvError::Closed) => break,
+                }
+            }
+        }
+        self.listeners.push(listener);
+    }
+
+    /// Report `error`: to each listener, then to each receiver. While the
+    /// first receiver is held, the oldest it holds beyond
+    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` is dropped.
+    fn report(&mut self, error: &TransportError) {
+        for listener in &self.listeners {
+            listener(error);
+        }
+        let _ = self.sender.send(error.clone());
+        if let Some(first) = self.first.as_mut() {
+            while first.len() > timing::ERRORS_KEPT_FOR_FIRST_READER_COUNT {
+                let _ = first.try_recv();
+            }
         }
     }
 }
@@ -240,8 +279,8 @@ impl Shared {
 
     /// Report a failure on the error stream, and hand it back for its caller.
     pub fn failed(&self, error: TransportError) -> TransportError {
-        if let Some(failures) = locked(&self.failures).as_ref() {
-            let _ = failures.sender.send(error.clone());
+        if let Some(failures) = locked(&self.failures).as_mut() {
+            failures.report(&error);
         }
         error
     }
@@ -631,7 +670,8 @@ pub struct HttpTransport {
 impl HttpTransport {
     /// A transport to the gateway at `config.base_url`. Its stream opens in
     /// the background, once there is a token. The first listener taken of its
-    /// failures hears them from the transport's making.
+    /// failures hears the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` of them
+    /// from the transport's making.
     pub fn new(config: HttpTransportConfig) -> HttpTransport {
         let shared = Arc::new(Shared::new(config));
         let (commands, receiver) = mpsc::unbounded_channel();
@@ -740,6 +780,12 @@ impl Transport for HttpTransport {
         match locked(&self.inner.shared.failures).as_mut() {
             Some(failures) => Events::new(failures.listen()),
             None => Events::new(broadcast::channel(1).1),
+        }
+    }
+
+    fn tell_failures_to(&self, listener: FailureListener) {
+        if let Some(failures) = locked(&self.inner.shared.failures).as_mut() {
+            failures.tell_to(listener);
         }
     }
 
@@ -867,5 +913,46 @@ mod tests {
             Some(&limit("refusal-rate")),
         );
         assert_eq!(forbidden.code, TransportErrorCode::Forbidden);
+    }
+
+    #[test]
+    fn the_first_listener_is_told_what_was_reported_before_it_and_each_what_comes_after() {
+        let failure = |n: u16| TransportError::of_status(format!("HTTP {n}"), n, None);
+        let told = |listener: &Arc<Mutex<Vec<String>>>| -> FailureListener {
+            let telling = listener.clone();
+            Box::new(move |failure| locked(&telling).push(failure.message.clone()))
+        };
+        let first = Arc::new(Mutex::new(Vec::new()));
+        let later = Arc::new(Mutex::new(Vec::new()));
+        let mut failures = FailureStream::new();
+
+        failures.report(&failure(503));
+        failures.tell_to(told(&first));
+        failures.report(&failure(500));
+        failures.tell_to(told(&later));
+        failures.report(&failure(401));
+
+        assert_eq!(*locked(&first), ["HTTP 503", "HTTP 500", "HTTP 401"]);
+        assert_eq!(*locked(&later), ["HTTP 401"]);
+    }
+
+    #[test]
+    fn the_first_listener_is_told_the_latest_reported_before_it() {
+        let beyond = 5;
+        let reported: Vec<String> = (0..timing::ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
+            .map(|n| format!("failure {n}"))
+            .collect();
+        let told = Arc::new(Mutex::new(Vec::new()));
+        let telling = told.clone();
+        let mut failures = FailureStream::new();
+
+        for message in &reported {
+            failures.report(&TransportError::of_status(message.clone(), 503, None));
+        }
+        failures.tell_to(Box::new(move |failure: &TransportError| {
+            locked(&telling).push(failure.message.clone())
+        }));
+
+        assert_eq!(*locked(&told), reported[beyond..]);
     }
 }

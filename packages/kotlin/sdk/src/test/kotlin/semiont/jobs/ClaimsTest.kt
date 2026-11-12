@@ -32,6 +32,7 @@ import org.junit.jupiter.api.assertThrows
 import semiont.ClientTiming
 import semiont.Recording
 import semiont.SemiontClient
+import semiont.Timings
 import semiont.channels.Channels
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -302,6 +303,31 @@ class ClaimsTest {
         assertEquals(3, w.desk.sent("job:claim").size)
         assertEquals(2, refused.size)
         assertFalse(reading.isCompleted)
+        reading.cancel()
+        claims.stop()
+        w.over()
+    }
+
+    @Test
+    fun claimsNobodyHasReadKeepTheLatestRefusalsForTheirFirstReaderInOrder() = runTest(timeout = LIMIT) {
+        val w = World(this, WORKER)
+        val beyond = 5
+        val messages = List(Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT.toInt() + beyond) { "refusal $it" }
+        messages.forEach { w.desk.refusals += obj("message" to it, "code" to "unauthorized") }
+        val claims = w.client.job.claim(EVERYTHING)
+        val reading = async { claims.next() }
+        runCurrent()
+        // Each idle moment claims again, and the claim is refused: nobody reads the refusals.
+        repeat(messages.size - 1) {
+            w.desk.relay("job:queued", queued("tagging"))
+            runCurrent()
+        }
+        assertEquals(messages.size, w.desk.sent("job:claim").size)
+        val refused = mutableListOf<ClaimRefusal>()
+        val first = claims.refused()
+        backgroundScope.launch { first.collect { refused += it } }
+        runCurrent()
+        assertEquals(messages.drop(beyond), refused.map { it.message })
         reading.cancel()
         claims.stop()
         w.over()

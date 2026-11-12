@@ -4,14 +4,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -116,8 +115,17 @@ public class SemiontSession internal constructor(
     // Holds while a renewal that got no answer is owed another attempt.
     private val unanswered = MutableStateFlow(false)
 
-    // What the session says of its own: kept for its first reader until someone reads it.
-    private val saying = Broadcast<SessionError>(keepForFirst = true)
+    // What the session says, its own errors and its transport's failures in the order met: the latest `errorsKeptForFirstReaderCount` kept for its first reader until someone reads it.
+    private val saying = Broadcast<SemiontError>(keptForFirst = Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT)
+
+    // The transport's failures, from when the session is made until its errors end.
+    private val carried = client.transport.failures()
+
+    init {
+        // Unconfined, so each failure is said within the transport's telling of it, before whatever the session says next.
+        // No child of the session's work or of its client's: it carries what the client's closing flush meets, and ends with the errors.
+        CoroutineScope(Dispatchers.Unconfined).launch(start = CoroutineStart.UNDISPATCHED) { carried.collect { saying.deliver(it) } }
+    }
 
     // The token the session held last, remembered as it gives it up: what a renewal is handed while it holds none.
     @Volatile
@@ -141,24 +149,17 @@ public class SemiontSession internal constructor(
      * `SessionError`: `session.auth-failed`, `session.refresh-exhausted`,
      * `session.credential-refused`, `session.keep-failed`,
      * `session.save-refused`), and the failures its client's transport meets,
-     * a refusal for want of a valid token among them, which is a reason to
-     * `refresh`. What the session said, and what its transport met, before
-     * anyone read them is kept for the first reader: the transport's failures
-     * as `Transport.failures` keeps them for its first listener. A later
-     * reader hears from when it reads. They end when the session
-     * ends, once the writes its client has begun are made or refused: whoever
-     * ends both closes the client first, so what its closing flush meets is
-     * said before they end. What the client meets once its session has ended
-     * is said nowhere.
+     * a refusal for want of a valid token among them, which the transport
+     * that met it renews: one stream, in the order they were met. Of what the
+     * session said, and what its transport met, before anyone read them, the
+     * latest `errorsKeptForFirstReaderCount` are kept for the first reader, in
+     * that order, the oldest dropped beyond that. A later reader hears from when it
+     * reads. They end when the session ends, once the writes its client has
+     * begun are made or refused: whoever ends both closes the client first,
+     * so what its closing flush meets is said before they end. What the
+     * client meets once its session has ended is said nowhere.
      */
-    public fun errors(): Events<SemiontError> {
-        val own = saying.listen()
-        val failures = client.transport.failures()
-        return Events(merge(own.onCompletion { failures.close() }, failures)) {
-            own.close()
-            failures.close()
-        }
-    }
+    public fun errors(): Events<SemiontError> = saying.listen()
 
     /** Say `error` on the session's errors, from the coroutine that met it. */
     internal fun say(error: SessionError) {
@@ -445,6 +446,7 @@ public class SemiontSession internal constructor(
         CoroutineScope(client.links.scope.coroutineContext.minusKey(Job)).launch(start = CoroutineStart.UNDISPATCHED) {
             client.flushed()
             saying.close()
+            carried.close()
         }
     }
 }

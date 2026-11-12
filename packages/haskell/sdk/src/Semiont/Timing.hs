@@ -1,6 +1,6 @@
 -- Generated from protocol/specs/src/client/timing.json; do not edit.
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.Timing (RetryBudget(..), busRequestTimeoutMs, emitTimeoutMs, emitRetry, httpRequestTimeoutMs, requestRetryPauseMs, streamOpenTimeoutMs, reconnectMs, maxReconnectMs, degradedThresholdMs, lingerMs, seenEventIdsCount, reconnectDebounceMs, lazyRemoveMs, refreshRetry, refreshBeforeExpMs, minRefreshDelayMs, devicePollMs, deviceSlowDownMs, devicePollFloorMs, invalidationWindowMs, saveDebounceMs, maxStoredBytesCount, jobSilenceMs, jobStatusPollMs, jobPollMs, jobPollTimeoutMs, generationStallFloorMs, generationStallPerTokenMs, generationStallAssumedTokensCount, delegateSilenceMs, jobClaimTimeoutMs, heldJobStallMs, heldJobStallCheckMs, markCommitTimeoutMs, generatedTextAsksCount, anchoredTextReaskMs, hoverDelayMs, searchDebounceMs, discoveryIntervalMs, checksAtOnceCount) where
+module Semiont.Timing (RetryBudget(..), busRequestTimeoutMs, emitTimeoutMs, emitRetry, httpRequestTimeoutMs, requestRetryPauseMs, streamOpenTimeoutMs, reconnectMs, maxReconnectMs, degradedThresholdMs, lingerMs, seenEventIdsCount, reconnectDebounceMs, lazyRemoveMs, refreshRetry, refreshBeforeExpMs, minRefreshDelayMs, devicePollMs, deviceSlowDownMs, devicePollFloorMs, invalidationWindowMs, saveDebounceMs, maxStoredBytesCount, errorsKeptForFirstReaderCount, jobSilenceMs, jobStatusPollMs, jobPollMs, jobPollTimeoutMs, generationStallFloorMs, generationStallPerTokenMs, generationStallAssumedTokensCount, delegateSilenceMs, jobClaimTimeoutMs, heldJobStallMs, heldJobStallCheckMs, markCommitTimeoutMs, generatedTextAsksCount, anchoredTextReaskMs, hoverDelayMs, searchDebounceMs, discoveryIntervalMs, checksAtOnceCount) where
 import Control.Monad (unless)
 import Data.Aeson (FromJSON(..), ToJSON(..), withObject, object, (.:), (.=))
 import qualified Data.Aeson.KeyMap as KM
@@ -77,6 +77,9 @@ saveDebounceMs = 50
 
 maxStoredBytesCount :: Integer
 maxStoredBytesCount = 2097152
+
+errorsKeptForFirstReaderCount :: Integer
+errorsKeptForFirstReaderCount = 100
 
 jobSilenceMs :: Integer
 jobSilenceMs = 10000

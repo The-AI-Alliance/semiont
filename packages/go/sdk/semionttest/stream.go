@@ -1,13 +1,13 @@
 package semionttest
 
 import (
-	"iter"
+	"slices"
 	"sync"
 )
 
-// stream gives each item to every listener listening when it is given, and
-// ends every listener when it closes. Each listener is given every item, in
-// order, however far behind its reader is.
+// stream tells each item to every listener listening when it is given,
+// within the giving, and all under one lock, so each listener is told them in
+// the order they were given. It tells nothing once it has closed.
 type stream[T any] struct {
 	mu        sync.Mutex
 	listeners []*listener[T]
@@ -16,64 +16,23 @@ type stream[T any] struct {
 
 func newStream[T any]() *stream[T] { return &stream[T]{} }
 
-// listener is one reader's items: what it was given and has not taken.
-type listener[T any] struct {
-	mu     sync.Mutex
-	items  []T
-	closed bool
-	// ready is signalled when an item is given or the listener closes.
-	ready chan struct{}
-}
+// listener is one listener of a stream.
+type listener[T any] struct{ told func(T) }
 
-func (l *listener[T]) signal() {
-	select {
-	case l.ready <- struct{}{}:
-	default:
-	}
-}
-
-// listen is the items given from now on, until the stream closes or the loop
-// over them stops. The listener is taken now, not when it is ranged over.
-func (s *stream[T]) listen() iter.Seq[T] {
-	l := &listener[T]{ready: make(chan struct{}, 1)}
-	s.mu.Lock()
-	if s.closed {
-		l.closed = true
-	} else {
-		s.listeners = append(s.listeners, l)
-	}
-	s.mu.Unlock()
-	return func(yield func(T) bool) {
-		defer s.leave(l)
-		for {
-			l.mu.Lock()
-			if len(l.items) > 0 {
-				item := l.items[0]
-				l.items = l.items[1:]
-				l.mu.Unlock()
-				if !yield(item) {
-					return
-				}
-				continue
-			}
-			closed := l.closed
-			l.mu.Unlock()
-			if closed {
-				return
-			}
-			<-l.ready
-		}
-	}
-}
-
-func (s *stream[T]) leave(l *listener[T]) {
+// listen tells told each item given from now on, until stop or the stream
+// closes. Once stop returns, a telling under way has ended and nothing more
+// is told. Stopping twice is stopping once.
+func (s *stream[T]) listen(told func(T)) (stop func()) {
+	l := &listener[T]{told: told}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, each := range s.listeners {
-		if each == l {
-			s.listeners = append(s.listeners[:i], s.listeners[i+1:]...)
-			return
-		}
+	if !s.closed {
+		s.listeners = append(s.listeners, l)
+	}
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.listeners = slices.DeleteFunc(s.listeners, func(each *listener[T]) bool { return each == l })
 	}
 }
 
@@ -81,10 +40,7 @@ func (s *stream[T]) give(item T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, l := range s.listeners {
-		l.mu.Lock()
-		l.items = append(l.items, item)
-		l.signal()
-		l.mu.Unlock()
+		l.told(item)
 	}
 }
 
@@ -92,11 +48,5 @@ func (s *stream[T]) close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closed = true
-	for _, l := range s.listeners {
-		l.mu.Lock()
-		l.closed = true
-		l.signal()
-		l.mu.Unlock()
-	}
 	s.listeners = nil
 }

@@ -34,6 +34,32 @@ def test_a_reader_that_falls_behind_loses_nothing_and_delays_nobody() -> None:
     assert kept_up == behind == list(range(10_000))
 
 
+def test_a_reader_that_relays_hands_on_what_waited_then_each_event_within_its_delivery_until_it_is_stopped() -> None:
+    async def scenario() -> None:
+        broadcast: Broadcast[str] = Broadcast()
+        events = broadcast.listen()
+        broadcast.deliver("waited")
+        handed: list[str] = []
+        stop = events.relay(handed.append)
+        # What waited is handed at once, and its iteration is over.
+        assert handed == ["waited"]
+        assert [item async for item in events] == []
+        # Each later one is handed before its delivery returns.
+        assert broadcast.deliver("delivered") == 1
+        assert handed == ["waited", "delivered"]
+        stop()
+        assert broadcast.deliver("after") == 0
+        # One that relays until its events end is handed no end.
+        ending: Broadcast[str] = Broadcast()
+        relaying = ending.listen()
+        relaying.relay(handed.append)
+        ending.deliver("last")
+        ending.close()
+        assert handed == ["waited", "delivered", "last"]
+
+    run(scenario())
+
+
 def test_a_reader_begins_where_it_began_to_listen() -> None:
     async def scenario() -> list[str]:
         broadcast: Broadcast[str] = Broadcast()
@@ -72,3 +98,14 @@ def test_a_closed_broadcast_ends_its_readers_after_what_they_were_given_and_ever
         return [item async for item in events], [item async for item in broadcast.listen()]
 
     assert run(scenario()) == ([1], [])
+
+
+def test_a_reader_given_what_was_kept_hears_it_first_and_nothing_of_it_once_the_broadcast_has_closed() -> None:
+    async def scenario() -> tuple[list[str], list[str]]:
+        broadcast: Broadcast[str] = Broadcast()
+        given = broadcast.listen_with(["kept"])
+        broadcast.deliver("delivered")
+        broadcast.close()
+        return [item async for item in given], [item async for item in broadcast.listen_with(["kept past the end"])]
+
+    assert run(scenario()) == (["kept", "delivered"], [])

@@ -25,6 +25,7 @@ let device_poll_floor_ms = 1000
 let invalidation_window_ms = 1000
 let save_debounce_ms = 50
 let max_stored_bytes_count = 2097152
+let errors_kept_for_first_reader_count = 100
 let job_silence_ms = 10000
 let job_status_poll_ms = 5000
 let job_poll_ms = 1000

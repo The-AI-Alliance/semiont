@@ -81,7 +81,7 @@ data SemiontBrowser = SemiontBrowser
   , identity :: State.StateValue (Maybe Text), failures :: Broadcast.Broadcast SessionError
   , openByKb :: TVar (KM.KeyMap Value), viewedByKb :: TVar (KM.KeyMap Value)
   , detach :: TVar (IO ()), backgroundFailures :: TVar [SomeException]
-  , registryBus :: Local.EventBus, retired :: TQueue Live, closing :: MVar (Maybe (Async ())), disposing :: TVar Bool
+  , registryBus :: Local.EventBus, retired :: TQueue Live, draining :: TVar Int, closing :: MVar (Maybe (Async ())), disposing :: TVar Bool
   }
 
 storage :: SemiontBrowser -> Storage.SessionStorage
@@ -108,6 +108,12 @@ identityToken=identity
 setIdentityToken :: SemiontBrowser -> Maybe Text -> STM ()
 setIdentityToken owner=State.update (identity owner)
 
+-- | What went wrong, each said once, in the order met: what building a
+-- session, and each live session, said. The first reader is given first the
+-- latest 'Semiont.Timing.errorsKeptForFirstReaderCount' said before it came,
+-- in that order, the oldest beyond them dropped. The stream ends when the
+-- registry is disposed, and what is still kept then is dropped: a reader who
+-- comes after is given nothing.
 errors :: SemiontBrowser -> (Stream (Of SessionError) IO () -> IO result) -> IO result
 errors owner consume=Broadcast.withSubscription (failures owner) $ \reader ->
   let loop=do value<-liftIO (atomically (Broadcast.next reader)); case value of Nothing->pure (); Just next->Stream.yield next >> loop
@@ -140,8 +146,8 @@ newSemiontBrowser config = mask $ \restore -> do
   owner <- atomically $ SemiontBrowser config life turn <$> newTVar 0 <*> newTVar Nothing <*> newTVar 0
     <*> State.newStateValue initial <*> State.newStateValue chosen <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> State.newStateValue False <*> State.newStateValue [] <*> State.newStateValue Nothing <*> State.newStateValue Nothing
-    <*> Broadcast.newEvents <*> newTVar (fromMaybe KM.empty (document rawOpened)) <*> newTVar (fromMaybe KM.empty (document rawViewed))
-    <*> newTVar (pure ()) <*> newTVar [] <*> pure applicationBus <*> newTQueue <*> pure closer <*> newTVar False
+    <*> Broadcast.newKeptEvents <*> newTVar (fromMaybe KM.empty (document rawOpened)) <*> newTVar (fromMaybe KM.empty (document rawViewed))
+    <*> newTVar (pure ()) <*> newTVar [] <*> pure applicationBus <*> newTQueue <*> newTVar 0 <*> pure closer <*> newTVar False
   let initialize=do
         saveKnowledgeBases store initial
         maybe (Storage.delete store activeKey) (Storage.set store activeKey) chosen
@@ -186,9 +192,9 @@ takeLive owner=do
   pure previous
 
 drainRetired :: SemiontBrowser -> IO ()
-drainRetired owner=do
-  previous <- atomically (flushTQueue (retired owner))
-  foldr (\held rest -> closeLive held `finally` rest) (pure ()) previous
+drainRetired owner=bracket (atomically (modifyTVar' (draining owner) (+1) >> flushTQueue (retired owner)))
+  (const (atomically (modifyTVar' (draining owner) (subtract 1))))
+  (foldr (\held rest -> closeLive held `finally` rest) (pure ()))
 
 setActiveKb :: SemiontBrowser -> Maybe Text -> IO ()
 setActiveKb owner requested=Lifetime.run (lifetime owner) $ mask $ \restore -> do
@@ -240,15 +246,10 @@ activate owner version key=do
         Right openedSession -> do
           let session=Session.openedSession openedSession
               route (Left failure)=failed failure
-              route (Right failure)=case transportErrorCode failure of
-                -- A failure does not say which token was refused: the one the
-                -- session holds as it is read is. Refusals read together are
-                -- answered by one renewal, which the session says the outcome of.
-                Code.TransportUnauthorized -> do
-                  held <- atomically (State.current (Session.token session))
-                  spawn owner (void (Session.refresh session held))
-                Code.TransportForbidden -> atomically (Signals.notifyPermissionDenied signals (Just (transportErrorMessage failure)))
-                _ -> pure ()
+              -- A refusal for want of a valid token is renewed by the transport that met it: like any other failure
+              -- of the transport but a refusal for lack of permission, it is not acted on.
+              route (Right failure)=when (transportErrorCode failure==Code.TransportForbidden)
+                (atomically (Signals.notifyPermissionDenied signals (Just (transportErrorMessage failure))))
           -- The registry reads first: what the session said before anyone
           -- read is kept for its first reader.
           subscribed <- newEmptyTMVarIO
@@ -505,10 +506,12 @@ dispose owner=mask $ \restore -> do
               State.complete (registered owner); State.complete (selected owner); State.complete (connected owner); State.complete (notices owner)
               State.complete (activating owner); State.complete (opened owner); State.complete (viewed owner); State.complete (identity owner)
               Broadcast.close (failures owner)
-        -- Sessions close while the registry's work still runs, so each one's errors are read to their end.
-        (atomically (void (takeLive owner)) >> drainRetired owner) `finally` (Lifetime.close (lifetime owner) `finally` do
+        -- Sessions close while the registry's work still runs, so each one's errors are read to their end: the active
+        -- one, and those a drain already under way took.
+        (atomically (void (takeLive owner)) >> drainRetired owner) `finally` (atomically (readTVar (draining owner) >>= check . (==0))
+          `finally` (Lifetime.close (lifetime owner) `finally` do
           unsubscribe <- atomically $ do action<-readTVar (detach owner); writeTVar (detach owner) (pure ()); pure action
-          unsubscribe `finally` (Local.closeEventBus (registryBus owner) `finally` closeViews))
+          unsubscribe `finally` (Local.closeEventBus (registryBus owner) `finally` closeViews)))
         problems <- readTVarIO (backgroundFailures owner)
         case problems of first:_->throwIO first; []->pure ()
       pure (Just worker,worker)

@@ -12,8 +12,8 @@ package semiont
 // answer leaves the session no usable token and keeps what is kept, and the
 // next refusal renews again, and so does the session on its own, on the
 // reconnect backoff. What goes wrong, the session says once on its one errors
-// stream (Errors), beside its transport's failures: it takes no callback for
-// it.
+// stream (Errors), beside its transport's failures, in the order they were
+// met: it takes no callback for it.
 
 import (
 	"context"
@@ -211,6 +211,9 @@ type Session struct {
 	renewed   string
 	// failures is the session's errors (Errors).
 	failures *failureStream[Error]
+	// stopCarrying stops the transport's failures being said among the
+	// session's errors.
+	stopCarrying func()
 }
 
 var (
@@ -235,7 +238,7 @@ func notRenewed(failure error) string {
 // one that asks nobody gives it at once. What the session does at its start,
 // it does on its own: Ready says when it is done.
 func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
-	return startSession(ctx, config, newFailureStream[Error]())
+	return startSession(ctx, config, newFailureStream[Error](config.Timing.ErrorsKeptForFirstReaderCount))
 }
 
 // startSession is StartSession, saying what goes wrong on failures: made
@@ -253,8 +256,9 @@ func startSession(ctx context.Context, config SessionConfig, failures *failureSt
 	alive, cancel := context.WithCancel(context.Background())
 	s := &Session{config: config, alive: alive, cancel: cancel, ready: make(chan struct{}), id: "session-" + uuid.NewString(), user: NewVariable[*api.UserResponse](nil), unanswered: NewVariable(false), failures: failures}
 	// Taken now: a failure the transport meets once the session is made is
-	// among the session's errors.
-	go s.carry(config.Client.Transport.Failures())
+	// among the session's errors, said within the transport's telling of it,
+	// so before whatever the session says next.
+	s.stopCarrying = config.Client.Transport.Failures(func(failure *TransportError) { s.failures.report(failure) })
 	s.work.Add(3)
 	go func() {
 		defer s.work.Done()
@@ -310,24 +314,17 @@ func (s *Session) StreamState() Watched[ConnectionState] { return s.config.Clien
 
 // Errors is the session's one stream of what went wrong: its own failures
 // (a *SessionError) and its client's transport's (a *TransportError), each
-// said once. Its first reader is given everything said since the session was
-// made, and every later one what is said from then on; saying never waits for
-// a reader. It ends when the session ends (Close). Whoever ends both closes
-// the client first, so what the client's closing flush meets is said before
-// it ends; what the client meets once the session has ended is said nowhere.
-// A host routes them: a refusal for want of a valid token is a reason to
-// Refresh.
+// said once, in the order they were met: a transport's failure is said
+// before the transport's call that met it returns. Its first reader is given
+// the latest ErrorsKeptForFirstReaderCount (Timing) said since the session
+// was made, the oldest dropped beyond them, and every later one what is
+// said from then on; saying never waits for a reader. It ends when the
+// session ends (Close), and a reader who comes after that, the first among
+// them, is given nothing. Whoever ends both closes the client first, so what
+// the client's closing flush meets is said before it ends; what the client
+// meets once the session is closing is said nowhere. A refusal for want of a
+// valid token among them is the transport's to renew, not their reader's.
 func (s *Session) Errors() iter.Seq[Error] { return s.failures.failures() }
-
-// carry says among the session's errors each failure the transport meets,
-// until the transport closes. One met once the session has ended is said
-// nowhere: the errors have ended. It is not the session's work, which Close
-// waits for: the transport closes after the session.
-func (s *Session) carry(transportFailures iter.Seq[*TransportError]) {
-	for failure := range transportFailures {
-		s.failures.report(failure)
-	}
-}
 
 // ExpiresAt is when the token the session holds expires; false when it holds
 // none, or the token names no time.
@@ -341,11 +338,14 @@ func (s *Session) ExpiresAt() (time.Time, bool) {
 
 // Close ends the session: it renews nothing more and asks nobody anything,
 // its token and who is signed in change no more, its errors end once what it
-// was running has said what it met, and it returns then. A renewal under way
-// finishes first, so what it brings is kept: whoever waits on it is given no
-// token at once, and the session does not take it. Closing twice is closing
-// once. Its client is left to whoever made it, who closes it first.
+// was running has said what it met, and it returns then. Each failure its
+// transport met before the close is among them; one met once the session is
+// closing is said nowhere. A renewal under way finishes first, so what it
+// brings is kept: whoever waits on it is given no token at once, and the
+// session does not take it. Closing twice is closing once. Its client is left
+// to whoever made it, who closes it first.
 func (s *Session) Close() {
+	s.stopCarrying()
 	s.ending.Lock()
 	s.cancel()
 	s.ending.Unlock()

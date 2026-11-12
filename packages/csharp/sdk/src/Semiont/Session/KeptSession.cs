@@ -18,6 +18,7 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
     // Null for a session told to ask nobody who its token is.
     private readonly Func<string, CancellationToken, Task<UserResponse>>? validate;
     private readonly Issuer? issuer;
+    private readonly Action<SessionEndReason>? onAuthFailed;
     private readonly bool offline;
     private readonly CancellationTokenSource lifetime = new();
     private readonly SemaphoreSlim operations = new(1, 1);
@@ -45,10 +46,12 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
     /// <paramref name="errors"/> is the session's errors stream, which its client's persistence and its transport also say
     /// what went wrong on; a session that <paramref name="validates"/> asks the gateway who its token is, and
     /// <paramref name="answered"/> is given each token the gateway names a person for, and that person, before the
-    /// session holds the answer.
+    /// session holds the answer. <paramref name="onAuthFailed"/> is told why the session ended as it signs out: once its
+    /// sign-in is forgotten, before the error that says so.
     /// </summary>
     internal KeptSession(HttpEndpoint endpoint, ISignInKept kept, HttpClient? httpClient, TimeProvider? timeProvider, Random? random,
-        Broadcast<SemiontError> errors, bool validates, Func<string, UserResponse, CancellationToken, Task> answered)
+        Broadcast<SemiontError> errors, bool validates, Func<string, UserResponse, CancellationToken, Task> answered,
+        Action<SessionEndReason>? onAuthFailed)
     {
         string origin;
         try { origin = Gateway.Origin(endpoint); }
@@ -56,6 +59,7 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
         { throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "The knowledge-base endpoint is invalid", error); }
         this.kept = kept;
         this.errors = errors;
+        this.onAuthFailed = onAuthFailed;
         clock = timeProvider ?? TimeProvider.System;
         this.random = random ?? Random.Shared;
         issuer = new Issuer(httpClient, clock, this.random);
@@ -74,10 +78,12 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
     }
 
     internal KeptSession(ISignInKept kept, Func<string?, CancellationToken, Task<string?>> renew,
-        Func<string, CancellationToken, Task<UserResponse>> validate, TimeProvider clock, Random random, bool offline = false)
+        Func<string, CancellationToken, Task<UserResponse>> validate, TimeProvider clock, Random random,
+        Action<SessionEndReason>? onAuthFailed, bool offline = false)
     {
         this.kept = kept;
-        errors = new(keepForFirst: true);
+        errors = new(keptForFirst: SemiontError.KeptForFirstReader);
+        this.onAuthFailed = onAuthFailed;
         this.offline = offline;
         this.renew = renew;
         this.validate = validate;
@@ -88,7 +94,6 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
     }
 
     public SessionState State => Volatile.Read(ref state);
-    public SessionEndReason? EndReason { get; private set; }
     public IAsyncEnumerable<SessionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
     public IAsyncEnumerable<SemiontError> Errors(CancellationToken cancellation = default) => errors.Observe(cancellation);
     public Task ReadyAsync(CancellationToken cancellation = default) => Spawning.WaitAsync(ready, cancellation);
@@ -142,7 +147,7 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
         ended = true;
         Set(null, null);
         await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
-        EndReason = reason;
+        onAuthFailed?.Invoke(reason);
         Report(code);
     }
 
@@ -159,42 +164,42 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
         {
             var token = await IssuedAsync().ConfigureAwait(Spawning.Captures);
             unanswered = false;
-            if (token is null && await kept.HeldAsync(lifetime.Token).ConfigureAwait(Spawning.Captures) is null)
+            if (token is not null)
+            {
+                Set(token, State.User);
+                return token;
+            }
+            if (await kept.HeldAsync(lifetime.Token).ConfigureAwait(Spawning.Captures) is null)
             {
                 ended = true;
                 Set(null, null);
                 return null;
             }
-            Set(token, State.User);
-            return token;
         }
-        catch (SignInError error)
+        catch (SignInError error) when (!ProtocolFacts.RetryRefresh(error.Status))
         {
             ThrowIfDisposed();
-            if (ProtocolFacts.RetryRefresh(error.Status))
-            {
-                unanswered = true;
-                Set(null, State.User);
-                Report(starting ? "auth-failed" : "refresh-exhausted", error);
-            }
-            else if (starting)
-            {
-                ended = true;
-                Set(null, null);
-                await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
-            }
-            else await EndAsync(SessionEndReason.Expired, "refresh-exhausted").ConfigureAwait(Spawning.Captures);
-            return null;
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             ThrowIfDisposed();
-            // A host storage write can fail after the issuer answers. Never publish an unkept grant.
+            // No answer: the issuer did not give one, or the sign-in could not be read or kept after it did. Never publish
+            // an unkept grant.
             unanswered = true;
             Set(null, State.User);
             Report(starting ? "auth-failed" : "refresh-exhausted", error);
             return null;
         }
+        // The issuer refused the renewal, or it gave no token while the sign-in is still kept. At the start there was no
+        // session to end: the sign-in is forgotten, and nothing is said.
+        if (starting)
+        {
+            ended = true;
+            Set(null, null);
+            await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
+        }
+        else await EndAsync(SessionEndReason.Expired, "refresh-exhausted").ConfigureAwait(Spawning.Captures);
+        return null;
     }
 
     /// <summary>

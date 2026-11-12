@@ -22,7 +22,7 @@
  * throws, and changes nothing, there or here.
  */
 
-import { BehaviorSubject, Subject, map, type Observable } from 'rxjs';
+import { BehaviorSubject, map, type Observable } from 'rxjs';
 import {
   BusRequestError,
   CHECKS_AT_ONCE_COUNT,
@@ -68,6 +68,7 @@ import {
 import { SemiontSession } from './semiont-session';
 import { createSessionSignals, type SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
+import { KeptForFirstReader } from '../kept-for-first-reader';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
 
@@ -218,10 +219,18 @@ export class SemiontBrowser {
    * nothing is connected, and never carrying one KB's id into another.
    */
   readonly lastViewedResource$: BehaviorSubject<string | null>;
-  /** Each session's own errors, as the registry reads them from its errors, and each session it could not make. */
-  readonly error$: Subject<SemiontSessionError>;
+  /**
+   * Each session's own errors, as the registry reads them from its errors,
+   * and each session it could not make. Its first reader is given the latest
+   * `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said before it came, in the order
+   * they were said, the oldest beyond them dropped. It ends when the registry
+   * is disposed, and what is still kept then is dropped.
+   */
+  readonly error$: Observable<SemiontSessionError>;
   readonly identityToken$: BehaviorSubject<string | null>;
 
+  /** What the registry says on `error$`. */
+  private readonly said = new KeptForFirstReader<SemiontSessionError>();
   private readonly storage: SessionStorage;
   private readonly sessionFactory: SessionFactory;
   private readonly fetch: typeof fetch | undefined;
@@ -271,7 +280,7 @@ export class SemiontBrowser {
     this.openResources$ = new BehaviorSubject<OpenResource[]>([]);
     this.lastViewedByKb = lastViewedByKbOf(this.storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY));
     this.lastViewedResource$ = new BehaviorSubject<string | null>(null);
-    this.error$ = new Subject<SemiontSessionError>();
+    this.error$ = this.said.said$;
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
     this.putKbs(kbs);
@@ -532,7 +541,7 @@ export class SemiontBrowser {
       try {
         session = this.sessionFactory({ kb, storage: this.storage, signals });
       } catch (err) {
-        this.error$.next(
+        this.said.say(
           err instanceof SemiontSessionError
             ? err
             : new SemiontSessionError(
@@ -549,27 +558,16 @@ export class SemiontBrowser {
       // hands it back, so the first: what the session said before anyone
       // read is kept for it. The factory reads none of them.
       //  - Each of the session's own errors is said on the registry's.
-      //  - `unauthorized` goes through RECOVERY, not straight to the modal.
-      //    A single one is not session death: requests race the refresh
-      //    window, and a direct wire to the modal would fire "Session
-      //    Expired — HTTP 401" over sessions that heal a beat later — and,
-      //    for a truly dead session, WITHOUT clearing storage, so every
-      //    reload would restore the corpse and re-arm an effectively
-      //    undismissable modal (both its buttons navigate — into the same
-      //    loop). `session.refresh(refused)` covers both ends: success heals
-      //    in silence; exhaustion runs the session's own teardown — stored
-      //    session cleared, `onAuthFailed` fires the modal once, with the
-      //    session's own reason instead of the raw transport line.
-      //  - `forbidden` has no recovery: it is said as permission-denied,
-      //    with the refusal's message as its detail.
+      //  - `forbidden` has no remedy: it is said as permission-denied, with
+      //    the refusal's message as its detail.
+      //  - Every other failure of its transport is left alone, `unauthorized`
+      //    among them: the transport that met a refused token renews it, and
+      //    a session that cannot be renewed ends itself and says so through
+      //    `onAuthFailed`, once.
       // The reading ends when the session's errors do, as the session ends.
       session.errors$.subscribe((err) => {
         if (err instanceof SemiontSessionError) {
-          this.error$.next(err);
-        } else if (err.code === 'unauthorized') {
-          // A failure does not say which token was refused: the one the
-          // session holds as it is read is.
-          void session.refresh(session.token$.getValue());
+          this.said.say(err);
         } else if (err.code === 'forbidden') {
           signals.notifyPermissionDenied(err.message);
         }
@@ -578,7 +576,7 @@ export class SemiontBrowser {
       try {
         await session.ready;
       } catch (err) {
-        this.error$.next(
+        this.said.say(
           new SemiontSessionError(
             'session.construct-failed',
             err instanceof Error ? err.message : String(err),
@@ -1024,7 +1022,7 @@ export class SemiontBrowser {
     this.activeSignals$.complete();
     this.openResources$.complete();
     this.lastViewedResource$.complete();
-    this.error$.complete();
+    this.said.end();
     this.identityToken$.complete();
     this.eventBus.destroy();
     if (this.failures.length > 0) throw this.failures[0];

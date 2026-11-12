@@ -21,7 +21,7 @@ import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-ho
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { getActiveTraceparent, withTraceparent } from '@semiont/observability';
 import type { Annotation, BusPrimitive } from '@semiont/core';
-import { BusRequestError, EventBus, FrameRefusal, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
+import { BusRequestError, ERRORS_KEPT_FOR_FIRST_READER_COUNT, EventBus, FrameRefusal, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
 import { ClaimsObservable, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, willRetryAfter, type ClaimOptions, type ClaimRefusal, type HeldJob, type HeldJobStall, type HeldMarkJob, type HeldYieldJob, type JobFailure } from '../claims';
 
 /** The job a `job:claimed` reply carries: running, under the claimant. */
@@ -1221,6 +1221,91 @@ describe('job.claim — a held job that shows no activity is stalled', () => {
     await after(120);
 
     expect(stalls).toEqual([]);
+    subscription.unsubscribe();
+  });
+});
+
+describe('job.claim — what refused$ and stalled$ keep for a first reader', () => {
+  /** A stall within a few milliseconds of silence, checked often. */
+  const QUICKLY = { heldJobStallMs: 4, heldJobStallCheckMs: 2 };
+  const beyond = 3;
+  let h: ReturnType<typeof fakeBus>;
+
+  beforeEach(() => {
+    h = fakeBus();
+  });
+
+  it('refused$ gives its first reader the latest ERRORS_KEPT_FOR_FIRST_READER_COUNT refused before it read, in order, the oldest dropped', async () => {
+    const claims = new ClaimsObservable(h.bus, { accepts: EVERYTHING });
+    const subscription = claims.subscribe(() => {});
+    const messages = Array.from({ length: ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond }, (_, n) => `claim ${n} refused`);
+    for (const [n, message] of messages.entries()) {
+      h.refuse(n, 'unauthorized', message);
+      await tick();
+      // The next idle moment: the worker claims again.
+      h.pushEvent('job:queued', queued('yield'));
+      await tick();
+    }
+
+    const refused: string[] = [];
+    claims.refused$.subscribe((refusal) => refused.push(refusal.message));
+    expect(refused).toEqual(messages.slice(beyond));
+
+    subscription.unsubscribe();
+  });
+
+  it('refused$ gives a reader who comes once the claiming has ended nothing of what it kept', async () => {
+    const claims = new ClaimsObservable(h.bus, { accepts: EVERYTHING });
+    const subscription = claims.subscribe(() => {});
+    h.refuse(0, 'unauthorized', 'refused before anyone read');
+    await tick();
+    await claims.stop();
+
+    const refused: string[] = [];
+    let ended = false;
+    claims.refused$.subscribe({ next: (refusal) => refused.push(refusal.message), complete: () => { ended = true; } });
+    expect(refused).toEqual([]);
+    expect(ended).toBe(true);
+
+    subscription.unsubscribe();
+  });
+
+  it('stalled$ gives its first reader the latest ERRORS_KEPT_FOR_FIRST_READER_COUNT reported before it read, in order, the oldest dropped', async () => {
+    const claims = new ClaimsObservable(h.bus, { accepts: EVERYTHING, ...QUICKLY });
+    const held: HeldJob[] = [];
+    const subscription = claims.subscribe((job) => held.push(job));
+    const jobIds = Array.from({ length: ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond }, (_, n) => `j${n}`);
+    for (const [n, id] of jobIds.entries()) {
+      h.grant(n, id);
+      await tick();
+      const job = held[n];
+      if (job === undefined) throw new Error(`the worker does not hold ${id}`);
+      // Silent past the threshold, and checked since: the job is reported stalled. Its settle claims the next.
+      await after(15);
+      await finish(job);
+    }
+
+    const stalled: string[] = [];
+    claims.stalled$.subscribe((stall) => stalled.push(stall.jobId));
+    expect(stalled).toEqual(jobIds.slice(beyond));
+
+    subscription.unsubscribe();
+  }, 20_000);
+
+  it('stalled$ gives a reader who comes once the claiming has ended nothing of what it kept', async () => {
+    const claims = new ClaimsObservable(h.bus, { accepts: EVERYTHING, ...QUICKLY });
+    const subscription = claims.subscribe(() => {});
+    h.grant(0, 'j1');
+    await tick();
+    await after(15);
+    await claims.stop();
+
+    const stalled: string[] = [];
+    let ended = false;
+    claims.stalled$.subscribe({ next: (stall) => stalled.push(stall.jobId), complete: () => { ended = true; } });
+    expect(stalled).toEqual([]);
+    expect(ended).toBe(true);
+
     subscription.unsubscribe();
   });
 });

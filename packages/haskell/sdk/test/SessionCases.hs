@@ -4,7 +4,7 @@ module SessionCases (jwt, sessionCases, sessionClockCases) where
 import Control.Concurrent.Async (async, poll, wait, withAsync, replicateConcurrently)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, throwIO, try, IOException)
-import Control.Monad (forM_, unless, void)
+import Control.Monad (forM_, unless, void, when)
 import Data.Aeson (FromJSON, Result(..), Value(..), eitherDecodeStrict', encode, fromJSON, object, (.=))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
@@ -16,6 +16,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Scientific (Scientific)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 import qualified Semiont.Bus as Bus
 import qualified Semiont.Client as Client
@@ -28,6 +29,7 @@ import qualified Semiont.SignIn as SignIn
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.StateValue as State
+import Semiont.Timing (errorsKeptForFirstReaderCount)
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Transport as Transport
 import Semiont.Types
@@ -56,14 +58,16 @@ kb = readValue (object ["id" .= String "session-cases", "label" .= String "Sessi
 
 timeOptions :: Time.ControlledTime -> Retry.RetryOptions
 timeOptions time = Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pure 0)
-withClient :: Time.ControlledTime -> (Client.Client -> IO result) -> IO result
+-- | A client, and the input of its transport, through which a case has the
+-- transport meet a failure.
+withClient :: Time.ControlledTime -> (Client.Client -> Transport.TransportInput -> IO result) -> IO result
 withClient time action = do
   let unused = ioError (userError "the session used a client operation its case never called")
       contents = Content.ContentTransport (\_ _ _ _ -> unused) (\_ _ -> unused) (\_ _ _ -> unused)
         (\_ _ -> unused) (\_ _ -> unused) (\_ _ -> unused) (pure ())
       options = Bus.BusOptions (Time.now time) (Time.waitUntil time) (pure "session-case")
-  (transport,_) <- Transport.newTransport (Transport.TransportOptions "http://localhost:4000" Set.empty (const unused) (pure ()))
-  bracket (Client.newClient transport contents Nothing options Timing.protocolSettings Nothing) Client.dispose action
+  (transport,input) <- Transport.newTransport (Transport.TransportOptions "http://localhost:4000" Set.empty (const unused) (pure ()))
+  bracket (Client.newClient transport contents Nothing options Timing.protocolSettings Nothing) Client.dispose (\owned -> action owned input)
 
 stored :: Text -> StoredSession
 stored access = StoredSession access "session-cases" Nothing "refresh-credential" Nothing "https://issuer.test/token" KM.empty
@@ -84,7 +88,7 @@ sessionCases root fixtures = do
   person <- maybe (ioError (userError "session cases lack UserResponse fixture")) readValue (Map.lookup "UserResponse" fixtures)
   forM_ ["startup","refusal"] $ \section -> forM_ (array (member section table)) $ \row -> do
     time <- Time.newTime
-    withClient time $ \owned -> do
+    withClient time $ \owned _ -> do
       storage <- Storage.newMemoryStorage
       start <- if section == "refusal" then pure "unexpired" else readValue (member "stored" row)
       found <- case start :: Text of
@@ -178,14 +182,16 @@ sessionCases root fixtures = do
               checkState row
   concurrentCases target person
   externalCases target person
-  putStrLn "PASS every shared session startup/refusal case, bounded renewal, reconnect recovery and disposal"
+  orderCases target
+  keptForFirstReaderCases target person
+  putStrLn "PASS every shared session startup/refusal case, bounded renewal, reconnect recovery, disposal, the order errors are said in and what is kept for their first reader"
   where
     whenSignedIn text action = if text==("signed-in"::Text) then action else pure ()
 
 concurrentCases :: KbTarget -> UserResponse -> IO ()
 concurrentCases target person = do
   time <- Time.newTime
-  withClient time $ \owned -> do
+  withClient time $ \owned _ -> do
     storage <- Storage.newMemoryStorage
     Stored.storeSession storage (kbTargetId target) (stored (jwt 3600 0))
     calls <- newTVarIO (0::Integer)
@@ -206,10 +212,78 @@ concurrentCases target person = do
       require "disposed session renewed" . (==1) =<< readTVarIO calls
       require "session disposal disposed its client's transport" . (/=Transport.Closed) =<< atomically (State.current (Client.state owned))
 
+-- | A session's own errors and its transport's failures are said in the
+-- order they were met: an own error, a transport failure, an own error and a
+-- transport failure. The middle two are met back to back on the session's
+-- worker, as its renewal meets the transport's failure and then fails, and
+-- the session says so at once. Heard by a reader that reads only once all
+-- four are said, and by one already listening.
+orderCases :: KbTarget -> IO ()
+orderCases target = do
+  let unavailable = TransportError Code.TransportUnavailable "the gateway cannot be reached" Nothing Nothing
+      refused = TransportError Code.TransportUnauthorized "refused" (Just 401) Nothing
+      inOrder = [Code.sessionCode Code.SessionAuthFailed, codeOf (Right unavailable), Code.sessionCode Code.SessionRefreshExhausted, codeOf (Right refused)]
+      -- The session's start says the first, an own error, before it is ready;
+      -- the rest are said by `sayTheRest`, which `hear` is handed.
+      saidInTurn hear = do
+        time <- Time.newTime
+        withClient time $ \owned input -> do
+          storage <- Storage.newMemoryStorage
+          Stored.storeSession storage (kbTargetId target) (stored (jwt 3600 0))
+          let unanswered _ = Transport.reportError input unavailable >> ioError (userError "the issuer did not answer")
+              unconfirmed _ _ = throwIO (TransportError Code.TransportUnavailable "the gateway did not answer" Nothing Nothing)
+              options = Session.SessionOptions "order" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just unanswered) (Just unconfirmed)
+                (const (pure ())) (pure 1800000000)
+          bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
+            Session.ready session
+            let sayTheRest = Session.refresh session Nothing >> Transport.reportError input refused
+            hear session sayTheRest
+  unread <- saidInTurn $ \session sayTheRest -> do
+    sayTheRest
+    Session.errors session (fmap (map codeOf) . Stream.toList_ . Stream.take 4)
+  require ("what was said before anyone read is not in the order it was met: "++show unread) (unread==inOrder)
+  heard <- saidInTurn $ \session sayTheRest -> do
+    into <- newTVarIO []
+    withAsync (collect session into) $ \_ -> do
+      -- Listening once it has heard the first.
+      atomically (readTVar into >>= \so -> when (null so) retry)
+      sayTheRest
+      atomically (readTVar into >>= \so -> if length so < length inOrder then retry else pure so)
+  require ("what a reader listening heard is not in the order it was met: "++show heard) (heard==inOrder)
+
+-- | A session nobody has read says more than it keeps for a first reader:
+-- the first reader is given the latest errorsKeptForFirstReaderCount, in the
+-- order said, and no more. What one keeps when it ends is dropped.
+keptForFirstReaderCases :: KbTarget -> UserResponse -> IO ()
+keptForFirstReaderCases target person = do
+  time <- Time.newTime
+  withClient time $ \owned input -> do
+    storage <- Storage.newMemoryStorage
+    Stored.storeSession storage (kbTargetId target) (stored (jwt 3600 0))
+    let options = Session.SessionOptions "kept-for-first-reader" target (Stored.keptIn storage (kbTargetId target)) Nothing Nothing
+          (Just (\_ _ -> pure (Just person))) (const (pure ())) (pure 1800000000)
+        beyond = 3
+        said = [TransportError Code.TransportUnavailable (Text.pack ("request " <> show serial <> " unanswered")) Nothing Nothing
+          | serial <- [1 .. fromInteger errorsKeptForFirstReaderCount + beyond]]
+    bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
+      Session.ready session
+      mapM_ (Transport.reportError input) said
+      -- The first reader comes, and the session ends: what it is given is all it hears.
+      heard <- Session.errors session (\given -> Session.dispose session >> Stream.toList_ given)
+      require ("the first reader was not given the latest the session said, in order: "++show (map codeOf heard))
+        (heard==map Right (drop beyond said))
+    -- One is said with nobody reading, and the session ends: a reader who comes after hears nothing.
+    bracket (Session.newSession owned options { Session.sessionId = "dropped-at-end" } (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
+      Session.ready session
+      Transport.reportError input (TransportError Code.TransportUnavailable "said before the session ended" Nothing Nothing)
+      Session.dispose session
+      afterEnd <- Session.errors session Stream.toList_
+      require ("a reader who came after the session ended was given what was kept: "++show (map codeOf afterEnd)) (null afterEnd)
+
 externalCases :: KbTarget -> UserResponse -> IO ()
 externalCases target person = do
   time <- Time.newTime
-  withClient time $ \owned -> do
+  withClient time $ \owned _ -> do
     memory <- Storage.newMemoryStorage
     listener <- newEmptyTMVarIO
     detached <- newTVarIO (0::Integer)
@@ -233,10 +307,9 @@ externalCases target person = do
       =<< atomically (State.current (Session.token session))
     atomically (putTMVar gate ())
     require "an old renewal resurrected a signed-out session" . (==Nothing) =<< wait pending
-    Session.dispose session
-    Session.dispose session
+    said <- Session.errors session (\given -> Session.dispose session >> Session.dispose session >> Stream.toList_ given)
     require "session detached its storage listener more than once" . (==1) =<< readTVarIO detached
-    require "a replaced renewal said a failure" . null =<< Session.errors session Stream.toList_
+    require "a replaced renewal said a failure" (null said)
     -- The issuer holds its answer to the kept sign-in's refresh while a
     -- refusal waits on it, and the session is disposed: the refusal is given
     -- no token at once, rather than an error it never had, and disposal

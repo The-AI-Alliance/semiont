@@ -4,12 +4,14 @@
 -- closes. The factory's sessions are HTTP sessions over the stage whose clients keep, so each says its own errors as
 -- a session does: for a write the storage it keeps in refuses, or a sign-in that cannot be read or cannot record the
 -- person the gateway names. Its transport's failures are said on its transport as the transport says its own, and its
--- renewal records the token it is handed.
+-- renewal records the token it is handed, so a case holds that the registry renewed nothing. A registry's close also
+-- waits for a switch under way to finish closing the session it retired. A registry nobody reads keeps the latest
+-- errorsKeptForFirstReaderCount it said for its first reader, and drops them as it closes.
 module RegistryErrorsCases (registryErrorsCases) where
 
 import Control.Concurrent.Async (Async, poll, wait, withAsync)
 import Control.Concurrent.STM
-import Control.Exception (bracket, onException)
+import Control.Exception (bracket, onException, throwIO)
 import Control.Monad (forM_, unless, void, when)
 import Data.Aeson (FromJSON, Value(..), eitherDecodeStrict', fromJSON, Result(..))
 import qualified Data.Aeson.Key as Key
@@ -40,6 +42,7 @@ import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.SignIn as SignIn
 import qualified Semiont.State.SessionSignals as Signals
 import qualified Semiont.StateValue as State
+import Semiont.Timing (errorsKeptForFirstReaderCount)
 import qualified Semiont.Timing.Settings as Timing
 import Semiont.Types
 import qualified Streaming.Prelude as Stream
@@ -96,6 +99,10 @@ data Doubles = Doubles
   -- ^ The storage the session's client keeps in refuses each write.
   , refused :: TVar Int
   -- ^ The writes it refused.
+  , withholding :: TVar Bool
+  -- ^ That storage answers no write until this is cleared.
+  , withheld :: TVar Int
+  -- ^ The writes it made wait.
   , unreadable :: TVar Bool
   -- ^ The session's sign-in cannot be read.
   , unread :: TVar Int
@@ -112,7 +119,7 @@ data Doubles = Doubles
 
 newDoubles :: Bool -> IO Doubles
 newDoubles refusingAll = atomically $ Doubles <$> newTVar refusingAll <*> newTVar 0 <*> newTVar False <*> newTVar 0
-  <*> newTVar False <*> newTVar [] <*> newEmptyTMVar <*> newEmptyTMVar
+  <*> newTVar False <*> newTVar 0 <*> newTVar False <*> newTVar [] <*> newEmptyTMVar <*> newEmptyTMVar
 
 -- | Fails for reason while flag holds, noting the failure first.
 failWhile :: TVar Bool -> STM () -> String -> IO ()
@@ -123,15 +130,25 @@ failWhile flag noted reason = do
     pure on
   when failing (ioError (userError reason))
 
+-- | Waits while flag holds, noting the wait first.
+waitWhile :: TVar Bool -> STM () -> IO ()
+waitWhile flag noted = do
+  waits <- atomically $ do
+    on <- readTVar flag
+    when on noted
+    pure on
+  when waits (atomically (readTVar flag >>= check . not))
+
 -- | The knowledge base's HTTP session over the stage, for person, reading none of its errors. Its client keeps in a
--- storage the doubles refuse writes to; its sign-in, in memory, names person and fails as the doubles say; its
--- renewal records what it is handed. What the case has it say as the factory builds it, it says then.
+-- storage the doubles hold and refuse writes to; its sign-in, in memory, names person and fails as the doubles say;
+-- its renewal records what it is handed. What the case has it say as the factory builds it, it says then.
 factoryOf :: Text -> Doubles -> Http.HttpOptions -> UserResponse -> [Saying] -> IO Factory.SessionFactory
 factoryOf why doubles http person opening = do
   underlying <- Storage.newMemoryStorage
-  let refuse = failWhile (refusing doubles) (modifyTVar' (refused doubles) (+1)) "the storage refuses every write"
-      keeping = Storage.SessionStorage (Storage.get underlying) (\key value -> refuse >> Storage.set underlying key value)
-        (\key -> refuse >> Storage.delete underlying key) (\key change -> refuse >> Storage.update underlying key change)
+  let answer = waitWhile (withholding doubles) (modifyTVar' (withheld doubles) (+1))
+        >> failWhile (refusing doubles) (modifyTVar' (refused doubles) (+1)) "the storage refuses every write"
+      keeping = Storage.SessionStorage (Storage.get underlying) (\key value -> answer >> Storage.set underlying key value)
+        (\key -> answer >> Storage.delete underlying key) (\key change -> answer >> Storage.update underlying key change)
         (Storage.subscribe underlying)
       named = personKey (userIdValue (userResponseDid person))
       open inputs = do
@@ -210,9 +227,7 @@ runCase fixtures row = do
   while <- field why "while" row :: IO Text
   said <- field why "said" row >>= mapM (saying why) :: IO [Saying]
   expected <- field why "registryErrors" row :: IO [Text]
-  renewedWith <- stated why "renewedWith" row :: IO (Maybe Text)
   denied <- stated why "permissionDenied" row :: IO (Maybe Text)
-  unless (all (== "held") renewedWith) (failure why ("is renewed with " ++ show renewedWith ++ ", which the table does not name"))
   (opening, active) <- case while of
     "opening" -> pure (said, [])
     "active" -> pure ([], said)
@@ -225,32 +240,32 @@ runCase fixtures row = do
     last' : _ -> pure last'
     [] -> failure why "says nothing"
   case final of
-    Failing code _ | code `notElem` [Code.TransportUnauthorized, Code.TransportForbidden] ->
+    Failing code _ | code /= Code.TransportForbidden ->
       failure why ("ends with " ++ show (Code.transportCode code) ++ ", which has no effect a runner can wait for")
     _ -> pure ()
   person <- fixture fixtures "UserResponse"
   doubles <- newDoubles False
-  heldAtRefusals <- newTVarIO []
   names <- newTVarIO (0 :: Int)
   overTheStage why doubles Timing.protocolSettings person opening $ \time _ _ registrySaid session signals -> do
     let fetchNext = do
           next <- atomically (modifyTVar' names (+1) >> readTVar names)
           holding why time session ("res-" <> Text.pack (show next))
+        -- A fetch fails as flag says until failures grows, and the registry then says code before the next thing is
+        -- said, so the next is met after it.
+        failingWhile flag failures what code = do
+          let registrySays = length . filter (== Code.sessionCode code) <$> readTVarIO registrySaid
+          (failedBefore, saidBefore) <- (,) <$> atomically (writeTVar flag True >> readTVar failures) <*> registrySays
+          fetchNext
+          eventually time why what ((> failedBefore) <$> readTVarIO failures)
+          atomically (writeTVar flag False)
+          eventually time why ("the registry say " ++ show (Code.sessionCode code)) ((> saidBefore) <$> registrySays)
         sayActive saidNow = case saidNow of
-          Own Code.SessionSaveRefused -> do
-            before <- atomically (writeTVar (refusing doubles) True >> readTVar (refused doubles))
-            fetchNext
-            eventually time why "the storage refuse a write" ((> before) <$> readTVarIO (refused doubles))
-            atomically (writeTVar (refusing doubles) False)
-          Own Code.SessionKeepFailed -> do
-            before <- atomically (writeTVar (unreadable doubles) True >> readTVar (unread doubles))
-            fetchNext
-            eventually time why "the sign-in fail to be read" ((> before) <$> readTVarIO (unread doubles))
-            atomically (writeTVar (unreadable doubles) False)
+          Own Code.SessionSaveRefused ->
+            failingWhile (refusing doubles) (refused doubles) "the storage refuse a write" Code.SessionSaveRefused
+          Own Code.SessionKeepFailed ->
+            failingWhile (unreadable doubles) (unread doubles) "the sign-in fail to be read" Code.SessionKeepFailed
           Own code -> failure why ("says " ++ show (Code.sessionCode code) ++ ", which the runner has no way to have a session say")
           Failing code message -> do
-            when (code == Code.TransportUnauthorized)
-              (atomically (State.current (Session.token session) >>= \token -> modifyTVar' heldAtRefusals (<> [token])))
             reportFailure (Client.transport (Session.client session)) (TransportError code message Nothing Nothing)
             Time.settle
         deniedNow = fmap permissionDeniedDetail <$> atomically (State.current (Signals.permissionDenied signals))
@@ -260,16 +275,9 @@ runCase fixtures row = do
         let times = length (filter (== Own code) said)
         eventually time why ("the registry say " ++ show (Code.sessionCode code))
           ((>= times) . length . filter (== Code.sessionCode code) <$> readTVarIO registrySaid)
-      Failing Code.TransportUnauthorized _ -> eventually time why "a renewal handed a token" (not . null <$> readTVarIO (handed doubles))
       Failing _ _ -> eventually time why "a refusal for lack of permission said through the signals" (isJust <$> deniedNow)
     readTVarIO registrySaid >>= \found -> agreeOn why "said on the registry's errors" found expected
-    tokens <- readTVarIO (handed doubles)
-    case renewedWith of
-      Just _ -> do
-        held <- readTVarIO heldAtRefusals
-        unless (not (null tokens) && all (`elem` held) tokens)
-          (failure why ("renewed the session handed " ++ show tokens ++ ", not the token it held as the refusal was read, " ++ show held))
-      Nothing -> agreeOn why "renewals handed" tokens []
+    readTVarIO (handed doubles) >>= \tokens -> agreeOn why "renewals the registry handed the session" tokens []
     deniedNow >>= \found -> agreeOn why "said through the signals as a refusal for lack of permission" found (Just <$> denied)
 
 runClosing :: Map.Map Text Value -> Value -> IO ()
@@ -289,12 +297,84 @@ runClosing fixtures row = do
     wait reader
     readTVarIO registrySaid >>= \found -> agreeOn why "said on the registry's errors as it closed" (drop before found) expected
 
+-- | A registry that closes while a switch away from its knowledge base is still closing the session it retired waits
+-- for that close. The save the retired session's client owes is held by the storage until the registry's close has
+-- gone as far as it goes without it, then refused, and the refusal is said on the registry's errors before they end.
+runRetiredClosing :: Map.Map Text Value -> IO ()
+runRetiredClosing fixtures = do
+  let why = "a registry's close waits for a switch under way to finish closing the session it retired"
+  person <- fixture fixtures "UserResponse"
+  doubles <- newDoubles True
+  let unsaved = Timing.protocolSettings { Timing.saveDebounceMs = 3600000 }
+  overTheStage why doubles unsaved person [] $ \time browser reader registrySaid session _ -> do
+    holding why time session "res-1"
+    owes <- atomically (BrowseState.persistencePending (Client.browse (Session.client session)))
+    unless owes (failure why "has a client that owes no save")
+    before <- length <$> readTVarIO registrySaid
+    atomically (writeTVar (withholding doubles) True)
+    withAsync (Browser.setActiveKb browser Nothing) $ \_ -> do
+      atomically (readTVar (withheld doubles) >>= check . (> 0))
+      withAsync (Browser.dispose browser) $ \disposal -> do
+        Time.settle
+        atomically (writeTVar (withholding doubles) False)
+        wait disposal
+    wait reader
+    found <- drop before <$> readTVarIO registrySaid
+    unless (found == [Code.sessionCode Code.SessionSaveRefused])
+      (failure why ("said " ++ show found ++ " on the registry's errors as it closed, not the retired session's refused save"))
+
+-- | A registry over one knowledge base whose factory refuses each session it is asked for, saying why on the
+-- registry's errors, which nobody reads: it refuses count, then body is handed the registry.
+refusedBuilds :: Text -> Int -> (Browser.SemiontBrowser -> IO ()) -> IO ()
+refusedBuilds why count body = do
+  stage <- newStage
+  time <- Time.newTime
+  http <- stageHttp stage time Timing.protocolSettings
+  builds <- newTVarIO (0 :: Int)
+  let refuse _ = do
+        build <- atomically (modifyTVar' builds (+1) >> readTVar builds)
+        throwIO (SessionError Code.SessionConstructFailed ("build " <> Text.pack (show build) <> " refused") "kb-a")
+  store <- Storage.newMemoryStorage
+  Browser.saveKnowledgeBases store [registered "kb-a"]
+  bracket (Browser.newSemiontBrowser (Browser.SemiontBrowserConfig store (Factory.SessionFactory refuse (const (pure ()))) http (pure 1800000000)))
+    Browser.dispose $ \browser -> do
+      -- The registry activates its knowledge base as it opens, and again each time it is selected with no session live.
+      atomically $ do
+        built <- readTVar builds
+        activating <- State.current (Browser.sessionActivating browser)
+        check (built >= 1 && not activating)
+      forM_ [2 .. count] (\_ -> Browser.setActiveKb browser (Just "kb-a"))
+      built <- readTVarIO builds
+      unless (built == count) (failure why ("was asked for " ++ show built ++ " sessions, not " ++ show count))
+      body browser
+
+-- | A registry nobody reads says more than it keeps for a first reader: the first reader is given the latest
+-- errorsKeptForFirstReaderCount, in the order said, and no more. What one keeps as it closes is dropped: a reader who
+-- comes after hears nothing.
+runKeptForFirstReader :: IO ()
+runKeptForFirstReader = do
+  let why = "a registry's first reader is given the latest it said before it came, in order, and no more"
+      beyond = 3 :: Int
+      count = fromInteger errorsKeptForFirstReaderCount + beyond
+  refusedBuilds why count $ \browser -> do
+    heard <- Browser.errors browser (\given -> Browser.dispose browser >> Stream.toList_ given)
+    agreeOn why "heard by the first reader" (map sessionErrorMessage heard)
+      ["build " <> Text.pack (show build) <> " refused" | build <- [beyond + 1 .. count]]
+  let dropped = "a registry drops what it kept for a first reader as it closes"
+  refusedBuilds dropped 1 $ \browser -> do
+    Browser.dispose browser
+    afterClose <- Browser.errors browser Stream.toList_
+    agreeOn dropped "heard by a reader who came after the close" (map sessionErrorMessage afterClose) []
+
 registryErrorsCases :: FilePath -> Map.Map Text Value -> IO ()
 registryErrorsCases root fixtures = do
   table <- Bytes.readFile (root </> "protocol/specs/src/session/registry-errors-cases.json")
     >>= either (ioError . userError) pure . eitherDecodeStrict'
   cases <- field "the registry-errors table" "cases" table :: IO [Value]
   closing <- field "the registry-errors table" "closing" table :: IO [Value]
-  outcome <- timeout 60000000 (mapM_ (runCase fixtures) cases >> mapM_ (runClosing fixtures) closing)
+  outcome <- timeout 60000000
+    (mapM_ (runCase fixtures) cases >> mapM_ (runClosing fixtures) closing >> runRetiredClosing fixtures >> runKeptForFirstReader)
   maybe (ioError (userError "the registry-errors cases did not finish in a minute")) pure outcome
-  putStrLn ("PASS " ++ show (length cases) ++ " shared registry-errors cases and " ++ show (length closing) ++ " of a registry's close")
+  putStrLn ("PASS " ++ show (length cases) ++ " shared registry-errors cases and " ++ show (length closing)
+    ++ " of a registry's close, a close that waits for a switch to finish closing the session it retired, and what a"
+    ++ " registry keeps for its first reader")

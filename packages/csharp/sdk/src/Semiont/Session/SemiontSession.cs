@@ -33,25 +33,28 @@ public sealed class SemiontSession : IStateUnit
     /// session is made, whose kept documents its caches hold from the start, or else for the person the gateway names
     /// once that is recorded on <paramref name="kept"/>; it writes only while <paramref name="kept"/> still names them.
     /// A sign-in it cannot read or record ends that keeping, said on <see cref="Errors"/> as session.keep-failed, and
-    /// each write the storage refuses is said there as session.save-refused. Ending the opened session ends the client,
-    /// waits for its closing save, and then ends the session, so what that save says reaches the session's errors. A
-    /// renewal under way at the issuer then is not ended: the close waits for it, and the tokens it brings are kept in
-    /// <paramref name="kept"/>, not taken by the session.
+    /// each write the storage refuses is said there as session.save-refused. The session signs out when the issuer refuses
+    /// its renewal, or a renewal gives no token, or the gateway refuses a token the issuer has just issued: its sign-in is
+    /// forgotten, and <paramref name="onAuthFailed"/> is told why before that is said on <see cref="Errors"/>. Ending the
+    /// opened session ends the client, waits for its closing save, and then ends the session, so what that save says
+    /// reaches the session's errors. A renewal under way at the issuer then is not ended: the close waits for it, and the
+    /// tokens it brings are kept in <paramref name="kept"/>, not taken by the session.
     /// </summary>
     public static async Task<OpenedSession> FromKeptAsync(KbTarget kb, ISignInKept kept, ISessionStorage? storage = null,
         HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null, bool validate = true,
-        CancellationToken cancellation = default)
+        Action<SessionEndReason>? onAuthFailed = null, CancellationToken cancellation = default)
     {
         ArgumentNullException.ThrowIfNull(kb);
         ArgumentNullException.ThrowIfNull(kept);
         if (kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "A session from a kept sign-in requires an HTTP endpoint.");
         var held = await kept.HeldAsync(cancellation).ConfigureAwait(Spawning.Captures);
-        var errors = new Broadcast<SemiontError>(keepForFirst: true);
+        var errors = new Broadcast<SemiontError>(keptForFirst: SemiontError.KeptForFirstReader);
         var persistence = storage is null ? null : new CachePersistence(storage, kb.Id, kept, errors.Publish);
         if (persistence is not null && held is { PersonKey: { } named }) persistence.Attach(named);
         var credentials = new KeptSession(endpoint, kept, httpClient, timeProvider, random, errors, validate,
-            answered: (token, user, recording) => persistence is null ? Task.CompletedTask : persistence.RecordAsync(token, user, recording));
+            answered: (token, user, recording) => persistence is null ? Task.CompletedTask : persistence.RecordAsync(token, user, recording),
+            onAuthFailed: onAuthFailed);
         HttpTransport? transport = null;
         try
         {
@@ -101,8 +104,9 @@ public sealed class SemiontSession : IStateUnit
 
     /// <summary>
     /// The session's one stream of what went wrong: its own errors, each a <see cref="SessionError"/>, and its client's
-    /// transport's failures, each said once. What it says before anyone reads it is kept for the first reader. It ends when
-    /// the session ends.
+    /// transport's failures, each said once. Of what it says before anyone reads it, the latest errorsKeptForFirstReaderCount
+    /// (protocol/specs/src/client/timing.json) are kept for the first reader, in the order said. It ends when the session
+    /// ends.
     /// </summary>
     public IAsyncEnumerable<SemiontError> Errors(CancellationToken cancellation = default) => kept.Errors(cancellation);
 
@@ -118,9 +122,6 @@ public sealed class SemiontSession : IStateUnit
         UpdateIdentity();
         return token;
     }
-
-    /// <summary>Why the session ended, once it has: set before the error that says so is said on <see cref="Errors"/>.</summary>
-    internal SessionEndReason? EndReason => kept.EndReason;
 
     private async Task FollowIdentityAsync(CancellationToken cancellation)
     {

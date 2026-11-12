@@ -92,7 +92,7 @@ public actor Claims: AsyncSequence {
   private let filters: [JSONValue]
   private let stream: AsyncStream<any HeldJob>
   private let jobs: AsyncStream<any HeldJob>.Continuation
-  private let refusals = Broadcast<ClaimRefusal>()
+  private let refusals = Broadcast<ClaimRefusal>(keepingForFirst: true)
   public nonisolated let stalled = Watched<HeldJobStall?>(nil)
   private var currentVitals = WorkerVitals()
   public var vitals: WorkerVitals { currentVitals }
@@ -150,6 +150,9 @@ public actor Claims: AsyncSequence {
       owner: first ? self : nil, reader: first ? stream.makeAsyncIterator() : nil)
   }
 
+  /// Each claim that was refused for a reason other than nothing pending. The first listener is
+  /// given first the latest `Timings.errorsKeptForFirstReaderCount` refused before it listened;
+  /// one who comes after the claims have ended, nothing.
   public nonisolated func refused() -> Events<ClaimRefusal> { refusals.listen() }
 
   private func begin() async {

@@ -29,10 +29,10 @@
 //! **The browser is the one reader of each session's errors**, from the
 //! first thing the session said until its errors end; the factory that
 //! built it reads none of them. Each of the session's own errors is said on
-//! the browser's (`errors`). A request the gateway refuses for want of a
-//! valid token renews the session, and only a session whose issuer refuses
-//! to renew it is said to have expired. A request refused for lack of
-//! permission is said at once, through the session's signals.
+//! the browser's (`errors`). A request refused for lack of permission is
+//! said at once, through the session's signals. A refusal for want of a
+//! valid token is renewed by the transport that met it, and the browser
+//! does nothing with it, nor with any other failure of the transport.
 //!
 //! Every change to what is open is made against what the storage holds, as
 //! one step, so two contexts that each open a resource both keep theirs. A
@@ -45,7 +45,7 @@
 use super::factory::{SessionFactory, SessionFactoryOptions};
 use super::knowledge_base::KbSessionStatus;
 use super::open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_resources};
-use super::semiont_session::SemiontSession;
+use super::semiont_session::{ErrorsStream, SemiontSession};
 use super::signals::{KbIdentityConflict, SessionSignals};
 use super::stored::{
     ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession,
@@ -59,7 +59,7 @@ use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::timing::CHECKS_AT_ONCE_COUNT;
-use crate::transport::{Events, STREAM_BACKLOG};
+use crate::transport::Events;
 use crate::types::{
     KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase, ResourceId,
 };
@@ -67,7 +67,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::{broadcast, watch};
+use tokio::sync::watch;
 use tokio::task::{JoinHandle, JoinSet};
 
 pub struct SemiontBrowserConfig {
@@ -147,8 +147,7 @@ struct Inner {
     open_resources: Held<Vec<OpenResource>>,
     last_viewed_resource: Held<Option<ResourceId>>,
     identity_token: Held<Option<String>>,
-    /// `None` once closed.
-    errors: Mutex<Option<broadcast::Sender<SessionError>>>,
+    errors: ErrorsStream<SessionError>,
     bus: EventBus,
     kept: Mutex<Kept>,
     /// One activation at a time.
@@ -207,7 +206,7 @@ impl SemiontBrowser {
             open_resources: Held::new(Vec::new()),
             last_viewed_resource: Held::new(None),
             identity_token: Held::new(None),
-            errors: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
+            errors: ErrorsStream::new(),
             bus: EventBus::new(),
             turn: tokio::sync::Mutex::new(()),
             tasks: Tasks::new(),
@@ -273,13 +272,14 @@ impl SemiontBrowser {
         self.inner.last_viewed_resource.read()
     }
 
-    /// What went wrong with a session, from now on: each of its own errors,
-    /// as it said them, and a factory's refusal to build one.
+    /// What went wrong with a session: each of its own errors, as it said
+    /// them, and a factory's refusal to build one. The first reader is given
+    /// the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said since the browser
+    /// was made, the oldest dropped beyond that; each later one, what is said
+    /// from then on. It ends when the browser does, and a reader who comes
+    /// after that, the first among them, is given nothing.
     pub fn errors(&self) -> Events<SessionError> {
-        match locked(&self.inner.errors).as_ref() {
-            Some(errors) => Events::new(errors.subscribe()),
-            None => Events::new(broadcast::channel(1).1),
-        }
+        self.inner.errors.read()
     }
 
     /// The token of an identity the host's environment supplies.
@@ -676,7 +676,7 @@ impl Inner {
             reading.abort();
         }
         *locked(&self.storage_changes) = None;
-        *locked(&self.errors) = None;
+        self.errors.end();
         self.kbs.end();
         self.active_kb_id.end();
         self.active_session.end();
@@ -689,9 +689,7 @@ impl Inner {
     }
 
     fn failed(&self, error: SessionError) {
-        if let Some(errors) = locked(&self.errors).as_ref() {
-            let _ = errors.send(error);
-        }
+        self.errors.say(error);
     }
 
     /// Run `work` for as long as the browser lives: `close` returns the
@@ -922,47 +920,33 @@ impl Inner {
 
     /// Read what `session` says, as the one reader of its errors, from the
     /// first thing it said until they end: each of its own errors is said on
-    /// the browser's; a refusal for want of a valid token renews the
-    /// session, which heals quietly, or ends itself and says so once; and a
-    /// refusal for lack of permission, which has no remedy, is said through
-    /// `signals`. The reading holds neither the session nor the browser, so
-    /// it never keeps either alive.
+    /// the browser's, and a refusal for lack of permission, which has no
+    /// remedy, is said through `signals`. Any other failure of its transport,
+    /// a refusal for want of a valid token among them, is not acted on. The
+    /// reading holds neither the session nor the browser, so it never keeps
+    /// either alive.
     fn read(
         self: &Arc<Self>,
         session: &SemiontSession,
         signals: Arc<SessionSignals>,
     ) -> JoinHandle<()> {
         let mut errors = session.errors();
-        let (renewer, token) = (session.renewer(), session.token());
         let saying = Arc::downgrade(self);
         tokio::spawn(async move {
-            let mut renewing = JoinSet::new();
             while let Some(said) = errors.next().await {
                 // What was missed is not known, and is not acted on.
                 let Ok(said) = said else { continue };
-                while renewing.try_join_next().is_some() {}
                 match said {
                     SemiontError::Session(error) => {
                         if let Some(inner) = saying.upgrade() {
                             inner.failed(error);
                         }
                     }
-                    SemiontError::Transport(failure) => match failure.code {
-                        TransportErrorCode::Unauthorized => {
-                            // A failure does not say which token was refused:
-                            // the one the session holds as it is read is. The
-                            // renewal runs beside the reading, which goes on.
-                            let refused = token.borrow().clone();
-                            let renewer = renewer.clone();
-                            renewing.spawn(async move {
-                                renewer.refresh(refused.as_deref()).await;
-                            });
-                        }
-                        TransportErrorCode::Forbidden => {
+                    SemiontError::Transport(failure) => {
+                        if failure.code == TransportErrorCode::Forbidden {
                             signals.notify_permission_denied(Some(&failure.message));
                         }
-                        _ => {}
-                    },
+                    }
                     SemiontError::Bus(_) | SemiontError::Job(_) => {}
                 }
             }
@@ -1500,6 +1484,69 @@ mod tests {
                 .as_deref(),
         );
         assert_eq!(viewed.get(A).map(String::as_str), Some("r1"));
+    }
+}
+
+#[cfg(test)]
+mod kept_for_first_reader {
+    //! What a browser keeps of what it says before anyone reads its errors.
+    //! Nothing from outside makes it say many of its own with nobody
+    //! reading, so these say them themselves.
+
+    use super::*;
+    use crate::errors::SessionErrorCode;
+    use crate::testing::{ScriptedSessions, SharedStorage};
+    use crate::timing::ERRORS_KEPT_FOR_FIRST_READER_COUNT;
+
+    /// A browser with no knowledge bases, so it brings up no session.
+    fn browser() -> SemiontBrowser {
+        SemiontBrowser::new(SemiontBrowserConfig {
+            storage: Arc::new(SharedStorage::new()),
+            session_factory: Arc::new(ScriptedSessions::new(None)),
+        })
+        .expect("a browser")
+    }
+
+    fn failure(n: usize) -> SessionError {
+        SessionError::new(
+            SessionErrorCode::ConstructFailed,
+            format!("failure {n}"),
+            "kb-a",
+        )
+    }
+
+    /// Everything `errors` says, to its end.
+    async fn heard(mut errors: Events<SessionError>) -> Vec<SessionError> {
+        let mut heard = Vec::new();
+        while let Some(said) = errors.next().await {
+            heard.push(said.expect("no error was missed"));
+        }
+        heard
+    }
+
+    #[tokio::test]
+    async fn a_browser_nobody_has_read_keeps_the_latest_of_what_it_says_for_its_first_reader() {
+        let browser = browser();
+        let beyond = 5;
+        let said: Vec<SessionError> = (0..ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
+            .map(failure)
+            .collect();
+        for error in &said {
+            browser.inner.failed(error.clone());
+        }
+        let errors = browser.errors();
+        browser.close().await.expect("the browser closes");
+
+        assert_eq!(heard(errors).await, said[beyond..].to_vec());
+    }
+
+    #[tokio::test]
+    async fn a_first_reader_who_comes_after_the_browser_has_closed_hears_nothing() {
+        let browser = browser();
+        browser.inner.failed(failure(0));
+        browser.close().await.expect("the browser closes");
+
+        assert_eq!(heard(browser.errors()).await, Vec::<SessionError>::new());
     }
 }
 

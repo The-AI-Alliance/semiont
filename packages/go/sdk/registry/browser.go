@@ -30,9 +30,9 @@
 //     left as it was written;
 //   - no answer is no verdict, and changes nothing.
 //
-// A request the gateway refuses for want of a valid token renews the session,
-// and only a session whose issuer refuses to renew it is said to have
-// expired. A request refused for lack of permission is said at once.
+// A request refused for lack of permission is said at once. A refusal for
+// want of a valid token is renewed by the transport that met it, and the
+// registry does nothing with it, nor with any other failure of the transport.
 //
 // Every change to what is open is made against what the storage holds, as one
 // step, so two contexts that each open a resource both keep theirs. A write the
@@ -57,6 +57,7 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
@@ -201,7 +202,7 @@ func NewSemiontBrowser(config SemiontBrowserConfig) (*SemiontBrowser, error) {
 		openResources:     newHeld([]OpenResource{}),
 		lastViewed:        semiont.NewVariable(api.ResourceId{}),
 		identityToken:     semiont.NewVariable(""),
-		failures:          newFailures(),
+		failures:          newFailures(semiont.DefaultTiming().ErrorsKeptForFirstReaderCount),
 		bus:               semiont.NewEventBus(),
 		openByKb:          openByKbOf(storage.Get(OpenResourcesByKbKey)),
 		lastViewedByKb:    lastViewedByKbOf(storage.Get(LastViewedResourceByKbKey)),
@@ -270,8 +271,10 @@ func (b *SemiontBrowser) LastViewedResource() semiont.Watched[api.ResourceId] {
 // reads from the first thing each session said): those that made a session
 // unusable, those that stopped a session's client keeping what it holds, and
 // each write its storage refused, from this call on, until ctx is done or the
-// registry is closed. A reader that falls more than a few dozen behind misses
-// those after.
+// registry is closed. The first call is given first the latest
+// ErrorsKeptForFirstReaderCount (semiont.Timing) said before it, the oldest
+// dropped beyond them; a call once the registry has closed, nothing.
+// A reader that falls more than a few dozen behind misses those after.
 func (b *SemiontBrowser) Errors(ctx context.Context) iter.Seq[*semiont.SessionError] {
 	return b.failures.from(ctx)
 }
@@ -899,11 +902,10 @@ func constructFailed(err error, kbID string) *semiont.SessionError {
 
 // route reads the session's errors, as their one reader, and so from what
 // was said at its start: each of the session's own it says on the registry's
-// Errors, and each failure of its transport it routes. A refusal for want of
-// a valid token renews the session: it heals quietly, or the session ends
-// itself and says so once. A refusal for lack of permission has no remedy,
-// and is said through signals. It ends when the session's errors do, when
-// the session ends.
+// Errors. A refusal for lack of permission has no remedy, and is said through
+// signals; any other failure of its transport, a refusal for want of a valid
+// token among them, is not acted on. It ends when the session's errors do,
+// when the session ends.
 func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.SessionSignals) {
 	for each := range session.Errors() {
 		var own *semiont.SessionError
@@ -912,20 +914,7 @@ func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.Sessio
 			continue
 		}
 		var failure *semiont.TransportError
-		if !errors.As(each, &failure) {
-			continue
-		}
-		switch failure.Code {
-		case semiont.TransportErrorCodeUnauthorized:
-			// Refusals that arrive together are answered by one renewal: the
-			// session holds them while it renews. A failure does not say which
-			// token was refused: the one the session holds as it is read is.
-			refused := session.Token().Value()
-			b.spawn(func() error {
-				session.Refresh(b.alive, refused)
-				return nil
-			})
-		case semiont.TransportErrorCodeForbidden:
+		if errors.As(each, &failure) && failure.Code == semiont.TransportErrorCodeForbidden {
 			detail := failure.Message
 			signals.NotifyPermissionDenied(&detail)
 		}
@@ -1186,23 +1175,34 @@ func checkOpenResource(ctx context.Context, session *semiont.Session, id api.Res
 
 // ── The failures a registry says ────────────────────────────────────────
 
-// failures is each reader of a registry's Errors, and what is said to all of
-// them.
+// failures is each reader of a registry's Errors, what is said to all of
+// them, and what is kept for the first.
 type failures struct {
 	mu      sync.Mutex
 	readers map[int]chan *semiont.SessionError
 	next    int
 	over    chan struct{}
+	// keeping is whether what is said is kept for a first reader: until one
+	// reads, or the failures end.
+	keeping bool
+	// kept is the latest keptForFirst said while keeping, the oldest dropped
+	// beyond them.
+	kept         []*semiont.SessionError
+	keptForFirst int
 }
 
-func newFailures() *failures {
-	return &failures{readers: map[int]chan *semiont.SessionError{}, over: make(chan struct{})}
+func newFailures(keptForFirst int) *failures {
+	return &failures{readers: map[int]chan *semiont.SessionError{}, over: make(chan struct{}), keeping: true, keptForFirst: keptForFirst}
 }
 
-// say tells every reader of a failure. One whose backlog is full misses it.
+// say tells every reader of a failure, or keeps it for the first. A reader
+// whose backlog is full misses it.
 func (f *failures) say(err *semiont.SessionError) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.keeping {
+		f.kept = kept.Latest(append(f.kept, err), f.keptForFirst)
+	}
 	for _, reader := range f.readers {
 		select {
 		case reader <- err:
@@ -1211,11 +1211,14 @@ func (f *failures) say(err *semiont.SessionError) {
 	}
 }
 
-// from is the failures said from this call on.
+// from is the failures said from this call on; the first call's, first what
+// was kept for it. Once the failures have ended, it is only their end.
 func (f *failures) from(ctx context.Context) iter.Seq[*semiont.SessionError] {
 	f.mu.Lock()
 	id := f.next
 	f.next++
+	first := f.kept
+	f.kept, f.keeping = nil, false
 	reader := make(chan *semiont.SessionError, failuresBacklog)
 	select {
 	case <-f.over:
@@ -1226,6 +1229,11 @@ func (f *failures) from(ctx context.Context) iter.Seq[*semiont.SessionError] {
 	f.mu.Unlock()
 	return func(yield func(*semiont.SessionError) bool) {
 		defer f.forget(id)
+		for _, err := range first {
+			if ctx.Err() != nil || !yield(err) {
+				return
+			}
+		}
 		for {
 			select {
 			case <-ctx.Done():
@@ -1245,10 +1253,12 @@ func (f *failures) forget(id int) {
 	delete(f.readers, id)
 }
 
-// end ends every reader's failures.
+// end ends every reader's failures. What was kept for a first reader who has
+// not come is let go of.
 func (f *failures) end() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.kept, f.keeping = nil, false
 	select {
 	case <-f.over:
 		return

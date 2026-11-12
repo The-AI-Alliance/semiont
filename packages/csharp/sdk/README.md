@@ -49,25 +49,33 @@ either value absent. The session asks the gateway who its token is unless it is 
 credential is renewed once and validated once more. `RefreshAsync(refusedToken)`
 handles a transport refusal; simultaneous callers share one renewal, and canceling a
 caller's wait leaves that renewal running for the others. Transient renewal failure
-retains the kept sign-in and retries on the reconnect backoff.
+retains the kept sign-in and retries on the reconnect backoff. The session signs out
+when the issuer refuses its renewal, a renewal gives no token, or the gateway refuses a
+token the issuer has just issued: it forgets the kept sign-in and tells `onAuthFailed`
+why, before it says so on `Errors()`.
 
 `Errors()` is the session's one stream of what went wrong: its own errors, each a
 `SessionError` with one of the generated session error codes, and its client's
-transport's failures, each said once. What it says before anyone reads it is kept for
-the first reader. Given a storage, the client keeps its persisted queries there for the
-person the gateway names; a write the storage refuses is said as `session.save-refused`
-and written again with the client's next change or its closing. Disposing the
-`OpenedSession` disposes the client, waits for its closing save, and then ends the
-session and its errors, without signing out the kept credentials.
+transport's failures, each said once. Of what it says before anyone reads it, the
+latest `errorsKeptForFirstReaderCount` (protocol/specs/src/client/timing.json) are
+kept for the first reader, in the order said. Given a storage, the client keeps its
+persisted queries there for the person the gateway names; a write the storage refuses
+is said as `session.save-refused` and written again with the client's next change or
+its closing. Disposing the `OpenedSession` disposes the client, waits for its closing
+save, and then ends the session and its errors, without signing out the kept
+credentials.
 
 Use `HttpSessionFactory` with `SemiontBrowser` to bind a registered knowledge base's
-session to its client. A factory reads none of the session's errors: the registry is
-their one reader, from the first thing the session said. It says each of the session's
-own errors on its `Errors()`, and the first said once the session has ended also
-through the session's signals as that end. A transport refusal for want of a valid
-token renews the session, handed the token it holds; one for lack of permission is said
-through the signals as a permission denied, with its message. A session from a factory
-you write is read the same way.
+session to its client. Its session tells the knowledge base's signals why it ended, as
+it signs out. A factory reads none of the session's errors: the registry is their one
+reader, from the first thing the session said. It says each of the session's own errors
+on its `Errors()`, and a transport refusal for lack of permission through the signals
+as a permission denied, with its message. A refusal for want of a valid token is
+renewed by the transport that met it, so the registry does nothing with it, nor with
+any other failure of the transport. A session from a factory you write is read the
+same way. Such a factory hands its options' `Signals.NotifySessionEnded` to
+`SemiontSession.FromKeptAsync` as `onAuthFailed`: the registry raises no session end
+itself.
 
 `Issuer.RenewAsync(kept, holding)` exchanges the stored refresh token at its stored
 endpoint. It adopts another writer's usable renewal before spending a refresh token,

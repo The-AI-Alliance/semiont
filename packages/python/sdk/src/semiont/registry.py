@@ -34,11 +34,10 @@ who it is and each open resource is checked against it:
 
 **The registry is the one reader of each session's errors,** from the first
 thing the session said until they end, as the session does. Each of the
-session's own errors is said on the registry's `errors`. A request the gateway
-refuses for want of a valid token renews the session, handed the token it
-holds as the refusal is read, and only a session whose issuer refuses to renew
-it is said to have expired. A request refused for lack of permission is said
-at once, through the session's signals. A factory reads none of them, so a
+session's own errors is said on the registry's `errors`. A request refused for
+lack of permission is said at once, through the session's signals. Every other
+failure of the session's transport is left alone: a token the gateway refuses
+is renewed by the transport that sent it. A factory reads none of them, so a
 session a factory of the host's builds is read the same way.
 
 Every change to what is open is made against what the storage holds, as one
@@ -63,10 +62,11 @@ from typing import Final, Literal, Protocol, Self, final, override
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont._endpoints import same_place
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont._reading import Reading
 from semiont.errors import BusRequestError, SemiontError, SessionError, TransportError
 from semiont.event_bus import EventBus
-from semiont.events import Broadcast, Events
+from semiont.events import Events
 from semiont.identifiers import ResourceId
 from semiont.identity import kb_did
 from semiont.model import written
@@ -570,7 +570,7 @@ class SemiontBrowser:
         self._open_resources: Final = Variable[tuple[OpenResource, ...]](())
         self._last_viewed: Final = Variable[ResourceId | None](None)
         self._identity_token: Final = Variable[str | None](None)
-        self._failures: Final = Broadcast[SessionError]()
+        self._failures: Final = KeptForFirstReader[SessionError]()
         self._bus: Final = EventBus()
         self._open_by_kb = _open_by_kb_of(self._storage.get(OPEN_RESOURCES_BY_KB_KEY))
         self._viewed_by_kb = _viewed_by_kb_of(self._storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY))
@@ -640,7 +640,14 @@ class SemiontBrowser:
         return Reading(self._last_viewed)
 
     def errors(self) -> Events[SessionError]:
-        """Each of its sessions' own errors, and each session it could not build, from now on, until the registry is closed."""
+        """Each of its sessions' own errors, and each session it could not build, until the registry is closed.
+
+        Its first reader is given first the latest
+        `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said before it came, in the order
+        they were said, the oldest beyond them dropped; every later one, what
+        is said from then on. What is still kept when the registry closes is
+        dropped: a reader that comes after is given nothing.
+        """
         return self._failures.listen()
 
     @property
@@ -1041,7 +1048,7 @@ class SemiontBrowser:
                         self._failed(_construct_failed(refused, kb.id))
                     return
                 # Their first reader, as the factory hands the session back: what it said before is read too.
-                reading = asyncio.create_task(self._read(session, session.errors(), signals))
+                reading = asyncio.create_task(self._read(session.errors(), signals))
                 came_up.set_result(session)
                 await stop.wait()
         finally:
@@ -1050,38 +1057,20 @@ class SemiontBrowser:
             if reading is not None:
                 await reading
 
-    async def _read(self, session: SemiontSession[Transport], errors: Events[SemiontError], signals: SessionSignals) -> None:
-        """Read what `session` says on `errors`, its errors as their first reader, until they end.
+    async def _read(self, errors: Events[SemiontError], signals: SessionSignals) -> None:
+        """Read a session's `errors`, as their first reader, until they end.
 
-        Each of its own errors is said on the registry's. A refusal for want
-        of a valid token renews the session: it heals quietly, or the session
-        ends itself and says so once. A refusal for lack of permission has no
-        remedy, and is said through `signals`. A renewal it still waits on when
-        the errors end is waited on no more, and one that failed is raised then.
+        Each of its own errors is said on the registry's. A refusal for lack
+        of permission has no remedy, and is said through `signals`. Every other
+        failure of its transport is left alone, a refusal for want of a valid
+        token among them: the transport that met it renews the token it sent.
         """
-        renewals: list[asyncio.Task[str | None]] = []
-        try:
-            async with errors:
-                async for error in errors:
-                    if isinstance(error, SessionError):
-                        self._failed(error)
-                    elif isinstance(error, TransportError):
-                        match error.code:
-                            case "unauthorized":
-                                # Refusals that arrive together are answered by one renewal: the session holds them while it renews.
-                                # A failure does not say which token was refused: the one the session holds as it is read is.
-                                renewals.append(asyncio.create_task(session.refresh(session.token.value)))
-                            case "forbidden":
-                                signals.notify_permission_denied(error.message)
-                            case _:
-                                pass
-        finally:
-            for renewal in renewals:
-                renewal.cancel()
-            ended = await asyncio.gather(*renewals, return_exceptions=True)
-        for outcome in ended:
-            if isinstance(outcome, Exception):
-                raise outcome
+        async with errors:
+            async for error in errors:
+                if isinstance(error, SessionError):
+                    self._failed(error)
+                elif isinstance(error, TransportError) and error.code == "forbidden":
+                    signals.notify_permission_denied(error.message)
 
     # ── What is shown ───────────────────────────────────────────────────
 
