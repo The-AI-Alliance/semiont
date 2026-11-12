@@ -233,7 +233,8 @@ func (t *HTTPTransport) State() Watched[ConnectionState] { return t.state.Readin
 // server refused, and what the gateway never answered, each before it is
 // returned to its caller, until stop or the transport closes. The first
 // listener is told first the latest ErrorsKeptForFirstReaderCount (Timing)
-// since the transport was made.
+// since the transport was made; one who comes after the transport has closed,
+// nothing.
 func (t *HTTPTransport) Failures(told func(*TransportError)) (stop func()) {
 	return t.shared.failures.listen(told)
 }

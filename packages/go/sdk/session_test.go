@@ -1385,6 +1385,33 @@ func TestASessionNobodyHasReadKeepsTheLatestOfWhatItSaysForItsFirstReader(t *tes
 	}
 }
 
+// A first reader who comes after the session has ended hears nothing: what
+// was kept for it was let go of at the end.
+func TestAFirstReaderWhoComesAfterTheSessionHasEndedHearsNothing(t *testing.T) {
+	client := testClient()
+	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Client: client.Client, Token: semiont.NewVariable(""), Kept: &semiont.MemorySignIn{}, Timing: semiont.DefaultTiming(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := sync.OnceFunc(func() {
+		client.Client.Close()
+		session.Close()
+		client.Transport.Close()
+	})
+	t.Cleanup(closed)
+	if err := session.Ready(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	client.Transport.Fail(&semiont.TransportError{Code: semiont.TransportErrorCodeUnavailable, Message: "HTTP 503"})
+	closed()
+
+	if said := hear(session).rest(t, closed); len(said) != 0 {
+		t.Errorf("a first reader after the end heard %v, want nothing", said)
+	}
+}
+
 // errUnreadable is why a sign-in cannot be read.
 var errUnreadable = errors.New("the sign-in cannot be read")
 

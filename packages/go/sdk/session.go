@@ -312,7 +312,8 @@ func (s *Session) StreamState() Watched[ConnectionState] { return s.config.Clien
 // the latest ErrorsKeptForFirstReaderCount (Timing) said since the session
 // was made, the oldest dropped beyond them, and every later one what is
 // said from then on; saying never waits for a reader. It ends when the
-// session ends (Close). Whoever ends both closes the client first, so what
+// session ends (Close), and a reader who comes after that, the first among
+// them, is given nothing. Whoever ends both closes the client first, so what
 // the client's closing flush meets is said before it ends; what the client
 // meets once the session is closing is said nowhere. A refusal for want of a
 // valid token among them is the transport's to renew, not their reader's.

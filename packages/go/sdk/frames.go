@@ -16,6 +16,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
@@ -183,18 +184,7 @@ func (q *queue[T]) next(stop <-chan struct{}) (T, bool) {
 func (q *queue[T]) keepLatest(n int) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.items = latest(q.items, n)
-}
-
-// latest is the last n of items; those before them are cleared, so that
-// nothing is held by them.
-func latest[T any](items []T, n int) []T {
-	beyond := len(items) - n
-	if beyond <= 0 {
-		return items
-	}
-	clear(items[:beyond])
-	return items[beyond:]
+	q.items = kept.Latest(q.items, n)
 }
 
 // drain takes every item the queue holds now, without waiting; closed is
@@ -399,10 +389,11 @@ func (h *FrameHub) Close() {
 }
 
 // failureStream is what a session says went wrong: T is what each is. Its
-// first listener's queue is made with it and held until a listener takes it,
-// because the stream opens before whatever reads it is handed the session:
-// the first who asks to hear it is given the latest keptForFirst of what was
-// said before. Reporting never waits for a reader.
+// first listener's queue is made with it and held until a listener takes it
+// or the stream closes, because the stream opens before whatever reads it is
+// handed the session: the first who asks to hear it before then is given the
+// latest keptForFirst of what was said before. Reporting never waits for a
+// reader.
 type failureStream[T any] struct {
 	b     *broadcast[T]
 	mu    sync.Mutex
@@ -418,7 +409,8 @@ func newFailureStream[T any](keptForFirst int) *failureStream[T] {
 }
 
 // failures is the failures reported from now on; its first listener is given
-// first the latest keptForFirst reported since the stream was made.
+// first the latest keptForFirst reported since the stream was made. Once the
+// stream has closed, every listener is given only its end.
 func (f *failureStream[T]) failures() iter.Seq[T] {
 	f.mu.Lock()
 	q := f.first
@@ -444,15 +436,23 @@ func (f *failureStream[T]) report(err T) T {
 	return err
 }
 
-func (f *failureStream[T]) close() { f.b.close() }
+// close ends every listener's failures once it has read what it holds. What
+// was kept for a first listener who has not come is let go of.
+func (f *failureStream[T]) close() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.first = nil
+	f.b.close()
+}
 
 // failureTelling is the failures a transport meets, each told to every
 // listener within its report, before the call that met it returns, and all
 // under one lock, so each listener is told them in the order they were met.
 // Of what is reported before anyone listens, the latest keptForFirst are kept
-// for the first listener, and told to it as it starts listening, because the
-// transport opens before whatever listens to it is returned to its caller
-// (protocol/contract/TRANSPORT-CONTRACT.md § Failures).
+// for the first listener, until the transport closes, and told to it as it
+// starts listening, because the transport opens before whatever listens to it
+// is returned to its caller (protocol/contract/TRANSPORT-CONTRACT.md §
+// Failures).
 type failureTelling struct {
 	mu        sync.Mutex
 	listeners []*failureListener
@@ -501,7 +501,7 @@ func (f *failureTelling) report(err *TransportError) *TransportError {
 	switch {
 	case f.closed:
 	case !f.heard:
-		f.kept = latest(append(f.kept, err), f.keptForFirst)
+		f.kept = kept.Latest(append(f.kept, err), f.keptForFirst)
 	default:
 		for _, l := range f.listeners {
 			l.told(err)
@@ -510,10 +510,12 @@ func (f *failureTelling) report(err *TransportError) *TransportError {
 	return err
 }
 
-// close ends every listener's telling: nothing more is told, or kept.
+// close ends every listener's telling: nothing more is told, or kept, and
+// what was kept for a first listener who has not come is let go of.
 func (f *failureTelling) close() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.closed = true
 	f.listeners = nil
+	f.kept = nil
 }
