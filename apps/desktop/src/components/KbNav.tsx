@@ -127,6 +127,7 @@ export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredI
     const dismiss = (event: MouseEvent) => {
       if (!(event.target instanceof Node) || menuRef.current?.contains(event.target)) return;
       if (event.target instanceof Element && event.target.closest('.app__chrome-controls') !== null) return;
+      if (event.target instanceof Element && event.target.closest('.chat__compose') !== null) return;
       if (event.target instanceof Element && event.target.closest('.modal') !== null) return;
       onOpenChange(false);
     };
