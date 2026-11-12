@@ -85,6 +85,7 @@ type semiont_browser = {
   said : Client.session_error Kept_for_first_reader.t;
   mutable connected : connection option;
   mutable generation : unit ref;
+  mutable closed : bool;
 }
 
 type activation_error =
@@ -227,6 +228,7 @@ let new_semiont_browser ?storage config =
     said = Kept_for_first_reader.make ();
     connected = None;
     generation = ref ();
+    closed = false;
   }
 
 let knowledge_bases browser = load_knowledge_bases browser.config.storage
@@ -246,7 +248,8 @@ let read browser { session; signals } =
     State_units.Session.errors session
       ~on_value:(function
         | Client.Own error -> Kept_for_first_reader.say browser.said error
-        | Client.Transport_failure { code = "forbidden"; message; _ } ->
+        | Client.Transport_failure { code; message; _ }
+          when code = Error_codes.Transport.forbidden ->
             State_units.Session_signals.notify_permission_denied signals
               ~detail:(Some message)
         | Client.Transport_failure _ -> ())
@@ -270,6 +273,7 @@ let disconnect browser =
 
 let close browser =
   locked browser (fun () ->
+      browser.closed <- true;
       browser.generation <- ref ();
       disconnect browser);
   Kept_for_first_reader.close browser.said
@@ -283,7 +287,7 @@ let endpoint kb =
 
 let describe_connection client =
   match Bus_registry.decode Bus_registry.Channels.browse_kb_requested "{}" with
-  | Error _ -> Error "bad-request"
+  | Error _ -> Error Error_codes.Transport.bad_request
   | Ok payload -> (
       match Client.Browse.kb client payload with
       | Error _ -> Error "kb.identity-unreachable"
@@ -373,46 +377,59 @@ let record_sign_in browser (signed : signed_in) =
           Ok { kb; expected })
 
 let activate browser key =
-  let generation, before =
+  let begun =
     locked browser (fun () ->
-        let generation = ref () in
-        browser.generation <- generation;
-        (generation, active_id browser))
+        if browser.closed then None
+        else
+          let generation = ref () in
+          browser.generation <- generation;
+          Some (generation, active_id browser))
   in
-  match List.find_opt (fun kb -> id kb = key) (knowledge_bases browser) with
-  | None -> Error (Unavailable "kb.not-found")
-  | Some kb -> (
-      let storage = browser.config.storage in
-      let signals = State_units.Session_signals.make () in
-      match browser.config.factory { kb; storage; signals } with
-      | Error code ->
-          State_units.Session_signals.dispose signals;
-          Error (Unavailable code)
-      | Ok (session, identity) ->
-          let connection = { session; signals } in
-          read browser connection;
-          locked browser (fun () ->
-              if identity.did <> did kb then (
-                finish connection;
-                Error (Identity_conflict identity.did))
-              else if
-                browser.generation != generation
-                || active_id browser <> before
-                || not
-                     (List.exists
-                        (fun current ->
-                          id current = key
-                          && did current = did kb
-                          && same_place (endpoint current) (endpoint kb))
-                        (knowledge_bases browser))
-              then (
-                finish connection;
-                Error Superseded)
-              else (
-                disconnect browser;
-                browser.connected <- Some connection;
-                storage.write active_key key;
-                Ok session)))
+  match begun with
+  | None -> Error Superseded
+  | Some (generation, before) -> (
+      match List.find_opt (fun kb -> id kb = key) (knowledge_bases browser) with
+      | None -> Error (Unavailable "kb.not-found")
+      | Some kb -> (
+          let storage = browser.config.storage in
+          let signals = State_units.Session_signals.make () in
+          match browser.config.factory { kb; storage; signals } with
+          | Error code ->
+              State_units.Session_signals.dispose signals;
+              if not (locked browser (fun () -> browser.closed)) then
+                Kept_for_first_reader.say browser.said
+                  {
+                    Client.code = Error_codes.Session.construct_failed;
+                    message =
+                      "Could not construct the knowledge base's session: "
+                      ^ code;
+                  };
+              Error (Unavailable code)
+          | Ok (session, identity) ->
+              let connection = { session; signals } in
+              read browser connection;
+              locked browser (fun () ->
+                  if identity.did <> did kb then (
+                    finish connection;
+                    Error (Identity_conflict identity.did))
+                  else if
+                    browser.generation != generation
+                    || active_id browser <> before
+                    || not
+                         (List.exists
+                            (fun current ->
+                              id current = key
+                              && did current = did kb
+                              && same_place (endpoint current) (endpoint kb))
+                            (knowledge_bases browser))
+                  then (
+                    finish connection;
+                    Error Superseded)
+                  else (
+                    disconnect browser;
+                    browser.connected <- Some connection;
+                    storage.write active_key key;
+                    Ok session))))
 
 let session_status browser key =
   match stored_session browser.config.storage key with

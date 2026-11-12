@@ -99,11 +99,11 @@ let request t operation payload =
     | Ok (S.Result value) ->
         Ok (Yojson.Safe.from_string (B.encode value) |> field "response")
     | Ok (S.Failure value) -> Error (H.bus_failure value)
-    | Error S.Timeout -> Error "bus.timeout"
-    | Error S.Transport_closed -> Error "bus.closed"
-    | Error S.Unsubscribed -> Error "bus.unsubscribed"
-    | Error S.Unrecognized_failure -> Error "bus.rejected"
-    | Error _ -> Error "error"
+    | Error S.Timeout -> Error Error_codes.Bus_request.timeout
+    | Error S.Transport_closed -> Error Error_codes.Bus_request.closed
+    | Error S.Unsubscribed -> Error Error_codes.Bus_request.unsubscribed
+    | Error S.Unrecognized_failure -> Error Error_codes.Bus_request.rejected
+    | Error _ -> Error Error_codes.Transport.error
   with H.Failed failure -> Error failure.code
 
 let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
@@ -158,7 +158,7 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
           | "job:fail" when field "willRetry" payload = `Bool true ->
               retrying := true;
               on_report Retrying payload
-          | "job:fail" -> fail "job.failed" payload
+          | "job:fail" -> fail Error_codes.Job.failed payload
           | _ -> ())
       | _ -> ()
   in
@@ -218,7 +218,8 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
                            (send t ~correlation_id:(t.correlation_id ())
                               B.Channels.job_cancel_requested identity)
                        with H.Failed _ -> ());
-                      if not !finished then fail "job.stalled" (`Assoc []))
+                      if not !finished then
+                        fail Error_codes.Job.stalled (`Assoc []))
                     else if
                       Mtime.Span.compare elapsed (span (poll_delay ())) < 0
                     then monitor ()
@@ -244,8 +245,10 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
                                               ("resourceId", text value))
                                             resource)));
                                 finish ()
-                            | `String "failed" -> fail "job.failed" value
-                            | `String "cancelled" -> fail "job.cancelled" value
+                            | `String "failed" ->
+                                fail Error_codes.Job.failed value
+                            | `String "cancelled" ->
+                                fail Error_codes.Job.cancelled value
                             | _ -> ())
                         | Error _ -> ());
                         if Mtime.equal !last_seen previous_activity then (
@@ -262,7 +265,12 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
 let start t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure ~on_close
     () =
   if t.closed then (
-    on_failure { code = "bus.closed"; message = None; failure_class = None };
+    on_failure
+      {
+        code = Error_codes.Bus_request.closed;
+        message = None;
+        failure_class = None;
+      };
     on_close ();
     Fun.id)
   else

@@ -1276,6 +1276,51 @@ let registry_closing row () =
     (List.filteri (fun index _ -> index >= before) !registry_said);
   Client.await_closed client
 
+(* A factory that cannot build the knowledge base's session: the registry says
+   so on its errors, and the activation is unavailable for the factory's
+   reason. *)
+let registry_construct_failed () =
+  Eio_mock.Backend.run @@ fun () ->
+  let _, clock = mock_clock () in
+  let script = Testing.scripted_sessions () in
+  Testing.queue_session script "kb-a" (fun _ ->
+      Error Error_codes.Transport.unavailable);
+  let browser = errors_browser ~clock (Testing.factory script) in
+  let registry_said = ref [] in
+  let _release =
+    R.errors browser
+      ~on_value:(fun (error : Client.session_error) ->
+        registry_said := !registry_said @ [ error.code ])
+      ~on_close:ignore
+  in
+  (match R.activate browser "kb-a" with
+  | Error (R.Unavailable code) when code = Error_codes.Transport.unavailable ->
+      ()
+  | _ ->
+      Alcotest.fail
+        "an activation whose factory failed was not unavailable for its reason");
+  Alcotest.(check (list string))
+    "said on the registry's errors"
+    [ Error_codes.Session.construct_failed ]
+    !registry_said;
+  R.close browser
+
+(* A registry that has closed builds no session. *)
+let registry_closed_activation () =
+  Eio_mock.Backend.run @@ fun () ->
+  let _, clock = mock_clock () in
+  let built = ref false in
+  let browser =
+    errors_browser ~clock (fun _ ->
+        built := true;
+        Error Error_codes.Session.construct_failed)
+  in
+  R.close browser;
+  (match R.activate browser "kb-a" with
+  | Error R.Superseded -> ()
+  | _ -> Alcotest.fail "an activation after the registry closed was not over");
+  Alcotest.(check bool) "a session built after the close" false !built
+
 let refusal index = "refusal " ^ string_of_int index
 
 (* A client's errors keep the latest failures of its transport for their first
@@ -1475,5 +1520,9 @@ let () =
               `Quick client_errors_kept;
             Alcotest.test_case "a registry's errors kept for the first reader"
               `Quick registry_errors_kept;
+            Alcotest.test_case "a session its factory could not build" `Quick
+              registry_construct_failed;
+            Alcotest.test_case "an activation after the registry closed" `Quick
+              registry_closed_activation;
           ] );
     ]

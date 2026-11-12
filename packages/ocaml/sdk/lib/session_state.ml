@@ -68,11 +68,11 @@ let make ?(on_auth_failed = ignore) ~id ~kb client =
   t.unlisten <- Client.errors client ~on_value:say ~on_close:ignore;
   let own code message = say (Client.Own { code; message }) in
   let auth_failed () =
-    own "session.auth-failed"
+    own Error_codes.Session.auth_failed
       "The stored credential could not be validated at startup"
   in
   let refresh_exhausted () =
-    own "session.refresh-exhausted" "The session could not be renewed"
+    own Error_codes.Session.refresh_exhausted "The session could not be renewed"
   in
   let check token :
       [ `Confirmed of [ `UserResponse ] Models.t | `Refused | `Unavailable ] =
@@ -81,7 +81,8 @@ let make ?(on_auth_failed = ignore) ~id ~kb client =
         match Models.decode Models.user_response body with
         | Ok user -> `Confirmed user
         | Error _ -> `Unavailable)
-    | Error { code = "unauthorized"; _ } -> `Refused
+    | Error { code; _ } when code = Error_codes.Transport.unauthorized ->
+        `Refused
     | Error _ -> `Unavailable
   in
   let refresh_context = ref `Running in
@@ -99,7 +100,7 @@ let make ?(on_auth_failed = ignore) ~id ~kb client =
         | `Refused ->
             Session.forget session token;
             t.confirmed <- None;
-            own "session.credential-refused"
+            own Error_codes.Session.credential_refused
               "The gateway refused a token the issuer had just issued";
             on_auth_failed Refused;
             Session.Refused)

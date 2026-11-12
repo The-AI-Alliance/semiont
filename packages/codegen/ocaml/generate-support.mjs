@@ -55,7 +55,7 @@ const routes = Object.entries(names).map(([name, id]) => {
   const { path, method } = operations.get(id);
   return `let ${name} = (${ocamlString(method.toUpperCase())}, ${ocamlString(path)})`;
 });
-const { transportCodes, unclassified, busByWire, unrecognized } = readErrorCodes(
+const { busCodes, transportCodes, unclassified, busByWire, unrecognized, jobCodes, sessionCodes } = readErrorCodes(
   resolve(specRoot, 'errors/codes.json'), resolve(specRoot, 'components/schemas/CommandError.json'),
   (message) => { throw new Error(`errors/codes.json: ${message}`); });
 const statusCode = transportCodes.flatMap(({ code, status, statusFrom }) =>
@@ -89,6 +89,22 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/http_facts.ml'),
     `let retry_statuses = [${retryStatuses.join('; ')}]`,
     `let upload_fields = [${uploadFields.map(ocamlString).join('; ')}]`, '',
   ].join('\n'), process.argv.includes('--check'));
+
+// Each vocabulary OCaml says a code of, a value per code named by its last segment (`bus.not-found` is
+// Bus_request.not_found).
+const vocabularies = [['Bus_request', busCodes], ['Transport', transportCodes], ['Job', jobCodes], ['Session', sessionCodes]];
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/error_codes.ml'),
+  ['(* Generated from errors/codes.json. Do not edit. *)', '', '[@@@ocamlformat "disable"]', '',
+    ...vocabularies.flatMap(([module, codes]) => {
+      const named = new Set();
+      return [`module ${module} = struct`, ...codes.map(({ code }) => {
+        const name = code.split('.').at(-1).replaceAll('-', '_');
+        if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`errors/codes.json: ${code} names no OCaml value`);
+        if (named.has(name)) throw new Error(`errors/codes.json: two of ${module}'s codes are both named ${name}`);
+        named.add(name);
+        return `  let ${name} = ${ocamlString(code)}`;
+      }), 'end'];
+    }), ''].join('\n'), process.argv.includes('--check'));
 
 const telemetrySource = 'sdk-telemetry/telemetry.json';
 const telemetry = readSpec(telemetrySource);

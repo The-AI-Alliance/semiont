@@ -151,9 +151,9 @@ let exchange t ~auth ?progress ?timeout_ms ?(headers = []) ?(body = "")
     match outcome with
     | `Answered (Ok value) -> value
     | `Expired when jitter && left > 1 -> retry 0.
-    | `Expired -> fail t ~message:unanswered "unavailable"
+    | `Expired -> fail t ~message:unanswered Error_codes.Transport.unavailable
     | `Lost when left > 1 -> retry 0.
-    | `Lost -> fail t ~message:unreachable "unavailable"
+    | `Lost -> fail t ~message:unreachable Error_codes.Transport.unavailable
     | `Answered (Error (status, headers, detail)) ->
         let message = refusal status detail in
         if credential_refused status detail then
@@ -162,8 +162,9 @@ let exchange t ~auth ?progress ?timeout_ms ?(headers = []) ?(body = "")
               match Session.refresh_refused t.session ~refused with
               | Some replacement ->
                   attempt (Some replacement) true attempts initial_delay
-              | None -> fail t ~status ~message "unauthorized")
-          | _ -> fail t ~status ~message "unauthorized"
+              | None ->
+                  fail t ~status ~message Error_codes.Transport.unauthorized)
+          | _ -> fail t ~status ~message Error_codes.Transport.unauthorized
         else if
           left > 1
           && Retry.retryable
@@ -186,7 +187,8 @@ let emit t ~client_id ?scope ?correlation_id ?trace channel source =
     with
     | Ok body -> body
     | Error _ ->
-        fail t ~message:"The emit's payload is not its channel's" "bad-request"
+        fail t ~message:"The emit's payload is not its channel's"
+          Error_codes.Transport.bad_request
   in
   let open Telemetry_facts in
   let name = Bus_registry.name channel in
@@ -268,17 +270,28 @@ let check_user t token =
             Error
               {
                 code =
-                  (if credential_refused status body then "unauthorized"
-                   else "unavailable");
+                  (if credential_refused status body then
+                     Error_codes.Transport.unauthorized
+                   else Error_codes.Transport.unavailable);
                 status = Some status;
                 message = refusal status body;
               })
     in
     Fiber.first check (fun () ->
         sleep t (float t.timing.request_timeout_ms);
-        Error { code = "unavailable"; status = None; message = unanswered })
+        Error
+          {
+            code = Error_codes.Transport.unavailable;
+            status = None;
+            message = unanswered;
+          })
   with Eio.Io _ | End_of_file ->
-    Error { code = "unavailable"; status = None; message = unreachable }
+    Error
+      {
+        code = Error_codes.Transport.unavailable;
+        status = None;
+        message = unreachable;
+      }
 
 let protected_resource_metadata t =
   json_get t ~auth:false Http_facts.protected_resource_metadata

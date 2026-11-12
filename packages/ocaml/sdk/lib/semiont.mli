@@ -13,6 +13,7 @@ module Wire_stream = Wire_stream
 module Subscription = Subscription
 module Session = Session
 module Http_wire = Http_wire
+module Error_codes = Error_codes
 module Telemetry = Telemetry
 module Live_query = Live_query
 module Worker = Worker

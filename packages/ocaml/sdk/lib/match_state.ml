@@ -41,8 +41,9 @@ let make client =
                   | Ok (Subscription.Failure payload) ->
                       Client.publish client ?correlation_id
                         B.Channels.match_search_failed payload
-                  | Error Subscription.Timeout -> rejected "bus.timeout"
-                  | Error _ -> rejected "bus.closed"
+                  | Error Subscription.Timeout ->
+                      rejected Error_codes.Bus_request.timeout
+                  | Error _ -> rejected Error_codes.Bus_request.closed
                 with Http_wire.Failed failure -> rejected failure.code)
               (fun () -> Promise.await closed);
             `Stop_daemon)

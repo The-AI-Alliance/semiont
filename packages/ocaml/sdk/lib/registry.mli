@@ -103,7 +103,12 @@ val activate :
     of the session's own errors is said on [errors]; a refusal for lack of
     permission is said through its signals, with the failure's message as the
     detail; any other failure of its transport is said nowhere, and the registry
-    renews no session. The session it ends closes its client first. *)
+    renews no session. The session it ends closes its client first. A session
+    the factory cannot build is said on [errors] as session.construct-failed,
+    and the activation is [Unavailable] for the factory's reason. An activation
+    that a later one, a sign-in, a sign-out or [close] overtakes is
+    [Superseded], its session ended at once, and so is one begun after [close],
+    which builds nothing. *)
 
 val errors :
   semiont_browser ->
@@ -111,11 +116,11 @@ val errors :
   on_close:(unit -> unit) ->
   unit ->
   unit
-(** Hear each own error of the sessions the registry activates. The first reader
-    is first given the latest errorsKeptForFirstReaderCount
-    (protocol/specs/src/client/timing.json) said before it came, in order; a
-    later reader hears what is said from when it reads. [close] ends it. The
-    returned function stops hearing. *)
+(** Hear each own error of the sessions the registry activates, and each session
+    its factory could not build. The first reader is first given the latest
+    errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) said
+    before it came, in order; a later reader hears what is said from when it
+    reads. [close] ends it. The returned function stops hearing. *)
 
 val close : semiont_browser -> unit
 (** Ends the active session, its client first, so what the client's closing

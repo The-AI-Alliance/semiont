@@ -14,7 +14,7 @@ let create_from_token client ~token ~name ~content ?archive_original () =
   let module B = Bus_registry in
   let request = Yojson.Safe.to_string (`Assoc [ ("token", `String token) ]) in
   match B.decode B.Channels.yield_clone_resource_requested request with
-  | Error _ -> Error (Client_core.Refused "bad-request")
+  | Error _ -> Error (Client_core.Refused Error_codes.Transport.bad_request)
   | Ok payload ->
       Result.bind (from_token client payload) (fun reply ->
           let open Yojson.Safe.Util in

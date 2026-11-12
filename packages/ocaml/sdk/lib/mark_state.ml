@@ -163,7 +163,7 @@ let request_delegate t params =
           | Complete | Refused -> ())
         ~on_failure:(fun failure ->
           set t.failure (Some failure);
-          if failure.code <> "job.cancelled" then (
+          if failure.code <> Error_codes.Job.cancelled then (
             set t.progress None;
             set t.motivation None))
         ~on_close:(fun () ->

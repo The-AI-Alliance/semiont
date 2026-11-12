@@ -87,11 +87,12 @@ let claim subscription http ~client_id ~correlation_id ?trace
     Subscription.request subscription ~timeout_ms ~correlation_id operation
       ~send
   with
-  | Error Subscription.Timeout -> Refused (Some "bus.timeout")
+  | Error Subscription.Timeout -> Refused (Some Error_codes.Bus_request.timeout)
   | Error _ -> Refused None
   | Ok (Subscription.Failure payload) ->
       let code = Http_wire.bus_failure payload in
-      if code = "bus.none-pending" then Empty else Refused (Some code)
+      if code = Error_codes.Bus_request.none_pending then Empty
+      else Refused (Some code)
   | Ok (Subscription.Result payload) -> (
       try
         let response =
@@ -213,7 +214,7 @@ let commit job subscription ~correlation_id
     | _ -> job.durability <- Some (rank, evidence)
   in
   locked job (fun () ->
-      if job.phase = Settled then Error "bus.closed"
+      if job.phase = Settled then Error Error_codes.Bus_request.closed
       else
         match List.rev annotations with
         | [] -> Ok ()
@@ -248,8 +249,9 @@ let commit job subscription ~correlation_id
                 in
                 let rank, label = evidence in
                 record rank label;
-                if rank = 0 then Ok () else Error "bus.timeout"
-            | Error _ -> Error "bus.closed"))
+                if rank = 0 then Ok ()
+                else Error Error_codes.Bus_request.timeout
+            | Error _ -> Error Error_codes.Bus_request.closed))
 
 let durability job =
   Option.to_list
