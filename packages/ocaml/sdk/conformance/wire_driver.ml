@@ -314,8 +314,15 @@ let run mode env =
                 (optional J.to_int "invalidationWindowMs" timing)
               ?delegation_silence_ms:(optional J.to_int "jobSilenceMs" timing)
               ?delegation_poll_ms:(optional J.to_int "jobStatusPollMs" timing)
-              ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event
-              ~on_error ()
+              ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event ()
+          in
+          let _release =
+            Semiont.Client.errors facade
+              ~on_value:(function
+                | Semiont.Client.Transport_failure failure -> on_error failure
+                | Semiont.Client.Own { code; _ } ->
+                    output_json (`Assoc [ ("error", error code) ]))
+              ~on_close:ignore
           in
           if mode = Worker then worker_facade := Some facade
           else (
@@ -332,7 +339,12 @@ let run mode env =
               ~credential:(fun () -> Session.credential session)
               ~renew:(Session.refresh_refused session)
               ~on_refused:(fun status ->
-                on_error { code = "unauthorized"; status = Some status })
+                on_error
+                  {
+                    code = "unauthorized";
+                    status = Some status;
+                    message = "The gateway refused the stream's credential";
+                  })
               (H.subscribe http)
           in
           let subscription =

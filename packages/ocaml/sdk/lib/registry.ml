@@ -59,11 +59,12 @@ type tab_check =
 type session_factory_options = {
   kb : knowledge_base;
   storage : storage;
-  signals : Session.t option;
+  signals : State_units.Session_signals.t;
 }
 
 type session_factory =
-  session_factory_options -> (Client.t * connection_identity, string) result
+  session_factory_options ->
+  (State_units.Session.t * connection_identity, string) result
 
 type semiont_browser_config = {
   storage : storage;
@@ -72,11 +73,17 @@ type semiont_browser_config = {
   factory : session_factory;
 }
 
+type connection = {
+  session : State_units.Session.t;
+  signals : State_units.Session_signals.t;
+}
+
 type semiont_browser = {
   config : semiont_browser_config;
   lock : Eio.Mutex.t;
   atomic_storage : Storage.t option;
-  mutable connected : Client.t option;
+  said : Client.session_error Kept_for_first_reader.t;
+  mutable connected : connection option;
   mutable generation : unit ref;
 }
 
@@ -217,6 +224,7 @@ let new_semiont_browser ?storage config =
     config;
     atomic_storage = storage;
     lock = Eio.Mutex.create ();
+    said = Kept_for_first_reader.make ();
     connected = None;
     generation = ref ();
   }
@@ -224,11 +232,47 @@ let new_semiont_browser ?storage config =
 let knowledge_bases browser = load_knowledge_bases browser.config.storage
 let active_id browser = browser.config.storage.read active_key
 let locked browser f = Eio.Mutex.use_rw ~protect:false browser.lock f
-let active_client browser = browser.connected
+let errors browser = Kept_for_first_reader.read browser.said
+
+let active_client browser =
+  Option.map
+    (fun { session; _ } -> State_units.Session.client session)
+    browser.connected
+
+(* The registry is the one reader of a session's errors, from the first thing
+   it said, until it ends. *)
+let read browser { session; signals } =
+  let _release =
+    State_units.Session.errors session
+      ~on_value:(function
+        | Client.Own error -> Kept_for_first_reader.say browser.said error
+        | Client.Transport_failure { code = "forbidden"; message; _ } ->
+            State_units.Session_signals.notify_permission_denied signals
+              ~detail:(Some message)
+        | Client.Transport_failure _ -> ())
+      ~on_close:ignore
+  in
+  ()
+
+(* The client closes first, so what its closing flush meets is said before the
+   session's errors end. *)
+let finish { session; signals } =
+  Fun.protect
+    ~finally:(fun () ->
+      State_units.Session.dispose session;
+      State_units.Session_signals.dispose signals)
+    (fun () -> Client.close (State_units.Session.client session))
 
 let disconnect browser =
-  Option.iter Client.close browser.connected;
-  browser.connected <- None
+  let connected = browser.connected in
+  browser.connected <- None;
+  Option.iter finish connected
+
+let close browser =
+  locked browser (fun () ->
+      browser.generation <- ref ();
+      disconnect browser);
+  Kept_for_first_reader.close browser.said
 
 let id kb = (Records.Knowledge_base.of_model kb).id
 let did kb = (Records.Knowledge_base.of_model kb).did
@@ -339,12 +383,17 @@ let activate browser key =
   | None -> Error (Unavailable "kb.not-found")
   | Some kb -> (
       let storage = browser.config.storage in
-      match browser.config.factory { kb; storage; signals = None } with
-      | Error code -> Error (Unavailable code)
-      | Ok (client, identity) ->
+      let signals = State_units.Session_signals.make () in
+      match browser.config.factory { kb; storage; signals } with
+      | Error code ->
+          State_units.Session_signals.dispose signals;
+          Error (Unavailable code)
+      | Ok (session, identity) ->
+          let connection = { session; signals } in
+          read browser connection;
           locked browser (fun () ->
               if identity.did <> did kb then (
-                Client.close client;
+                finish connection;
                 Error (Identity_conflict identity.did))
               else if
                 browser.generation != generation
@@ -357,13 +406,13 @@ let activate browser key =
                           && same_place (endpoint current) (endpoint kb))
                         (knowledge_bases browser))
               then (
-                Client.close client;
+                finish connection;
                 Error Superseded)
               else (
                 disconnect browser;
-                browser.connected <- Some client;
+                browser.connected <- Some connection;
                 storage.write active_key key;
-                Ok client)))
+                Ok session)))
 
 let session_status browser key =
   match stored_session browser.config.storage key with
@@ -386,11 +435,14 @@ let sign_out browser key =
 let http_session_factory connect options =
   match connect options with
   | Error _ as failure -> failure
-  | Ok client -> (
+  | Ok session -> (
+      let client = State_units.Session.client session in
       match describe_connection client with
-      | Ok identity -> Ok (client, identity)
+      | Ok identity -> Ok (session, identity)
       | Error code ->
-          Client.close client;
+          Fun.protect
+            ~finally:(fun () -> State_units.Session.dispose session)
+            (fun () -> Client.close client);
           Error code)
 
 let by_kb browser key =

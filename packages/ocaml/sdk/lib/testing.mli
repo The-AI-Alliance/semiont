@@ -98,6 +98,10 @@ type test_session = { session : State_units.Session.t; close : unit -> unit }
 
 val create_test_session : test_session_options -> test_session
 
+val say_on : State_units.Session.t -> Client.said -> unit
+(** Say [said] on the errors of a session's client, which the session says on
+    its own: a scripted session says what a case has it say. *)
+
 type renewal = Session.renewal
 type scripted_sessions
 

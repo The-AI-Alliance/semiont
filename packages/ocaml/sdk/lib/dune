@@ -15,6 +15,7 @@
   registry_facts
   kept_renewal
   kept_for_first_reader
+  client_record
   state_task
   oauth_facts
   assertion_facts

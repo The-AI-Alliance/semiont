@@ -60,11 +60,15 @@ type tab_check =
 type session_factory_options = {
   kb : knowledge_base;
   storage : storage;
-  signals : Session.t option;
+  signals : State_units.Session_signals.t;
 }
 
 type session_factory =
-  session_factory_options -> (Client.t * connection_identity, string) result
+  session_factory_options ->
+  (State_units.Session.t * connection_identity, string) result
+(** Builds the knowledge base's session, and reads none of its errors: the
+    registry reads them from the first thing the session said. The registry
+    makes the [signals] it is handed for the session. *)
 
 type semiont_browser_config = {
   storage : storage;
@@ -92,12 +96,37 @@ val record_sign_in :
   semiont_browser -> signed_in -> (sign_in_outcome, string) result
 
 val describe_connection : Client.t -> (connection_identity, string) result
-val activate : semiont_browser -> string -> (Client.t, activation_error) result
+
+val activate :
+  semiont_browser -> string -> (State_units.Session.t, activation_error) result
+(** Builds the knowledge base's session and reads its errors until it ends: each
+    of the session's own errors is said on [errors]; a refusal for lack of
+    permission is said through its signals, with the failure's message as the
+    detail; any other failure of its transport is said nowhere, and the registry
+    renews no session. The session it ends closes its client first. *)
+
+val errors :
+  semiont_browser ->
+  on_value:(Client.session_error -> unit) ->
+  on_close:(unit -> unit) ->
+  unit ->
+  unit
+(** Hear each own error of the sessions the registry activates. The first reader
+    is first given the latest errorsKeptForFirstReaderCount
+    (protocol/specs/src/client/timing.json) said before it came, in order; a
+    later reader hears what is said from when it reads. [close] ends it. The
+    returned function stops hearing. *)
+
+val close : semiont_browser -> unit
+(** Ends the active session, its client first, so what the client's closing
+    flush meets is said on [errors], and then ends [errors]. *)
+
 val sign_out : semiont_browser -> string -> unit
 val session_status : semiont_browser -> string -> kb_session_status
 
 val http_session_factory :
-  (session_factory_options -> (Client.t, string) result) -> session_factory
+  (session_factory_options -> (State_units.Session.t, string) result) ->
+  session_factory
 
 val sort_open_resources : open_resource list -> open_resource list
 

@@ -8,7 +8,10 @@ type timing = {
   request_timeout_ms : int;
 }
 
-type failure = { code : string; status : int option }
+type failure = { code : string; status : int option; message : string }
+(** A failure of the transport: its code in the transport group of
+    protocol/specs/src/errors/codes.json, the status it was answered with, and
+    what went wrong, in the gateway's own words when its answer states them. *)
 
 exception Failed of failure
 

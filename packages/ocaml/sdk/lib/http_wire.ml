@@ -18,7 +18,7 @@ let default_timing =
     request_timeout_ms = Client_timing.http_request_timeout_ms;
   }
 
-type failure = { code : string; status : int option }
+type failure = { code : string; status : int option; message : string }
 
 exception Failed of failure
 exception Deadline
@@ -44,8 +44,8 @@ let make ?(timing = default_timing) ?telemetry ~clock ~session ~key ~on_error
     ~call () =
   { timing; telemetry; clock; session; key; on_error; call }
 
-let fail t ?status code =
-  let failure = { code; status } in
+let fail t ?status ~message code =
+  let failure = { code; status; message } in
   t.on_error failure;
   raise (Failed failure)
 
@@ -60,6 +60,15 @@ let json_text key source =
       | _ -> None)
   | _ -> None
 
+(* A refusal in the gateway's own words when its body states them, as an
+   ErrorResponse's error, and by its status when it does not. *)
+let refusal status body =
+  match json_text "error" body with
+  | Some words -> words
+  | None -> "HTTP " ^ string_of_int status
+
+let unanswered = "The request got no answer before its deadline"
+let unreachable = "The gateway could not be reached"
 let body_text body = Eio.Buf_read.(take_all (of_flow ~max_size:16_777_216 body))
 
 let header name =
@@ -94,7 +103,12 @@ let subscribe t ~sw snapshot ~bearer:token =
     if credential_refused status detail then
       Error (Subscription.Credential_refused status)
     else (
-      t.on_error { code = Http_facts.status_code status; status = Some status };
+      t.on_error
+        {
+          code = Http_facts.status_code status;
+          status = Some status;
+          message = refusal status detail;
+        };
       Error
         (Subscription.Connect_retry_after (int_of_float (retry_after headers))))
 
@@ -137,25 +151,26 @@ let exchange t ~auth ?progress ?timeout_ms ?(headers = []) ?(body = "")
     match outcome with
     | `Answered (Ok value) -> value
     | `Expired when jitter && left > 1 -> retry 0.
-    | `Expired -> fail t "unavailable"
+    | `Expired -> fail t ~message:unanswered "unavailable"
     | `Lost when left > 1 -> retry 0.
-    | `Lost -> fail t "unavailable"
+    | `Lost -> fail t ~message:unreachable "unavailable"
     | `Answered (Error (status, headers, detail)) ->
+        let message = refusal status detail in
         if credential_refused status detail then
           match token with
           | Some refused when not renewed -> (
               match Session.refresh_refused t.session ~refused with
               | Some replacement ->
                   attempt (Some replacement) true attempts initial_delay
-              | None -> fail t ~status "unauthorized")
-          | _ -> fail t ~status "unauthorized"
+              | None -> fail t ~status ~message "unauthorized")
+          | _ -> fail t ~status ~message "unauthorized"
         else if
           left > 1
           && Retry.retryable
                (if jitter then Retry.Boot else Retry.Transport)
                ~status ~meth ~keyed ()
         then retry (retry_after headers)
-        else fail t ~status (Http_facts.status_code status)
+        else fail t ~status ~message (Http_facts.status_code status)
   in
   attempt initial false attempts initial_delay
 
@@ -170,7 +185,8 @@ let emit t ~client_id ?scope ?correlation_id ?trace channel source =
       Wire_stream.encode_emit ~client_id ?scope ?correlation_id channel source
     with
     | Ok body -> body
-    | Error _ -> fail t "bad-request"
+    | Error _ ->
+        fail t ~message:"The emit's payload is not its channel's" "bad-request"
   in
   let open Telemetry_facts in
   let name = Bus_registry.name channel in
@@ -255,12 +271,14 @@ let check_user t token =
                   (if credential_refused status body then "unauthorized"
                    else "unavailable");
                 status = Some status;
+                message = refusal status body;
               })
     in
     Fiber.first check (fun () ->
         sleep t (float t.timing.request_timeout_ms);
-        Error { code = "unavailable"; status = None })
-  with Eio.Io _ | End_of_file -> Error { code = "unavailable"; status = None }
+        Error { code = "unavailable"; status = None; message = unanswered })
+  with Eio.Io _ | End_of_file ->
+    Error { code = "unavailable"; status = None; message = unreachable }
 
 let protected_resource_metadata t =
   json_get t ~auth:false Http_facts.protected_resource_metadata
