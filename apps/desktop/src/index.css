@@ -2264,7 +2264,6 @@ button.kb-location-picker__entry:hover {
   align-items: center;
   flex: 0 0 3rem;
   min-width: 0;
-  border-bottom: 1px solid var(--border-soft);
   background: var(--surface-sidebar);
 }
 .app__dragbar {
