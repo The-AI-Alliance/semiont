@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using Semiont.Errors;
 using Semiont.Http;
 using Semiont.Identifiers;
+using Semiont.Protocol;
 using Semiont.Registry;
 using Semiont.Session;
 using Semiont.SignIn;
@@ -42,6 +43,40 @@ public sealed partial class TransportTests
         var rows = table.RootElement.GetProperty("closing").EnumerateArray().ToArray();
         Assert.NotEmpty(rows);
         foreach (var row in rows) await RegistryClosingCaseAsync(row);
+    }
+
+    // Of what the registry says before anyone reads its errors, the latest errorsKeptForFirstReaderCount
+    // (protocol/specs/src/client/timing.json) are kept, the oldest dropped beyond that: its first reader hears those, in
+    // the order said. The session says them once it is active, so the registry, its one reader, hears every one.
+    [Fact]
+    public async Task TheFirstReaderOfARegistryNobodyReadHearsTheLatestItKeptInOrder()
+    {
+        var most = ProtocolFacts.Timing("errorsKeptForFirstReaderCount").GetInt32();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var clock = new TestClock();
+        var built = new TaskCompletionSource<(SessionSignals Signals, KeptSession Kept)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var factory = ScriptedErrorsFactory(clock, TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600 }),
+            (_, _) => Task.FromResult<string?>(null), (signals, kept) => built.SetResult((signals, kept)));
+        var store = new MemoryStorage();
+        var kb = RegistryKb("one", "one.test");
+        RegistryStorage.SaveKnowledgeBases(store, [kb]);
+        await using var browser = new SemiontBrowser(new SemiontBrowserConfig(store, factory, clock));
+        await browser.SetActiveKbAsync(kb.Id, deadline.Token);
+        var (signals, kept) = await built.Task.WaitAsync(deadline.Token);
+
+        var said = Enumerable.Range(0, most + 3)
+            .Select<int, SemiontError>(at => new SessionError(ProtocolFacts.SessionError("keep-failed"), $"error {at}")).ToArray();
+        foreach (var error in said) kept.Say(error);
+        // The registry reads the session's errors in the order said: once the refusal said after them reaches the signals,
+        // it has said every one.
+        kept.Say(new TransportError(ProtocolFacts.Error(403), "said after them", 403));
+        await foreach (var denied in signals.PermissionDenied.WithCancellation(deadline.Token))
+            if (denied is not null) break;
+
+        await using IAsyncEnumerator<SemiontError> errors = browser.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        await browser.DisposeAsync();
+        Assert.Equal(said.TakeLast(most), await SaidUntilEndAsync(errors, told, deadline.Token));
     }
 
     /// <summary>

@@ -27,8 +27,8 @@ public sealed class Claims
     private readonly JsonElement[] filters;
     private readonly CancellationTokenSource watching = new();
     private readonly Channel<HeldJob> handed = Channel.CreateUnbounded<HeldJob>();
-    private readonly Broadcast<ClaimRefusal> refusals = new(keptForFirst: int.MaxValue);
-    private readonly Broadcast<HeldJobStall> stalls = new(keptForFirst: int.MaxValue);
+    private readonly Broadcast<ClaimRefusal> refusals = new(keptForFirst: SemiontError.KeptForFirstReader);
+    private readonly Broadcast<HeldJobStall> stalls = new(keptForFirst: SemiontError.KeptForFirstReader);
     private readonly TimeProvider clock;
     private readonly Timing timing;
     private Task? pending;
@@ -76,7 +76,14 @@ public sealed class Claims
         return null;
     }
 
+    /// <summary>Each claim refused from now on. Of those refused before anyone reads them, the latest
+    /// errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) are kept for the first reader, in the order
+    /// refused.</summary>
     public IAsyncEnumerable<ClaimRefusal> Refused(CancellationToken cancellation = default) => refusals.Observe(cancellation);
+
+    /// <summary>Each held job found stalled from now on, once per job. Of those found before anyone reads them, the latest
+    /// errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) are kept for the first reader, in the order
+    /// found.</summary>
     public IAsyncEnumerable<HeldJobStall> Stalled(CancellationToken cancellation = default) => stalls.Observe(cancellation);
 
     public WorkerVitals Vitals()

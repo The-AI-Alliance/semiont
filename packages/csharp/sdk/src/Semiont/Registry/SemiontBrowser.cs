@@ -35,7 +35,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
     private readonly object gate = new();
     private readonly CancellationTokenSource lifetime = new();
     private readonly Broadcast<BrowserState> states = new(replayLatest: true);
-    private readonly Broadcast<SessionError> errors = new(keptForFirst: int.MaxValue);
+    private readonly Broadcast<SessionError> errors = new(keptForFirst: SemiontError.KeptForFirstReader);
     private readonly AsyncLocal<bool> ownedWork = new();
     private readonly HashSet<Task> tasks = [];
     private readonly IDisposable? subscription;
@@ -82,6 +82,9 @@ public sealed class SemiontBrowser : IAsyncDisposable
     public EventBus Bus { get; } = new();
     public BrowserState State => Volatile.Read(ref state);
     public IAsyncEnumerable<BrowserState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
+    /// <summary>Each session that could not be opened, and each error a session says of its own, until the registry is
+    /// disposed. Of what is said before anyone reads it, the latest errorsKeptForFirstReaderCount
+    /// (protocol/specs/src/client/timing.json) are kept for the first reader, in the order said.</summary>
     public IAsyncEnumerable<SessionError> Errors(CancellationToken cancellation = default) => errors.Observe(cancellation);
 
     public void SetIdentityToken(string? token)

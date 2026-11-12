@@ -6,7 +6,8 @@ namespace Semiont.Errors;
 
 public abstract class SemiontError : Exception
 {
-    /// <summary>How many of what a session and its transport say before anyone reads it are kept for the first reader.</summary>
+    /// <summary>How many of what a stream says before anyone reads it are kept for its first reader: a session's errors, a
+    /// transport's failures, a registry's own errors, and a worker's claim refusals and stalls.</summary>
     internal static readonly int KeptForFirstReader = ProtocolFacts.Timing("errorsKeptForFirstReaderCount").GetInt32();
 
     private protected SemiontError(string code, string message, int? status = null, Exception? inner = null) : base(message, inner)
