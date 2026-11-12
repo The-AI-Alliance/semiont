@@ -15,23 +15,29 @@
  *   - `refresh(refused)` asks the issuer for a new grant on demand, pushes
  *     it, and asks the gateway nothing; told a token it has already
  *     replaced, it gives the one it holds and asks nobody;
+ *   - one renewal is in flight at a time: a refusal while it is, the
+ *     schedule's renewal included, joins it and is given its token, and the
+ *     issuer grants once;
  *   - the proactive timer is armed from the token's OWN lifetime via
  *     `refreshDelayMs` — not a restated lifetime, and not a fixed margin —
  *     re-arms from every new token, survives a failed refresh, stops on a
  *     refused one, and schedules nothing for a token that carries no `exp`;
+ *   - a renewal made on a refusal replaces the wait: the wait counted from
+ *     the token it replaced renews nothing;
  *   - `stop()` disarms it.
  *
  * Global `fetch` is stubbed. It answers the issuer's discovery itself, and
  * hands the grant to `grant` and the gateway to `gateway`, which each test
- * scripts with real `Response`s. Timers are fake, and the clock is pinned so
+ * scripts with real `Response`s; a grant the issuer holds open is a
+ * `Response` still to come. Timers are fake, and the clock is pinned so
  * `exp` arithmetic is deterministic.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ServiceAccountCredential } from '@semiont/core';
 import { startAgentSession, type AgentSession } from '../agent-session';
 
-/** The client-credentials grant, as each test scripts it. */
-const grant = vi.fn<() => Response>();
+/** The client-credentials grant, as each test scripts it: answered at once, or held open until the test answers it. */
+const grant = vi.fn<() => Response | Promise<Response>>();
 /** The gateway: `GET /api/users/me`, as each test scripts it. */
 const gateway = vi.fn<typeof fetch>();
 const routed: typeof fetch = async (input, init) => {
@@ -180,6 +186,54 @@ describe('startAgentSession', () => {
     expect(grant).toHaveBeenCalledTimes(2);
   });
 
+  it('refusals of the token it holds that overlap share one renewal, and each is given the new token', async () => {
+    const first = tokenExpiringIn(60 * 60 * 1000, 'first');
+    const second = tokenExpiringIn(2 * 60 * 60 * 1000, 'second');
+    const third = tokenExpiringIn(3 * 60 * 60 * 1000, 'third');
+    grant
+      .mockReturnValueOnce(granted(first, 60 * 60 * 1000))
+      .mockReturnValueOnce(granted(second, 2 * 60 * 60 * 1000))
+      .mockReturnValueOnce(granted(third, 3 * 60 * 60 * 1000));
+    session = await start();
+
+    // The stream and a request were each sent with the first token, and each
+    // is refused before the issuer has answered either's renewal.
+    const stream = session.refresh(first);
+    const request = session.refresh(first);
+
+    await expect(Promise.all([stream, request])).resolves.toEqual([second, second]);
+    expect(grant, 'one grant answers both').toHaveBeenCalledTimes(2);
+    expect(session.token$.getValue()).toBe(second);
+  });
+
+  it('a refusal while the scheduled renewal is in flight joins it, and is given the token it brings', async () => {
+    // first: 400 s left at t=0 → its wait runs out at t=200 s.
+    const first = tokenExpiringIn(400_000, 'first');
+    const second = tokenExpiringIn(800_000, 'second');
+    const third = tokenExpiringIn(1_400_000, 'third');
+    let answer!: (response: Response) => void;
+    grant
+      .mockReturnValueOnce(granted(first, 400_000))
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          answer = resolve;
+        }),
+      )
+      .mockReturnValueOnce(granted(third, 900_000));
+    session = await start();
+
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(grant, 'the scheduled renewal waits on the issuer').toHaveBeenCalledTimes(2);
+
+    // A request sent with the first token is refused while the issuer is still answering the schedule.
+    const refusal = session.refresh(first);
+    answer(granted(second, 600_000));
+
+    await expect(refusal).resolves.toBe(second);
+    expect(grant, 'one grant answers both').toHaveBeenCalledTimes(2);
+    expect(session.token$.getValue()).toBe(second);
+  });
+
   it('signs in and renews through the fetch it is given, and nothing through the runtime\'s', async () => {
     // The runtime's fetch is refused as an issuer would refuse a request it cannot read: not retried.
     const runtimes = vi.fn(async () => new Response(null, { status: 400 }));
@@ -241,6 +295,28 @@ describe('startAgentSession', () => {
     expect(grant).toHaveBeenCalledTimes(3);
     expect(session.token$.getValue()).toBe(third);
     expect(gateway, 'renewing asks the issuer alone').toHaveBeenCalledTimes(1);
+  });
+
+  it('a renewal on a refusal replaces the wait: the wait counted from the token it replaced renews nothing', async () => {
+    //   first:  400 s left at t=0 → its wait would run out at t=200 s
+    //   second: 800 s left at t=0 → margin 300 s (the cap) → its wait runs out at t=500 s
+    const first = tokenExpiringIn(400_000, 'first');
+    const second = tokenExpiringIn(800_000, 'second');
+    const third = tokenExpiringIn(1_400_000, 'third');
+    grant
+      .mockReturnValueOnce(granted(first, 400_000))
+      .mockReturnValueOnce(granted(second, 800_000))
+      .mockReturnValueOnce(granted(third, 900_000));
+    session = await start();
+    await session.refresh(first);
+    expect(grant).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(499_000);
+    expect(grant, 'the first token\'s wait went with it').toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(grant, 'the second token\'s wait is the only one').toHaveBeenCalledTimes(3);
+    expect(session.token$.getValue()).toBe(third);
   });
 
   it('a failed proactive refresh only logs, keeps the token in hand, and tries again', async () => {
