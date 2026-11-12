@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import semiont.Timings
 import semiont.bus.EMITTED_BY
 import semiont.bus.OPERATIONS
 import semiont.channels.RESOURCE_SCOPED_CHANNELS
@@ -145,7 +146,7 @@ public class FaultyTransport @JvmOverloads constructor(
     private val hub = FrameHub()
     private val router = ReplyRouter(context)
     private val connection = Variable(ConnectionState.Open)
-    private val failing = Broadcast<SemiontError>(keepForFirst = true)
+    private val failing = Broadcast<SemiontError>(keptForFirst = Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT)
     private val arriving = CoroutineScope(context + SupervisorJob(context[Job]))
     private var refusing: Refuse? = null
 

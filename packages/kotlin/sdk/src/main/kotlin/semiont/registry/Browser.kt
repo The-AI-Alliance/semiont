@@ -200,9 +200,10 @@ private class Live(val opened: OpenedSession, val signals: SessionSignals, val r
  *
  * The registry is the one reader of each session's errors, from the first
  * thing the session said until they end: each of the session's own it says on
- * its own errors; a request the gateway refuses for want of a valid token
- * renews the session; one refused for lack of permission is said through the
- * session's signals. A factory reads none of them. Closing the registry
+ * its own errors; a request refused for lack of permission is said through
+ * the session's signals; every other failure of the session's transport is
+ * left alone, since a token the gateway refuses is renewed by the transport
+ * that sent it. A factory reads none of them. Closing the registry
  * closes its session and ends everything it holds; once what it ran in the
  * background has stopped, it throws the first failure of any of it.
  */
@@ -243,7 +244,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     private val openResourcesHeld = Variable<List<OpenResource>>(emptyList())
     private val lastViewedHeld = Variable<ResourceId?>(null)
     private val identityTokenHeld = Variable<String?>(null)
-    private val failures = Broadcast<SessionError>(keepForFirst = true)
+    private val failures = Broadcast<SessionError>(keptForFirst = Long.MAX_VALUE)
     private var openByKb: Map<String, List<OpenResource>> = storedAs(OPEN_BY_KB, storage.get(OPEN_RESOURCES_BY_KB_KEY))
     private var viewedByKb: Map<String, ResourceId> = storedAs(VIEWED_BY_KB, storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY))
     private var activations = 0
@@ -487,9 +488,9 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
      * errors are read to their end, so what its client's closing flush meets
      * is said on the registry's errors before they end; then what it runs in
      * the background is ended, and everything it holds ends. It returns once
-     * that work has stopped, and throws the first failure of any of it: bringing up the
-     * session it began with, the checks a session's arrival starts, and the
-     * renewals a refused token asks for. What closing ended is no failure.
+     * that work has stopped, and throws the first failure of any of it:
+     * bringing up the session it began with, and the checks a session's
+     * arrival starts. What closing ended is no failure.
      * Called from within that work, it does not wait for the work to stop,
      * which would never happen. Closing twice is closing once.
      */
@@ -609,7 +610,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         }
         // Read from the moment it is handed back, before it is ready: the first reader, so what it said at its start is read too.
         val heard = opened.session.errors()
-        val live = Live(opened, signals, scope.launch { route(opened.session, heard, signals) })
+        val live = Live(opened, signals, scope.launch { route(heard, signals) })
         try {
             opened.session.ready()
         } catch (ended: Throwable) {
@@ -628,27 +629,18 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     /**
-     * Read the session's errors, as their one reader, until they end: each of
-     * the session's own is said on the registry's errors, and each failure of
-     * its transport is routed. A refusal for want of a valid token renews the
-     * session: it heals quietly, or the session ends itself and says so once.
-     * A refusal for lack of permission has no remedy, and is said through the
-     * session's signals.
+     * Read a session's errors, as their one reader, until they end: each of
+     * the session's own is said on the registry's errors. A refusal for lack
+     * of permission has no remedy, and is said through the session's signals.
+     * Every other failure of its transport is left alone, a refusal for want
+     * of a valid token among them: the transport that met it renews the token
+     * it sent.
      */
-    private suspend fun route(session: SemiontSession, heard: Events<SemiontError>, signals: SessionSignals) = heard.use {
+    private suspend fun route(heard: Events<SemiontError>, signals: SessionSignals) = heard.use {
         it.collect { error ->
-            when (error) {
-                is SessionError -> failed(error)
-                is TransportError -> when (error.reason) {
-                    // Refusals that arrive together are answered by one renewal: the session holds them while it renews.
-                    // A failure does not say which token was refused: the one the session holds as it is read is.
-                    TransportErrorCode.Unauthorized -> {
-                        val refused = session.token.value
-                        spawn { session.refresh(refused) }
-                    }
-                    TransportErrorCode.Forbidden -> signals.notifyPermissionDenied(error.message)
-                    else -> Unit
-                }
+            when {
+                error is SessionError -> failed(error)
+                error is TransportError && error.reason == TransportErrorCode.Forbidden -> signals.notifyPermissionDenied(error.message)
                 else -> Unit
             }
         }

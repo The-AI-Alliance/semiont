@@ -103,7 +103,7 @@ public class Claims internal constructor(
     private val client = parent
     private val holder = Holder(transport, Bus(transport, parent.coroutineContext, clock), clock, parent, markCommitTimeoutMs, ::active, ::releasedJob)
     private val handed = Channel<HeldJob>(Channel.UNLIMITED)
-    private val refusals = Broadcast<ClaimRefusal>(keepForFirst = true)
+    private val refusals = Broadcast<ClaimRefusal>(keptForFirst = Long.MAX_VALUE)
     private val stall = Variable<HeldJobStall?>(null)
     private val listening = mutableListOf<Events<Carried>>()
 

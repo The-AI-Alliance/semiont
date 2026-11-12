@@ -31,6 +31,7 @@ import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
 import semiont.errors.SessionError
+import semiont.errors.SessionErrorCode
 import semiont.errors.SignInError
 import semiont.errors.SignInErrorCode
 import semiont.errors.TransportError
@@ -527,6 +528,51 @@ class SessionTest {
         assertEquals(2, said.size, "$said")
         assertEquals(1, said.count { it === refused })
         assertEquals(listOf("session.refresh-exhausted"), said.filterIsInstance<SessionError>().map { it.code })
+        made.client.close()
+        session.close()
+        made.transport.close()
+    }
+
+    @Test
+    fun aSessionsOwnErrorsAndItsTransportsFailuresAreSaidInTheOrderTheyWereMet() = runTest {
+        val made = TestClient(currentCoroutineContext().minusKey(Job), testScheduler.timeSource)
+        val session = SemiontSession(TARGET, made.client, MutableStateFlow(null), MemorySignIn(), null, null, null, Random(0))
+        val unread = SessionError(SessionErrorCode.KeepFailed, "The sign-in could not be read", TARGET.id)
+        val unavailable = TransportError.ofStatus("HTTP 503", 503, null)
+        val unsaved = SessionError(SessionErrorCode.SaveRefused, "The storage refused a write of what the client keeps", TARGET.id)
+        val refused = unauthorized()
+        // Each kind in turn, before anyone reads: all kept for the first reader.
+        session.say(unread)
+        made.transport.fail(unavailable)
+        session.say(unsaved)
+        made.transport.fail(refused)
+        val said = mutableListOf<SemiontError>()
+        val errors = session.errors()
+        backgroundScope.launch(Dispatchers.Unconfined) { errors.collect { said += it } }
+        runCurrent()
+        assertEquals(listOf(unread, unavailable, unsaved, refused), said)
+        made.client.close()
+        session.close()
+        made.transport.close()
+    }
+
+    @Test
+    fun aSessionNobodyHasReadKeepsTheLatestOfWhatItSaysForItsFirstReader() = runTest {
+        val made = TestClient(currentCoroutineContext().minusKey(Job), testScheduler.timeSource)
+        val session = SemiontSession(TARGET, made.client, MutableStateFlow(null), MemorySignIn(), null, null, null, Random(0))
+        val beyond = 5
+        val met: List<SemiontError> = List(Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT.toInt() + beyond) { n ->
+            if (n % 2 == 0) SessionError(SessionErrorCode.KeepFailed, "failure $n", TARGET.id) else TransportError.ofStatus("failure $n", 503, null)
+        }
+        // Before anyone reads: the session's own as it says them, its transport's as the transport meets them.
+        for (error in met) {
+            if (error is SessionError) session.say(error) else made.transport.fail(error)
+        }
+        val said = mutableListOf<SemiontError>()
+        val errors = session.errors()
+        backgroundScope.launch(Dispatchers.Unconfined) { errors.collect { said += it } }
+        runCurrent()
+        assertEquals(met.drop(beyond), said)
         made.client.close()
         session.close()
         made.transport.close()

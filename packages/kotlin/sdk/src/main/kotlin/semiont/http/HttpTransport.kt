@@ -105,7 +105,7 @@ public class HttpTransport @JvmOverloads constructor(
 
     private val scope = CoroutineScope(context + SupervisorJob(context[Job]))
     private val clientId = UUID.randomUUID().toString()
-    private val failureStream = Broadcast<SemiontError>(keepForFirst = true)
+    private val failureStream = Broadcast<SemiontError>(keptForFirst = Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT)
     private val hub = FrameHub()
     private val router = ReplyRouter(context)
 
