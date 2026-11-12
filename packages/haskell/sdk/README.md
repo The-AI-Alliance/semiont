@@ -53,17 +53,19 @@ the supplied client and token. A service can omit that callback. `ready` waits f
 `token`, `user` and `streamState` are read-only observations. Refusals that arrive
 together share one renewal. An issuer refusal forgets the grant; an outage
 keeps it and retries with reconnect backoff. What goes wrong, the session's
-own errors and its transport's failures, is said once each on `errors`; what
-is said before anyone reads is kept for the first reader. Disposing a session
+own errors and its transport's failures, is said once each on `errors`, one
+stream in the order met; the first reader is given the latest
+`errorsKeptForFirstReaderCount` (`Semiont.Timing`) said before it came, in
+that order, the oldest beyond them dropped. Disposing a session
 joins its work, ends `errors` and leaves its client open, and once its client
 has closed, ends `errors` after what that client's transport said;
 `closeOpenedSession` closes the client first, its closing flush done, then
 ends the session, so what the flush meets is said before `errors` ends. A
 registry reads each session's `errors` itself: a refusal for want of a valid
-token renews the session, handed the token it holds as the refusal is read.
-Closing a registry closes its sessions before the rest of its work, reading
-each one's `errors` to their end, so what a closing flush meets is said on
-the registry's `errors` before they end.
+token is renewed by the transport that met it, and the registry does nothing
+with it. Closing a registry closes its sessions before the rest of its work,
+reading each one's `errors` to their end, so what a closing flush meets is
+said on the registry's `errors` before they end.
 
 ```haskell
 module DeviceSignIn where

@@ -1,8 +1,8 @@
-{-# LANGUAGE OverloadedStrings, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 -- | One connection's token and confirmed person. Disposal ends the session's
 -- work and observations; the client remains owned by whoever constructed it.
 -- What went wrong, the session's own errors and its transport's failures, is
--- said once each on its one errors stream.
+-- said once each on its one errors stream, in the order met.
 module Semiont.Session
   ( Session, SessionOptions(..), OpenedSession(..), SessionEndReason(..)
   , newSession, fromHttp, fromIssuedSession, fromKeptSession, signInDevice, signInAgent, signOut, id, kb, client, token, user, streamState, errors, ready
@@ -11,7 +11,7 @@ module Semiont.Session
 
 import Prelude hiding (id)
 import qualified Prelude
-import Control.Concurrent.Async (Async, cancel, race, waitCatch, waitCatchSTM)
+import Control.Concurrent.Async (race)
 import Control.Concurrent.MVar (MVar, newMVar, modifyMVar, modifyMVar_)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, SomeAsyncException, displayException, fromException, throwIO, try, mask, onException, finally, toException)
@@ -40,11 +40,11 @@ import qualified Semiont.SignIn as SignIn
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Tokens as Tokens
 import qualified Semiont.Transport as Transport
-import Semiont.Timing (RetryBudget)
+import qualified Semiont.Internal.Transport as Transport (relayErrors)
+import Semiont.Timing (RetryBudget, errorsKeptForFirstReaderCount)
 import Semiont.Types (KbTarget(..), StoredSession(..), UserResponse(..), userIdValue, KbEndpoint(..), HttpEndpoint, DeviceCode, IssuerEndpoints(..), IssuedTokens(..), SessionEndReason(..))
 import Streaming (Of, Stream)
 import qualified Streaming.Prelude as Stream
-import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 
 data SessionOptions = SessionOptions
   { sessionId :: Text
@@ -81,8 +81,9 @@ data Session = Session
   , revision :: TVar Integer
   , unsubscribe :: IO ()
   , said :: Broadcast.Broadcast (Either SessionError TransportError)
-  , forwarding :: Async ()
-  -- ^ Says the transport's failures on the session's stream.
+  , stopRelaying :: STM ()
+  -- ^ Stops saying the transport's failures on the session's stream, where
+  -- each is said within the transaction that reports it.
   }
 
 data Command = Refusal (Maybe Text) (TMVar (Either SomeException (Maybe Text))) | Changed Integer (Maybe StoredSession)
@@ -105,10 +106,13 @@ user :: Session -> State.StateValue (Maybe UserResponse)
 user = heldUser
 streamState :: Session -> State.StateValue Transport.ConnectionState
 streamState = Client.state . owner
--- | What went wrong, each said once: the session's own errors and its
--- transport's failures. What is said before anyone reads is kept for the
--- first reader. The stream ends when the session ends; for a session this
--- module opens with its client, once that client's closing flush is done.
+-- | What went wrong, each said once, in the order met: the session's own
+-- errors and its transport's failures, each said within the transaction
+-- that reports it. The first reader is given first the latest
+-- 'errorsKeptForFirstReaderCount' said before it came, in that order, the
+-- oldest beyond them dropped. The stream ends when the session ends; for a
+-- session this module opens with its client, once that client's closing
+-- flush is done and what its transport's close met is said.
 errors :: Session -> (Stream (Of (Either SessionError TransportError)) IO () -> IO result) -> IO result
 errors session consume = Broadcast.withSubscription (said session) $ \reader ->
   let reading = do
@@ -124,8 +128,14 @@ newSession :: Client.Client -> SessionOptions -> Retry.RetryOptions -> Timing.Se
 newSession owned options time settings = do
   initial <- SignIn.held (sessionKept options) >>= seed options
   shared <- atomically (State.newStateValue initial)
-  stream <- atomically Broadcast.newKeptEvents
+  stream <- atomically newSaid
   construct owned options time settings shared stream
+
+-- | A session's errors stream, of which the latest
+-- 'errorsKeptForFirstReaderCount' said before anyone reads are kept for the
+-- first reader.
+newSaid :: STM (Broadcast.Broadcast (Either SessionError TransportError))
+newSaid = Broadcast.newKeptEvents (fromInteger errorsKeptForFirstReaderCount)
 
 seed :: SessionOptions -> Maybe StoredSession -> IO (Maybe Text)
 seed options stored = do
@@ -160,7 +170,7 @@ fromHttp http storage options = mask $ \restore -> do
   stored <- restore (SignIn.held (sessionKept options))
   initial <- restore (seed options stored)
   shared <- atomically (State.newStateValue initial)
-  stream <- atomically Broadcast.newKeptEvents
+  stream <- atomically newSaid
   holder <- newEmptyTMVarIO :: IO (TMVar (Either SomeException Session))
   let readToken = atomically (State.current shared)
       refreshRefused refused = do
@@ -181,7 +191,7 @@ fromHttp http storage options = mask $ \restore -> do
   case outcome of
     Left problem -> (Client.dispose owned `finally` stopped) >> throwIO problem
     Right session -> pure (OpenedSession session (Client.dispose owned `finally` (halt session
-      `finally` (stopped `finally` (void (waitCatch (forwarding session)) `finally` silence session)))))
+      `finally` (stopped `finally` (closeTold session `finally` silence session)))))
 
 -- | What a session's client keeps for the person its sign-in names.
 data Keeper = Keeper
@@ -387,8 +397,8 @@ construct owned options time settings shared stream = mask $ \restore -> do
           writeTVar released True
           pure (not previous)
         when first (maybe (pure ()) Prelude.id detach)
-  forwarder <- forward restore owned stream `onException` (detachOnce `finally` Lifetime.close lifetime)
-  let session = Session options owned time settings lifetime shared handed person done queue flight generation detachOnce stream forwarder
+  unrelay <- atomically (Transport.relayErrors (Client.transport owned) (Broadcast.publish stream . Right))
+  let session = Session options owned time settings lifetime shared handed person done queue flight generation detachOnce stream unrelay
       finish = do
         atomically $ do
           let failure = Left (toException (BusRequestError Code.BusRequestClosed "Session is closed" Nothing))
@@ -404,19 +414,8 @@ construct owned options time settings shared stream = mask $ \restore -> do
         atomically (putTMVar done started)
         either throwIO (const (loop session schedule)) started
   void (Lifetime.start lifetime (restore work `finally` finish))
-    `onException` (unsubscribe session `finally` Lifetime.close lifetime `finally` cancel forwarder)
+    `onException` (unsubscribe session `finally` Lifetime.close lifetime `finally` atomically unrelay)
   pure session
-
--- | Says each of the client's transport failures on the session's stream,
--- from before this returns until the transport ends.
-forward :: (forall a. IO a -> IO a) -> Client.Client -> Broadcast.Broadcast (Either SessionError TransportError) -> IO (Async ())
-forward restore owned stream = do
-  subscribed <- newEmptyTMVarIO
-  forwarder <- tracedAsync $ restore $ Transport.errors (Client.transport owned) $ \failures -> do
-    atomically (putTMVar subscribed ())
-    Stream.mapM_ (atomically . Broadcast.publish stream . Right) failures
-  atomically (readTMVar subscribed `orElse` void (waitCatchSTM forwarder))
-  pure forwarder
 
 -- | Refusal of an already replaced token returns the held token immediately,
 -- in the same transaction that chooses whether a renewal must be queued.
@@ -619,18 +618,24 @@ later session schedule = do
   writeIORef schedule (Schedule (Just (now+wait,Unanswered)) (min (2*step) (Timing.maxReconnectMs (timings session))))
 
 -- | Ends the session's work, observations and errors stream. The client
--- stays its owner's: closed first, what its transport said is said before
--- the errors end; still open, the errors end at once.
+-- stays its owner's: closed first, what its transport said, its close's
+-- among it, is said before the errors end; still open, the errors end at once.
 dispose :: Session -> IO ()
-dispose session = halt session `finally` (forwarded `finally` silence session)
-  where
-    forwarded = do
-      closed <- atomically ((== Transport.Closed) <$> State.current (streamState session))
-      if closed then void (waitCatch (forwarding session)) else cancel (forwarding session)
+dispose session = halt session `finally` (closeTold session `finally` silence session)
 
 halt :: Session -> IO ()
 halt session = Lifetime.close (life session) `finally`
   (unsubscribe session `finally` atomically (State.complete (token session) >> State.complete (user session)))
 
+-- | Once the client's transport is closed, waits until its failures end:
+-- until its close has told what it met, which is then said on the session's
+-- stream.
+closeTold :: Session -> IO ()
+closeTold session = do
+  closed <- atomically ((== Transport.Closed) <$> State.current (streamState session))
+  when closed (Transport.errors (Client.transport (client session)) Stream.effects)
+
+-- | Says nothing more: the transport's failures are relayed no more, and the
+-- errors stream ends, in one transaction.
 silence :: Session -> IO ()
-silence session = atomically (Broadcast.close (said session))
+silence session = atomically (stopRelaying session >> Broadcast.close (said session))

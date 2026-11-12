@@ -2,7 +2,7 @@
 
 module Semiont.Internal.Transport
   ( Transport, TransportInput, TransportOptions(..), Frame(..), Carried(..), FrameRefusal(..), EventBus
-  , newTransport, baseUrl, emit, frames, stream, on, state, errors, isSubscribed
+  , newTransport, baseUrl, emit, frames, stream, on, state, errors, relayErrors, isSubscribed
   , subscribeToResource, trackReply, bridgeInto, dispose
   , receiveSTM, receiveContextSTM, receive, receiveRefusal, carriedChannel, carriedScope, carriedCorrelationId, refusalSaid, setState, subscriptions, reportError, withPendingReply
   , ownAction, raiseTransportError, reportFailure
@@ -137,6 +137,12 @@ stream transport channel consume = frames transport channel (consume . Stream.ma
 
 errors :: Transport -> (Stream (Of TransportError) IO () -> IO result) -> IO result
 errors (Transport runtime) consume = Broadcast.withSubscription (failures runtime) (consume . fromReader)
+
+-- | Hands @hand@ each failure the transport meets from now on, within the
+-- transaction that reports it, until the transport's failures end or the
+-- returned transaction stops it.
+relayErrors :: Transport -> (TransportError -> STM ()) -> STM (STM ())
+relayErrors (Transport runtime) = Broadcast.relay (failures runtime)
 
 freshKey :: Runtime -> STM Integer
 freshKey runtime = do
