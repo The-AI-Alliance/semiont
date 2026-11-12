@@ -29,8 +29,9 @@ use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError, Transp
 use crate::event_bus::EventBus;
 use crate::locked;
 use crate::transport::{
-    BoxFuture, ConnectionState, Envelope, Events, Failures, Frame, FrameHub, FrameRefusal, Frames,
-    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, StreamId, Transport,
+    BoxFuture, ConnectionState, Envelope, Events, FailureListener, Failures, Frame, FrameHub,
+    FrameRefusal, Frames, PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, StreamId,
+    Transport,
 };
 use crate::types::ResourceId;
 use serde_json::{Map, Value};
@@ -93,6 +94,13 @@ pub type MakeResponse =
 /// one: the payload of the operation's failure channel.
 pub type Refuse = dyn Fn(&str, &Map<String, Value>) -> Option<Value> + Send + Sync;
 
+/// Where the transport reports a failure: to each listener, then to each
+/// receiver.
+struct FailureStream {
+    sender: broadcast::Sender<TransportError>,
+    listeners: Vec<FailureListener>,
+}
+
 struct Inner {
     /// The global channels the stream names.
     channels: Vec<String>,
@@ -109,7 +117,7 @@ struct Inner {
     router: Arc<ReplyRouter>,
     state: watch::Sender<ConnectionState>,
     /// `None` once closed.
-    failures: Mutex<Option<broadcast::Sender<TransportError>>>,
+    failures: Mutex<Option<FailureStream>>,
     bridges: Mutex<Vec<Arc<EventBus>>>,
     closed: AtomicBool,
 }
@@ -208,7 +216,10 @@ impl FaultyTransport {
                 hub: FrameHub::new(),
                 router: ReplyRouter::new(),
                 state: watch::channel(ConnectionState::Open).0,
-                failures: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
+                failures: Mutex::new(Some(FailureStream {
+                    sender: broadcast::channel(STREAM_BACKLOG).0,
+                    listeners: Vec::new(),
+                })),
                 bridges: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
@@ -243,7 +254,10 @@ impl FaultyTransport {
     /// request the gateway refused.
     pub fn fail(&self, error: TransportError) {
         if let Some(failures) = locked(&self.inner.failures).as_ref() {
-            let _ = failures.send(error);
+            for listener in &failures.listeners {
+                listener(&error);
+            }
+            let _ = failures.sender.send(error);
         }
     }
 
@@ -480,8 +494,14 @@ impl Transport for FaultyTransport {
 
     fn failures(&self) -> Failures {
         match locked(&self.inner.failures).as_ref() {
-            Some(failures) => Events::new(failures.subscribe()),
+            Some(failures) => Events::new(failures.sender.subscribe()),
             None => Events::new(broadcast::channel(1).1),
+        }
+    }
+
+    fn tell_failures_to(&self, listener: FailureListener) {
+        if let Some(failures) = locked(&self.inner.failures).as_mut() {
+            failures.listeners.push(listener);
         }
     }
 

@@ -29,10 +29,10 @@
 //! **The browser is the one reader of each session's errors**, from the
 //! first thing the session said until its errors end; the factory that
 //! built it reads none of them. Each of the session's own errors is said on
-//! the browser's (`errors`). A request the gateway refuses for want of a
-//! valid token renews the session, and only a session whose issuer refuses
-//! to renew it is said to have expired. A request refused for lack of
-//! permission is said at once, through the session's signals.
+//! the browser's (`errors`). A request refused for lack of permission is
+//! said at once, through the session's signals. A refusal for want of a
+//! valid token is renewed by the transport that met it, and the browser
+//! does nothing with it, nor with any other failure of the transport.
 //!
 //! Every change to what is open is made against what the storage holds, as
 //! one step, so two contexts that each open a resource both keep theirs. A
@@ -920,47 +920,33 @@ impl Inner {
 
     /// Read what `session` says, as the one reader of its errors, from the
     /// first thing it said until they end: each of its own errors is said on
-    /// the browser's; a refusal for want of a valid token renews the
-    /// session, which heals quietly, or ends itself and says so once; and a
-    /// refusal for lack of permission, which has no remedy, is said through
-    /// `signals`. The reading holds neither the session nor the browser, so
-    /// it never keeps either alive.
+    /// the browser's, and a refusal for lack of permission, which has no
+    /// remedy, is said through `signals`. Any other failure of its transport,
+    /// a refusal for want of a valid token among them, is not acted on. The
+    /// reading holds neither the session nor the browser, so it never keeps
+    /// either alive.
     fn read(
         self: &Arc<Self>,
         session: &SemiontSession,
         signals: Arc<SessionSignals>,
     ) -> JoinHandle<()> {
         let mut errors = session.errors();
-        let (renewer, token) = (session.renewer(), session.token());
         let saying = Arc::downgrade(self);
         tokio::spawn(async move {
-            let mut renewing = JoinSet::new();
             while let Some(said) = errors.next().await {
                 // What was missed is not known, and is not acted on.
                 let Ok(said) = said else { continue };
-                while renewing.try_join_next().is_some() {}
                 match said {
                     SemiontError::Session(error) => {
                         if let Some(inner) = saying.upgrade() {
                             inner.failed(error);
                         }
                     }
-                    SemiontError::Transport(failure) => match failure.code {
-                        TransportErrorCode::Unauthorized => {
-                            // A failure does not say which token was refused:
-                            // the one the session holds as it is read is. The
-                            // renewal runs beside the reading, which goes on.
-                            let refused = token.borrow().clone();
-                            let renewer = renewer.clone();
-                            renewing.spawn(async move {
-                                renewer.refresh(refused.as_deref()).await;
-                            });
-                        }
-                        TransportErrorCode::Forbidden => {
+                    SemiontError::Transport(failure) => {
+                        if failure.code == TransportErrorCode::Forbidden {
                             signals.notify_permission_denied(Some(&failure.message));
                         }
-                        _ => {}
-                    },
+                    }
                     SemiontError::Bus(_) | SemiontError::Job(_) => {}
                 }
             }

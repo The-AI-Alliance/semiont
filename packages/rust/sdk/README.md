@@ -443,10 +443,11 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
   person has registered, which one is active, the active one's session, and
   what the person has open in each. One session is live at a time. It is the
   one reader of each session's errors: it says the session's own on its
-  `errors`, renews the session when the gateway refuses its token, and says
-  a refusal for lack of permission through the session's signals. A write
-  its storage refuses changes nothing: the method that wrote returns the
-  storage's own error, and `close` returns one made in the background.
+  `errors`, and a refusal for lack of permission through the session's
+  signals. A refusal of the session's token is renewed by the transport that
+  met it, and the browser does nothing with it. A write its storage refuses
+  changes nothing: the method that wrote returns the storage's own error, and
+  `close` returns one made in the background.
 - **`SessionSignals`** is what a host shows about a session: that it ended
   and why, that a request was refused for lack of permission, or that a
   different knowledge base is answering. A signal says what happened. The

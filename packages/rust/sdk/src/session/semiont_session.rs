@@ -19,12 +19,13 @@
 //!   issuer had just issued (`Refused`). What a person reads of it is the host's.
 //!
 //! What a session says, it says once, on its errors stream (`errors`),
-//! beside the failures its client's transport meets: each failure that
-//! makes it unusable, and what goes wrong with what its client keeps (a
-//! sign-in that cannot be read before a save, or cannot record the person
-//! the gateway named, `session.keep-failed`; a write the storage refuses,
-//! `session.save-refused`). What it says before anyone reads its errors is
-//! kept for the first reader. The stream ends when the session ends.
+//! beside the failures its client's transport meets, in the order they were
+//! met: each failure that makes it unusable, and what goes wrong with what
+//! its client keeps (a sign-in that cannot be read before a save, or cannot
+//! record the person the gateway named, `session.keep-failed`; a write the
+//! storage refuses, `session.save-refused`). Of what it says before anyone
+//! reads its errors, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are kept
+//! for the first reader. The stream ends when the session ends.
 //!
 //! A session is built from where its sign-in is kept (`SignInKept`). A
 //! session whose issuer refuses to renew it, or whose gateway refuses a
@@ -64,8 +65,8 @@ use crate::locked;
 use crate::retry::{REFRESH, RetryFacts, equal_jitter};
 use crate::state::{Held, Tasks};
 use crate::state_unit::StateUnit;
-use crate::timing::{MAX_RECONNECT, RECONNECT};
-use crate::transport::{BoxFuture, ConnectionState, Events, Failures, STREAM_BACKLOG};
+use crate::timing::{ERRORS_KEPT_FOR_FIRST_READER_COUNT, MAX_RECONNECT, RECONNECT};
+use crate::transport::{BoxFuture, ConnectionState, Events, STREAM_BACKLOG};
 use crate::types::{KbTarget, UserResponse};
 use rand_core::Rng;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -158,12 +159,8 @@ struct Shared {
     refresh: Option<Refresh>,
     validate: Option<Validate>,
     on_auth_failed: Option<OnAuthFailed>,
-    /// What the session says on its errors stream: the one sender, let go
-    /// of as the session ends, so the stream ends then.
-    errors: Mutex<Option<broadcast::Sender<SemiontError>>>,
-    /// What the session has said since it was made, for the first reader of
-    /// its errors.
-    first: Mutex<Option<broadcast::Receiver<SemiontError>>>,
+    /// What the session says on its errors stream.
+    errors: Arc<ErrorsStream>,
     random: Option<Arc<Mutex<dyn Rng + Send>>>,
     tasks: Tasks,
     closed: AtomicBool,
@@ -174,6 +171,58 @@ struct Shared {
     answering: tokio::sync::Mutex<()>,
 }
 
+/// A session's errors stream: what it says, and what of it is kept for the
+/// first reader.
+struct ErrorsStream {
+    /// The one sender, let go of as the session ends, so the stream ends then.
+    sender: Mutex<Option<broadcast::Sender<SemiontError>>>,
+    /// The latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` the session has said
+    /// since it was made, for the first reader of its errors.
+    first: Mutex<Option<broadcast::Receiver<SemiontError>>>,
+}
+
+impl ErrorsStream {
+    fn new() -> ErrorsStream {
+        let (sender, first) = broadcast::channel(STREAM_BACKLOG);
+        ErrorsStream {
+            sender: Mutex::new(Some(sender)),
+            first: Mutex::new(Some(first)),
+        }
+    }
+
+    /// Say `error`, until the stream ends. While nobody has read, the oldest
+    /// kept beyond `ERRORS_KEPT_FOR_FIRST_READER_COUNT` is dropped, under the
+    /// lock the first reader takes what is kept under, so it is given no more.
+    fn say(&self, error: SemiontError) {
+        let mut first = locked(&self.first);
+        if let Some(sender) = locked(&self.sender).as_ref() {
+            let _ = sender.send(error);
+        }
+        if let Some(first) = first.as_mut() {
+            while first.len() > ERRORS_KEPT_FOR_FIRST_READER_COUNT {
+                let _ = first.try_recv();
+            }
+        }
+    }
+
+    /// The first reader: what is kept, then what is said after. Each later
+    /// one: what is said from now on.
+    fn read(&self) -> Events<SemiontError> {
+        if let Some(first) = locked(&self.first).take() {
+            return Events::new(first);
+        }
+        match locked(&self.sender).as_ref() {
+            Some(sender) => Events::new(sender.subscribe()),
+            None => Events::new(broadcast::channel(1).1),
+        }
+    }
+
+    /// End the stream: each reader is given what was said before, then its end.
+    fn end(&self) {
+        locked(&self.sender).take();
+    }
+}
+
 /// See the module's documentation.
 pub struct SemiontSession {
     shared: Arc<Shared>,
@@ -181,9 +230,19 @@ pub struct SemiontSession {
 
 impl SemiontSession {
     pub fn new(config: SemiontSessionConfig) -> SemiontSession {
-        let (errors, first) = broadcast::channel(STREAM_BACKLOG);
-        let failures = config.client.transport().failures();
-        let saying = errors.downgrade();
+        let errors = Arc::new(ErrorsStream::new());
+        // Each failure the transport meets is said within the transport's
+        // telling of it, so before whatever the session says next.
+        let relaying = Arc::downgrade(&errors);
+        config
+            .client
+            .transport()
+            .tell_failures_to(Box::new(move |failure| {
+                if let Some(errors) = relaying.upgrade() {
+                    errors.say(SemiontError::Transport(failure.clone()));
+                }
+            }));
+        let saying = Arc::downgrade(&errors);
         let kb_id = config.kb.id.clone();
         // Before anything runs: what goes wrong with what the client keeps
         // is the session's to say from the first save on.
@@ -191,13 +250,12 @@ impl SemiontSession {
             kept: config.kept.clone(),
             says: Arc::new(move |code, message| {
                 if let Some(errors) = saying.upgrade() {
-                    let _ = errors.send(SemiontError::Session(SessionError::new(
+                    errors.say(SemiontError::Session(SessionError::new(
                         code, message, &kb_id,
                     )));
                 }
             }),
         });
-        let relaying = errors.downgrade();
         let shared = Arc::new(Shared {
             id: format!("session-{}", uuid::Uuid::new_v4()),
             kb: config.kb,
@@ -211,15 +269,12 @@ impl SemiontSession {
             refresh: config.refresh,
             validate: config.validate,
             on_auth_failed: config.on_auth_failed,
-            errors: Mutex::new(Some(errors)),
-            first: Mutex::new(Some(first)),
+            errors,
             random: config.random,
             tasks: Tasks::new(),
             closed: AtomicBool::new(false),
             answering: tokio::sync::Mutex::new(()),
         });
-
-        shared.tasks.spawn(relayed(failures, relaying));
 
         let renewing = shared.clone();
         shared
@@ -275,20 +330,17 @@ impl SemiontSession {
     }
 
     /// What the session says, each once: what it says of its own (a
-    /// `SessionError`), and the failures its client's transport meets. The
-    /// first reader is given everything said since the session was made;
-    /// each later one, what is said from then on. It ends when the session
-    /// ends. A host routes the transport's failures: a refusal for want of a
-    /// valid token is a reason to `refresh`. A registry is the one reader of
-    /// the errors of each session it holds (`super::SemiontBrowser`).
+    /// `SessionError`), and the failures its client's transport meets, in
+    /// the order they were met. The first reader is given the latest
+    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said since the session was made,
+    /// the oldest dropped beyond that; each later one, what is said from then
+    /// on. It ends when the session ends: a failure met before then is said
+    /// before it ends, and one met after is said nowhere. A refusal for want
+    /// of a valid token among the transport's failures is the transport's
+    /// to renew, not its reader's. A registry is the one reader of the
+    /// errors of each session it holds (`super::SemiontBrowser`).
     pub fn errors(&self) -> Events<SemiontError> {
-        if let Some(first) = locked(&self.shared.first).take() {
-            return Events::new(first);
-        }
-        match locked(&self.shared.errors).as_ref() {
-            Some(errors) => Events::new(errors.subscribe()),
-            None => Events::new(broadcast::channel(1).1),
-        }
+        self.shared.errors.read()
     }
 
     /// Resolves when the session has done what it does at its start: read
@@ -332,19 +384,6 @@ impl StateUnit for SemiontSession {
     /// it. Ending twice is ending once.
     fn dispose(&self) {
         self.shared.end();
-    }
-}
-
-/// Say each failure `failures` reports on the session's errors stream, while
-/// the session has one. A failure the reader missed is not known, and is
-/// not said.
-async fn relayed(mut failures: Failures, errors: broadcast::WeakSender<SemiontError>) {
-    while let Some(failure) = failures.next().await {
-        let Ok(failure) = failure else { continue };
-        let Some(errors) = errors.upgrade() else {
-            return;
-        };
-        let _ = errors.send(SemiontError::Transport(failure));
     }
 }
 
@@ -412,7 +451,7 @@ impl Shared {
         self.user.end();
         self.ready.end();
         self.unanswered.end();
-        locked(&self.errors).take();
+        self.errors.end();
     }
 
     /// The token a renewal of `holding` is handed, which is remembered:
@@ -629,13 +668,11 @@ impl Shared {
 
     /// Say `message`, under `code`, once, on the session's errors stream.
     fn failed(&self, code: SessionErrorCode, message: String) {
-        if let Some(errors) = locked(&self.errors).as_ref() {
-            let _ = errors.send(SemiontError::Session(SessionError::new(
-                code,
-                message,
-                &self.kb.id,
-            )));
-        }
+        self.errors.say(SemiontError::Session(SessionError::new(
+            code,
+            message,
+            &self.kb.id,
+        )));
     }
 
     /// Forget the session's kept sign-in, and with it what was kept for the
@@ -782,5 +819,116 @@ impl Shared {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! A session's own errors and its transport's failures are one stream,
+    //! in the order they were met. Every way to make a session say one of
+    //! its own from outside waits on something, and a wait lets whatever
+    //! else runs have its turn, so these say them themselves.
+
+    use super::*;
+    use crate::errors::TransportError;
+    use crate::testing::{TestSession, TestSessionOptions, create_test_session};
+
+    /// Each kind in turn: the session's own, its transport's, its own, its
+    /// transport's.
+    fn each_kind_in_turn() -> Vec<SemiontError> {
+        vec![
+            SemiontError::Session(SessionError::new(
+                SessionErrorCode::KeepFailed,
+                "The sign-in could not be read",
+                "test-kb",
+            )),
+            SemiontError::Transport(TransportError::of_status("HTTP 503", 503, None)),
+            SemiontError::Session(SessionError::new(
+                SessionErrorCode::SaveRefused,
+                "The storage refused a write of what the client keeps",
+                "test-kb",
+            )),
+            SemiontError::Transport(TransportError::of_status("HTTP 401", 401, None)),
+        ]
+    }
+
+    /// Meet each of `met` in turn, with nothing else run between them: the
+    /// session's own as the session says it, a failure as its transport
+    /// reports it.
+    fn meet(test: &TestSession, met: &[SemiontError]) {
+        for error in met {
+            match error {
+                SemiontError::Session(own) => {
+                    test.session.shared.failed(own.code, own.message.clone())
+                }
+                SemiontError::Transport(failure) => test.transport.fail(failure.clone()),
+                other => panic!("{other:?} is neither a session's own nor its transport's"),
+            }
+        }
+    }
+
+    /// Everything `errors` says, to its end.
+    async fn heard(mut errors: Events<SemiontError>) -> Vec<SemiontError> {
+        let mut heard = Vec::new();
+        while let Some(said) = errors.next().await {
+            heard.push(said.expect("no error was missed"));
+        }
+        heard
+    }
+
+    #[tokio::test]
+    async fn a_sessions_own_errors_and_its_transports_failures_are_said_in_the_order_met() {
+        let test = create_test_session(TestSessionOptions::default());
+        // Before anyone reads: all kept for the first reader.
+        meet(&test, &each_kind_in_turn());
+        // Whatever else the session runs has its turn before anyone reads.
+        tokio::task::yield_now().await;
+        let errors = test.session.errors();
+        test.session.dispose();
+
+        assert_eq!(heard(errors).await, each_kind_in_turn());
+    }
+
+    #[tokio::test]
+    async fn a_session_nobody_has_read_keeps_the_latest_of_what_it_says_for_its_first_reader() {
+        let test = create_test_session(TestSessionOptions::default());
+        let beyond = 5;
+        let met: Vec<SemiontError> = (0..ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
+            .map(|n| match n % 2 {
+                0 => SemiontError::Session(SessionError::new(
+                    SessionErrorCode::KeepFailed,
+                    format!("failure {n}"),
+                    "test-kb",
+                )),
+                _ => SemiontError::Transport(TransportError::of_status(
+                    format!("failure {n}"),
+                    503,
+                    None,
+                )),
+            })
+            .collect();
+        meet(&test, &met);
+        // Whatever else the session runs has its turn before anyone reads.
+        tokio::task::yield_now().await;
+        let errors = test.session.errors();
+        test.session.dispose();
+
+        assert_eq!(heard(errors).await, met[beyond..].to_vec());
+    }
+
+    #[tokio::test]
+    async fn a_reader_already_listening_hears_them_in_the_order_met_and_all_before_the_end() {
+        let test = create_test_session(TestSessionOptions::default());
+        let hearing = tokio::spawn(heard(test.session.errors()));
+        // The reader is waiting.
+        tokio::task::yield_now().await;
+        meet(&test, &each_kind_in_turn());
+        // Ended before anything else runs.
+        test.session.dispose();
+
+        assert_eq!(
+            hearing.await.expect("the reader reads to the end"),
+            each_kind_in_turn()
+        );
     }
 }

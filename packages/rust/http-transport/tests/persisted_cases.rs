@@ -41,7 +41,8 @@ use semiont::state_unit::StateUnit;
 use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::testing::{FaultyTransport, InMemoryContent, SharedStorage, as_id};
 use semiont::transport::{
-    BoxFuture, ConnectionState, Envelope, Failures, Frames, PendingReply, ResourceHold, Transport,
+    BoxFuture, ConnectionState, Envelope, FailureListener, Failures, Frames, PendingReply,
+    ResourceHold, Transport,
 };
 use semiont::types::{
     HttpEndpoint, HttpEndpointProtocol, KbEndpoint, KnowledgeBase, LocalEndpoint,
@@ -685,6 +686,10 @@ impl Transport for ClosingWrites {
 
     fn failures(&self) -> Failures {
         self.answers_nothing.failures()
+    }
+
+    fn tell_failures_to(&self, listener: FailureListener) {
+        self.answers_nothing.tell_failures_to(listener);
     }
 
     fn track_reply(&self, correlation_id: &str, reply_channels: &[&str]) -> PendingReply {
