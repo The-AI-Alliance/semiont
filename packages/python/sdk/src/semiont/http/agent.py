@@ -318,9 +318,9 @@ class AgentToken:
         is given, and the issuer is not asked. A refusal of the token it holds
         while that token is being renewed, for another refusal or on its
         schedule, is given what that renewal brings: one renewal answers them
-        all. Once the agent is closed, a refusal is given nothing and the
-        issuer is not asked, and one waiting on the renewal the close ended is
-        given nothing too.
+        all. Once the agent is closed, a refusal is given nothing, whatever
+        token it refused, and the issuer is not asked; one waiting on the
+        renewal the close ended is given nothing too.
         """
         try:
             return await self._renewal(refused)
@@ -330,22 +330,23 @@ class AgentToken:
     async def _renewal(self, of: str | None) -> str | None:
         """The token that replaces `of`: the one held, when it is no longer `of`, or what the renewal under way brings, joined or begun.
 
-        The check and the joining are one step, with nothing awaited between.
-        A renewal makes its token the agent's before it is no longer under way,
-        so a check made after it ends sees that token, and makes no other.
+        Nothing once the agent is closed, whatever `of` is. The check and the
+        joining are one step, with nothing awaited between. A renewal makes
+        its token the agent's before it is no longer under way, so a check made
+        after it ends sees that token, and makes no other.
         """
+        if self._closing.is_set():
+            # A closed agent renews nothing, and gives no token.
+            return None
         held = self._token.value
         if held != of:
             return held
-        if self._closing.is_set():
-            # A closed agent renews nothing.
-            return None
         if self._renewing is None:
             self._renewing = asyncio.create_task(self._renew())
             # A renewal everyone stopped waiting for has nobody to tell how it ended.
             self._renewing.add_done_callback(heard)
-        # Whoever stops waiting does not stop the renewal; one the close ended gives no token.
-        return await answer(self._renewing)
+        # Whoever stops waiting does not stop the renewal, and once the agent is closing each refusal waiting is given no token.
+        return await answer(self._renewing, self._closing)
 
     async def _renew(self) -> str:
         """Ask the issuer for another, and make it the token."""
