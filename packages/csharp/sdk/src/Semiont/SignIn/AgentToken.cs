@@ -19,7 +19,8 @@ public sealed class AgentToken : IDisposable
     private string? token;
     private UserId? did;
     private bool started;
-    private bool disposed;
+    // Completed, under the gate, as the agent is disposed.
+    private readonly TaskCompletionSource disposal = new(Spawning.CompletionOptions);
 
     public AgentToken(HttpEndpoint endpoint, ServiceToken service, HttpClient? httpClient = null)
     {
@@ -39,7 +40,7 @@ public sealed class AgentToken : IDisposable
         cancellation.ThrowIfCancellationRequested();
         lock (gate)
         {
-            ObjectDisposedException.ThrowIf(disposed, this);
+            ObjectDisposedException.ThrowIf(disposal.Task.IsCompleted, this);
             if (started) throw new InvalidOperationException("An agent signs in once");
             started = true;
         }
@@ -49,16 +50,22 @@ public sealed class AgentToken : IDisposable
         lock (gate)
         {
             linked.Token.ThrowIfCancellationRequested();
-            ObjectDisposedException.ThrowIf(disposed, this);
+            ObjectDisposedException.ThrowIf(disposal.Task.IsCompleted, this);
             did = user.Did;
             Publish(access);
         }
     }
 
+    /// <summary>
+    /// The gateway refused <paramref name="refused"/>: the token renewed, or, for a token already replaced, the one held,
+    /// with the issuer not asked. A refusal while the token held is renewed joins that renewal. Once the agent is
+    /// disposed, a refusal of any token is given no token and the issuer is not asked, and one waiting on the renewal the
+    /// disposal ended is given none at once.
+    /// </summary>
     public async Task<string?> RefreshAsync(string? refused, CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
-        try { return await Spawning.WaitAsync(Renewal(refused, false), cancellation).ConfigureAwait(Spawning.Captures); }
+        try { return await SharedRenewal.AnswerAsync(Renewal(refused, false), disposal.Task, cancellation).ConfigureAwait(Spawning.Captures); }
         catch (SignInError) { return null; }
     }
 
@@ -66,7 +73,8 @@ public sealed class AgentToken : IDisposable
     {
         lock (gate)
         {
-            ObjectDisposedException.ThrowIf(disposed, this);
+            // A disposed agent renews nothing, whatever token was refused.
+            if (disposal.Task.IsCompleted) return Task.FromResult<string?>(null);
             if (token != refused) return Task.FromResult(token);
             if (renewing is { IsCompleted: false }) return renewing;
             renewing = Spawning.Run(() => RenewAsync(refused, retry, lifetime.Token));
@@ -79,8 +87,9 @@ public sealed class AgentToken : IDisposable
         var access = await service.TokenAsync(refused, retry, cancellation).ConfigureAwait(Spawning.Captures);
         lock (gate)
         {
-            cancellation.ThrowIfCancellationRequested();
-            if (!disposed && token == refused)
+            // The disposal ended this renewal: the token it brings is not taken.
+            if (disposal.Task.IsCompleted) return null;
+            if (token == refused)
             {
                 renewing = null;
                 Publish(access);
@@ -113,20 +122,16 @@ public sealed class AgentToken : IDisposable
             await Task.Delay(TimeSpan.FromSeconds(Math.Min(delay, (uint.MaxValue - 1d) / 1000)), clock, timer.Token).ConfigureAwait(Spawning.Captures);
             lock (gate)
             {
-                if (scheduled != timer || disposed) return;
+                if (scheduled != timer || disposal.Task.IsCompleted) return;
                 scheduled = null;
             }
             await Renewal(access, true).ConfigureAwait(Spawning.Captures);
-        }
-        catch (ObjectDisposedException) when (disposed)
-        {
-            // Disposal won the race to start a renewal.
         }
         catch (SignInError)
         {
             lock (gate)
             {
-                if (!disposed && token == access && scheduled is null) Schedule(access);
+                if (!disposal.Task.IsCompleted && token == access && scheduled is null) Schedule(access);
             }
         }
         catch (OperationCanceledException) when (timer.IsCancellationRequested)
@@ -143,8 +148,8 @@ public sealed class AgentToken : IDisposable
     {
         lock (gate)
         {
-            if (disposed) return;
-            disposed = true;
+            if (disposal.Task.IsCompleted) return;
+            disposal.SetResult();
             scheduled = null;
             tokens.Close();
         }

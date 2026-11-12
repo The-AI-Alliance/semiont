@@ -285,13 +285,16 @@ func (a *AgentToken) Gateway() string { return a.config.Gateway }
 // token renewed since is the answer, and nothing is asked; a refusal met while
 // a renewal is under way is given what that renewal brings. The renewal runs
 // under the agent's own lifetime, not ctx: its answer is every refusal's that
-// joins it.
+// joins it. Once the agent is closed, a refusal is given none, whatever token
+// it names, and the issuer is not asked; one waiting on the renewal the close
+// ended is given none too.
 func (a *AgentToken) Refresh(_ context.Context, refused string) (string, bool) {
 	token, err := a.renew(refused)
 	return token, err == nil
 }
 
 // Close stops keeping the agent signed in, and returns once that has stopped.
+// It ends the renewal under way: the token it brings is not taken.
 func (a *AgentToken) Close() {
 	a.cancel()
 	a.work.Wait()
@@ -299,9 +302,15 @@ func (a *AgentToken) Close() {
 
 // renew renews renewing, the agent's token, at its issuer, while the agent
 // still holds it: a token renewed since is given, and nothing is asked. A
-// renewal asked for while one is under way is that one.
+// renewal asked for while one is under way is that one. A closed agent gives
+// no token, whatever token is named, and renews nothing; a renewal the close
+// ended gives no token either.
 func (a *AgentToken) renew(renewing string) (string, error) {
 	a.renewing.Lock()
+	if closed := a.alive.Err(); closed != nil {
+		a.renewing.Unlock()
+		return "", closed
+	}
 	if held := a.token.Value(); held != renewing {
 		a.renewing.Unlock()
 		return held, nil
@@ -316,6 +325,9 @@ func (a *AgentToken) renew(renewing string) (string, error) {
 	a.renewing.Unlock()
 	token, err := a.config.Service.token(a.alive, true)
 	a.renewing.Lock()
+	if closed := a.alive.Err(); closed != nil {
+		token, err = "", closed
+	}
 	if err == nil {
 		a.token.Set(token)
 	}

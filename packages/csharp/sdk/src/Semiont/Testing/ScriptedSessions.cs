@@ -83,7 +83,11 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
                         openedClient.Dispose();
                         await openedClient.Flushed.ConfigureAwait(Spawning.Captures);
                     }
-                    finally { session.Dispose(); }
+                    finally
+                    {
+                        session.Dispose();
+                        await kept.DisposeAsync().ConfigureAwait(Spawning.Captures);
+                    }
                 }
                 finally { http.Dispose(); }
             }, session);

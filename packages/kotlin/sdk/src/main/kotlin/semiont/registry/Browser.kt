@@ -31,6 +31,7 @@ import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
+import semiont.http.waitFor
 import semiont.identifiers.ResourceId
 import semiont.identity.kbDid
 import semiont.resources.primaryMediaType
@@ -58,7 +59,6 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CountDownLatch
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 import kotlin.time.TimeSource
@@ -513,13 +513,6 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     // Within.
-
-    /** Wait, on this thread, until `job` has ended. */
-    private fun waitFor(job: Job) {
-        val stopped = CountDownLatch(1)
-        job.invokeOnCompletion { stopped.countDown() }
-        stopped.await()
-    }
 
     /** Run `work` for as long as the registry lives: closing ends it, waits for it to stop, and throws what it failed with. */
     private fun spawn(work: suspend () -> Unit) {

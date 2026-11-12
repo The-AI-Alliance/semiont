@@ -37,7 +37,8 @@ public sealed class SemiontSession : IStateUnit
     /// its renewal, or a renewal gives no token, or the gateway refuses a token the issuer has just issued: its sign-in is
     /// forgotten, and <paramref name="onAuthFailed"/> is told why before that is said on <see cref="Errors"/>. Ending the
     /// opened session ends the client, waits for its closing save, and then ends the session, so what that save says
-    /// reaches the session's errors.
+    /// reaches the session's errors. A renewal under way at the issuer then is not ended: the close waits for it, and the
+    /// tokens it brings are kept in <paramref name="kept"/>, not taken by the session.
     /// </summary>
     public static async Task<OpenedSession> FromKeptAsync(KbTarget kb, ISignInKept kept, ISessionStorage? storage = null,
         HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null, bool validate = true,
@@ -69,7 +70,12 @@ public sealed class SemiontSession : IStateUnit
                     client.Dispose();
                     await client.Flushed.ConfigureAwait(Spawning.Captures);
                 }
-                finally { session.Dispose(); }
+                finally
+                {
+                    session.Dispose();
+                    // A renewal under way at the issuer runs to its end, and what it brings is kept, before the close returns.
+                    await credentials.DisposeAsync().ConfigureAwait(Spawning.Captures);
+                }
             }, session);
         }
         catch

@@ -138,7 +138,9 @@ async def as_me(kb: KbTarget, home: str) -> None:
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer, a renewal the issuer did not refuse is tried
   again inside a bounded budget, and one under way runs to its end whoever
-  stops waiting for it.
+  stops waiting for it. A session's close waits for it, so what the issuer
+  rotated is kept for the next session; a refusal waiting on it is given no
+  token, and the closed session takes none.
 - **The store is the launcher's** ([`protocol/specs/src/sign-in-store`][sign-in-store]):
   the same file and the same lock, on macOS, Linux and Windows. A sign-in made
   here serves the launcher's verbs, and one it renewed serves this session.

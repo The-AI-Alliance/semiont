@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module SessionCases (jwt, sessionCases, sessionClockCases) where
 
-import Control.Concurrent.Async (async, wait, withAsync, replicateConcurrently)
+import Control.Concurrent.Async (async, poll, wait, withAsync, replicateConcurrently)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, throwIO, try, IOException)
-import Control.Monad (forM_, unless, when)
+import Control.Monad (forM_, unless, void, when)
 import Data.Aeson (FromJSON, Result(..), Value(..), eitherDecodeStrict', encode, fromJSON, object, (.=))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
@@ -310,19 +310,47 @@ externalCases target person = do
     said <- Session.errors session (\given -> Session.dispose session >> Session.dispose session >> Stream.toList_ given)
     require "session detached its storage listener more than once" . (==1) =<< readTVarIO detached
     require "a replaced renewal said a failure" (null said)
-    -- Disposal joins an issuer request and releases every waiter, including
-    -- callers which did not themselves cancel their refusal request.
+    -- The issuer holds its answer to the kept sign-in's refresh while a
+    -- refusal waits on it, and the session is disposed: the refusal is given
+    -- no token at once, rather than an error it never had, and disposal
+    -- waits for the renewal, whose rotated refresh token is kept. The
+    -- disposed session takes no token from it and ends nothing, and a
+    -- refusal after it, of the token held or one replaced, is given none
+    -- with the issuer not asked.
     Stored.storeSession memory (kbTargetId target) (stored (jwt 3600 0))
     waiting <- newEmptyTMVarIO
-    let held = options { Session.sessionKept=Stored.keptIn memory (kbTargetId target),
-          Session.sessionRefresh=Just (\_ -> atomically (putTMVar waiting ()) >> atomically retry) }
+    granting <- newEmptyTMVarIO
+    renewing <- newTVarIO (0::Integer)
+    ended <- newTVarIO []
+    let kept = Stored.keptIn memory (kbTargetId target)
+        exchange _ = do
+          atomically (modifyTVar' renewing (+1) >> void (tryPutTMVar waiting ()))
+          atomically (readTMVar granting)
+          pure (IssuedTokens (jwt 3600 1) "rotated-credential" KM.empty)
+        held = options { Session.sessionKept=kept,
+          Session.sessionRefresh=Just (\holding -> SignIn.renewKept kept holding (const (pure False)) exchange),
+          Session.sessionOnAuthFailed=(\reason -> atomically (modifyTVar' ended (<>[reason]))) }
     blocked <- Session.newSession owned held (timeOptions time) Timing.protocolSettings
     Session.ready blocked
-    refusal <- async (try (Session.refresh blocked Nothing) :: IO (Either BusRequestError (Maybe Text)))
+    first <- atomically (State.current (Session.token blocked))
+    refusal <- async (try (Session.refresh blocked first) :: IO (Either BusRequestError (Maybe Text)))
     atomically (readTMVar waiting)
-    Session.dispose blocked
+    closing <- async (Session.dispose blocked)
     outcome <- wait refusal
-    require "disposed renewal caller remained usable" (case outcome of Left failure -> busRequestErrorCode failure==Code.BusRequestClosed; _ -> False)
+    require "a refusal waiting on the renewal under way at disposal was not given no token at once" (outcome==Right Nothing)
+    Time.settle
+    require "disposal ended before the renewal under way did" . maybe True (const False) =<< poll closing
+    atomically (putTMVar granting ())
+    wait closing
+    require "disposal lost the refresh token its renewal under way brought"
+      . (==Just "rotated-credential") . fmap storedSessionRefresh =<< Stored.storedSession memory (kbTargetId target)
+    require "a disposed session took the token its renewal brought" . (==first) =<< atomically (State.current (Session.token blocked))
+    afterwards <- try (Session.refresh blocked first) :: IO (Either BusRequestError (Maybe Text))
+    require "a refusal made once the session was disposed was not given no token" (afterwards==Right Nothing)
+    replaced <- try (Session.refresh blocked (Just (jwt 3600 (-1)))) :: IO (Either BusRequestError (Maybe Text))
+    require "a refusal of a token already replaced, once the session was disposed, was not given no token" (replaced==Right Nothing)
+    require "a disposed session asked the issuer again" . (==1) =<< readTVarIO renewing
+    require "disposal said the sign-in ended" . null =<< readTVarIO ended
     -- The gateway refuses the token the issuer has just renewed, and the
     -- host's onAuthFailed, told so, fails.
     Stored.storeSession memory (kbTargetId target) (stored (jwt 3600 0))
@@ -333,7 +361,7 @@ externalCases target person = do
     badReady <- try (Session.ready failed) :: IO (Either IOException ())
     require "a failed host callback made startup look successful" (case badReady of Left _ -> True; _ -> False)
     afterFailure <- try (Session.refresh failed Nothing) :: IO (Either BusRequestError (Maybe Text))
-    require "a stopped session worker left later renewal callers waiting" (case afterFailure of Left failure -> busRequestErrorCode failure==Code.BusRequestClosed; _ -> False)
+    require "a refusal of a session whose work stopped was not given no token" (afterFailure==Right Nothing)
     Session.dispose failed
     grant <- SignIn.newMemorySignIn
     SignIn.keep grant (stored (jwt 3600 0))

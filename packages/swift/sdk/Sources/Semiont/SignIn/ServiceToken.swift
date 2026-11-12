@@ -144,7 +144,7 @@ public actor AgentToken {
   private nonisolated let lifetime = Lifetime()
   private var signedInAs: UserId?
   private var signing = false
-  private var renewal: Task<String, any Error>?
+  private var renewal: Task<String?, any Error>?
   private var scheduled: UUID?
   public init(
     gateway: String, service: ServiceToken, httpClient: HTTPClient,
@@ -185,31 +185,39 @@ public actor AgentToken {
       task.cancel()
     }
   }
+  /// The gateway refused `refused`: ask the issuer for another. The new token, or nil when the
+  /// issuer gave none. Once the agent is disposed, a refusal is given nil and the issuer is not
+  /// asked, and one waiting on the renewal the dispose ended is given nil too.
   public func refresh(_ refused: String?) async throws -> String? {
-    guard !lifetime.ended else { throw CancellationError() }
+    guard !lifetime.ended else { return nil }
     do { return try await renew(refused) } catch is SignInError { return nil }
   }
   /// Renews `held` while it is the token the agent holds, in the renewal in flight or in one it
   /// starts. A token the agent no longer holds was renewed already: the token it holds is given.
   private func renew(_ held: String?) async throws -> String? {
     if token.value != held { return token.value }
-    if let renewal { return try await sharedValue(renewal, lifetime: lifetime) }
+    if let renewal { return try await sharedAnswer(renewal, lifetime: lifetime) }
     let id = UUID()
-    let task = spawn(on: self) { agent in
+    let task: Task<String?, any Error> = spawn(on: self) { agent in
       defer {
         agent.renewal = nil
         agent.lifetime.forget(id)
       }
       let next = try await agent.service.token(renewed: true)
-      try Task.checkCancellation()
-      guard !agent.lifetime.ended else { throw CancellationError() }
-      agent.token.set(next)
+      // Taken in one step with the check that the agent is open: a grant is its token before the
+      // dispose or never.
+      var taken = false
+      agent.lifetime.whileOpen {
+        agent.token.set(next)
+        taken = true
+      }
+      guard taken else { throw CancellationError() }
       agent.schedule()
       return next
     }
     renewal = task
     lifetime.keep(task, id: id)
-    return try await sharedValue(task, lifetime: lifetime)
+    return try await sharedAnswer(task, lifetime: lifetime)
   }
   private func schedule() {
     if let scheduled {

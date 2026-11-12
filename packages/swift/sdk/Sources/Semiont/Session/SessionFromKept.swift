@@ -132,7 +132,8 @@ public final class OpenedSession: Sendable {
   }
 
   /// Closes the client and, once its closing flush has written what it held, ends the session:
-  /// what that flush meets is said on the session's errors before they end.
+  /// what that flush meets is said on the session's errors before they end. A renewal of the
+  /// session's sign-in under way runs to its end, so what the issuer rotated is kept.
   public func dispose() {
     let session = session
     closing.withLock { closing in
@@ -141,11 +142,13 @@ public final class OpenedSession: Sendable {
       closing = spawn {
         await session.client.closed()
         session.dispose()
+        await session.renewalEnded()
       }
     }
   }
 
-  /// Waits until it has closed, once disposed: its client, and then its session.
+  /// Waits until it has closed, once disposed: its client, then its session, and then the renewal
+  /// of its sign-in under way, whose rotated tokens are kept by then.
   func closed() async { await closing.withLock { $0 }?.value }
 
   deinit { dispose() }

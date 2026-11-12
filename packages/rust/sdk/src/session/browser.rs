@@ -642,13 +642,15 @@ struct Ended {
 impl Ended {
     /// The client the session was built with closes, which the session only
     /// used, and makes the saves its caches owe; then the session ends, so
-    /// what those saves meet is said before its errors end. The browser
+    /// what those saves meet is said before its errors end, and a renewal
+    /// it had under way finishes, keeping what it brings. The browser
     /// reads them to their end, and then the signals end, which that
     /// reading says a refusal through. The factory built the client and the
     /// session for this browser.
     async fn close(self) {
         self.session.client().close().await;
         crate::state_unit::StateUnit::dispose(self.session.as_ref());
+        self.session.renewals_finished().await;
         if let Some(reading) = self.reading {
             // It ends with the session's errors; a panic in it is not the
             // close's to give.

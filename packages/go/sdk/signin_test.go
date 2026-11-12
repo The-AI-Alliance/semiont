@@ -352,6 +352,102 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	}
 }
 
+// The session closes while a refusal's renewal of the kept sign-in is under
+// way. The refusal is given no token at once; the renewal finishes, and Close
+// returns only once it has, so the rotation the issuer answered is kept; the
+// closed session does not take the renewed token, and nothing is signed out.
+// A refusal once the session is closed is given none, whatever token it
+// names, and asks the issuer nothing.
+func TestASessionClosedWhileItsSignInIsRenewedGivesTheRefusalNoTokenAndKeepsTheRotation(t *testing.T) {
+	s := newStack(t)
+	arrived, release := make(chan struct{}), make(chan struct{})
+	arrive, released := sync.OnceFunc(func() { close(arrived) }), sync.OnceFunc(func() { close(release) })
+	defer released()
+	s.set(func() {
+		s.token = func(w http.ResponseWriter, r *http.Request) {
+			arrive()
+			<-release
+			issuing(2)(w, r)
+		}
+	})
+	store, entry := keptAt(t, s, 1)
+	token := NewVariable("")
+	// The session's client, over a wire nothing is sent on.
+	wire := newWorkerWire()
+	client := NewClient(ClientConfig{Transport: wire, Timing: quickTiming()})
+	defer func() {
+		client.Close()
+		wire.Close()
+	}()
+	var mu sync.Mutex
+	var ended []SessionEndReason
+	session, err := ResumeSession(context.Background(), ResumeConfig{
+		Kb: gatewayTarget(t, "local", s.gateway.URL), Client: client, Kept: entry, Token: token,
+		HTTP: &http.Client{}, Timing: quickTiming(),
+		OnAuthFailed: func(reason SessionEndReason) {
+			mu.Lock()
+			defer mu.Unlock()
+			ended = append(ended, reason)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := session.Ready(ready); err != nil {
+		t.Fatal(err)
+	}
+	given := make(chan bool, 1)
+	go func() {
+		renewed, ok := session.Refresh(context.Background(), signedToken(1))
+		given <- ok || renewed != ""
+	}()
+	<-arrived
+	closed := make(chan struct{})
+	go func() {
+		session.Close()
+		close(closed)
+	}()
+	select {
+	case tokenGiven := <-given:
+		if tokenGiven {
+			t.Error("the refusal waiting on the renewal was given a token")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the refusal waiting on the renewal was not answered at the close")
+	}
+	settledFor()
+	select {
+	case <-closed:
+		t.Error("the close returned before the renewal under way had finished")
+	default:
+	}
+	released()
+	select {
+	case <-closed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the close did not return once the renewal had finished")
+	}
+	if signIn, _, _ := store.SignIn("local"); signIn.RefreshToken != "refresh-2" {
+		t.Errorf("the rotation the renewal brought was not kept: %+v", signIn)
+	}
+	if token.Value() != signedToken(1) {
+		t.Error("the closed session took the token its renewal brought")
+	}
+	// The token it holds, and one it does not.
+	for _, refused := range []string{signedToken(1), signedToken(0)} {
+		if renewed, ok := session.Refresh(context.Background(), refused); ok || renewed != "" {
+			t.Error("a refusal once the session is closed was given a token")
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if grants := s.grantsMade(); grants != 1 || len(ended) != 0 {
+		t.Errorf("%d grants, want one; the session ended as %v, want not at all", grants, ended)
+	}
+}
+
 // The gateway refuses a kept token that has not expired, and its renewal gets
 // no answer: the renewal on the reconnect backoff is handed that token, so
 // the kept sign-in's renewal asks the issuer for a grant. Handed none, it

@@ -505,9 +505,13 @@ class SemiontSession[T: Transport](StateUnit):
         the session no longer holds was answered already, however late it
         arrives: the token it holds is given, and nothing is renewed or asked.
         A gateway that cannot be asked refuses nothing: the renewed token is
-        given.
+        given. Once the session has ended, a refusal is given nothing,
+        whatever token it refused, and nothing is renewed or asked.
         """
         async with self._answering:
+            # Checked once the refusals before it are answered: one that waited for them through the ending is given nothing too.
+            if self._closing.is_set():
+                return None
             if self._token.value != refused:
                 return self._token.value
             renewed = await self._renew()

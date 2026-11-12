@@ -324,3 +324,16 @@ func sharedValue<Value: Sendable>(_ task: Task<Value, any Error>, lifetime: Life
     waiter.resolve(.failure(CancellationError()))
   }
 }
+/// What `task`, which several callers wait on, gives, or throws; nil once `lifetime` has ended. A
+/// waiter that is cancelled is cancelled alone: `task` goes on for the others. One the end of its
+/// owner's lifetime ended, as a dispose ends what nobody is left to give it to, gives its waiters
+/// nothing, as when the issuer gives nothing, rather than a cancellation none of them had.
+func sharedAnswer<Value: Sendable>(_ task: Task<Value?, any Error>, lifetime: Lifetime) async throws
+  -> Value?
+{
+  do {
+    return try await sharedValue(task, lifetime: lifetime)
+  } catch is CancellationError where !Task.isCancelled && lifetime.ended {
+    return nil
+  }
+}

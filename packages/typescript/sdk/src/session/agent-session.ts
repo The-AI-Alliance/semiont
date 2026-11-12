@@ -39,12 +39,17 @@
  * gateway named the account by does not change. Both share one renewal: a
  * refusal, or a wait that runs out, while a renewal is in flight joins it and
  * is given the token it brings, so the issuer grants once.
+ *
+ * `stop()` ends the renewal under way: each refusal waiting on it is given no
+ * token, and the token it brings after is not taken. A refusal once stopped
+ * is given none, and the issuer is not asked.
  */
 
 import { BehaviorSubject } from 'rxjs';
 import { accessToken as makeAccessToken, RETRY_RULES, ServiceToken, SignInError, watched } from '@semiont/core';
 import type { AccessToken, ServiceAccountCredential, UserId, Watched } from '@semiont/core';
 import { agentToken } from '@semiont/http-transport';
+import { sharedRenewal, type SharedRenewal } from './shared-renewal';
 import { parseJwtExpiry, refreshDelayMs } from './storage';
 
 /** The logging surface this module uses, structurally. */
@@ -77,11 +82,13 @@ export interface AgentSession {
    * The gateway refused `refused`: ask the issuer for a new token, and push
    * it. A token the agent no longer holds was renewed already: the one it
    * holds is given, and the issuer is not asked. A refusal while the token
-   * held is being renewed joins that renewal. HttpTransport's
+   * held is being renewed joins that renewal. Once stopped, a refusal is
+   * given no token and the issuer is not asked, and one waiting on the
+   * renewal the stop ended is given none too. HttpTransport's
    * `tokenRefresher`.
    */
   refresh(refused: string | null): Promise<string | null>;
-  /** Stop the proactive refresh. Call from the shutdown path. */
+  /** Stop the proactive refresh, and end the renewal under way. Call from the shutdown path. */
   stop(): void;
 }
 
@@ -118,7 +125,7 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
   /** The renewal in flight. It ends in the same run that writes the token it brings. */
-  let renewal: Promise<string> | null = null;
+  let renewal: SharedRenewal<string | null> | null = null;
 
   /**
    * Re-arm from the token just received rather than on a fixed cadence: the
@@ -159,9 +166,11 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     timer.unref?.();
   };
 
-  const renewed = async (): Promise<string> => {
+  const renewed = async (): Promise<string | null> => {
     try {
       const next = await service.token({ renewed: true });
+      // The stop ended this renewal: the token it brings is not taken.
+      if (stopped) return null;
       token$.next(makeAccessToken(next));
       rearm(next);
       return next;
@@ -173,10 +182,12 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
   // The check, and joining or starting the renewal, are one run: nothing
   // else can run between them.
   const refresh = async (refused: string | null): Promise<string | null> => {
+    // A stopped agent renews nothing.
+    if (stopped) return null;
     const held = token$.value;
     if (held !== refused) return held;
-    if (renewal === null) renewal = renewed();
-    return renewal;
+    if (renewal === null) renewal = sharedRenewal(renewed());
+    return renewal.answer;
   };
 
   rearm(first.token);
@@ -188,6 +199,8 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     stop: () => {
       stopped = true;
       if (timer) clearTimeout(timer);
+      // A renewal still under way has nobody left to give its token to: each refusal waiting on it is given none.
+      renewal?.end();
     },
   };
 }

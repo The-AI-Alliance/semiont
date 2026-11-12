@@ -226,36 +226,65 @@ private func status(_ session: SemiontSession) -> String {
     try await withinTestDeadline { try await waiting.value }
   }
 }
-@Test func disposingASessionCancelsRenewalAndFinishesItsReaders() async throws {
+@Test func disposingASessionWhileItRenewsKeepsWhatTheIssuerRotatedAndGivesTheRefusalNoToken()
+  async throws
+{
   let access = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
+  let rotated = "rotated-access"
   let kept = MemorySignIn(
     HeldSignIn(
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
+  let renewals = Mutex(0)
   let entered = Watched(false)
+  let answered = Watched(false)
+  let ended = Mutex<[SessionEndReason]>([])
   let session = SemiontSession(
     kb: target(),
     client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
     kept: kept,
     forget: { await kept.forget() },
     renew: { _ in
+      renewals.withLock { $0 += 1 }
       entered.set(true)
-      try await Task.sleep(for: .milliseconds(10_000))
-      return "late-token"
+      // The issuer holds its answer until it is released, and then rotates the refresh token.
+      for await given in answered where given { break }
+      guard let read = await kept.held() else { throw SpecFailure.shape("Nothing is kept") }
+      return await kept.renewed(read: read, access: rotated, refresh: "rotated-refresh")
     },
     validate: { _ in
       try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
-    }, random: RandomSource(SystemRandomNumberGenerator()))
+    }, random: RandomSource(SystemRandomNumberGenerator()),
+    onAuthFailed: { reason in ended.withLock { $0.append(reason) } })
   await session.start()
   try await session.ready()
-  let renewing = Task { try await session.refresh(session.token.value) }
+  let opened = OpenedSession(session: session)
+  let renewing = Task { try await session.refresh(access) }
   try await withinTestDeadline { for await value in entered where value { return } }
-  session.dispose()
-  session.dispose()
-  await #expect(throws: CancellationError.self) {
-    try await withinTestDeadline { try await renewing.value }
+  opened.dispose()
+  opened.dispose()
+  let closed = Watched(false)
+  let closing = Task {
+    await opened.closed()
+    closed.set(true)
   }
+  // The dispose gives the refusal no token at once, rather than a cancellation it never had, while
+  // the issuer still holds its answer and the close waits for it.
+  #expect(try await withinTestDeadline { try await renewing.value } == nil)
+  #expect(!closed.value)
+  #expect(await kept.held()?.refresh == "refresh")
+  answered.set(true)
+  try await withinTestDeadline { await closing.value }
+  // The close returned once the renewal had ended: what the issuer rotated is kept, the ended
+  // session took none of it, and nobody was signed out.
+  #expect(await kept.held()?.access == rotated)
+  #expect(await kept.held()?.refresh == "rotated-refresh")
   #expect(session.token.value == access)
+  #expect(ended.withLock { $0 }.isEmpty)
+  // A disposed session gives no token, whatever token was refused, and renews nothing.
+  #expect(try await session.refresh(access) == nil)
+  #expect(try await session.refresh(rotated) == nil)
+  #expect(renewals.withLock { $0 } == 1)
   var reader = session.token.makeAsyncIterator()
   #expect(await reader.next() == access)
   #expect(await reader.next() == nil)

@@ -11,8 +11,9 @@ A session built here renews its token at the issuer its kept sign-in names.
 Renewals that are asked for together are one request: a stream refused and a
 request refused at the same moment spend one refresh token, not two, of which
 an issuer that rotates them would refuse the second. And a renewal, once it
-is under way, runs to its end whoever stops waiting for it: a refresh token
-that has been spent is not left without the one it bought.
+is under way, runs to its end whoever stops waiting for it, and a session's
+close waits for it: a refresh token that has been spent is not left without
+the one it bought, which is kept for the next session.
 
 A person's token is one credential source. An agent's is another
 (`semiont.http.agent`), which feeds a transport the same way.
@@ -83,14 +84,18 @@ class _Renewing:
         self._kept: Final = kept
         self._http: Final = http
         self._under_way: asyncio.Task[str | None] | None = None
+        self._closing: Final = asyncio.Event()
 
     async def __call__(self, holding: str | None) -> str | None:
+        if self._closing.is_set():
+            # Closed, it renews nothing, and gives no token.
+            return None
         if self._under_way is None:
             self._under_way = asyncio.create_task(self._once(holding))
             # A renewal everyone stopped waiting for has nobody to tell how it ended.
             self._under_way.add_done_callback(heard)
-        # Whoever stops waiting does not stop the renewal; one the close ended gives no token.
-        return await answer(self._under_way)
+        # Whoever stops waiting does not stop the renewal, and once it is closing each caller waiting is given no token.
+        return await answer(self._under_way, self._closing)
 
     async def _once(self, holding: str | None) -> str | None:
         try:
@@ -99,11 +104,17 @@ class _Renewing:
             self._under_way = None
 
     async def close(self) -> None:
-        """End the renewal under way, when there is one: nobody is left to give its token to, and each caller waiting is given none."""
+        """Give each caller waiting on the renewal under way no token, at once, and wait for that renewal to end.
+
+        It is not ended: an issuer that rotates refresh tokens has spent the
+        one renewed by the time it answers, so the renewal runs to its end and
+        keeps what it brings where the sign-in is kept, for the next session.
+        Its token is given to nobody.
+        """
+        self._closing.set()
         under_way = self._under_way
         if under_way is not None:
-            under_way.cancel()
-            await asyncio.gather(under_way, return_exceptions=True)
+            await asyncio.wait([under_way])
 
 
 def _asking(base_url: str, http: httpx.AsyncClient | None) -> Validate:
@@ -414,7 +425,9 @@ async def session_from_kept(
     Held with `async with`, and ready inside it: the session, its client and
     the client's transport are open, and each is closed on the way out, the
     client first, then what it still owes is written, then the session ends,
-    and its errors with it, and then the transport closes. A token the
+    and its errors with it, then a renewal still under way runs to its end,
+    and what it brings is kept in `kept`, and then the transport closes. A
+    refusal waiting on that renewal is given no token. A token the
     gateway refuses is renewed through the session, so the transport and the
     session never hold different ones. The first reader of its `errors` is
     given the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said before it came,
@@ -489,7 +502,10 @@ async def _session_started(
     forgetting the sign-in deleted stays deleted. Then what the client keeps
     says no more, and the session ends, and its errors with it, once it has
     said what it was told: so whatever that flush met is said on them before
-    they end. Then its transport closes, and what that meets is said nowhere.
+    they end. Then a renewal still under way is waited for: each caller
+    waiting on it is given no token, and what it brings is kept where the
+    sign-in is, for the next session. Then its transport closes, and what
+    that meets is said nowhere.
     """
     base_url = _gateway_of(kb)
     # Read before anything is built: the client begins with what was kept for the person the sign-in names.
@@ -518,10 +534,11 @@ async def _session_started(
         said=None if keeping is None else keeping.said,
     )
     # Entered transport, client, session; left the client, with what it owes held for the flush, then the flush, the
-    # session, the transport, and the renewal.
+    # session, the renewal under way, then the transport. The transport waits for its emits under way to end, and the
+    # renewal's close gives one waiting on it no token.
     async with AsyncExitStack() as ending:
-        ending.push_async_callback(renewing.close)
         await ending.enter_async_context(transport)
+        ending.push_async_callback(renewing.close)
         async with AsyncExitStack() as closing:
             if keeping is not None:
                 closing.push_async_callback(keeping.close)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -239,6 +240,78 @@ func TestADueRenewalTriedAgainRenewsNothingOnceTheAgentsTokenIsRenewedSomeOtherW
 			t.Errorf("the issuer was asked %d times, want 3: the sign-in, the due renewal and the refusal's; the agent holds the refusal's token: %v", asks, agent.Token().Value() == renewed)
 		}
 	})
+}
+
+// grantHeld is an issuer's transport that answers its discovery and each grant
+// itself, the token granted named by the grant's count, and holds the second
+// grant until released. The answer it holds comes whatever became of the
+// request meanwhile, as an answer already on its way does.
+type grantHeld struct {
+	arrived, release chan struct{}
+
+	mu     sync.Mutex
+	grants int
+}
+
+func (g *grantHeld) RoundTrip(request *http.Request) (*http.Response, error) {
+	answer := `{"token_endpoint":"http://issuer.test/realms/semiont/token"}`
+	if request.URL.Path == "/realms/semiont/token" {
+		g.mu.Lock()
+		g.grants++
+		n := g.grants
+		g.mu.Unlock()
+		if n == 2 {
+			close(g.arrived)
+			<-g.release
+		}
+		answer = fmt.Sprintf(`{"access_token":%q,"expires_in":3600}`, signedToken(100+n))
+	}
+	return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(answer))}, nil
+}
+
+// The agent closes while a refusal's grant is under way, and the grant is
+// answered after: the close ended the renewal, so the refusal is given no
+// token and the answer is not taken. A refusal once the agent is closed is
+// given none, whatever token it names, and the issuer is not asked.
+func TestAnAgentThatClosesWhileItsTokenIsRenewedGivesTheRefusalNoTokenAndRenewsNothingAfter(t *testing.T) {
+	w := newAgentWorld(t)
+	issuer := &grantHeld{arrived: make(chan struct{}), release: make(chan struct{})}
+	service := NewServiceToken(SecretCredential{Issuer: "http://issuer.test/realms/semiont", ClientID: "semiont-worker", ClientSecret: "s3cret"}, Issuer{HTTP: &http.Client{Transport: issuer}, Timing: quickTiming()})
+	agent, err := SignInAgent(context.Background(), AgentConfig{Gateway: w.gateway.URL, Service: service, HTTP: &http.Client{}, Timing: quickTiming()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := agent.Token().Value()
+	given := make(chan bool, 1)
+	go func() {
+		token, ok := agent.Refresh(context.Background(), first)
+		given <- ok || token != ""
+	}()
+	<-issuer.arrived
+	agent.Close()
+	close(issuer.release)
+	select {
+	case tokenGiven := <-given:
+		if tokenGiven {
+			t.Error("the refusal waiting on the renewal the close ended was given a token")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the refusal waiting on the renewal the close ended was not answered")
+	}
+	if agent.Token().Value() != first {
+		t.Error("the agent took the token a grant brought once it was closed")
+	}
+	// The token it holds, and one it does not.
+	for _, refused := range []string{first, signedToken(100)} {
+		if token, ok := agent.Refresh(context.Background(), refused); ok || token != "" {
+			t.Error("a refusal once the agent is closed was given a token")
+		}
+	}
+	issuer.mu.Lock()
+	defer issuer.mu.Unlock()
+	if issuer.grants != 2 {
+		t.Errorf("the issuer was asked for %d grants, want 2: the sign-in's and the one the close ended", issuer.grants)
+	}
 }
 
 // A gateway that does not name the agent fails the sign-in.

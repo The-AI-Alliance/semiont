@@ -252,41 +252,45 @@ let renew t ~key ~http ~holding =
       match prior.refresh_token with
       | None -> Session.Refused
       | Some refresh_token ->
-          let result =
-            Oauth.refresh_script http ~token_endpoint:prior.token_endpoint
-              ~refresh_token
-          in
-          with_lock t (fun entries ->
-              match lookup entries key with
-              | None -> Session.Refused
-              | Some current
-                when current.token <> prior.token
-                     || current.refresh_token <> prior.refresh_token ->
-                  Session.Renewed current.token
-              | Some current -> (
-                  match result with
-                  | Error failure when Oauth.refresh_refused failure ->
-                      Session.Refused
-                  | Error _ -> Session.Unavailable
-                  | Ok tokens ->
-                      let refreshed =
-                        token_fields t tokens current.refresh_token
-                      in
-                      let fields =
-                        List.filter
-                          (fun (name, _) ->
-                            not
-                              (List.mem name
-                                 [
-                                   "token";
-                                   "obtainedAt";
-                                   "expiresAt";
-                                   "refreshToken";
-                                 ]))
-                          current.fields
-                      in
-                      write t (replace entries key (refreshed @ fields));
-                      Session.Renewed tokens.access_token)))
+          (* An issuer that rotates refresh tokens spends the old one when it
+             answers: the exchange and the write of what it brought run to
+             their end, whoever stops waiting. *)
+          Eio.Cancel.protect (fun () ->
+              let result =
+                Oauth.refresh_script http ~token_endpoint:prior.token_endpoint
+                  ~refresh_token
+              in
+              with_lock t (fun entries ->
+                  match lookup entries key with
+                  | None -> Session.Refused
+                  | Some current
+                    when current.token <> prior.token
+                         || current.refresh_token <> prior.refresh_token ->
+                      Session.Renewed current.token
+                  | Some current -> (
+                      match result with
+                      | Error failure when Oauth.refresh_refused failure ->
+                          Session.Refused
+                      | Error _ -> Session.Unavailable
+                      | Ok tokens ->
+                          let refreshed =
+                            token_fields t tokens current.refresh_token
+                          in
+                          let fields =
+                            List.filter
+                              (fun (name, _) ->
+                                not
+                                  (List.mem name
+                                     [
+                                       "token";
+                                       "obtainedAt";
+                                       "expiresAt";
+                                       "refreshToken";
+                                     ]))
+                              current.fields
+                          in
+                          write t (replace entries key (refreshed @ fields));
+                          Session.Renewed tokens.access_token))))
 
 let session t ~sw ~key ~http =
   let found = find t ~key in

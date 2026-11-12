@@ -9,7 +9,7 @@ namespace Semiont.Session;
 
 internal sealed record SessionState(string? Token, UserResponse? User);
 
-internal sealed class KeptSession : IDisposable
+internal sealed class KeptSession : IDisposable, IAsyncDisposable
 {
     private readonly ISignInKept kept;
     private readonly TimeProvider clock;
@@ -32,9 +32,15 @@ internal sealed class KeptSession : IDisposable
     // The token each renewal is handed: the one the session holds, the one found stored at the start though it has
     // expired, or, once a renewal that got no answer has left the session none, the one that renewal was for.
     private string? renewing;
+    // The issuer's renewal under way. A disposal does not end it: an issuer that rotates refresh tokens spends the old one
+    // as it answers, so the renewal runs to its end, and what it brings is kept where the sign-in is.
+    private Task<string?>? issuing;
     private volatile bool unanswered;
     private volatile bool ended;
-    private int disposed;
+    // Completed, under the gate, as the session is disposed.
+    private readonly TaskCompletionSource disposal = new(Spawning.CompletionOptions);
+    // The close, begun with the disposal: it ends once the issuer's renewal under way has ended and the issuer is let go.
+    private Task? closing;
 
     /// <summary>
     /// <paramref name="errors"/> is the session's errors stream, which its client's persistence and its transport also say
@@ -95,17 +101,23 @@ internal sealed class KeptSession : IDisposable
     /// <summary>Says <paramref name="error"/>, a failure of the transport the session's token is sent by, on its errors.</summary>
     internal void Say(SemiontError error) => errors.Publish(error);
 
+    /// <summary>
+    /// The gateway refused <paramref name="refused"/>: the token renewed, or the one held for a token already replaced.
+    /// Refusals that arrive together share one renewal. Once the session is disposed, a refusal of any token is given no
+    /// token and nothing is renewed, and one waiting on a renewal as the session is disposed is given none at once.
+    /// </summary>
     public async Task<string?> RefreshAsync(string? refused, CancellationToken cancellation = default)
     {
-        if (offline) return State.Token == refused ? null : State.Token;
         Task<string?> shared;
         lock (gate)
         {
-            lifetime.Token.ThrowIfCancellationRequested();
+            // A disposed session renews nothing, whatever token was refused.
+            if (disposal.Task.IsCompleted) return null;
+            if (offline) return State.Token == refused ? null : State.Token;
             if (renewal is null || renewal.IsCompleted) renewal = Spawning.Run(() => RefusedAsync(refused));
             shared = renewal;
         }
-        return await Spawning.WaitAsync(shared, cancellation).ConfigureAwait(Spawning.Captures);
+        return await SharedRenewal.AnswerAsync(shared, disposal.Task, cancellation).ConfigureAwait(Spawning.Captures);
     }
 
     internal void SetOfflineToken(string? token)
@@ -118,7 +130,7 @@ internal sealed class KeptSession : IDisposable
     {
         lock (gate)
         {
-            if (disposed != 0) return;
+            if (disposal.Task.IsCompleted) return;
             var next = new SessionState(token, user);
             if (token is not null) renewing = token;
             Volatile.Write(ref state, next);
@@ -150,10 +162,7 @@ internal sealed class KeptSession : IDisposable
         if (ended) return null;
         try
         {
-            string? holding;
-            lock (gate) holding = renewing;
-            var token = await renew(holding, lifetime.Token).ConfigureAwait(Spawning.Captures);
-            lifetime.Token.ThrowIfCancellationRequested();
+            var token = await IssuedAsync().ConfigureAwait(Spawning.Captures);
             unanswered = false;
             if (token is not null)
             {
@@ -169,11 +178,11 @@ internal sealed class KeptSession : IDisposable
         }
         catch (SignInError error) when (!ProtocolFacts.RetryRefresh(error.Status))
         {
-            lifetime.Token.ThrowIfCancellationRequested();
+            ThrowIfDisposed();
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            lifetime.Token.ThrowIfCancellationRequested();
+            ThrowIfDisposed();
             // No answer: the issuer did not give one, or the sign-in could not be read or kept after it did. Never publish
             // an unkept grant.
             unanswered = true;
@@ -191,6 +200,38 @@ internal sealed class KeptSession : IDisposable
         }
         else await EndAsync(SessionEndReason.Expired, "refresh-exhausted").ConfigureAwait(Spawning.Captures);
         return null;
+    }
+
+    /// <summary>
+    /// The issuer's renewal of the token the session holds, which a disposal lets run to its end: what it brings is kept
+    /// where the sign-in is. A session disposed before the renewal starts asks the issuer nothing; one disposed before it
+    /// ends takes nothing from it, and decides nothing on how it ended. Either is the disposal's cancellation.
+    /// </summary>
+    private async Task<string?> IssuedAsync()
+    {
+        Task<string?> issued;
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            var holding = renewing;
+            issued = issuing = Spawning.Run(() => renew(holding, CancellationToken.None));
+        }
+        try
+        {
+            var token = await issued.ConfigureAwait(Spawning.Captures);
+            if (!disposal.Task.IsCompleted) return token;
+        }
+        catch (Exception) when (disposal.Task.IsCompleted)
+        {
+            // How the renewal ended is no longer the session's to decide.
+        }
+        throw new OperationCanceledException(lifetime.Token);
+    }
+
+    // Once the session is disposed, how a renewal ended decides nothing: the work ends as the disposal's cancellation.
+    private void ThrowIfDisposed()
+    {
+        if (disposal.Task.IsCompleted) throw new OperationCanceledException(lifetime.Token);
     }
 
     private async Task StartAsync()
@@ -228,7 +269,7 @@ internal sealed class KeptSession : IDisposable
         finally
         {
             operations.Release();
-            if (!offline && !lifetime.IsCancellationRequested) _ = ScheduleAsync();
+            if (!offline && !disposal.Task.IsCompleted) _ = ScheduleAsync();
         }
     }
 
@@ -297,22 +338,41 @@ internal sealed class KeptSession : IDisposable
                 step = retrying && unanswered ? Math.Min(step * 2, ProtocolFacts.Timing("maxReconnectMs").GetDouble()) : ProtocolFacts.Timing("reconnectMs").GetDouble();
             }
         }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (disposal.Task.IsCompleted)
         {
             // Disposal ends the scheduler; it is not a session failure.
         }
     }
 
-    public void Dispose()
+    /// <summary>
+    /// End the session: each refusal waiting is given no token, and its waits end. The issuer's renewal under way runs to
+    /// its end, and the issuer is let go after it.
+    /// </summary>
+    public void Dispose() => _ = CloseAsync();
+
+    /// <summary>End the session, and wait for the issuer's renewal under way to end: what it brought is kept where the
+    /// sign-in is, and the issuer let go, by the time this returns.</summary>
+    public ValueTask DisposeAsync() => new(CloseAsync());
+
+    private Task CloseAsync()
     {
+        Task closed;
         lock (gate)
         {
-            if (disposed != 0) return;
-            disposed = 1;
+            if (closing is not null) return closing;
+            disposal.SetResult();
+            var underWay = issuing;
+            closing = closed = Spawning.Run(() => ReleaseIssuerAsync(underWay));
         }
         lifetime.Cancel();
-        issuer?.Dispose();
         states.Close();
         errors.Close();
+        return closed;
+    }
+
+    private async Task ReleaseIssuerAsync(Task<string?>? underWay)
+    {
+        if (underWay is not null) await ((Task)underWay).ConfigureAwait(Spawning.Options(ConfigureAwaitOptions.SuppressThrowing));
+        issuer?.Dispose();
     }
 }

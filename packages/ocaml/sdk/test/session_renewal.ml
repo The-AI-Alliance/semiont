@@ -228,6 +228,163 @@ let replaced_before_backoff () =
   Session.close session;
   Session.await_closed session
 
+(* The renewal's answer is let go and the session closed with no yield between,
+   so the renewal takes its answer up only once the session is closed. *)
+let closed_before_answer_taken () =
+  let open Semiont in
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono = Eio_mock.Clock.Mono.make () in
+  let wall = Eio_mock.Clock.make () in
+  let clock =
+    Clock.make ~monotonic:mono ~wall ~jitter:(Random.State.make [| 1 |])
+  in
+  let initial = token {|{"iat":0,"exp":3600}|} in
+  let release, finish = Promise.create () in
+  let asked = ref 0 in
+  let judged = ref 0 in
+  let session =
+    Session.start ~sw ~clock ~initial_token:(Some initial)
+      ~renew:(fun ~holding:_ ->
+        incr asked;
+        Promise.await release;
+        Session.Renewed "late")
+      ()
+  in
+  Session.manage session (fun ~current:_ ~refused:_ outcome ->
+      incr judged;
+      outcome);
+  let refused =
+    Fiber.fork_promise ~sw (fun () ->
+        Session.refresh_refused session ~refused:initial)
+  in
+  settle ();
+  Promise.resolve finish ();
+  Session.close session;
+  Alcotest.(check (option string))
+    "the refusal waiting on the renewal the close ended is given no token" None
+    (Promise.await_exn refused);
+  Session.await_closed session;
+  Alcotest.(check int)
+    "what the renewal brings back once the session is closed ends nothing" 0
+    !judged;
+  Alcotest.(check (option string))
+    "the token the renewal brings back is not taken" None
+    (Session.credential session);
+  Alcotest.(check (option string))
+    "a refusal once the session is closed is given no token" None
+    (Session.refresh_refused session ~refused:initial);
+  Alcotest.(check (option string))
+    "a refusal of a token already replaced is given no token" None
+    (Session.refresh_refused session ~refused:"replaced");
+  Alcotest.(check int) "the issuer is asked once" 1 !asked
+
+(* The issuer holds its answer to the kept sign-in's refresh while a refusal
+   waits on it, and the session closes. *)
+let kept_renewal_runs_to_its_end () =
+  let open Semiont in
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono = Eio_mock.Clock.Mono.make () in
+  let wall = Eio_mock.Clock.make () in
+  let clock =
+    Clock.make ~monotonic:mono ~wall ~jitter:(Random.State.make [| 1 |])
+  in
+  let known model body = Result.get_ok (Models.decode model body) in
+  let endpoint =
+    known Models.kb_endpoint
+      {|{"kind":"http","host":"localhost","port":4010,"protocol":"http"}|}
+  in
+  let description =
+    known Models.kb_description {|{"name":"KB","domain":"kb.example"}|}
+  in
+  let storage_data = Hashtbl.create 4 in
+  let storage : Registry.storage =
+    {
+      read = Hashtbl.find_opt storage_data;
+      write = Hashtbl.replace storage_data;
+      remove = Hashtbl.remove storage_data;
+    }
+  in
+  let browser =
+    Registry.new_semiont_browser
+      {
+        storage;
+        clock;
+        fresh_id = (fun () -> "kb");
+        factory = (fun _ -> assert false);
+      }
+  in
+  let credential : Registry.stored_session =
+    {
+      access = "original";
+      refresh = "refresh";
+      client_id = "browser";
+      token_endpoint = "https://issuer.example/token";
+      revocation_endpoint = None;
+    }
+  in
+  ignore
+    (Result.get_ok
+       (Registry.record_sign_in browser
+          {
+            endpoint;
+            description;
+            session = credential;
+            kb_id = None;
+            expected_did = None;
+            expected_name = None;
+          }));
+  let kept = Registry.kept_in storage "kb" in
+  let release, finish = Promise.create () in
+  let asked = ref 0 in
+  let issuer _ =
+    incr asked;
+    Promise.await release;
+    (200, {|{"access_token":"renewed","refresh_token":"rotated"}|})
+  in
+  let session =
+    Session.start ~keep_on_unavailable:true
+      ~on_rejected:(Registry.forget_rejected browser "kb")
+      ~sw ~clock ~initial_token:(Some "original")
+      ~renew:(Registry.renew_kept browser ~http:issuer "kb")
+      ()
+  in
+  let refused =
+    Fiber.fork_promise ~sw (fun () ->
+        Session.refresh_refused session ~refused:"original")
+  in
+  settle ();
+  Session.close session;
+  Alcotest.(check (option string))
+    "the refusal waiting on the renewal is given no token at once" None
+    (Promise.await_exn refused);
+  let closed =
+    Fiber.fork_promise ~sw (fun () -> Session.await_closed session)
+  in
+  settle ();
+  Alcotest.(check bool)
+    "the close waits for the renewal under way" false
+    (Promise.is_resolved closed);
+  Promise.resolve finish ();
+  Promise.await_exn closed;
+  Alcotest.(check (option string))
+    "the kept sign-in holds the refresh token the renewal brought"
+    (Some "rotated")
+    (Option.map
+       (fun (held : Registry.stored_session) -> held.refresh)
+       (kept.held ()));
+  Alcotest.(check (option string))
+    "the closed session takes no token from it" None
+    (Session.credential session);
+  Alcotest.(check (option string))
+    "a refusal once the session is closed is given no token" None
+    (Session.refresh_refused session ~refused:"original");
+  Alcotest.(check (option string))
+    "a refusal of a token already replaced is given no token" None
+    (Session.refresh_refused session ~refused:"renewed");
+  Alcotest.(check int) "the issuer is asked once" 1 !asked
+
 let lifecycle phase row =
   let open Semiont in
   let open Yojson.Safe.Util in
@@ -453,5 +610,13 @@ let () =
           Alcotest.test_case
             "a backoff that runs out after a refusal's renewal renews nothing"
             `Quick replaced_before_backoff;
+          Alcotest.test_case
+            "a renewal that comes back once the session is closed gives the \
+             refusal no token and ends nothing"
+            `Quick closed_before_answer_taken;
+          Alcotest.test_case
+            "a kept sign-in's renewal under way at close runs to its end and \
+             keeps the refresh token it brings"
+            `Quick kept_renewal_runs_to_its_end;
         ] );
     ]

@@ -57,9 +57,9 @@ import kotlin.time.TimeSource
 
 /**
  * A kept sign-in's renewals at its issuer, one at a time: a renewal asked for
- * while one is under way is that one, and whoever stops waiting does not stop
- * it. A renewal runs on `context`, and each retry's jitter is drawn from
- * `random`.
+ * while one is under way is that one, and neither whoever stops waiting nor
+ * the close stops it, so what the issuer rotated is always kept. A renewal
+ * runs on `context`, and each retry's jitter is drawn from `random`.
  */
 private class Renewing(
     private val kept: SignInKept,
@@ -70,9 +70,16 @@ private class Renewing(
     private val scope = CoroutineScope(context + SupervisorJob(context[Job]))
     private var underWay: Deferred<String?>? = null
 
-    /** Renew `holding`, the token the session renews (`renewKept`): none only for a session that has held none. */
+    // Completes once the renewals are closed, under their monitor, so none is begun after.
+    private val closed = Job()
+
+    /**
+     * Renew `holding`, the token the session renews (`renewKept`): none for a session that has held none, and none
+     * once the renewals are closed, at once, though the renewal under way goes on.
+     */
     suspend operator fun invoke(holding: String?): String? {
         val renewal = synchronized(this) {
+            if (closed.isCompleted) return null
             underWay ?: scope.async {
                 try {
                     renewKept(kept, holding, http, random)
@@ -81,11 +88,21 @@ private class Renewing(
                 }
             }.also { underWay = it }
         }
-        return renewal.await()
+        return renewal.answer(closed)
     }
 
-    /** End the renewal under way, when there is one: nobody is left to give its token to. */
-    fun close(): Unit = scope.cancel()
+    /**
+     * Close the renewals: each caller waiting is given none at once, and none is begun after. The renewal under way,
+     * when there is one, runs to its end, so the tokens the issuer rotated are kept, and this returns once it has.
+     */
+    fun close() {
+        val ending = synchronized(this) {
+            closed.complete()
+            underWay
+        }
+        ending?.let(::waitFor)
+        scope.cancel()
+    }
 }
 
 /** Ask the gateway who a token is: one request, by a caller that holds nothing else. No stream is opened for it, and nothing renews the token: a refusal is the answer. */
