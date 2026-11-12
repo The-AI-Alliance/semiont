@@ -3286,7 +3286,6 @@ body.resizing {
   gap: 0.75rem;
   min-height: 2.8rem;
   padding: 0.35rem 0.45rem 0.35rem 0.65rem;
-  border-top: 1px solid var(--border-soft);
 }
 .chat__composer-actions {
   display: flex;
@@ -3303,13 +3302,12 @@ body.resizing {
   justify-content: center;
   width: 2.2rem;
   height: 2.2rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
 }
 .chat__composer-add:hover:not(:disabled) {
-  border-color: var(--accent);
   color: var(--accent);
   background: var(--surface-sidebar);
 }
@@ -3328,8 +3326,8 @@ body.resizing {
   max-width: 13rem;
   height: 2.2rem;
   padding: 0 1.75rem 0 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
   font: inherit;
@@ -3346,7 +3344,6 @@ body.resizing {
 }
 .chat__send {
   width: 2.35rem;
-  border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
   font-size: 1.5rem;
@@ -3371,8 +3368,8 @@ body.resizing {
   align-items: center;
   justify-content: center;
   padding: 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
 }
@@ -3380,7 +3377,6 @@ body.resizing {
 .chat__attach:hover {
   background: var(--surface-sidebar);
   color: var(--accent);
-  border-color: var(--accent);
 }
 
 /* The @-mention trigger — mirrors the attach button, with the glyph as text. */
@@ -3391,8 +3387,8 @@ body.resizing {
   justify-content: center;
   width: 2.15rem;
   padding: 0.55rem 0;
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  border: 0;
+  border-radius: 6px;
   background: var(--field);
   color: var(--muted);
   font-size: 1.05rem;
@@ -3402,7 +3398,6 @@ body.resizing {
 .chat__mention:hover {
   background: var(--surface-sidebar);
   color: var(--accent);
-  border-color: var(--accent);
 }
 
 /* The @-mention popover — a filtered document list, opening upward above the compose row. */
