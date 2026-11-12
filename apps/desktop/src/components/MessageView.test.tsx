@@ -53,6 +53,7 @@ describe('a message, rendered as the app mounts it', () => {
         prefs={PREFS}
         markableEntityTypes={[]}
         onOpenResource={() => {}}
+        onOpenInResourceViewer={() => {}}
       />,
     );
     try {
@@ -62,7 +63,7 @@ describe('a message, rendered as the app mounts it', () => {
       expect(view.container.querySelector('.msg--plain')).toBeNull();
       expect(view.container.querySelector('.semiont-browse-view')?.textContent).toContain(TEXT);
 
-      await view.click('[aria-label="Annotate this message"]');
+      await view.click('[aria-label="Annotate this message inline"]');
       await view.until(() => view.container.querySelector('.semiont-annotate-view') !== null, 'annotate mode');
       expect(view.errors).toEqual([]);
     } finally {

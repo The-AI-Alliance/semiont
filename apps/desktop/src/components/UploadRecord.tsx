@@ -19,6 +19,7 @@ export function UploadRecord({
   markableEntityTypes,
   onDelegated,
   onOpenResource,
+  onOpenInResourceViewer,
 }: {
   record: UploadEntry;
   /** The connected session — powers the file chip's hover preview. */
@@ -31,6 +32,8 @@ export function UploadRecord({
   onDelegated: (entry: UploadEntry, entityTypes: string[]) => void;
   /** Open the uploaded document in the main pane. */
   onOpenResource: (id: string, name: string) => void;
+  /** Open the uploaded document in the full resource viewer area. */
+  onOpenInResourceViewer: (id: string, name: string) => void;
 }) {
   return (
     <div className="uprec">
@@ -78,6 +81,7 @@ export function UploadRecord({
             delegatedEntityTypes={record.markedEntityTypes ?? []}
             onDelegated={(entityTypes) => onDelegated(record, entityTypes)}
             onOpenResource={onOpenResource}
+            onOpenInResourceViewer={onOpenInResourceViewer}
           />
         </div>
       )}

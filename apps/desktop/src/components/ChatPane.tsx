@@ -75,6 +75,7 @@ export function ChatPane({
   setEntries,
   onResourcesChanged,
   onOpenResource,
+  onOpenInResourceViewer,
   onNewDocument,
   chatToolsState,
   onOpenChatTools,
@@ -100,6 +101,7 @@ export function ChatPane({
   onResourcesChanged: () => void;
   /** Open a referenced/uploaded resource in the main pane; bound to this KB by the caller. */
   onOpenResource: (id: string, name: string) => void;
+  onOpenInResourceViewer: (id: string, name: string) => void;
   onNewDocument: () => void;
   chatToolsState: McpProcessStatus['state'];
   onOpenChatTools: () => void;
@@ -362,6 +364,7 @@ export function ChatPane({
                 markableEntityTypes={docEntityTypes}
                 onDelegated={recordUploadDelegated}
                 onOpenResource={onOpenResource}
+                onOpenInResourceViewer={onOpenInResourceViewer}
               />
             ) : (
               <AnswerView
@@ -373,6 +376,7 @@ export function ChatPane({
                 onDelegated={recordAnswerDelegated}
                 onQuestionDelegated={recordQuestionDelegated}
                 onOpenResource={onOpenResource}
+                onOpenInResourceViewer={onOpenInResourceViewer}
               />
             ),
           )

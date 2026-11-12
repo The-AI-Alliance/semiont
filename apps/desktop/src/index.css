@@ -4527,7 +4527,7 @@ body.resizing {
 }
 
 
-/* The per-message icon row (✨/▭/✎) — REAL layout flow, right-aligned on its own line
+/* The per-message icon row (✨/▭/✎/↗) — REAL layout flow, right-aligned on its own line
    under the card, so it owns vertical space in the thread and nothing (scroll edges,
    container bounds) can ever clip it. Hidden-at-rest is opacity-only on the pencil: it
    fades in when the bubble (card or icon row — same .msg column) is hovered or holds
@@ -4546,12 +4546,19 @@ body.resizing {
   pointer-events: none;
   transition: opacity 120ms ease;
 }
+.msg__open-resource {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
 
 /* The hover surface is the full-width STRIPE at the message's vertical position (the
    wrapper spans the pane; the bubble column keeps its own width/alignment inside it) —
    short bubbles shouldn't demand pixel-hunting. */
 :is(.turn__q--viewer, .turn__answer--viewer, .uprec__viewer):hover .msg__pencil,
 :is(.turn__q--viewer, .turn__answer--viewer, .uprec__viewer):focus-within .msg__pencil,
+:is(.turn__q--viewer, .turn__answer--viewer, .uprec__viewer):hover .msg__open-resource,
+:is(.turn__q--viewer, .turn__answer--viewer, .uprec__viewer):focus-within .msg__open-resource,
 .msg__pencil--on {
   opacity: 1;
   pointer-events: auto;
@@ -4566,6 +4573,21 @@ body.resizing {
   background: var(--surface);
   color: var(--faint);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+.msg__open-resource {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--faint);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+.msg__open-resource:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .msg__pencil:hover {
   color: var(--accent);
