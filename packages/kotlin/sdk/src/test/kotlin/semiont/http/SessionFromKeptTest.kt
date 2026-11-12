@@ -3,6 +3,7 @@ package semiont.http
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
@@ -468,6 +469,43 @@ class SessionFromKeptTest {
                 withTimeout(15_000) { session.token.first { it == renewed } }
                 assertEquals(semiont.Timings.REFRESH_RETRY.attempts + 1, realm.of("/token").size)
                 assertEquals(renewed, kept.held()?.access)
+            }
+        }
+    }
+
+    @Test
+    fun aSessionThatClosesWhileItsTokenIsRenewedKeepsWhatTheIssuerRotatedAndGivesTheRefusalNoToken() = runBlocking {
+        Realm().use { realm ->
+            realm.script("/api/users/me", Said(200, alice))
+            val access = tokenFor("access-1")
+            val renewed = tokenFor("access-2")
+            val kept = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
+            val ended = CopyOnWriteArrayList<SessionEndReason>()
+            sessionFromKept(kb(realm), kept, onAuthFailed = { ended += it }).use { opened ->
+                val session = opened.session
+                // The issuer holds its answer to the refusal's renewal while the session closes.
+                realm.hold("/token")
+                val refusing = async { session.refresh(access) }
+                withTimeout(5_000) {
+                    while (realm.of("/token").isEmpty()) delay(5)
+                }
+                val closing = async(Dispatchers.Default) { opened.close() }
+                // The close gives the refusal no token at once, rather than a cancellation it never had, and waits for the renewal.
+                assertNull(withTimeout(5_000) { refusing.await() })
+                assertFalse(closing.isCompleted)
+                assertEquals("refresh-1", kept.held()?.refresh)
+                realm.release("/token", issued(renewed, "refresh-2"))
+                withTimeout(5_000) { closing.await() }
+                // The close returned once the renewal had ended: what the issuer rotated is kept, the closed session took
+                // none of it and asked the gateway nothing with it, and nobody was signed out.
+                assertEquals(renewed to "refresh-2", kept.held()?.let { it.access to it.refresh })
+                assertEquals(access, session.token.value)
+                assertEquals(listOf("Bearer $access"), realm.of("/api/users/me").map { it.authorization })
+                assertEquals(emptyList<SessionEndReason>(), ended)
+                // A closed session gives no token, whatever token was refused, and asks the issuer for nothing.
+                assertNull(session.refresh(access))
+                assertNull(session.refresh(renewed))
+                assertEquals(1, realm.of("/token").size)
             }
         }
     }

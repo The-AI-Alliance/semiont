@@ -237,6 +237,9 @@ public class AgentToken @JvmOverloads constructor(
     // The renewal under way, when there is one: read and written under the agent's monitor, with the check of the token held.
     private var underWay: Deferred<String>? = null
 
+    // Completes once the agent is closed, under the agent's monitor, so a grant is the agent's token before the close or never.
+    private val closed = Job()
+
     /** The agent's token: the current one, and each one after it. */
     public val token: StateFlow<String?> = current.asStateFlow()
 
@@ -269,7 +272,9 @@ public class AgentToken @JvmOverloads constructor(
     /**
      * The gateway refused `refused`: ask the issuer for another. The new token, or null when the issuer gave none.
      * Refusals that arrive while a renewal is under way are answered by it. A token the agent no longer holds was
-     * renewed already: the one it holds is given, and the issuer is not asked.
+     * renewed already: the one it holds is given, and the issuer is not asked. Once the agent is closed, a refusal is
+     * given null, whatever token it refused, and the issuer is not asked, and one waiting on the renewal the close
+     * ended is given null too.
      */
     override suspend fun refresh(refused: String?): String? = try {
         renewed(refused)
@@ -281,10 +286,12 @@ public class AgentToken @JvmOverloads constructor(
      * Renew `holding` while it is still the agent's token, and give the token the agent then holds. The check and the
      * joining or starting of a renewal are one step: a renewal asked for while one is under way is that one, and
      * whoever stops waiting does not stop it. Its grant is the agent's token before it is no longer under way, so a
-     * check after it finds the token it renewed replaced.
+     * check after it finds the token it renewed replaced. A closed agent gives no token and renews nothing, and a
+     * grant that comes after the close is never its token.
      */
     private suspend fun renewed(holding: String?): String? {
         val renewal = synchronized(this) {
+            if (closed.isCompleted) return null
             val held = current.value
             if (held != holding) return held
             underWay ?: scope.async {
@@ -293,13 +300,13 @@ public class AgentToken @JvmOverloads constructor(
                     service.token(renewed = true).also { granted = it }
                 } finally {
                     synchronized(this@AgentToken) {
-                        granted?.let { current.value = it }
+                        if (!closed.isCompleted) granted?.let { current.value = it }
                         underWay = null
                     }
                 }
             }.also { underWay = it }
         }
-        return renewal.await()
+        return renewal.answer(closed)
     }
 
     /**
@@ -340,6 +347,12 @@ public class AgentToken @JvmOverloads constructor(
         throw TransportError(TransportErrorCode.Error, "$url did not answer who the agent is: $fault", status)
     }
 
-    /** Sign the agent out of this process: its renewals stop. Closing twice is closing once. */
-    override fun close(): Unit = scope.cancel()
+    /**
+     * Sign the agent out of this process: its renewals stop, the one under way among them, and each refusal waiting
+     * on it is given null. Closing twice is closing once.
+     */
+    override fun close(): Unit = synchronized(this) {
+        closed.complete()
+        scope.cancel()
+    }
 }
