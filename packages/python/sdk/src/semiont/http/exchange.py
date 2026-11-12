@@ -26,9 +26,9 @@ import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont import telemetry
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont._required import Fault, read_as
 from semiont.errors import SemiontError, TransportError
-from semiont.events import Broadcast
 from semiont.http._withheld import why_unanswered
 from semiont.model import WireModel
 from semiont.retry import TRANSPORT, RetryFacts, retry_after_ms
@@ -107,7 +107,7 @@ class Exchange:
         http: httpx.AsyncClient,
         token: Watched[str | None],
         refresher: TokenRefresher | None,
-        failures: Broadcast[SemiontError],
+        failures: KeptForFirstReader[SemiontError],
         deadline_ms: int,
         closing: asyncio.Event,
     ) -> None:

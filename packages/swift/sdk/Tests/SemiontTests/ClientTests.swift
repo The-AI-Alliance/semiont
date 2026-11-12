@@ -33,7 +33,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   private let subscription: Subscription
   init(channels: [String]) { subscription = Subscription(channels: channels) }
   private let hub = Broadcast<Carried>()
-  private let failureEvents = Broadcast<TransportError>()
+  private let failureEvents = Broadcast<TransportError>(keepingForFirst: true)
   private struct State: Sendable {
     var calls: [Call] = []
     var count: Int? = 7

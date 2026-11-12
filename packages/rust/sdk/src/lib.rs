@@ -42,6 +42,7 @@ pub mod errors;
 pub mod event_bus;
 pub mod identity;
 pub mod job_filter;
+mod kept_for_first_reader;
 pub mod media_types;
 pub mod namespaces;
 pub mod refresh;

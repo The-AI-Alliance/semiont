@@ -6,7 +6,7 @@ Start with the [OCaml SDK README](../../packages/ocaml/sdk/README.md) to build a
 
 Create the client inside an Eio switch. Pass your gateway adapter to `Client.connect`; it receives the method, relative path, headers, and request body and returns the status, headers, and streaming response body. The adapter resolves requests against the selected gateway and handles TLS. Give `Client.connect` the channels its bus subscribes to as `~global`; it assumes none of its own. A full client gives it `Bus_registry.bridged_channels`, generated from the registry, and a worker gives it its own.
 
-For a script, use device sign-in or a saved launcher credential. For an interactive client, use the registry's durable redirect flow. `Registry.start_kept_session` builds the credential session for a registered knowledge base, and `State_units.Session.make` exposes the current credential, confirmed principal, stream state, and errors. Dispose the session state and close the client when the application is finished.
+For a script, use device sign-in or a saved launcher credential. For an interactive client, use the registry's durable redirect flow. `Registry.start_kept_session` builds the credential session for a registered knowledge base, and `State_units.Session.make` exposes the current credential, confirmed principal, and stream state. `State_units.Session.errors` says the session's own errors and its client's failures, in the order met. When the application is finished, close the client first and then dispose the session state, so what the client's closing flush meets is said before the errors end.
 
 ## Read and observe a resource
 

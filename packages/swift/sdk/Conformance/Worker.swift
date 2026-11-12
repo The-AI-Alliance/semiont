@@ -133,11 +133,14 @@ actor WorkerDriver {
           }
         } catch {}
       })
+    let stalled = claims.stalled()
     reporters.append(
       Task {
-        for await stall in claims.stalled {
-          if let stall { await output.say(["stalled": .string(stall.jobId.value)]) }
-        }
+        do {
+          for try await stall in stalled {
+            await output.say(["stalled": .string(stall.jobId.value)])
+          }
+        } catch {}
       })
     reporters.append(
       Task { [weak self] in

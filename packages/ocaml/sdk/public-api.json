@@ -127,13 +127,14 @@
     "lib/bus_registry.mli": "a43ea86d26004cdbb0f68d47a419f92da7fdaea69aff840b30d6b0d0e161a3eb",
     "lib/cache_state.ml": "b270721df6ee9432f61bfa450fb280036a1c1a1f880de8eabed84aec0fab8c5a",
     "lib/cache_state.mli": "940957912e84b57a1404ea6adceeb35efbc6ecb7cdc3bd28f5c6e98b24ecb13f",
-    "lib/claims.ml": "52ff135d1c111beeceec0ddf0895231aefaf3dbc2a9bd29cf5f3b6b7bc0e350f",
-    "lib/claims.mli": "f7bebec3f61f8b39c4cb884a49f1e5703ece2c60d2f6d87b8822411aea9bd3ea",
+    "lib/claims.ml": "64824d0eb8fed25197fd648702278bc9864969c7778e1d7ca0f90933f8a7613f",
+    "lib/claims.mli": "5b2543de444959a69e170ae6fe60efe4f543969ecceaf1da90bbd8aac9834650",
     "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
     "lib/client.mli": "6e08b6b7851820acced98ca320e6ec093455f2d0340828149b2f43e255d30e39",
-    "lib/client_core.ml": "499578f209bce59f105498b0ebd8f8c10f4049e2a93f6f8c5988f8e0f644d597",
-    "lib/client_core.mli": "31413f79f3c72f9525b8fb588a9f89d90574101553e39710699d67459169a750",
+    "lib/client_core.ml": "78633ac786b37aa6ef75a596b88221e822ca71ed08749bf46780e24d0b8afb8c",
+    "lib/client_core.mli": "332f7bb6fde85b3730a125d768d85be422629c6364f34cfc75c11433a086ee74",
     "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
+    "lib/client_record.ml": "4426f9cc4ab4e5d96403cb5c1e780d8f5cbcc593905964062219847f202bcead",
     "lib/client_timing.ml": "732e11672617ce037116eb5596dd0e6881b379ec497893868d062a6fa36e2454",
     "lib/client_timing.mli": "2e166d36864335e6a11fbbfbfc97faa6ceee1fcf014b5d5ae67983fcb5ad4796",
     "lib/clock.ml": "71063b036aa3069ad2ed649ba8a73505b4eb4a00631c48af43a01f732c6623ab",
@@ -142,7 +143,7 @@
     "lib/delegation.mli": "577b0158488a8f1dd3cd5aaef32b816c4c5324a38af03289b762e63d33ae5afe",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
-    "lib/dune": "1ea7a2c3212158c41333ad8a7b049ba9e05c30c5a2d5a9245323038756262b91",
+    "lib/dune": "043a1b14a301472f28157615987adcb5251c38e9770367779b57c4f73affd3d5",
     "lib/encoding_facts.ml": "8d971c2160eea6fe4fbc60d553d2479917de25ffb9e4c7be3dac16dbba78a021",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
@@ -155,14 +156,15 @@
     "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
     "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
     "lib/http_facts.ml": "8110fad987c67600def3bb6599ef8b978df928d5f4b4071e75a8ad9663caedec",
-    "lib/http_wire.ml": "dcdead205197c6b9915e719ef80db17634ac4936689e3c90dd708e1bf382ad5b",
-    "lib/http_wire.mli": "fac172af11ce0c98fc4589264c3bb9b7466682cf011d4e1fad16930e707c3f17",
+    "lib/http_wire.ml": "84c1e634939a180c4b33acfd80cd6b90f0026b50e3a082b5792b73f87d59826a",
+    "lib/http_wire.mli": "dea21fe6dacbbb4f02f7b64fa87527890bd6219c8cae8fa32aab45544beb7bdc",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/identity.ml": "926a5ae2b89b08a294af2bbee6975347194bdaea78109f82a777b9fcff388e58",
     "lib/job.ml": "583809224cd23d98628e42793857f6877951d14ca1984bafd820aa56ec71b788",
     "lib/job_filter.ml": "d0b6bff412af0031c187c9f667c7d75cbff5d486f48c24d34d6441e4d13e4c01",
     "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
+    "lib/kept_for_first_reader.ml": "6f853f2a44415317489ea3e910cbab9aaf6df0ba1960bed261f3503332f341ae",
     "lib/kept_renewal.ml": "3c69043d8304fa35dcbe80e5322ea71bb0f39d7ee57e4d772cc789b1de36ddee",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
     "lib/live_query.ml": "7038b501e02b72ed14594aed3d0a44d1a91813ad5494367bbbc625a58f4bf4d0",
@@ -190,8 +192,8 @@
     "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
     "lib/redirect_sign_in.ml": "0d4bab713f5a86ddd705b15dca1aa01919702bfc5484469d104c9a1776d723fd",
     "lib/refusals.ml": "53b42a4d41b53e88968f5010a843038ffa0ddbcd842f390ce88acba818ad15d1",
-    "lib/registry.ml": "be0056b5215ee15f05aeb6ef07cec2b713c0f9c121f507bc2c21c25a5d350a43",
-    "lib/registry.mli": "66f77a63ca71bdeb9c70c8f0fb4c85d67f518cb26fcb1c53c18fc05d92de8b3b",
+    "lib/registry.ml": "1961c291da05a0ee0e8681ce29371cb3c2ba25435eb82d7dc253fb32ef8d500f",
+    "lib/registry.mli": "98461330f84f794e2d7c1c824455e7d6570dcd8c1d5358d8f046def7c74babc6",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/resources.ml": "99f49caf9937bf6754e62b0011196873fdfbc1488ed90817a49fcd292d6a9fd4",
     "lib/resources.mli": "681c8d831db9af64fc28b7b91b6e913bf992f99529f2a3edb7f0d16121b10bf2",
@@ -215,8 +217,8 @@
     "lib/session_notices.ml": "cccea843423b06e5802f1675a614063b9533b8a5ea8038fa19d76db1f8eeec59",
     "lib/session_signals.ml": "dba5deb3b0b7804f9296bd220a4b919824c565cb77e69cc9e816c9866eb7dc1d",
     "lib/session_signals.mli": "f7fcf9e704a1a62abe71aac063076d71dc45f8f7c7c9c2ac5ed9a961dc02835d",
-    "lib/session_state.ml": "980e498e8ba5e338644abbf4d9793d773f2353ddc5de99b04a7b9b656877a58b",
-    "lib/session_state.mli": "8c762fd41afebf7ccc04f8016649779cbdf053174ad043c429a8120030bc2ee7",
+    "lib/session_state.ml": "26a53105f513c4ae994302817ade970ed7c61b16e2ae3673efb82802d973685e",
+    "lib/session_state.mli": "80fd3922b0ce149e425640284c249703f452b711cee4cd77598127ef16cc6582",
     "lib/sign_in_store.ml": "861b740e2ccd5cf3f192f07a21dec9d7dd44ed80afa73d5b8b1d05c2a44c676d",
     "lib/sign_in_store.mli": "e6d3f45d44a69f6becfc3079c6055341ab5c53cb93bb74da150edbb86704f1eb",
     "lib/state_task.ml": "2061a7893545d7ecf7f52b0235c21fa2a5346ef3c65334e043e63dd7dfc74c8c",
@@ -238,8 +240,8 @@
     "lib/telemetry.ml": "d3e6ba70a0b5a00eb4733a8fc973c1c3b98ea5d07661da3297f2d71ee77da306",
     "lib/telemetry.mli": "6968385e5ecbd2db1b9003eb403766c066975b0ff116e9d81da367ec87b4137f",
     "lib/telemetry_facts.ml": "8b2c6d1ee7d75fc70b98cd0668d902fab6bf6463a302cbc8411cb6cc565cd484",
-    "lib/testing.ml": "e921ab58048c8517742db8e06042dc44c2d45728cfeedadb077c9d9c44b7b5cf",
-    "lib/testing.mli": "aa67b8770b82c4eee97369206556167707df30777f1d22415d03a5e1fb0533bd",
+    "lib/testing.ml": "a4f28fba70ffba2a0a0f8844e72367ab4fd06a5e3260bd6140a4ea47cba29049",
+    "lib/testing.mli": "237bd3501f8d626c1048c23e024e513f87203449d6e9ad3a98e9300aa7b3c73a",
     "lib/testing_facts.ml": "16282c5960b3a3953769beaca6d31f0cb7aef707b12d6eb68d610a87f77e60af",
     "lib/text_encoding.ml": "905bc2c16c4fc1416236a3e2751e5d61627d6dddf431941e36e8f233f5589dad",
     "lib/text_encoding.mli": "60ca2f5b3a32d1c92e3ee786afb1ae8a38b893b3764052fb1b62897eb115da6e",
@@ -12344,11 +12346,12 @@
     {
       "kind": "type",
       "path": "Semiont.Http_wire.failure",
-      "declaration": "type failure = { code : string; status : int option; }",
+      "declaration": "type failure = { code : string; status : int option; message : string; }",
       "representation": "record",
       "fields": [
         "code",
-        "status"
+        "status",
+        "message"
       ]
     },
     {
@@ -13068,14 +13071,46 @@
     },
     {
       "kind": "type",
+      "path": "Semiont.Client.session_error",
+      "declaration": "type session_error =\n  Semiont__.Client_record.session_error = {\n  code : string;\n  message : string;\n}",
+      "representation": "record",
+      "fields": [
+        "code",
+        "message"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Client.said",
+      "declaration": "type said =\n  Semiont__.Client_record.said =\n    Own of session_error\n  | Transport_failure of Semiont__.Http_wire.failure",
+      "representation": "variant",
+      "constructors": [
+        "Own",
+        "Transport_failure"
+      ],
+      "variants": [
+        {
+          "name": "Own",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Transport_failure",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "type",
       "path": "Semiont.Client.t",
-      "declaration": "type t = Semiont__Client_core.t",
+      "declaration": "type t = Semiont__.Client_record.t",
       "representation": "abstract"
     },
     {
       "kind": "value",
       "path": "Semiont.Client.connect",
-      "declaration": "val connect :\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  ?persister:Semiont__.Storage_persister.storage_persister ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  on_error:(Semiont__.Http_wire.failure -> unit) -> unit -> t"
+      "declaration": "val connect :\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  ?persister:Semiont__.Storage_persister.storage_persister ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  unit -> t"
     },
     {
       "kind": "value",
@@ -13129,8 +13164,8 @@
     },
     {
       "kind": "value",
-      "path": "Semiont.Client.on_error",
-      "declaration": "val on_error : t -> (Semiont__.Http_wire.failure -> unit) -> unit -> unit"
+      "path": "Semiont.Client.errors",
+      "declaration": "val errors :\n  t -> on_value:(said -> unit) -> on_close:(unit -> unit) -> unit -> unit"
     },
     {
       "kind": "value",
@@ -15083,7 +15118,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -17286,7 +17321,7 @@
     {
       "kind": "value",
       "path": "Semiont.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -17384,7 +17419,7 @@
     {
       "kind": "value",
       "path": "Semiont.Claims.make",
-      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
+      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
     },
     {
       "kind": "value",
@@ -17428,12 +17463,12 @@
     {
       "kind": "value",
       "path": "Semiont.Claims.refused",
-      "declaration": "val refused : t -> string option option Semiont__.State_value.t"
+      "declaration": "val refused :\n  t ->\n  on_value:(string option -> unit) -> on_close:(unit -> unit) -> unit -> unit"
     },
     {
       "kind": "value",
       "path": "Semiont.Claims.stalled",
-      "declaration": "val stalled : t -> Semiont__.Worker.held option Semiont__.State_value.t"
+      "declaration": "val stalled :\n  t ->\n  on_value:(Semiont__.Worker.held -> unit) ->\n  on_close:(unit -> unit) -> unit -> unit"
     },
     {
       "kind": "value",
@@ -17792,7 +17827,7 @@
     {
       "kind": "type",
       "path": "Semiont.Registry.session_factory_options",
-      "declaration": "type session_factory_options = {\n  kb : knowledge_base;\n  storage : storage;\n  signals : Semiont__.Session.t option;\n}",
+      "declaration": "type session_factory_options = {\n  kb : knowledge_base;\n  storage : storage;\n  signals : Semiont__.State_units.Session_signals.t;\n}",
       "representation": "record",
       "fields": [
         "kb",
@@ -17803,7 +17838,7 @@
     {
       "kind": "type",
       "path": "Semiont.Registry.session_factory",
-      "declaration": "type session_factory =\n    session_factory_options ->\n    (Semiont__.Client.t * connection_identity, string) result",
+      "declaration": "type session_factory =\n    session_factory_options ->\n    (Semiont__.State_units.Session.t * connection_identity, string) result",
       "representation": "abstract"
     },
     {
@@ -17890,7 +17925,17 @@
     {
       "kind": "value",
       "path": "Semiont.Registry.activate",
-      "declaration": "val activate :\n  semiont_browser -> string -> (Semiont__.Client.t, activation_error) result"
+      "declaration": "val activate :\n  semiont_browser ->\n  string -> (Semiont__.State_units.Session.t, activation_error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.errors",
+      "declaration": "val errors :\n  semiont_browser ->\n  on_value:(Semiont__.Client.session_error -> unit) ->\n  on_close:(unit -> unit) -> unit -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.close",
+      "declaration": "val close : semiont_browser -> unit"
     },
     {
       "kind": "value",
@@ -17905,7 +17950,7 @@
     {
       "kind": "value",
       "path": "Semiont.Registry.http_session_factory",
-      "declaration": "val http_session_factory :\n  (session_factory_options -> (Semiont__.Client.t, string) result) ->\n  session_factory"
+      "declaration": "val http_session_factory :\n  (session_factory_options ->\n   (Semiont__.State_units.Session.t, string) result) ->\n  session_factory"
     },
     {
       "kind": "value",
@@ -18671,7 +18716,7 @@
     {
       "kind": "value",
       "path": "Semiont.State_units.Session.errors",
-      "declaration": "val errors : t -> Semiont__.Http_wire.failure option Semiont__.State_value.t"
+      "declaration": "val errors :\n  t ->\n  on_value:(Semiont__.Client.said -> unit) ->\n  on_close:(unit -> unit) -> unit -> unit"
     },
     {
       "kind": "value",
@@ -19825,6 +19870,11 @@
       "kind": "value",
       "path": "Semiont.Testing.create_test_session",
       "declaration": "val create_test_session : test_session_options -> test_session"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Testing.say_on",
+      "declaration": "val say_on : Semiont__.State_units.Session.t -> Semiont__.Client.said -> unit"
     },
     {
       "kind": "type",

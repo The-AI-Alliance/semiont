@@ -10,9 +10,7 @@ type t = {
     * [ `UserResponse ] Models.t option State_value.writer;
   stream :
     Subscription.state State_value.t * Subscription.state State_value.writer;
-  errors :
-    Http_wire.failure option State_value.t
-    * Http_wire.failure option State_value.writer;
+  said : Client.said Kept_for_first_reader.t;
   ready : unit Promise.t * unit Promise.u;
   tasks : State_task.t;
   mutable unlisten : unit -> unit;
@@ -25,7 +23,7 @@ let client t = t.client
 let token t = fst t.token
 let user t = fst t.user
 let stream_state t = fst t.stream
-let errors t = fst t.errors
+let errors t = Kept_for_first_reader.read t.said
 let ready t = Promise.await (fst t.ready)
 
 let expires_at t =
@@ -59,17 +57,23 @@ let make ?(on_auth_failed = ignore) ~id ~kb client =
       token = State_value.make initial_token;
       user = State_value.make None;
       stream = State_value.make (Subscription.state bus);
-      errors = State_value.make None;
+      said = Kept_for_first_reader.make ();
       ready = Promise.create ();
       tasks = State_task.make ();
       unlisten = ignore;
       confirmed = None;
     }
   in
-  let report failure =
-    State_value.set ~repeat:true (snd t.errors) (Some failure)
+  let say = Kept_for_first_reader.say t.said in
+  t.unlisten <- Client.errors client ~on_value:say ~on_close:ignore;
+  let own code message = say (Client.Own { code; message }) in
+  let auth_failed () =
+    own "session.auth-failed"
+      "The stored credential could not be validated at startup"
   in
-  let error code = report { Http_wire.code; status = None } in
+  let refresh_exhausted () =
+    own "session.refresh-exhausted" "The session could not be renewed"
+  in
   let check token :
       [ `Confirmed of [ `UserResponse ] Models.t | `Refused | `Unavailable ] =
     match Http_wire.check_user (Client.http client) token with
@@ -90,28 +94,27 @@ let make ?(on_auth_failed = ignore) ~id ~kb client =
             t.confirmed <- Some user;
             outcome
         | `Unavailable ->
-            if t.confirmed = None then error "session.auth-failed";
+            if t.confirmed = None then auth_failed ();
             outcome
         | `Refused ->
             Session.forget session token;
             t.confirmed <- None;
-            error "session.credential-refused";
+            own "session.credential-refused"
+              "The gateway refused a token the issuer had just issued";
             on_auth_failed Refused;
             Session.Refused)
     | Session.Refused when refused <> None ->
         t.confirmed <- None;
-        error "session.refresh-exhausted";
+        refresh_exhausted ();
         on_auth_failed Expired;
         outcome
     | Session.Unavailable ->
-        error
-          (if !refresh_context = `Expired then "session.auth-failed"
-           else "session.refresh-exhausted");
+        if !refresh_context = `Expired then auth_failed ()
+        else refresh_exhausted ();
         outcome
     | _ -> outcome
   in
   Session.manage session validate;
-  t.unlisten <- Client.on_error client report;
   State_task.replace t.tasks ~sw:(Client.switch client) (fun current ->
       let rec credentials held =
         if current () then (
@@ -140,7 +143,7 @@ let make ?(on_auth_failed = ignore) ~id ~kb client =
         | Some token -> (
             match check token with
             | `Confirmed user -> t.confirmed <- Some user
-            | `Unavailable -> error "session.auth-failed"
+            | `Unavailable -> auth_failed ()
             | `Refused ->
                 ignore (Session.refresh_refused session ~refused:token)));
         refresh_context := `Running;
@@ -161,4 +164,4 @@ let dispose t =
     State_value.close (snd t.token);
     State_value.close (snd t.user);
     State_value.close (snd t.stream);
-    State_value.close (snd t.errors))
+    Kept_for_first_reader.close t.said)

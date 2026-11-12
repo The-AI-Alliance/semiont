@@ -64,11 +64,11 @@ import {
   isObject,
   isString,
   jobMatchesFilter,
+  KeptForFirstReader,
   replyChannelsFor,
 } from '@semiont/core';
 import type { Annotation, AnnotationId, BusOperationKey, BusRequestErrorCode, BusPrimitive, EventMap, JobFilter, JobId, JobType, ResourceId, TraceCarrier, UnitCursor, components } from '@semiont/core';
 import { getActiveTraceparent, withTraceparent, withoutTrace } from '@semiont/observability';
-import { KeptForFirstReader } from './kept-for-first-reader';
 
 /** The job a `job:claimed` reply carries, running under this worker: the spec's `JobRunning`. */
 type ClaimedJob = EventMap['job:claimed']['response'];

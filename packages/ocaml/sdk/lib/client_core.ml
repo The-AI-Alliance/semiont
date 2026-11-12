@@ -1,35 +1,18 @@
 open Eio.Std
-
-type t = {
-  sw : Switch.t;
-  clock : Clock.t;
-  cache : (Live_query.key, Yojson.Safe.t) Live_query.t;
-  flush_cache : unit -> unit;
-  session : Session.t;
-  http : Http_wire.t;
-  bus : Subscription.t;
-  delegation : Delegation.t;
-  client_id : string;
-  key : unit -> string;
-  on_event : (Wire_stream.frame, Wire_stream.refusal) result -> unit;
-  error_listeners : (Http_wire.failure -> unit) list ref;
-  listeners :
-    ((Wire_stream.frame, Wire_stream.refusal) result -> unit) ref list ref;
-}
+include Client_record
 
 let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
     ?delegation_poll_ms ?invalidation_window_ms ?restore ?save ?persister ~sw
-    ~clock ~session ~client_id ~key ~call ~global ~on_event ~on_error () =
+    ~clock ~session ~client_id ~key ~call ~global ~on_event () =
   let restore, save =
     match (persister, restore, save) with
     | Some store, None, None -> (Some (Storage_persister.restore store), None)
     | None, _, _ -> (restore, save)
     | _ -> invalid_arg "choose either a cache persister or individual hooks"
   in
-  let error_listeners = ref [] in
+  let said = Kept_for_first_reader.make () in
   let report failure =
-    List.iter (fun observe -> observe failure) (List.rev !error_listeners);
-    on_error failure
+    Kept_for_first_reader.say said (Transport_failure failure)
   in
   let http =
     Http_wire.make ?timing:http_timing ?telemetry ~clock ~session ~key
@@ -41,7 +24,12 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
   let deliver frame =
     (match Wire_stream.normalized frame with
     | Error { route = None; _ } ->
-        report { Http_wire.code = "error"; status = None }
+        report
+          {
+            Http_wire.code = "error";
+            status = None;
+            message = "The stream carried a line that names no reader";
+          }
     | _ -> ());
     List.iter (fun handler -> !handler frame) (List.rev !listeners);
     on_event frame
@@ -51,7 +39,12 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
       ~credential:(fun () -> Session.credential session)
       ~renew:(Session.refresh_refused session)
       ~on_refused:(fun status ->
-        report { Http_wire.code = "unauthorized"; status = Some status })
+        report
+          {
+            Http_wire.code = "unauthorized";
+            status = Some status;
+            message = "The gateway refused the stream's credential";
+          })
       (Http_wire.subscribe http)
   in
   let on_event frame =
@@ -81,7 +74,7 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
         let flush ~advance =
           match !pending with
           | [] -> ()
-          | changes ->
+          | changes -> (
               pending := [];
               let positions =
                 if not advance then []
@@ -93,7 +86,24 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
                       |> List.filter (fun (scope, _) ->
                           Live_query.ready_for_replay cache scope changes)
               in
-              Storage_persister.save_covered store ~positions changes
+              (* protocol/contract/CACHE-SEMANTICS.md, B17: a storage's write
+                 returns or throws, and a write it refuses stays owed. *)
+              try Storage_persister.save_covered store ~positions changes with
+              | Eio.Cancel.Cancelled _ as cancelled -> raise cancelled
+              | refusal ->
+                  pending :=
+                    !pending
+                    @ List.filter
+                        (fun (key, _) -> not (List.mem_assoc key !pending))
+                        changes;
+                  Kept_for_first_reader.say said
+                    (Own
+                       {
+                         code = "session.save-refused";
+                         message =
+                           "The storage refused a write of what the client \
+                            keeps: " ^ Printexc.to_string refusal;
+                       }))
         in
         let schedule key value =
           pending := (key, value) :: List.remove_assoc key !pending;
@@ -105,7 +115,9 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
         ( Some schedule,
           fun () ->
             State_task.dispose task;
-            flush ~advance:false )
+            flush ~advance:false;
+            (* What the closing flush cannot write is lost. *)
+            pending := [] )
   in
   let cache =
     Client_query.make ?window_ms:invalidation_window_ms ?restore ?save ~sw
@@ -139,7 +151,7 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
     key;
     on_event = deliver;
     listeners;
-    error_listeners;
+    said;
   }
 
 let clock t = t.clock
@@ -163,22 +175,19 @@ let request t ?timeout_ms ?normalize_refusals operation payload =
   Subscription.request t.bus ?timeout_ms ?normalize_refusals ~correlation_id
     operation ~send
 
-let on_error t observe =
-  let callback failure = observe failure in
-  t.error_listeners := callback :: !(t.error_listeners);
-  fun () ->
-    t.error_listeners :=
-      List.filter (fun existing -> existing != callback) !(t.error_listeners)
+let errors t = Kept_for_first_reader.read t.said
 
 let close t =
   t.listeners := [];
-  t.error_listeners := [];
   Fun.protect
     ~finally:(fun () ->
-      Live_query.close t.cache;
       Fun.protect
-        ~finally:(fun () -> Subscription.close t.bus)
-        (fun () -> Delegation.close t.delegation))
+        ~finally:(fun () -> Kept_for_first_reader.close t.said)
+        (fun () ->
+          Live_query.close t.cache;
+          Fun.protect
+            ~finally:(fun () -> Subscription.close t.bus)
+            (fun () -> Delegation.close t.delegation)))
     t.flush_cache
 
 let await_closed t = Subscription.await_closed t.bus

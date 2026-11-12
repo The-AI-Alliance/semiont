@@ -382,8 +382,14 @@ class SemiontSession[T: Transport](StateUnit):
         self._said: Final = said
         self._errors: Final = KeptForFirstReader[SemiontError]()
         self._closing: Final = asyncio.Event()
-        self._relays: Final[list[Callable[[], None]]] = []
-        """What stops each relay onto its errors: of `said`, from when it is made, and of its transport's failures, from its start."""
+        self._failures: Final = client.transport.failures()
+        """What its transport fails at, as their first reader, relayed onto its errors from when it is made.
+
+        Held, as `said` is: a relay lasts while its reader is held.
+        """
+        # What the transport kept for its first reader is said first, before anything the session says itself.
+        self._relays: Final = [self._failures.relay(self._failed)]
+        """What stops each relay onto its errors: of its transport's failures and of `said`, each from when it is made."""
         if said is not None:
             self._relays.append(said.relay(self._failed))
         self._user: Final[Variable[UserResponse | None]] = Variable(None)
@@ -395,11 +401,6 @@ class SemiontSession[T: Transport](StateUnit):
         self._given_up: str | None = None
         """The token a renewal that got no answer was for, while the session holds none since: the one the next renewal renews."""
         self._running: asyncio.Task[None] | None = None
-        self._failures: Events[SemiontError] | None = None
-        """What its transport fails at, relayed onto its errors from its start.
-
-        Held, as `said` is: a relay lasts while its reader is held.
-        """
 
     @property
     def token(self) -> Watched[str | None]:
@@ -447,9 +448,6 @@ class SemiontSession[T: Transport](StateUnit):
         kept = await self._kept.held()
         if kept is not None and not is_token_expired(kept.access, now=time.time()) and self._token.value is None:
             self._token.set(kept.access)
-        # Heard from its start: what its transport fails at from then on is said on the session's errors, within the transport's telling.
-        failures = self._failures = self.client.transport.failures()
-        self._relays.append(failures.relay(self._failed))
         self._running = asyncio.create_task(self._run(kept))
         return self
 

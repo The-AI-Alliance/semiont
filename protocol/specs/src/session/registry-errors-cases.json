@@ -8,10 +8,8 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/registry/RegistryErrorsCasesTest.kt"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/RegistryErrorsCasesTests.swift"],
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/RegistryErrorsCasesTests.cs"],
-    "haskell": ["packages/haskell/sdk/test/RegistryErrorsCases.hs"]
-  },
-  "notYetReached": {
-    "ocaml": "OCaml's session has no errors stream (its errors is the last error, a State_value) and says no errors of its own as SessionErrors, so its registry reads none: its session is to say its own errors and its transport's failures on one stream, and its registry is to read them, from the first thing the session said, as these cases say."
+    "haskell": ["packages/haskell/sdk/test/RegistryErrorsCases.hs"],
+    "ocaml": ["packages/ocaml/sdk/test/registry_behavior.ml"]
   },
   "cases": [
     {

@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager, contextmanager
 from typing import Final
 
 import pytest
-from aio import hurried, pass_time, run, soon, turns
+from aio import Heard, hurried, pass_time, run, soon, turns
 from opentelemetry import context as otel_context
 from opentelemetry import trace as otel_trace
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
@@ -49,7 +49,7 @@ from semiont.testing import (
     RequestLogEntry,
     StubGateway,
 )
-from semiont.timing import MARK_COMMIT_TIMEOUT_MS
+from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT, MARK_COMMIT_TIMEOUT_MS
 from semiont.transport import Frame, FrameRefusal, TraceContext
 from semiont.types import (
     Annotation,
@@ -496,6 +496,35 @@ def test_a_refusal_is_handed_out_with_its_code_and_a_reply_that_names_no_job_is_
             w.offered.append(running("job-1"))
             w.relay("job:queued", queued("highlighting"))
             await finish(await held(claims))
+        await w.over()
+
+    run(scenario())
+
+
+def test_of_the_refusals_nobody_has_read_the_latest_are_kept_in_order_and_the_job_claimed_after_them_is_handed_out_after_them() -> None:
+    beyond = 3
+    refused = ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond
+
+    async def scenario() -> None:
+        w = World(channels=WORKER)
+        w.refusals.extend({"message": f"refusal {serial}", "code": "peer-unavailable"} for serial in range(refused + 1))
+        async with w.client.job.claim(EVERYTHING) as claims:
+            # The first read begins claiming, and is handed the first refusal.
+            assert await soon(anext(claims)) == ClaimRefusal("bus.peer-unavailable", "refusal 0")
+            # Then nobody reads while each wake-up is refused.
+            for _ in range(refused):
+                w.relay("job:queued", queued("highlighting"))
+                await turns()
+            assert len(w.sent("job:claim")) == refused + 1
+            w.offered.append(running("job-1"))
+            w.relay("job:queued", queued("highlighting"))
+            await turns()
+
+            handed = [await soon(anext(claims)) for _ in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT)]
+            assert handed == [ClaimRefusal("bus.peer-unavailable", f"refusal {serial}") for serial in range(1 + beyond, refused + 1)]
+            job = await held(claims)
+            assert job.job_id == "job-1"
+            await finish(job)
         await w.over()
 
     run(scenario())
@@ -1062,6 +1091,7 @@ def test_vitals_say_what_the_worker_holds_and_has_done_and_a_silent_held_job_is_
         async with w.client.job.claim(EVERYTHING, held_job_stall_ms=400, held_job_stall_check_ms=100) as claims:
             empty = claims.vitals()
             assert (empty.last_claim_at, empty.active_job, empty.jobs_completed) == (None, None, 0)
+            stalls = Heard(claims.stalled())
 
             job = await held(claims)
             holding = claims.vitals()
@@ -1075,18 +1105,64 @@ def test_vitals_say_what_the_worker_holds_and_has_done_and_a_silent_held_job_is_
             for step in range(10):
                 await pass_time(0.1, step=0.1)
                 await job.progress(JobProgress(percentage=step))
-            assert now(claims.stalled) is None, "however long it runs"
+            assert await stalls.so_far() == [], "however long it runs"
 
             await pass_time(0.6, step=0.1)
-            stall = now(claims.stalled)
-            assert stall is not None
+            (stall,) = await stalls.so_far()
             assert (stall.job_id, stall.threshold_ms) == ("job-1", 400)
             assert stall.silent_for_ms > 400
+            await pass_time(0.6, step=0.1)
+            assert len(await stalls.so_far()) == 1, "reported once"
 
             await finish(job)
             done = claims.vitals()
             assert (done.active_job, done.jobs_completed) == (None, 1)
             assert done.last_finished_at is not None
+        assert len(await stalls.ended()) == 1, "the stalls end when the claims are closed"
+        await w.over()
+
+    run(scenario())
+
+
+def test_the_first_reader_of_stalls_is_given_the_latest_found_before_it_came_in_order_a_later_one_what_comes_after() -> None:
+    beyond = 3
+    found = ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond
+
+    async def scenario() -> None:
+        w = World(channels=WORKER)
+        w.offered.extend(running(f"job-{serial}") for serial in range(found + 1))
+
+        async def stalled_and_finished(claims: Claims) -> None:
+            job = await held(claims)
+            await pass_time(0.6, step=0.1)
+            await finish(job)
+
+        async with w.client.job.claim(EVERYTHING, held_job_stall_ms=400, held_job_stall_check_ms=100) as claims:
+            for _ in range(found):
+                await stalled_and_finished(claims)
+            first = Heard(claims.stalled())
+            assert [stall.job_id for stall in await first.so_far()] == [f"job-{serial}" for serial in range(beyond, found)]
+
+            later = Heard(claims.stalled())
+            await stalled_and_finished(claims)
+            assert (await first.so_far())[-1].job_id == f"job-{found}"
+            assert [stall.job_id for stall in await later.so_far()] == [f"job-{found}"]
+        assert len(await first.ended()) == ERRORS_KEPT_FOR_FIRST_READER_COUNT + 1
+        assert len(await later.ended()) == 1
+        await w.over()
+
+    run(scenario())
+
+
+def test_stalls_nobody_read_are_dropped_as_the_claims_close_so_a_reader_who_comes_after_hears_nothing() -> None:
+    async def scenario() -> None:
+        w = World(channels=WORKER)
+        w.offered.append(running("job-1"))
+        async with w.client.job.claim(EVERYTHING, held_job_stall_ms=400, held_job_stall_check_ms=100) as claims:
+            job = await held(claims)
+            await pass_time(0.6, step=0.1)
+            await finish(job)
+        assert [stall async for stall in claims.stalled()] == []
         await w.over()
 
     run(scenario())

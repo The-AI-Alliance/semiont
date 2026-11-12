@@ -3,6 +3,7 @@ import Synchronization
 import Testing
 
 @testable import Semiont
+@testable import SemiontTesting
 
 // A worker's claims, told of an announcement its transport refused: it is still one received, so
 // it is stamped as heard, and, since no filter can be compared with what cannot be read, it wakes
@@ -183,4 +184,80 @@ private func everyRefusal(_ refusals: Events<ClaimRefusal>) async throws -> [Str
   let claims = try await claimsRefused(1, over: probe, client: client)
   await claims.stop()
   #expect(try await everyRefusal(claims.refused()) == [])
+}
+
+/// How often the claims look for a stall; a held job is stalled once it has been silent for less.
+private let stallCheck = Duration.milliseconds(2)
+
+/// Claims over `probe` that answer every claim with the next job, job-1 first, and call a held job
+/// stalled once it has been silent for longer than a millisecond.
+private func claimsOfJobs(over probe: ProbeTransport, client: SemiontClient) throws -> Claims {
+  let answers = Answers()
+  probe.handle { name, _ in
+    guard name == Operations.jobClaim.request.name else { throw nonePending() }
+    return try jobClaimedFixture("job-\(answers.next())")
+  }
+  return client.job.claim(try accepted(), timing: WorkerTiming(stallMs: 1, stallCheckMs: 2))
+}
+
+/// Until the claims wait on `clock` to look for a stall again: the look they took when the clock
+/// last moved is done.
+private func looking(on clock: TestClock) async throws {
+  try await until { clock.wakes.contains(clock.now.advanced(by: stallCheck)) }
+}
+
+/// Takes the next job `jobs` hands out, leaves it silent until the claims have looked at it and
+/// called it stalled, and fails it, which claims the next. The job's id.
+private func stallTheNext(_ jobs: inout Claims.AsyncIterator, on clock: TestClock) async throws
+  -> String
+{
+  let job = try #require(await jobs.next())
+  try await looking(on: clock)
+  clock.advance(by: stallCheck)
+  try await looking(on: clock)
+  try await job.fail("stalled", failureClass: nil, completedUnits: nil, unitCursors: nil)
+  return job.jobId.value
+}
+
+/// The job each stall `stalls` hands out names, until they end.
+private func everyStall(_ stalls: Events<HeldJobStall>) async throws -> [String] {
+  try await withinTestDeadline {
+    var heard: [String] = []
+    for try await stall in stalls { heard.append(stall.jobId.value) }
+    return heard
+  }
+}
+
+@Test func claimsNobodyListenedToKeepTheLatestStallsForTheirFirstListener() async throws {
+  let clock = TestClock()
+  let probe = ProbeTransport(channels: jobClaimChannels)
+  let client = try await SemiontClient(transport: probe, clock: clock)
+  defer { client.dispose() }
+  let claims = try claimsOfJobs(over: probe, client: client)
+  var jobs = claims.makeAsyncIterator()
+  let beyond = 5
+  var stalled: [String] = []
+  for _ in 0..<(Timings.errorsKeptForFirstReaderCount + beyond) {
+    stalled.append(try await stallTheNext(&jobs, on: clock))
+  }
+  let first = claims.stalled()
+  let later = claims.stalled()
+  let last = try await stallTheNext(&jobs, on: clock)
+  await claims.stop()
+  let firstHeard = try await everyStall(first)
+  let laterHeard = try await everyStall(later)
+  #expect(firstHeard == Array(stalled.dropFirst(beyond)) + [last])
+  #expect(laterHeard == [last], "a later listener hears only what follows it")
+}
+
+@Test func aFirstListenerWhoComesAfterTheClaimsHaveStoppedHearsOfNoStall() async throws {
+  let clock = TestClock()
+  let probe = ProbeTransport(channels: jobClaimChannels)
+  let client = try await SemiontClient(transport: probe, clock: clock)
+  defer { client.dispose() }
+  let claims = try claimsOfJobs(over: probe, client: client)
+  var jobs = claims.makeAsyncIterator()
+  _ = try await stallTheNext(&jobs, on: clock)
+  await claims.stop()
+  #expect(try await everyStall(claims.stalled()) == [])
 }

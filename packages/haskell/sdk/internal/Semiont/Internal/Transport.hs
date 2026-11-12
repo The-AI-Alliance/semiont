@@ -88,7 +88,7 @@ newTransport :: TransportOptions -> IO (Transport, TransportInput)
 newTransport configuration = atomically $ do
   runtime <- Runtime configuration <$> Delivery.newHub carriedChannel
     <*> Delivery.newReplies carriedChannel carriedCorrelationId
-    <*> State.newStateValue Initial <*> Broadcast.newEvents
+    <*> State.newStateValue Initial <*> Broadcast.newKeptEvents
     <*> newTVar Map.empty <*> newTVar Map.empty <*> newTVar 0
     <*> newTVar Map.empty <*> newTVar Map.empty <*> newTVar 0
     <*> newTVar False <*> newTVar Map.empty <*> newTVar Nothing <*> newEmptyTMVar
@@ -135,12 +135,18 @@ stream transport channel consume = frames transport channel (consume . Stream.ma
   where payloadOf (Arrived frame) = Right (busFramePayloadAdditionalProperties (busFramePayload (wireFrame frame)))
         payloadOf (FrameRejected refusal) = Left refusal
 
+-- | Each failure the transport meets, in the order met. The first reader is
+-- given first the latest 'Semiont.Timing.errorsKeptForFirstReaderCount' met
+-- before it came, in that order, the oldest beyond them dropped. The stream
+-- ends when the transport closes, once what its close met is said; what is
+-- still kept then is dropped: a reader who comes after is given nothing.
 errors :: Transport -> (Stream (Of TransportError) IO () -> IO result) -> IO result
 errors (Transport runtime) consume = Broadcast.withSubscription (failures runtime) (consume . fromReader)
 
--- | Hands @hand@ each failure the transport meets from now on, within the
--- transaction that reports it, until the transport's failures end or the
--- returned transaction stops it.
+-- | Hands @hand@ what a first reader of the transport's failures is given,
+-- and then each failure the transport meets, within the transaction that
+-- reports it, until the transport's failures end or the returned transaction
+-- stops it.
 relayErrors :: Transport -> (TransportError -> STM ()) -> STM (STM ())
 relayErrors (Transport runtime) = Broadcast.relay (failures runtime)
 

@@ -966,14 +966,21 @@ fn held_job_stall(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
         )
         .expect("a filter");
         let claims = client.job.claim(ClaimOptions::new(accepts));
-        let counted = tally(claims.stalled(), Option::is_some);
+        let stalls = Arc::new(AtomicUsize::new(0));
+        let counting = stalls.clone();
+        let mut stalled = claims.stalled();
+        tokio::spawn(async move {
+            while let Some(Ok(_)) = stalled.next().await {
+                counting.fetch_add(1, Ordering::SeqCst);
+            }
+        });
         let job = match at_once(claims.next()).await.expect("a claim") {
             Some(Ok(job)) => Arc::new(job),
             Some(Err(refusal)) => panic!("the claim was refused: {refusal:?}"),
             None => panic!("the claiming has ended"),
         };
         Subject {
-            counted,
+            counted: Box::new(move || stalls.load(Ordering::SeqCst)),
             act: Some(Box::new(move || {
                 let job = job.clone();
                 async move {

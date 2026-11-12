@@ -284,6 +284,10 @@ let create_test_session options =
   in
   { session; close = (fun () -> State_units.Session.dispose session) }
 
+let say_on session said =
+  let client : Client_record.t = State_units.Session.client session in
+  Kept_for_first_reader.say client.said said
+
 type renewal = Session.renewal
 
 type scripted_sessions = {

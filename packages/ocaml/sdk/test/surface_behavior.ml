@@ -205,7 +205,7 @@ let tests env ~name ~via ~row =
   in
   let client =
     C.connect ~sw ~clock ~session ~client_id:"surface" ~key ~call
-      ~global:Bus_registry.bridged_channels ~on_event ~on_error:ignore ()
+      ~global:Bus_registry.bridged_channels ~on_event ()
   in
   let resource () =
     get (Identifiers.Resource_id.of_string (string "resourceId" args))

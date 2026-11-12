@@ -482,7 +482,7 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 		refusal, named := refusalOf(data, fault)
 		if !named {
 			// What names no reader is told to the failure report.
-			s.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("the stream carried what is not a frame: %s", fault), TransportErrorCodeError))
+			s.shared.failures.Report(transportErrorWithoutResponse(fmt.Sprintf("the stream carried what is not a frame: %s", fault), TransportErrorCodeError))
 			return
 		}
 		s.shared.router.RouteRefusal(refusal)
@@ -520,7 +520,7 @@ func (s *stream) refused(conn uint64, err *TransportError) {
 	// connect that got no answer is not: it is a state.
 	statedWait, _ := err.RetryAfter()
 	credentialRefused := err.Code == TransportErrorCodeUnauthorized
-	s.shared.failures.report(err)
+	s.shared.failures.Report(err)
 	_, superseded := s.superseded[conn]
 	delete(s.superseded, conn)
 	if credentialRefused && s.running && !superseded {
@@ -714,7 +714,7 @@ func (s *stream) close() {
 	s.wg.Wait()
 	s.shared.hub.Close()
 	s.shared.router.Close()
-	s.shared.failures.close()
+	s.shared.failures.Close()
 }
 
 // run holds the client's stream until it is closed.

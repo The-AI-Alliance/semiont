@@ -388,12 +388,12 @@ func (h *FrameHub) Close() {
 	h.bridged = nil
 }
 
-// failureStream is what a session says went wrong: T is what each is. Its
-// first listener's queue is made with it and held until a listener takes it
-// or the stream closes, because the stream opens before whatever reads it is
-// handed the session: the first who asks to hear it before then is given the
-// latest keptForFirst of what was said before. Reporting never waits for a
-// reader.
+// failureStream is what a session, or a worker's claims, say went wrong: T is
+// what each is. Its first listener's queue is made with it and held until a
+// listener takes it or the stream closes, because the stream opens before
+// whatever reads it is handed the session or the claims: the first who asks
+// to hear it before then is given the latest keptForFirst of what was said
+// before. Reporting never waits for a reader.
 type failureStream[T any] struct {
 	b     *broadcast[T]
 	mu    sync.Mutex
@@ -443,79 +443,4 @@ func (f *failureStream[T]) close() {
 	defer f.mu.Unlock()
 	f.first = nil
 	f.b.close()
-}
-
-// failureTelling is the failures a transport meets, each told to every
-// listener within its report, before the call that met it returns, and all
-// under one lock, so each listener is told them in the order they were met.
-// Of what is reported before anyone listens, the latest keptForFirst are kept
-// for the first listener, until the transport closes, and told to it as it
-// starts listening, because the transport opens before whatever listens to it
-// is returned to its caller (protocol/contract/TRANSPORT-CONTRACT.md §
-// Failures).
-type failureTelling struct {
-	mu        sync.Mutex
-	listeners []*failureListener
-	// heard holds once anyone has listened: nothing is kept after that.
-	heard bool
-	// kept is the latest keptForFirst reported before anyone listened.
-	kept         []*TransportError
-	keptForFirst int
-	closed       bool
-}
-
-// failureListener is one listener of a transport's failures.
-type failureListener struct{ told func(*TransportError) }
-
-// listen tells told each failure reported from now on; the first listener is
-// told first the latest keptForFirst reported since the transport was made.
-// stop ends the telling: once it returns, a telling under way has ended and
-// nothing more is told. Stopping twice is stopping once.
-func (f *failureTelling) listen(told func(*TransportError)) (stop func()) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if !f.heard {
-		f.heard = true
-		for _, failure := range f.kept {
-			told(failure)
-		}
-		f.kept = nil
-	}
-	l := &failureListener{told: told}
-	if !f.closed {
-		f.listeners = append(f.listeners, l)
-	}
-	return func() {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		f.listeners = slices.DeleteFunc(f.listeners, func(each *failureListener) bool { return each == l })
-	}
-}
-
-// report tells err to every listener, or keeps it for the first, the oldest
-// kept dropped beyond keptForFirst, and returns it for its caller. Once the
-// transport has closed, it is told nowhere.
-func (f *failureTelling) report(err *TransportError) *TransportError {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	switch {
-	case f.closed:
-	case !f.heard:
-		f.kept = kept.Latest(append(f.kept, err), f.keptForFirst)
-	default:
-		for _, l := range f.listeners {
-			l.told(err)
-		}
-	}
-	return err
-}
-
-// close ends every listener's telling: nothing more is told, or kept, and
-// what was kept for a first listener who has not come is let go of.
-func (f *failureTelling) close() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.closed = true
-	f.listeners = nil
-	f.kept = nil
 }

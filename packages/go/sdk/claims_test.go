@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"iter"
 	"maps"
 	"os"
@@ -1003,14 +1004,101 @@ func TestVitalsSayWhatTheWorkerHoldsAndHasDoneAndASilentHeldJobIsStalled(t *test
 	}
 	w.wire.relay(bus.JobQueued.Channel(), queuedOf("tagging"))
 	eventually(t, "the announcement is stamped", func() bool { return !claims.Vitals().LastQueuedEventAt.IsZero() })
-	eventually(t, "the stall", func() bool { return claims.Stalled().Value() != nil })
-	if stall := claims.Stalled().Value(); stall.JobId != job.JobId() || stall.Threshold != timing.HeldJobStall || stall.SilentFor <= timing.HeldJobStall {
-		t.Fatalf("stalled %+v", stall)
+	stalled := make(chan *HeldJobStall, 1)
+	go func() {
+		for stall := range claims.Stalled() {
+			stalled <- stall
+			return
+		}
+	}()
+	select {
+	case stall := <-stalled:
+		if stall.JobId != job.JobId() || stall.Threshold != timing.HeldJobStall || stall.SilentFor <= timing.HeldJobStall {
+			t.Fatalf("stalled %+v", stall)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the held job's stall was not reported")
 	}
 	finish(t, job)
 	if vitals := claims.Vitals(); vitals.ActiveJob != nil || vitals.JobsCompleted != 1 || vitals.LastFinishedAt.IsZero() {
 		t.Fatalf("after the settle, %+v", vitals)
 	}
+}
+
+// The first reader of the stalls is given, of those reported before it came,
+// the latest ErrorsKeptForFirstReaderCount, in order, and a later reader only
+// what is reported after it came; each ends when the claims do.
+func TestTheFirstReaderOfTheStallsIsGivenTheLatestReportedBeforeItAndALaterReaderWhatFollows(t *testing.T) {
+	timing := DefaultTiming()
+	w := newClaimWorld(t, timing)
+	claims := w.client.Job.Claim(filters(t, everything))
+	beyond := 5
+	reported := make([]*HeldJobStall, timing.ErrorsKeptForFirstReaderCount+beyond)
+	for n := range reported {
+		reported[n] = claims.stalls.report(&HeldJobStall{SilentFor: time.Duration(n)})
+	}
+	first, later := claims.Stalled(), claims.Stalled()
+	following := claims.stalls.report(&HeldJobStall{SilentFor: time.Duration(len(reported))})
+	claims.Close()
+
+	if heard := slices.Collect(first); !slices.Equal(heard, append(slices.Clone(reported[beyond:]), following)) {
+		t.Errorf("the first reader was given %d stalls, want the latest %d reported before it, in order, and the one after", len(heard), timing.ErrorsKeptForFirstReaderCount)
+	}
+	if heard := slices.Collect(later); !slices.Equal(heard, []*HeldJobStall{following}) {
+		t.Errorf("a later reader was given %v, want only the stall reported after it came", heard)
+	}
+}
+
+// A first reader of the stalls who comes after the claims have ended is given
+// nothing: what was kept for it was let go of at the end.
+func TestAFirstReaderOfTheStallsWhoComesAfterTheClaimsEndedIsGivenNothing(t *testing.T) {
+	w := newClaimWorld(t, DefaultTiming())
+	claims := w.client.Job.Claim(filters(t, everything))
+	claims.stalls.report(&HeldJobStall{})
+	claims.Close()
+
+	if heard := slices.Collect(claims.Stalled()); len(heard) != 0 {
+		t.Errorf("a first reader after the claims ended was given %v, want nothing", heard)
+	}
+}
+
+// While nobody takes what the claims hand out, they keep, of the refusals,
+// the latest ErrorsKeptForFirstReaderCount, the oldest dropped beyond them,
+// and a job claimed after them is handed out all the same.
+func TestClaimsNobodyTakesFromKeepTheLatestRefusalsAndTheJobClaimedAfterThem(t *testing.T) {
+	timing := DefaultTiming()
+	w := newClaimWorld(t, timing)
+	beyond := 5
+	unread := timing.ErrorsKeptForFirstReaderCount + beyond
+	for n := range unread + 1 {
+		w.refusals = append(w.refusals, fmt.Sprintf(`{"message": "refusal %d", "code": "unauthorized"}`, n))
+	}
+	claims := w.client.Job.Claim(filters(t, everything))
+	defer claims.Close()
+	claimsSent := func() int { return len(w.wire.sent(bus.JobClaim.Request().Channel())) }
+	refusedWith := func(one pulled, n int) bool {
+		var refusal *ClaimRefusal
+		return errors.As(one.err, &refusal) && refusal.Message == fmt.Sprintf("refusal %d", n)
+	}
+	pull := pulling(t, claims)
+	if one := pull.take(t); !refusedWith(one, 0) {
+		t.Fatalf("the first claim handed out %+v, want refusal 0", one)
+	}
+
+	for n := 1; n <= unread; n++ {
+		w.wire.relay(bus.JobQueued.Channel(), queuedOf("highlighting"))
+		eventually(t, fmt.Sprintf("claim %d", n), func() bool { return claimsSent() == n+1 })
+	}
+	w.offer(running("job-1", "mark", "", ""))
+	w.wire.relay(bus.JobQueued.Channel(), queuedOf("highlighting"))
+	eventually(t, "the claim of the job", func() bool { return claimsSent() == unread+2 })
+
+	for n := beyond + 1; n <= unread; n++ {
+		if one := pull.take(t); !refusedWith(one, n) {
+			t.Fatalf("handed out %+v, want refusal %d: the latest %d refusals, in order", one, n, timing.ErrorsKeptForFirstReaderCount)
+		}
+	}
+	finish(t, pull.held(t))
 }
 
 func TestAHeldJobStatesTheTraceItsReplyArrivedIn(t *testing.T) {

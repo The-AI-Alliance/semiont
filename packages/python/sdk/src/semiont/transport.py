@@ -370,11 +370,16 @@ class Transport(Protocol):
         ...
 
     def failures(self) -> Events[SemiontError]:
-        """The failures the transport meets from now on.
+        """The failures the transport meets.
 
         Everything a server refused, every request never answered, and every
         line its stream carried that names no reader: one whose channel or
-        scope cannot be read.
+        scope cannot be read. Its first reader is given first the latest
+        `ERRORS_KEPT_FOR_FIRST_READER_COUNT` met before it came, in the order
+        they were met, the oldest beyond them dropped; every later one, what
+        is met from then on. They end when the transport closes, and what is
+        still kept then is dropped: a reader that comes after is given
+        nothing.
         """
         ...
 

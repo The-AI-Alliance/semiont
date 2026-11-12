@@ -41,7 +41,7 @@ A `SemiontError` with the HTTP `status` and `statusText` it came from, a `code` 
 
 ## `errors$`
 
-Every failure a server states is reported on `HttpTransport.errors$` before its caller hears it: a refused REST call and a refused emit as the `APIError` that is then thrown, and a refused stream as an `APIError` no caller awaits. Each carries the HTTP `status` and its `TransportErrorCode`, so a consumer routing on `unauthorized` hears a refused stream as it hears a refused request. A REST call or an emit the gateway never answered is reported the same way, as `unavailable`. A stream that drops is a connection state, not a failure, and is not reported here.
+Every failure a server states is reported on `HttpTransport.errors$` before its caller hears it: a refused REST call and a refused emit as the `APIError` that is then thrown, and a refused stream as an `APIError` no caller awaits. Each carries the HTTP `status` and its `TransportErrorCode`, so a consumer routing on `unauthorized` hears a refused stream as it hears a refused request. A REST call or an emit the gateway never answered is reported the same way, as `unavailable`. A stream that drops is a connection state, not a failure, and is not reported here. Of the failures met before anyone reads `errors$`, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are kept for its first reader, in the order met, the oldest dropped beyond that; a later reader hears what is met from when it reads. What is still kept when the transport is disposed is dropped.
 
 ## After `dispose()`
 

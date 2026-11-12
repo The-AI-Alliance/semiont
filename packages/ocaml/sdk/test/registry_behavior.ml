@@ -208,7 +208,7 @@ let controlled () =
           let client =
             Client.connect ~sw ~clock ~session ~client_id:"clock-test"
               ~key:(fun () -> "clock-key")
-              ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+              ~call ~global:[] ~on_event:ignore ()
           in
           (cleanup := fun () -> Client.close client);
           let bus = Client.subscription client in
@@ -324,8 +324,7 @@ let controlled () =
               ~key:(fun () ->
                 incr serial;
                 "clock-" ^ string_of_int !serial)
-              ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
-              ~on_error:ignore ()
+              ~call ~global:Bus_registry.bridged_channels ~on_event:ignore ()
           in
           (cleanup := fun () -> Client.close client);
           let resource =
@@ -386,10 +385,11 @@ let controlled () =
                   (Models.decode Models.job_filter
                      {|{"jobType":"mark","params":{"motivation":"highlighting"}}|})
               in
-              let claims =
-                Client.Job.claim client
-                  ~on_stalled:(fun _ -> incr count)
-                  [ filter ]
+              let claims = Client.Job.claim client [ filter ] in
+              let _release =
+                Claims.stalled claims
+                  ~on_value:(fun _ -> incr count)
+                  ~on_close:ignore
               in
               Fiber.fork_daemon ~sw (fun () ->
                   let job = Option.get (Claims.next claims) in
@@ -421,8 +421,7 @@ let controlled () =
           let client =
             Client.connect ~sw ~clock ~session ~client_id:"clock-test"
               ~key:(fun () -> "clock-request")
-              ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
-              ~on_error:ignore ()
+              ~call ~global:Bus_registry.bridged_channels ~on_event:ignore ()
           in
           (cleanup :=
              fun () ->
@@ -807,8 +806,7 @@ let session_unit startup () =
   let client =
     Client.connect ~sw ~clock ~session:credentials ~client_id:"test"
       ~key:(fun () -> "test")
-      ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
-      ~on_error:ignore ()
+      ~call ~global:Bus_registry.bridged_channels ~on_event:ignore ()
   in
   let module S = State_units.Session in
   let unit = S.make ~id:"kb" ~kb:registered.kb client in
@@ -840,6 +838,597 @@ let session_unit startup () =
   Client.close client;
   Client.await_closed client
 
+(* A worker's claims over the testing transport. [answer] answers each request
+   the claims make, handed the transport so it can announce the queue. *)
+let claims_over ~sw ~clock ?timeout_ms ?stall_ms ?stall_check_ms answer =
+  let transport = ref None in
+  let testing =
+    Testing.transport ~sw ~clock ~schedule:[] ~respond:(fun ~channel payload ->
+        answer (Option.get !transport) ~channel payload)
+  in
+  transport := Some testing;
+  let session =
+    Session.start ~sw ~clock ~initial_token:(Some "token")
+      ~renew:(fun ~holding:_ -> Session.Refused)
+      ()
+  in
+  let serial = ref 0 in
+  let client =
+    Client.connect ~sw ~clock ~session ~client_id:"claims"
+      ~key:(fun () ->
+        incr serial;
+        "claims-" ^ string_of_int !serial)
+      ~call:(Testing.call testing) ~global:Claims.job_claim_channels
+      ~on_event:ignore ()
+  in
+  let filter =
+    decode Models.job_filter
+      (`Assoc
+         [
+           ("jobType", text "mark");
+           ("params", `Assoc [ ("motivation", text "highlighting") ]);
+         ])
+  in
+  ( client,
+    Client.Job.claim client ?timeout_ms ?stall_ms ?stall_check_ms [ filter ] )
+
+let queued =
+  `Assoc
+    [
+      ("jobId", text "job-queued");
+      ("jobType", text "mark");
+      ("resourceId", text "res-1");
+      ("userId", text "did:web:kb.example:users:one");
+      ("params", `Assoc [ ("motivation", text "highlighting") ]);
+    ]
+
+let mock_clock () =
+  let mono = Eio_mock.Clock.Mono.make () in
+  ( mono,
+    Clock.make ~monotonic:mono ~wall:(Eio_mock.Clock.make ())
+      ~jitter:(Random.State.make [| 1 |]) )
+
+let pass mono clock elapsed_ms =
+  Eio_mock.Clock.Mono.set_time mono
+    (Option.get
+       (Mtime.add_span (Clock.monotonic_now clock) Mtime.Span.(elapsed_ms * ms)));
+  for _ = 1 to 20 do
+    Fiber.yield ()
+  done
+
+(* client/timing.json, errorsKeptForFirstReaderCount: how many of what a stream
+   said before its first reader came that reader is given, the oldest dropped. *)
+let kept =
+  int "errorsKeptForFirstReaderCount"
+    (Yojson.Safe.from_string Registry_cases.timing)
+
+let claims_refused () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono, clock = mock_clock () in
+  let code index =
+    if index = 0 then Some "not-found"
+    else if index = 1 then Some "peer-unavailable"
+    else if index = kept then Some "unauthorized"
+    else None
+  in
+  let said index =
+    Some (Option.fold ~none:"bus.rejected" ~some:(( ^ ) "bus.") (code index))
+  in
+  let claim_timeout_ms = 10 in
+  let all_said, said_all = Promise.create () in
+  let answered = ref 0 in
+  let client, claims =
+    claims_over ~sw ~clock ~timeout_ms:claim_timeout_ms
+      (fun transport ~channel _ ->
+        assert (channel = "job:claim");
+        let index = !answered in
+        incr answered;
+        if index > kept then (
+          Promise.resolve said_all ();
+          None)
+        else (
+          Testing.deliver transport "job:queued" queued;
+          Some
+            ( "job:claim-failed",
+              `Assoc
+                (("message", text "refused")
+                :: Option.to_list
+                     (Option.map (fun code -> ("code", text code)) (code index))
+                ) )))
+  in
+  Fiber.fork ~sw (fun () -> assert (Option.is_none (Claims.next claims)));
+  Promise.await all_said;
+  let first = ref [] and later = Eio.Stream.create max_int and ended = ref [] in
+  let _release =
+    Claims.refused claims
+      ~on_value:(fun code -> first := code :: !first)
+      ~on_close:(fun () -> ended := "first" :: !ended)
+  in
+  let _release =
+    Claims.refused claims ~on_value:(Eio.Stream.add later) ~on_close:(fun () ->
+        ended := "later" :: !ended)
+  in
+  let let_go =
+    Claims.refused claims
+      ~on_value:(fun _ -> Alcotest.fail "a reader that let go heard a refusal")
+      ~on_close:(fun () -> Alcotest.fail "a reader that let go heard the end")
+  in
+  let_go ();
+  let refused = Alcotest.(list (option string)) in
+  Alcotest.check refused
+    "the first reader hears the latest kept in order, the oldest dropped"
+    (List.init kept (fun index -> said (index + 1)))
+    (List.rev !first);
+  Alcotest.(check bool)
+    "a later reader hears nothing said before it" true
+    (Eio.Stream.is_empty later);
+  pass mono clock (2 * claim_timeout_ms);
+  let timed_out = Some "bus.timeout" in
+  Alcotest.(check (option string))
+    "a later reader hears what is said after" timed_out (Eio.Stream.take later);
+  Alcotest.check refused "the first reader hears what is said after"
+    (List.init kept (fun index -> said (index + 1)) @ [ timed_out ])
+    (List.rev !first);
+  Claims.stop claims;
+  Alcotest.(check (list string))
+    "each reader hears the end" [ "first"; "later" ] (List.sort compare !ended);
+  let told_end = ref false in
+  let _release =
+    Claims.refused claims
+      ~on_value:(fun _ ->
+        Alcotest.fail "a reader after the end heard a refusal")
+      ~on_close:(fun () -> told_end := true)
+  in
+  Alcotest.(check bool)
+    "a reader after the end hears only the end" true !told_end;
+  Client.close client
+
+let claims_stalled () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono, clock = mock_clock () in
+  let stall_ms = 10 in
+  let claimed = ref 0 in
+  let held_job id =
+    `Assoc
+      [
+        ( "response",
+          `Assoc
+            [
+              ("status", text "running");
+              ( "metadata",
+                `Assoc
+                  [
+                    ("id", text id);
+                    ("type", text "mark");
+                    ("userId", text "did:web:kb.example:users:one");
+                    ("created", text "2026-01-01T00:00:00Z");
+                    ("retryCount", `Int 0);
+                    ("maxRetries", `Int 3);
+                  ] );
+              ( "params",
+                `Assoc
+                  [
+                    ("resourceId", text "res-1");
+                    ("motivation", text "highlighting");
+                  ] );
+              ("startedAt", text "2026-01-01T00:00:01Z");
+              ("progress", `Assoc []);
+            ] );
+      ]
+  in
+  let client, claims =
+    claims_over ~sw ~clock ~stall_ms ~stall_check_ms:1 (fun _ ~channel _ ->
+        match channel with
+        | "job:claim" ->
+            incr claimed;
+            Some ("job:claimed", held_job ("job-" ^ string_of_int !claimed))
+        | _ -> None)
+  in
+  let held = Eio.Stream.create max_int in
+  Fiber.fork ~sw (fun () ->
+      let rec consume () =
+        match Claims.next claims with
+        | Some job ->
+            Eio.Stream.add held job;
+            consume ()
+        | None -> ()
+      in
+      consume ());
+  let stall () =
+    let job = Eio.Stream.take held in
+    pass mono clock (2 * stall_ms);
+    job
+  in
+  let settle job =
+    Worker.fail job ~error:"stalled" ~failure_class:None ~completed:None
+      ~cursors:None
+  in
+  settle (stall ());
+  let second = stall () in
+  let first = ref [] and later = Eio.Stream.create max_int and ended = ref [] in
+  let _release =
+    Claims.stalled claims
+      ~on_value:(fun job -> first := Worker.id job :: !first)
+      ~on_close:(fun () -> ended := "first" :: !ended)
+  in
+  let _release =
+    Claims.stalled claims
+      ~on_value:(fun job -> Eio.Stream.add later (Worker.id job))
+      ~on_close:(fun () -> ended := "later" :: !ended)
+  in
+  let jobs = Alcotest.(list string) in
+  Alcotest.check jobs "a first reader taken late hears each stall, in order"
+    [ "job-1"; "job-2" ] (List.rev !first);
+  Alcotest.(check bool)
+    "a later reader hears no stall said before it" true
+    (Eio.Stream.is_empty later);
+  settle second;
+  ignore (stall ());
+  Alcotest.(check string)
+    "a later reader hears the stall said after" "job-3" (Eio.Stream.take later);
+  Alcotest.check jobs "the first reader hears the stall said after"
+    [ "job-1"; "job-2"; "job-3" ]
+    (List.rev !first);
+  Claims.stop claims;
+  Alcotest.(check (list string))
+    "each reader hears the end" [ "first"; "later" ] (List.sort compare !ended);
+  let told_end = ref false in
+  let _release =
+    Claims.stalled claims
+      ~on_value:(fun _ -> Alcotest.fail "a reader after the end heard a stall")
+      ~on_close:(fun () -> told_end := true)
+  in
+  Alcotest.(check bool)
+    "a reader after the end hears only the end" true !told_end;
+  Client.close client
+
+(* protocol/specs/src/session/registry-errors-cases.json: a registry reads the
+   errors of each session it activates, from the first thing the session said,
+   over a factory that builds a scripted session and reads none of them. *)
+let errors_table = Yojson.Safe.from_string Registry_cases.errors_cases
+
+let errors_kb =
+  decode Models.knowledge_base
+    (`Assoc
+       [
+         ("id", text "kb-a");
+         ("label", text "KB A");
+         ("did", text "did:web:kb.example.org:kb-a");
+         ( "endpoint",
+           `Assoc
+             [
+               ("kind", text "http");
+               ("host", text "kb.example.org");
+               ("port", `Int 443);
+               ("protocol", text "https");
+             ] );
+       ])
+
+let errors_identity : R.connection_identity =
+  {
+    did = "did:web:kb.example.org:kb-a";
+    description =
+      decode Models.kb_description
+        (`Assoc [ ("name", text "KB A"); ("domain", text "kb.example.org") ]);
+  }
+
+let errors_browser ~clock factory =
+  let values = Hashtbl.create 4 in
+  let storage : R.storage =
+    {
+      read = Hashtbl.find_opt values;
+      write = Hashtbl.replace values;
+      remove = Hashtbl.remove values;
+    }
+  in
+  R.save_knowledge_bases storage [ errors_kb ];
+  R.new_semiont_browser
+    { storage; clock; fresh_id = (fun () -> "kb-fresh"); factory }
+
+(* The knowledge base's session over the testing transport: the gateway names
+   one person, and each renewal records the token it is handed. Its client
+   keeps in [persister] when given one. *)
+let scripted_session ~sw ~clock ~handed ?persister
+    (options : R.session_factory_options) =
+  let transport =
+    Testing.transport ~sw ~clock ~schedule:[] ~respond:(fun ~channel:_ _ ->
+        None)
+  in
+  let credentials =
+    Session.start ~sw ~clock ~initial_token:(Some "token")
+      ~renew:(fun ~holding ->
+        handed := !handed @ [ holding ];
+        Session.Refused)
+      ()
+  in
+  let content ~meth:_ ~path ~headers:_ ~body:_ =
+    match path with
+    | "/api/users/me" ->
+        ( 200,
+          [],
+          Eio.Flow.string_source
+            {|{"did":"did:web:kb.example.org:users:jo","email":null,"name":"Jo","image":null,"domain":"kb.example.org"}|}
+        )
+    | "/resources/res-1/annotations" ->
+        (200, [], Eio.Flow.string_source {|{"annotations":[]}|})
+    | _ -> Alcotest.fail ("fetches an unexpected path " ^ path)
+  in
+  let client =
+    Client.connect ~sw ~clock ~session:credentials ~client_id:"kb-a"
+      ~key:(fun () -> "key")
+      ~call:(Testing.call ~content transport)
+      ?persister ~global:Bus_registry.bridged_channels ~on_event:ignore ()
+  in
+  State_units.Session.make ~id:"session-a" ~kb:options.kb client
+
+let saying value : Client.said =
+  match (field "own" value, field "transport" value) with
+  | `String code, `Null -> Own { code; message = "the session says " ^ code }
+  | `Null, `String code ->
+      Transport_failure
+        { code; status = None; message = string "message" value }
+  | _ -> Alcotest.fail "says neither an own error nor a transport failure"
+
+let registry_errors_case row () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let why = string "why" row in
+  let said = List.map saying (rows "said" row) in
+  let opening =
+    match string "while" row with
+    | "opening" -> true
+    | "active" -> false
+    | other -> Alcotest.fail (why ^ ": says what it says while " ^ other)
+  in
+  let handed = ref [] in
+  let built = ref None in
+  let script = Testing.scripted_sessions () in
+  Testing.queue_session script "kb-a" (fun options ->
+      let session = scripted_session ~sw ~clock ~handed options in
+      built := Some (session, options.signals);
+      if opening then List.iter (Testing.say_on session) said;
+      Ok (session, errors_identity));
+  let browser = errors_browser ~clock (Testing.factory script) in
+  let registry_said = ref [] in
+  let _release =
+    R.errors browser
+      ~on_value:(fun (error : Client.session_error) ->
+        registry_said := !registry_said @ [ error.code ])
+      ~on_close:ignore
+  in
+  (match R.activate browser "kb-a" with
+  | Ok _ -> ()
+  | Error _ -> Alcotest.fail (why ^ ": the registry activated no session"));
+  let session, signals = Option.get !built in
+  State_units.Session.ready session;
+  if not opening then List.iter (Testing.say_on session) said;
+  Alcotest.(check (list string))
+    (why ^ ": said on the registry's errors")
+    (List.map J.to_string (rows "registryErrors" row))
+    !registry_said;
+  Alcotest.(check (list (option string)))
+    (why ^ ": tokens a renewal was handed")
+    [] !handed;
+  Alcotest.(check (option (option string)))
+    (why ^ ": said through the signals as a refusal for lack of permission")
+    (Option.map Option.some (J.to_string_option (field "permissionDenied" row)))
+    (Option.map
+       (fun (denied : State_units.Session_signals.permission_denied) ->
+         denied.detail)
+       (State_value.get (State_units.Session_signals.permission_denied signals)));
+  R.close browser;
+  Client.await_closed (State_units.Session.client session)
+
+(* The closing rows: the session's client keeps in a storage that refuses every
+   write. The monotonic clock never moves, so the save a read leaves owed is
+   still waiting out its debounce as the close begins. *)
+let registry_closing row () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let why = string "why" row in
+  let refusing =
+    Storage.make
+      ~get:(fun _ -> None)
+      ~update:(fun _ _ -> failwith "the storage refuses every write")
+      ()
+  in
+  let persister =
+    Storage_persister.make ~storage:refusing ~key:"kept" ~version:1
+      ~max_bytes:8192 ~clock
+  in
+  let handed = ref [] in
+  let built = ref None in
+  let script = Testing.scripted_sessions () in
+  Testing.queue_session script "kb-a" (fun options ->
+      let session = scripted_session ~sw ~clock ~handed ~persister options in
+      built := Some session;
+      Ok (session, errors_identity));
+  let browser = errors_browser ~clock (Testing.factory script) in
+  let registry_said = ref [] in
+  let ended = ref false in
+  let _release =
+    R.errors browser
+      ~on_value:(fun (error : Client.session_error) ->
+        registry_said := !registry_said @ [ error.code ])
+      ~on_close:(fun () -> ended := true)
+  in
+  (match R.activate browser "kb-a" with
+  | Ok _ -> ()
+  | Error _ -> Alcotest.fail (why ^ ": the registry activated no session"));
+  let session = Option.get !built in
+  State_units.Session.ready session;
+  let client = State_units.Session.client session in
+  (if J.to_bool (field "owed" row) then
+     let resource = Result.get_ok (Identifiers.Resource_id.of_string "res-1") in
+     match Client.fresh (Client.Browse.annotations client resource) with
+     | Ok _ -> ()
+     | Error _ -> Alcotest.fail (why ^ ": the read the save is owed for failed"));
+  let before = List.length !registry_said in
+  R.close browser;
+  Alcotest.(check bool) (why ^ ": the registry's errors end") true !ended;
+  Alcotest.(check (list string))
+    (why ^ ": said on the registry's errors as it closed")
+    (List.map J.to_string (rows "registryErrors" row))
+    (List.filteri (fun index _ -> index >= before) !registry_said);
+  Client.await_closed client
+
+let refusal index = "refusal " ^ string_of_int index
+
+(* A client's errors keep the latest failures of its transport for their first
+   reader: here each a refusal of the gateway's health. *)
+let client_errors_kept () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let transport =
+    Testing.transport ~sw ~clock ~schedule:[] ~respond:(fun ~channel:_ _ ->
+        None)
+  in
+  let refused = ref 0 in
+  let content ~meth:_ ~path ~headers:_ ~body:_ =
+    match path with
+    | "/api/health" ->
+        incr refused;
+        ( 403,
+          [],
+          Eio.Flow.string_source
+            (Yojson.Safe.to_string
+               (`Assoc [ ("error", text (refusal !refused)) ])) )
+    | _ -> Alcotest.fail ("fetches an unexpected path " ^ path)
+  in
+  let session =
+    Session.start ~sw ~clock ~initial_token:(Some "token")
+      ~renew:(fun ~holding:_ -> Session.Refused)
+      ()
+  in
+  let client =
+    Client.connect ~sw ~clock ~session ~client_id:"client-a"
+      ~key:(fun () -> "key")
+      ~call:(Testing.call ~content transport)
+      ~global:Bus_registry.bridged_channels ~on_event:ignore ()
+  in
+  let refuse () =
+    match Http_wire.health (Client.http client) with
+    | _ -> Alcotest.fail "a refusal of the gateway's health was taken as health"
+    | exception Http_wire.Failed _ -> ()
+  in
+  for _ = 1 to kept + 3 do
+    refuse ()
+  done;
+  let heard said =
+    match (said : Client.said) with
+    | Transport_failure { code = "forbidden"; status = Some 403; message } ->
+        message
+    | Transport_failure _ ->
+        Alcotest.fail "a refusal was said as other than a lack of permission"
+    | Own _ -> Alcotest.fail "the client said an error of its own"
+  in
+  let first = ref [] and later = ref [] and ended = ref [] in
+  let _release =
+    Client.errors client
+      ~on_value:(fun said -> first := !first @ [ heard said ])
+      ~on_close:(fun () -> ended := "first" :: !ended)
+  in
+  let _release =
+    Client.errors client
+      ~on_value:(fun said -> later := !later @ [ heard said ])
+      ~on_close:(fun () -> ended := "later" :: !ended)
+  in
+  let latest = List.init kept (fun index -> refusal (index + 4)) in
+  Alcotest.(check (list string))
+    "the first reader hears the latest kept in order, the oldest dropped" latest
+    !first;
+  Alcotest.(check (list string))
+    "a later reader hears nothing said before it" [] !later;
+  refuse ();
+  let after = refusal (kept + 4) in
+  Alcotest.(check (list string))
+    "a later reader hears what is said after" [ after ] !later;
+  Alcotest.(check (list string))
+    "the first reader hears what is said after" (latest @ [ after ]) !first;
+  Client.close client;
+  Alcotest.(check (list string))
+    "each reader hears the end" [ "first"; "later" ] (List.sort compare !ended);
+  let told_end = ref false in
+  let _release =
+    Client.errors client
+      ~on_value:(fun _ -> Alcotest.fail "a reader after the end heard an error")
+      ~on_close:(fun () -> told_end := true)
+  in
+  Alcotest.(check bool)
+    "a reader after the end hears only the end" true !told_end;
+  Client.await_closed client
+
+(* A registry's errors keep the latest of its sessions' own errors for their
+   first reader. *)
+let registry_errors_kept () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let handed = ref [] in
+  let built = ref None in
+  let script = Testing.scripted_sessions () in
+  Testing.queue_session script "kb-a" (fun options ->
+      let session = scripted_session ~sw ~clock ~handed options in
+      built := Some session;
+      Ok (session, errors_identity));
+  let browser = errors_browser ~clock (Testing.factory script) in
+  (match R.activate browser "kb-a" with
+  | Ok _ -> ()
+  | Error _ -> Alcotest.fail "the registry activated no session");
+  let session = Option.get !built in
+  State_units.Session.ready session;
+  let said = ref 0 in
+  let say () =
+    incr said;
+    Testing.say_on session
+      (Own { code = "session.save-refused"; message = refusal !said })
+  in
+  for _ = 1 to kept + 3 do
+    say ()
+  done;
+  let first = ref [] and later = ref [] and ended = ref [] in
+  let _release =
+    R.errors browser
+      ~on_value:(fun (error : Client.session_error) ->
+        first := !first @ [ error.message ])
+      ~on_close:(fun () -> ended := "first" :: !ended)
+  in
+  let _release =
+    R.errors browser
+      ~on_value:(fun (error : Client.session_error) ->
+        later := !later @ [ error.message ])
+      ~on_close:(fun () -> ended := "later" :: !ended)
+  in
+  let latest = List.init kept (fun index -> refusal (index + 4)) in
+  Alcotest.(check (list string))
+    "the first reader hears the latest kept in order, the oldest dropped" latest
+    !first;
+  Alcotest.(check (list string))
+    "a later reader hears nothing said before it" [] !later;
+  say ();
+  let after = refusal (kept + 4) in
+  Alcotest.(check (list string))
+    "a later reader hears what is said after" [ after ] !later;
+  Alcotest.(check (list string))
+    "the first reader hears what is said after" (latest @ [ after ]) !first;
+  R.close browser;
+  Alcotest.(check (list string))
+    "each reader hears the end" [ "first"; "later" ] (List.sort compare !ended);
+  let told_end = ref false in
+  let _release =
+    R.errors browser
+      ~on_value:(fun _ -> Alcotest.fail "a reader after the end heard an error")
+      ~on_close:(fun () -> told_end := true)
+  in
+  Alcotest.(check bool)
+    "a reader after the end hears only the end" true !told_end;
+  Client.await_closed (State_units.Session.client session)
+
 let () =
   Alcotest.run "OCaml registry and discovery"
     [
@@ -861,4 +1450,30 @@ let () =
           Alcotest.test_case "document and diff" `Quick discovery;
           Alcotest.test_case "shared clock" `Quick controlled;
         ] );
+      ( "claims",
+        [
+          Alcotest.test_case "refusals kept for the first reader" `Quick
+            claims_refused;
+          Alcotest.test_case "stalls kept for the first reader" `Quick
+            claims_stalled;
+        ] );
+      ( "registry errors",
+        List.map
+          (fun row ->
+            Alcotest.test_case
+              (string "while" row ^ ": " ^ string "why" row)
+              `Quick (registry_errors_case row))
+          (rows "cases" errors_table)
+        @ List.map
+            (fun row ->
+              Alcotest.test_case
+                ("closing: " ^ string "why" row)
+                `Quick (registry_closing row))
+            (rows "closing" errors_table)
+        @ [
+            Alcotest.test_case "a client's errors kept for the first reader"
+              `Quick client_errors_kept;
+            Alcotest.test_case "a registry's errors kept for the first reader"
+              `Quick registry_errors_kept;
+          ] );
     ]

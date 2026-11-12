@@ -214,7 +214,12 @@ to take matching jobs one at a time. An announcement its transport refused
 wakes an idle worker as a matching one does. A held job exposes cancellation, progress,
 checkpoints, and settlement. Cast it to `HeldMarkJob` or `HeldYieldJob` to
 complete it with that verb's result. Await `claims.stop()` before disposing
-the worker client so it can settle a job it still holds.
+the worker client so it can settle a job it still holds. `claims.refused()`
+says each claim refused for a reason other than nothing pending, and
+`claims.stalled()` each held job that showed no activity for longer than
+`heldJobStallMs`, once for each job. Of what each says before anyone reads it,
+the latest `errorsKeptForFirstReaderCount` are kept for its first reader. Both
+end when the claims end.
 
 ## Registry and state units
 

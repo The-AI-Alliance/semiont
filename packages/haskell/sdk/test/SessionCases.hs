@@ -279,6 +279,24 @@ keptForFirstReaderCases target person = do
       Session.dispose session
       afterEnd <- Session.errors session Stream.toList_
       require ("a reader who came after the session ended was given what was kept: "++show (map codeOf afterEnd)) (null afterEnd)
+  -- What the transport met before the session was made is kept for the session, its first reader: the session says
+  -- it before what the transport meets next, and a reader of the transport after the session is given none of it.
+  withClient time $ \owned input -> do
+    storage <- Storage.newMemoryStorage
+    Stored.storeSession storage (kbTargetId target) (stored (jwt 3600 0))
+    let options = Session.SessionOptions "kept-before-the-session" target (Stored.keptIn storage (kbTargetId target)) Nothing Nothing
+          (Just (\_ _ -> pure (Just person))) (const (pure ())) (pure 1800000000)
+        before = TransportError Code.TransportUnavailable "met before the session was made" Nothing Nothing
+        after = TransportError Code.TransportUnavailable "met once the session was made" Nothing Nothing
+    Transport.reportError input before
+    bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
+      Session.ready session
+      transportHeard <- Transport.errors (Client.transport owned) $ \given ->
+        Transport.reportError input after >> Stream.toList_ (Stream.take 1 given)
+      require "a reader of the transport after the session was given what was kept for the session" (transportHeard==[after])
+      heard <- Session.errors session (\given -> Session.dispose session >> Stream.toList_ given)
+      require ("the session did not say what its transport met before it was made, and then what came after: "++show (map codeOf heard))
+        (heard==[Right before, Right after])
 
 externalCases :: KbTarget -> UserResponse -> IO ()
 externalCases target person = do

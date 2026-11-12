@@ -9,6 +9,7 @@ import io.opentelemetry.api.trace.TraceState
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -630,15 +631,18 @@ class ClaimsTest {
         runCurrent()
         assertNotNull(claims.vitals().lastQueuedEventAt)
         // It reports for a second, well past the threshold, and is never stalled.
+        val stalls = mutableListOf<HeldJobStall>()
+        backgroundScope.launch { claims.stalled().collect { stalls += it } }
         repeat(10) { step ->
             advanceTimeBy(100)
             job.progress(JobProgress(percentage = step.toDouble()))
         }
         runCurrent()
-        assertNull(claims.stalled.value, "however long it runs")
+        assertEquals(emptyList<HeldJobStall>(), stalls, "however long it runs")
         advanceTimeBy(600)
         runCurrent()
-        val stall = checkNotNull(claims.stalled.value) { "no stall was found" }
+        // Silent past the threshold at several checks, and said once.
+        val stall = stalls.single()
         assertEquals(JobId("job-1") to 400L, stall.jobId to stall.thresholdMs)
         assertTrue(stall.silentForMs > 400, "silent for ${stall.silentForMs}")
         finish(job)
@@ -646,6 +650,53 @@ class ClaimsTest {
         assertEquals(null to 1L, done.activeJob to done.jobsCompleted)
         assertNotNull(done.lastFinishedAt)
         claims.stop()
+        w.over()
+    }
+
+    @Test
+    fun claimsNobodyHasReadKeepTheLatestStallsForTheirFirstReaderInOrderAndALaterReaderHearsWhatComesAfter() = runTest(timeout = LIMIT) {
+        val w = World(this, WORKER)
+        val beyond = 5
+        val jobs = List(Timings.ERRORS_KEPT_FOR_FIRST_READER_COUNT.toInt() + beyond + 1) { "job-$it" }
+        jobs.forEach { w.desk.offered += running(it) }
+        val claims = w.client.job.claim(EVERYTHING, heldJobStallMs = 400, heldJobStallCheckMs = 100)
+        // Each job is held, stalls and is settled, and nobody reads the stalls.
+        suspend fun stallsAndIsSettled() {
+            val job = held(claims)
+            advanceTimeBy(600)
+            runCurrent()
+            finish(job)
+        }
+        repeat(jobs.size - 1) { stallsAndIsSettled() }
+        val first = mutableListOf<String>()
+        val firstReading = claims.stalled()
+        val firstReader = backgroundScope.launch { firstReading.collect { first += it.jobId.value } }
+        runCurrent()
+        assertEquals(jobs.dropLast(1).drop(beyond), first)
+        val later = mutableListOf<String>()
+        val laterReading = claims.stalled()
+        val laterReader = backgroundScope.launch { laterReading.collect { later += it.jobId.value } }
+        stallsAndIsSettled()
+        assertEquals(listOf(jobs.last()), later)
+        assertEquals(jobs.drop(beyond), first)
+        claims.stop()
+        runCurrent()
+        assertTrue(firstReader.isCompleted && laterReader.isCompleted, "every reader ends when the claims end")
+        assertEquals(emptyList<HeldJobStall>(), claims.stalled().toList(), "a reader after the end hears nothing")
+        w.over()
+    }
+
+    @Test
+    fun stallsKeptForAFirstReaderAreDroppedWhenTheClaimsEnd() = runTest(timeout = LIMIT) {
+        val w = World(this, WORKER)
+        w.desk.offered += running("job-1")
+        val claims = w.client.job.claim(EVERYTHING, heldJobStallMs = 400, heldJobStallCheckMs = 100)
+        held(claims)
+        advanceTimeBy(600)
+        runCurrent()
+        // Stalled, and kept for a first reader who comes only after the end.
+        claims.stop()
+        assertEquals(emptyList<HeldJobStall>(), claims.stalled().toList())
         w.over()
     }
 

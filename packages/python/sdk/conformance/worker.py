@@ -32,7 +32,7 @@ from protocol import Arguments, Misuse, Operation, count, exporting, failure, ob
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont import telemetry
-from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, Claims, HeldJob
+from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, Claims, HeldJob, HeldJobStall
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.events import Events
@@ -260,7 +260,7 @@ class Worker:
         )
         self._claims = claims
         self._telling.append(self._reporters.create_task(self._reading(claims)))
-        self._telling.append(self._reporters.create_task(self._stalls(claims)))
+        self._telling.append(self._reporters.create_task(self._stalls(claims.stalled())))
         return None
 
     async def _reading(self, claims: Claims) -> None:
@@ -294,10 +294,9 @@ class Worker:
                 say({"signalled": job.job_id})
                 return
 
-    async def _stalls(self, claims: Claims) -> None:
-        async for stall in claims.stalled:
-            if stall is not None:
-                say({"stalled": stall.job_id})
+    async def _stalls(self, stalls: Events[HeldJobStall]) -> None:
+        async for stall in stalls:
+            say({"stalled": stall.job_id})
 
     async def start(self, _: int, __: Arguments) -> JsonValue:
         with self._working() as job:

@@ -287,7 +287,7 @@ func (c *HTTPContentTransport) PutBinary(ctx context.Context, putting PutBinaryR
 		defer span.End()
 		body, contentType, err := form(putting)
 		if err != nil {
-			return api.CreateResourceResponse{}, c.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("an upload that cannot be written: %v", err), TransportErrorCodeError))
+			return api.CreateResourceResponse{}, c.shared.failures.Report(transportErrorWithoutResponse(fmt.Sprintf("an upload that cannot be written: %v", err), TransportErrorCodeError))
 		}
 		var reported int64
 		var mu sync.Mutex
@@ -338,7 +338,7 @@ func (c *HTTPContentTransport) GetBinary(ctx context.Context, resource api.Resou
 		if ctx.Err() != nil {
 			return Content{}, ctx.Err()
 		}
-		return Content{}, c.shared.failures.report(interrupted(resource, err))
+		return Content{}, c.shared.failures.Report(interrupted(resource, err))
 	}
 	return Content{Bytes: read, ContentType: contentType(got.response)}, nil
 }
@@ -356,7 +356,7 @@ type streamed struct {
 func (s *streamed) Read(p []byte) (int, error) {
 	n, err := s.body.Read(p)
 	if err != nil && err != io.EOF {
-		return n, s.shared.failures.report(interrupted(s.resource, err))
+		return n, s.shared.failures.Report(interrupted(s.resource, err))
 	}
 	return n, err
 }
@@ -426,7 +426,7 @@ func (t *HTTPTransport) GetMediaToken(ctx context.Context, resource api.Resource
 	spec := t.operation(http.MethodPost, "/api/tokens/media", true)
 	body, err := jsonBody(api.MediaTokenRequest{ResourceId: resource})
 	if err != nil {
-		return api.MediaTokenResponse{}, t.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("a media token request that does not serialize: %v", err), TransportErrorCodeError))
+		return api.MediaTokenResponse{}, t.shared.failures.Report(transportErrorWithoutResponse(fmt.Sprintf("a media token request that does not serialize: %v", err), TransportErrorCodeError))
 	}
 	spec.body, spec.contentType = body, "application/json"
 	return answer[api.MediaTokenResponse](ctx, t.shared, spec)

@@ -500,8 +500,7 @@ let lifecycle phase row =
   let client =
     Client.connect ~sw ~clock ~session:credentials ~client_id:"test"
       ~key:(fun () -> "test")
-      ~call ~global:Bus_registry.bridged_channels ~on_event:ignore
-      ~on_error:ignore ()
+      ~call ~global:Bus_registry.bridged_channels ~on_event:ignore ()
   in
   let module S = State_units.Session in
   let told = ref None in
@@ -512,6 +511,17 @@ let lifecycle phase row =
             (match reason with
             | S.Expired -> "expired"
             | S.Refused -> "refused"))
+  in
+  let reported = ref None in
+  let _release =
+    S.errors session
+      ~on_value:(fun said ->
+        reported :=
+          Some
+            (match said with
+            | Client.Own { code; _ } | Client.Transport_failure { code; _ } ->
+                code))
+      ~on_close:ignore
   in
   S.ready session;
   if phase = "refusal" then (
@@ -564,9 +574,7 @@ let lifecycle phase row =
   Alcotest.(check (option string))
     "error"
     (row |> member "error" |> to_string_option)
-    (Option.map
-       (fun (failure : Http_wire.failure) -> failure.code)
-       (State_value.get (S.errors session)));
+    !reported;
   (match member "then" row with
   | `Null -> ()
   | expected ->

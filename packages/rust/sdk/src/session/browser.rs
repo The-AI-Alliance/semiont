@@ -45,7 +45,7 @@
 use super::factory::{SessionFactory, SessionFactoryOptions};
 use super::knowledge_base::KbSessionStatus;
 use super::open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_resources};
-use super::semiont_session::{ErrorsStream, SemiontSession};
+use super::semiont_session::SemiontSession;
 use super::signals::{KbIdentityConflict, SessionSignals};
 use super::stored::{
     ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession,
@@ -54,6 +54,7 @@ use super::stored::{
 };
 use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
 use crate::event_bus::EventBus;
+use crate::kept_for_first_reader::KeptForFirstReader;
 use crate::locked;
 use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
@@ -147,7 +148,7 @@ struct Inner {
     open_resources: Held<Vec<OpenResource>>,
     last_viewed_resource: Held<Option<ResourceId>>,
     identity_token: Held<Option<String>>,
-    errors: ErrorsStream<SessionError>,
+    errors: KeptForFirstReader<SessionError>,
     bus: EventBus,
     kept: Mutex<Kept>,
     /// One activation at a time.
@@ -206,7 +207,7 @@ impl SemiontBrowser {
             open_resources: Held::new(Vec::new()),
             last_viewed_resource: Held::new(None),
             identity_token: Held::new(None),
-            errors: ErrorsStream::new(),
+            errors: KeptForFirstReader::new(),
             bus: EventBus::new(),
             turn: tokio::sync::Mutex::new(()),
             tasks: Tasks::new(),

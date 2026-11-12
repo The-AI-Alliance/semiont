@@ -35,11 +35,11 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont._reading import Reading
 from semiont._required import Fault, read_as
 from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
-from semiont.events import Broadcast
 from semiont.http.exchange import TokenRefresher, refusal
 from semiont.http.sse import SseParser
 from semiont.identifiers import ResourceId
@@ -286,7 +286,7 @@ class Stream:
         timing: Timing,
         hub: FrameHub,
         router: ReplyRouter,
-        failures: Broadcast[SemiontError],
+        failures: KeptForFirstReader[SemiontError],
         bookmarks: Bookmarks | None,
     ) -> None:
         self._base_url = base_url

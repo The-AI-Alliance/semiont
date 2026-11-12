@@ -223,7 +223,7 @@ let run_case row =
       ~key:(fun () ->
         incr serial;
         "state-" ^ string_of_int !serial)
-      ~call ~global:Bus_registry.bridged_channels ~on_event ~on_error:ignore ()
+      ~call ~global:Bus_registry.bridged_channels ~on_event ()
   in
   let local ?correlation_id channel payload =
     let (B.Channel channel) =

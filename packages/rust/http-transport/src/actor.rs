@@ -881,7 +881,7 @@ mod tests {
         GatherFailed, Request,
     };
     use semiont::event_bus::EventBus;
-    use semiont::transport::{Events, FrameRefusalReason, Lagged};
+    use semiont::transport::{FrameRefusalReason, Lagged};
     use serde_json::json;
 
     #[test]
@@ -1052,12 +1052,10 @@ mod tests {
             let shared = shared();
             let own = Arc::new(EventBus::new());
             locked(&shared.bridges).push(own.clone());
-            let mut failures = Events::new(
-                locked(&shared.failures)
-                    .as_mut()
-                    .expect("the error stream is open")
-                    .listen(),
-            );
+            let mut failures = locked(&shared.failures)
+                .as_ref()
+                .expect("the error stream is open")
+                .listen();
             let line = match case["data"].as_str() {
                 Some(data) => data.to_owned(),
                 None => frame.to_string(),

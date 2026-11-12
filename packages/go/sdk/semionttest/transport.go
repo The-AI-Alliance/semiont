@@ -36,6 +36,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 )
 
 // FaultAction is what the wire does to one request: Deliver, DropReply,
@@ -178,7 +179,7 @@ type FaultyTransport struct {
 	hub      *semiont.FrameHub
 	router   *semiont.ReplyRouter
 	state    *semiont.Variable[semiont.ConnectionState]
-	failures *stream[*semiont.TransportError]
+	failures *kept.Telling[*semiont.TransportError]
 }
 
 var _ semiont.Transport = (*FaultyTransport)(nil)
@@ -192,7 +193,7 @@ func NewFaultyTransport(config FaultyConfig) *FaultyTransport {
 		hub:      semiont.NewFrameHub(),
 		router:   semiont.NewReplyRouter(),
 		state:    semiont.NewVariable(semiont.ConnectionStateOpen),
-		failures: newStream[*semiont.TransportError](),
+		failures: kept.NewTelling[*semiont.TransportError](semiont.DefaultTiming().ErrorsKeptForFirstReaderCount),
 	}
 }
 
@@ -219,8 +220,9 @@ func (f *FaultyTransport) RefuseWhen(refuse Refuse) {
 }
 
 // Fail tells a failure to every listener of the transport's failures before
-// it returns, as a transport does of a request the gateway refused.
-func (f *FaultyTransport) Fail(err *semiont.TransportError) { f.failures.give(err) }
+// it returns, as a transport does of a request the gateway refused; before
+// anyone listens, it is kept for the first listener, as a transport's is.
+func (f *FaultyTransport) Fail(err *semiont.TransportError) { f.failures.Report(err) }
 
 // SetState changes the connection's state, as a wire would. A closed
 // transport's is closed.
@@ -487,9 +489,11 @@ func (f *FaultyTransport) State() semiont.Watched[semiont.ConnectionState] { ret
 func (f *FaultyTransport) BridgeInto(sink semiont.FrameSink) { f.hub.Bridge(sink) }
 
 // Failures tells told each failure Fail reports from now on, until stop or
-// the transport closes.
+// the transport closes. The first listener is told first the latest
+// ErrorsKeptForFirstReaderCount (semiont.DefaultTiming) since the transport
+// was made; one who comes after the transport has closed, nothing.
 func (f *FaultyTransport) Failures(told func(*semiont.TransportError)) (stop func()) {
-	return f.failures.listen(told)
+	return f.failures.Listen(told)
 }
 
 func (f *FaultyTransport) Close() {
@@ -504,5 +508,5 @@ func (f *FaultyTransport) Close() {
 	f.state.End()
 	f.hub.Close()
 	f.router.Close()
-	f.failures.close()
+	f.failures.Close()
 }

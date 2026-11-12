@@ -131,7 +131,7 @@ A worker claims jobs from a knowledge base's queue, does each one, and says what
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and `JOB_COMMIT_CHANNELS` when it commits, and the reply channels of whatever else it awaits: `HttpTransport(gateway, agent.token, JOB_CLAIM_CHANNELS + JOB_COMMIT_CHANNELS, refresher = agent)`. The announcements that wake an idle worker reach only a stream that names them, so one whose stream does not is refused at its first claim, as `bus.unsubscribed`.
 - **What it commits names its generator**: an `AgentSoftware` whose `id` is the agent's DID (`agent.did.value`), with the engine it ran (`provider`, `model`). It carries no name: readers name the agent by what it said it is called.
 - **A held job settles once.** It says its own start, progress and checkpoints, commits its annotations (`commit(resourceId, annotations)` returns once the record has them), and settles with `complete`, `fail` or `cancel`. Closing one nobody settled fails it, and `stop()` fails the job held first. `fail` says whether the queue will run the job again, by the rule `willRetryAfter` states.
-- **A refused claim is told**, on `claims.refused()`, with its code. A claim answered with nothing pending is no refusal, and the worker waits.
+- **A refused claim is told**, on `claims.refused()`, with its code. A claim answered with nothing pending is no refusal, and the worker waits. A held job silent for `heldJobStallMs` is told once, on `claims.stalled()`. The first reader of each is also given the latest `errorsKeptForFirstReaderCount` told before it read.
 
 What a worker promises is protocol/contract/WORKER-CONTRACT.md, and the worker conformance suite holds this SDK to it through a driver written in Java.
 

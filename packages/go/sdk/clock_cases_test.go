@@ -599,7 +599,16 @@ func heldJobStall(t *testing.T, _ clockGiven) clockSubject {
 	held := make(chan semiont.HeldJob, 1)
 	ranged := make(chan struct{})
 	t.Cleanup(func() { <-ranged })
+	var stalls atomic.Int64
+	heard := make(chan struct{})
+	t.Cleanup(func() { <-heard })
 	t.Cleanup(claims.Close)
+	go func() {
+		defer close(heard)
+		for range claims.Stalled() {
+			stalls.Add(1)
+		}
+	}()
 	go func() {
 		defer close(ranged)
 		for job, err := range claims.All() {
@@ -622,7 +631,7 @@ func heldJobStall(t *testing.T, _ clockGiven) clockSubject {
 		t.Fatal("no job was claimed at the case's start")
 	}
 	return clockSubject{
-		counted: tallied(t, claims.Stalled(), func(stall *semiont.HeldJobStall) bool { return stall != nil }),
+		counted: func() int { return int(stalls.Load()) },
 		act:     func() error { return job.Progress(context.Background(), api.JobProgress{Percentage: 50}) },
 	}
 }

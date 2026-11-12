@@ -54,7 +54,9 @@ the supplied client and token. A service can omit that callback. `ready` waits f
 together share one renewal. An issuer refusal forgets the grant; an outage
 keeps it and retries with reconnect backoff. What goes wrong, the session's
 own errors and its transport's failures, is said once each on `errors`, one
-stream in the order met; the first reader is given the latest
+stream in the order met. A session is its transport's first reader when
+nobody has read that transport's failures before it is made, and then says
+what the transport kept for it as it is made. The first reader of `errors` is given the latest
 `errorsKeptForFirstReaderCount` (`Semiont.Timing`) said before it came, in
 that order, the oldest beyond them dropped, and what is still kept when
 `errors` ends is dropped: a reader who comes after is given nothing. Disposing a session
@@ -674,6 +676,10 @@ Raw transport and local-bus readers receive `Carried`: `Arrived frame` or
 scope reach those readers and any request identified by their correlation ID.
 An invalid scope or unusable channel reaches the transport error report. A
 typed reader names payload faults from the frame, such as `payload.resourceId`.
+`errors` reports each failure the transport meets, in the order met, and keeps
+for its first reader as a session's `errors` do: the latest
+`errorsKeptForFirstReaderCount` met before that reader came, the oldest beyond
+them dropped, and nothing once the transport has closed.
 A renewed emit credential starts a fresh retry budget and backoff.
 
 ## Telemetry

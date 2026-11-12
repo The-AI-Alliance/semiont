@@ -218,6 +218,9 @@ export interface ITransport {
    * (e.g. surfacing 401/403 as modals, logging) without wrapping every
    * call site in try/catch. Distinct from bus-level errors, which are
    * surfaced via the channel-correlation pattern in `Bus.request`.
+   * Of the failures met before its first reader, the latest
+   * `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are kept for it, in the order met
+   * (protocol/contract/TRANSPORT-CONTRACT.md § Failures).
    */
   readonly errors$: Observable<SemiontError>;
 

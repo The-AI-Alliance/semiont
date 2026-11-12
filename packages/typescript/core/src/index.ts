@@ -337,6 +337,9 @@ export { uuidV4 } from './id-generation';
 // http-transport, react-ui, …). The axiom harness lives in `@semiont/core/testing`.
 export type { StateUnit } from './state-unit';
 export { watched, type Watched } from './watched';
+// What a stream of errors keeps for its first reader: a transport's failures
+// (@semiont/http-transport), and a session's, a registry's and a worker's (@semiont/sdk).
+export { KeptForFirstReader } from './kept-for-first-reader';
 
 // Utility functions
 export * from './storage-uri';

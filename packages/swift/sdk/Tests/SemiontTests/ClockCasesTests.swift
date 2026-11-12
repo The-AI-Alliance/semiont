@@ -630,7 +630,9 @@ private func heldJobStall(_ given: [String: JSONValue], _ clock: TestClock) asyn
       ])))
   var jobs = claims.makeAsyncIterator()
   guard let job = await jobs.next() else { throw ClockCaseFailure("No job was claimed") }
-  let (stalls, reader) = tally(claims.stalled) { $0 != nil }
+  let stalled = claims.stalled()
+  let stalls = Counter()
+  let reader = Task { for try await _ in stalled { stalls.add() } }
   return Subject(
     counted: { stalls.count }, activity: { stalls.count + probe.calls.count }, pending: { nil },
     act: { try await job.progress(JobProgress(percentage: 50)) },

@@ -21,8 +21,8 @@ import httpx
 import pytest
 from aio import run, soon
 
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont.errors import SemiontError
-from semiont.events import Broadcast
 from semiont.http.stream import Stream, Timing
 from semiont.transport import FrameHub, ReplyRouter
 from semiont.watched import Variable
@@ -82,7 +82,7 @@ def test_a_stream_that_is_stopped_ends_a_connection_whose_first_cancellation_was
                 timing=QUICK,
                 hub=FrameHub(),
                 router=ReplyRouter(),
-                failures=Broadcast[SemiontError](),
+                failures=KeptForFirstReader[SemiontError](),
                 bookmarks=None,
             )
             running = asyncio.ensure_future(stream.run())

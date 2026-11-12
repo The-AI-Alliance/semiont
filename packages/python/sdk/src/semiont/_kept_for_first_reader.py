@@ -6,7 +6,15 @@ from typing import Final, final
 from semiont.events import Broadcast, Events
 from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT
 
-__all__ = ["KeptForFirstReader"]
+__all__ = ["KeptForFirstReader", "Latest"]
+
+
+@final
+class Latest[T](deque[T]):
+    """What waits for a reader who has not come: the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` appended, the oldest dropped."""
+
+    def __init__(self) -> None:
+        super().__init__(maxlen=ERRORS_KEPT_FOR_FIRST_READER_COUNT)
 
 
 @final
@@ -22,7 +30,7 @@ class KeptForFirstReader[T]:
 
     def __init__(self) -> None:
         self._broadcast: Final = Broadcast[T]()
-        self._kept: deque[T] | None = deque(maxlen=ERRORS_KEPT_FOR_FIRST_READER_COUNT)
+        self._kept: Latest[T] | None = Latest()
         """What was delivered while nobody has listened, for the first who does; none once one has, or it has closed."""
 
     def listen(self) -> Events[T]:

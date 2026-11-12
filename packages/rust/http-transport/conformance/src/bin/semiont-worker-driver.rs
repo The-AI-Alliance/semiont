@@ -241,9 +241,8 @@ impl Worker {
         let mut reporters = locked(&self.reporters);
         let mut stalled = claims.stalled();
         reporters.spawn(async move {
-            while stalled.changed().await.is_ok() {
-                let stall = stalled.borrow_and_update().clone();
-                if let Some(stall) = stall {
+            while let Some(stall) = stalled.next().await {
+                if let Ok(stall) = stall {
                     say(json!({ "stalled": stall.job_id }));
                 }
             }

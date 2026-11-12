@@ -14,7 +14,7 @@ import copy
 import random
 import re
 from collections import Counter
-from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Mapping, Sequence
+from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable, Coroutine, Mapping, Sequence
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from typing import Final, Literal, NoReturn, Self, final, override
@@ -43,7 +43,7 @@ from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.testing import FaultyTransport, InMemoryContent, StubGateway, create_test_client, refuse_unscripted_operation
 from semiont.transport import Frame
 from semiont.types import DiscoveredKB, HighlightingJobParams, HttpEndpoint, JobFilter, JobProgress, KbTarget, UserResponse
-from semiont.watched import Variable, Watched
+from semiont.watched import Variable
 
 TABLE: Final = read(SPEC / "client/clock-cases.json")
 CASES: Final = objects(TABLE["cases"], "cases")
@@ -180,8 +180,8 @@ def running(held: AsyncExitStack, work: Coroutine[object, object, object]) -> as
     return task
 
 
-def tally[T](held: AsyncExitStack, watched: Watched[T], counts: Callable[[T], bool]) -> Callable[[], int]:
-    """How many of the values `watched` has come to hold `counts` counts, from now on.
+def tally[T](held: AsyncExitStack, given: AsyncIterable[T], counts: Callable[[T], bool]) -> Callable[[], int]:
+    """How many of what `given` gives, a changing value's values or a stream's events, `counts` counts, from now on.
 
     A reader of a changing value is given the latest when it reads, so two
     changes between its reads are read as one: each count of a case comes
@@ -191,7 +191,7 @@ def tally[T](held: AsyncExitStack, watched: Watched[T], counts: Callable[[T], bo
 
     async def read() -> None:
         nonlocal seen
-        async for value in watched:
+        async for value in given:
             if counts(value):
                 seen += 1
 
@@ -536,7 +536,7 @@ async def held_job_stall(given: JsonObject, held: AsyncExitStack) -> Subject:
     async def report() -> None:
         await job.progress(JobProgress(percentage=50))
 
-    return Subject(counted=tally(held, claims.stalled, lambda stall: stall is not None), act=report)
+    return Subject(counted=tally(held, claims.stalled(), lambda _: True), act=report)
 
 
 # ── Discovery ───────────────────────────────────────────────────────────

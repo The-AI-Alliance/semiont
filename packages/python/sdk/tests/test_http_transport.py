@@ -27,7 +27,7 @@ from semiont.identifiers import ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED
 from semiont.retry import RetryPolicy
 from semiont.testing.liveness import DeliverySubject, assert_exactly_once_delivery
-from semiont.timing import MAX_RECONNECT_MS, RECONNECT_MS
+from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT, MAX_RECONNECT_MS, RECONNECT_MS
 from semiont.transport import ConnectionState, Frame, FrameRefusal, ResourceHold
 from semiont.watched import Variable, reached
 
@@ -209,6 +209,53 @@ def test_closing_ends_an_emit_that_is_waiting_to_be_made_again() -> None:
     code, stated_wait, attempts, took = run(scenario())
     assert (code, stated_wait, attempts) == ("rate-limited", 600_000, 1)
     assert took < 5
+
+
+def refusal_of_emit(serial: int) -> Answer:
+    """The gateway's refusal of an emit, which is not made again, in words of its own."""
+    return Answer(status=400, body=f'{{"error":"emit {serial} refused"}}'.encode())
+
+
+async def emit_refused(transport: HttpTransport) -> None:
+    """An emit the gateway refuses."""
+    with pytest.raises(TransportError):
+        await soon(transport.emit("beckon:focus", {"resourceId": "res-1"}))
+
+
+def test_the_first_listener_to_its_failures_is_given_the_latest_met_before_it_came_in_order_and_a_later_one_what_comes_after() -> None:
+    beyond = 3
+    met = ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond
+
+    async def scenario() -> tuple[list[str], list[str], list[str]]:
+        async with GatewayServer() as gateway:
+            gateway.scripted[("POST", "/bus/emit")] = [refusal_of_emit(serial) for serial in range(met + 1)]
+            async with HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK) as transport:
+                await opened(transport)
+                for _ in range(met):
+                    await emit_refused(transport)
+                first = transport.failures()
+                kept = [(await soon(anext(first))).message for _ in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT)]
+                later = transport.failures()
+                await emit_refused(transport)
+            return kept, [error.message async for error in first], [error.message async for error in later]
+
+    kept, first, later = run(scenario())
+    said = [f'/bus/emit 400: {{"error":"emit {serial} refused"}}' for serial in range(met + 1)]
+    assert kept == said[beyond:met]
+    assert first == later == said[met:]
+
+
+def test_what_a_transport_kept_for_a_first_listener_who_never_came_is_dropped_as_it_closes() -> None:
+    async def scenario() -> list[SemiontError]:
+        async with GatewayServer() as gateway:
+            gateway.scripted[("POST", "/bus/emit")] = [refusal_of_emit(0)]
+            transport = HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK)
+            async with transport:
+                await opened(transport)
+                await emit_refused(transport)
+            return [error async for error in transport.failures()]
+
+    assert run(scenario()) == []
 
 
 def test_a_transport_given_a_client_sends_its_stream_its_emits_and_its_requests_through_it_and_leaves_it_open() -> None:

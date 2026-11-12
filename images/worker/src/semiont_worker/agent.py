@@ -163,9 +163,7 @@ async def watch_for_a_stall(claims: Claims) -> None:
     A held job that shows no activity is wedged: an engine that never settles
     never claims again. Its knowledge base's work ends, and is started again.
     """
-    async for stall in claims.stalled:
-        if stall is None:
-            continue
+    async for stall in claims.stalled():
         raise KnowledgeBaseTrouble(
             f"the job {stall.job_id} ({stall.job_type}), held since {_instant(stall.held_since)}, has shown no activity "
             f"since {_instant(stall.last_activity_at)}: {stall.silent_for_ms} ms, past {stall.threshold_ms} ms"

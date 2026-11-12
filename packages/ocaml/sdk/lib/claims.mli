@@ -8,8 +8,6 @@ val make :
   ?stall_ms:int ->
   ?stall_check_ms:int ->
   ?trace:(unit -> Wire_stream.trace option) ->
-  ?on_stalled:(Worker.held -> unit) ->
-  ?on_refused:(string option -> unit) ->
   ?on_cancel:(Worker.held -> unit) ->
   [ `JobFilter ] Models.t list ->
   t
@@ -31,6 +29,22 @@ type vitals = {
   jobs_completed : int;
 }
 
-val refused : t -> string option option State_value.t
-val stalled : t -> Worker.held option State_value.t
+val refused :
+  t ->
+  on_value:(string option -> unit) ->
+  on_close:(unit -> unit) ->
+  unit ->
+  unit
+(** Hear each claim refused, by its code, or none when the reply could not be
+    read. The first reader is first given the latest
+    errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json)
+    refused before it came, in order; a later reader hears what is refused from
+    when it reads. [stop] ends it, and what is still kept is dropped. The
+    returned function stops hearing. *)
+
+val stalled :
+  t -> on_value:(Worker.held -> unit) -> on_close:(unit -> unit) -> unit -> unit
+(** Hear each held job that stalls, kept for the first reader as [refused] keeps
+    refusals. *)
+
 val vitals : t -> vitals

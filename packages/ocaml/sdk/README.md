@@ -24,11 +24,13 @@ Add `semiont` to your application's Dune `libraries` stanza and make the install
 
 Pass the credential session, Eio switch, clock, and gateway HTTP adapter to `Client.connect`, with the channels its bus subscribes to as `~global`: `Bus_registry.bridged_channels` for a full client. The application owns the HTTP adapter, the client, and the lifetime of its Eio switch. The [sign-in guide](../../../docs/builder/SIGN-IN.md) describes the grants.
 
+`Client.errors` says each failure of the client's transport, from its first request on. `State_units.Session.errors` says the session's own errors and what its client says, in the order met. The first reader of each is first given the latest said before it came. A registry's factory builds each knowledge base's session and reads none of its errors. `Registry.activate` reads them from the first thing the session said: `Registry.errors` says the session's own errors, and a refusal for lack of permission goes to the signals the factory was handed. `Registry.close` closes the active session's client and then ends the session and `Registry.errors`, so what the client's closing flush meets is said first.
+
 ## Live queries
 
 Get a query from `Client.Browse`, `Client.Match`, or `Client.Gather`. Use `Client.fresh` for a fresh answer, or `Client.observe` for state updates until you release the observation. The [checked example](examples/builder.ml) reads and watches a resource.
 
-For a durable cache, pass a `Storage_persister` to `Client.connect`. Give it a key scoped to the knowledge base and signed-in principal. The client debounces cache writes and advances a stored replay cursor only when the matching scoped cache values can be saved with it.
+For a durable cache, pass a `Storage_persister` to `Client.connect`. Give it a key scoped to the knowledge base and signed-in principal. The client debounces cache writes and advances a stored replay cursor only when the matching scoped cache values can be saved with it. A write the storage refuses stays owed, and the client says it on `Client.errors` as `session.save-refused`.
 
 ## Delegate work
 
@@ -36,7 +38,7 @@ Use `Client.Mark.delegate` or `Client.Yield.delegate` with `Client.delegation cl
 
 ## Run a worker
 
-Use `Client.Job.claim` and `Claims.next` to take a job, then use `Worker` to start it, report progress, checkpoint, and settle it. Include `Worker.channels` in the client's subscription and add `Worker.commit_channels` for annotation commits.
+Use `Client.Job.claim` and `Claims.next` to take a job, then use `Worker` to start it, report progress, checkpoint, and settle it. Include `Worker.channels` in the client's subscription and add `Worker.commit_channels` for annotation commits. `Claims.refused` and `Claims.stalled` say each claim refused and each held job that stalls: the first reader of each is first given the latest said before it came, in order, and a reader who comes after `Claims.stop` hears only the end.
 
 ## Develop and verify
 

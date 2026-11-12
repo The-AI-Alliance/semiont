@@ -20,6 +20,7 @@
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError};
 use crate::event_bus::EventBus;
+use crate::kept_for_first_reader::KeptForFirstReader;
 use crate::locked;
 use crate::required::{Fault, fault_of, schema};
 use crate::types::{
@@ -301,6 +302,56 @@ pub type Failures = Events<TransportError>;
 /// (`Transport::tell_failures_to`).
 pub type FailureListener = Box<dyn Fn(&TransportError) + Send + Sync>;
 
+/// A transport's failures, from its making: each one reported is told to
+/// each listener (`Transport::tell_failures_to`), then said to each reader
+/// (`Transport::failures`). The first listener or reader taken hears the
+/// latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` reported before it came, in
+/// order, the oldest dropped beyond that; each later one, what is reported
+/// from then on. Dropped, it ends each reader's stream, and what is still
+/// kept is dropped with it.
+pub struct FailureStream {
+    said: KeptForFirstReader<TransportError>,
+    listeners: Vec<FailureListener>,
+}
+
+impl Default for FailureStream {
+    fn default() -> FailureStream {
+        FailureStream {
+            said: KeptForFirstReader::new(),
+            listeners: Vec::new(),
+        }
+    }
+}
+
+impl FailureStream {
+    pub fn new() -> FailureStream {
+        FailureStream::default()
+    }
+
+    /// A reader: taken first, it hears what is kept, then each failure
+    /// reported after; taken later, each reported from now on.
+    pub fn listen(&self) -> Failures {
+        self.said.read()
+    }
+
+    /// Tell `listener` each failure reported from now on, as it is reported.
+    /// Taken first, it is told at once what is kept.
+    pub fn tell_to(&mut self, listener: FailureListener) {
+        for kept in self.said.take_kept() {
+            listener(&kept);
+        }
+        self.listeners.push(listener);
+    }
+
+    /// Report `error`: to each listener, then to each reader.
+    pub fn report(&self, error: &TransportError) {
+        for listener in &self.listeners {
+            listener(error);
+        }
+        self.said.say(error.clone());
+    }
+}
+
 /// The sender of one channel's broadcast: its frames, and the refusals
 /// delivered in their place.
 pub(crate) type Broadcast = broadcast::Sender<Result<Frame, FrameRefusal>>;
@@ -535,17 +586,20 @@ pub trait Transport: Send + Sync + 'static {
     /// The connection's state: the current value, and each change after it.
     fn state(&self) -> watch::Receiver<ConnectionState>;
 
-    /// The failures the transport meets, from now on, and each line its
-    /// stream carried that names no reader. A listener taken as soon as the
-    /// transport is made hears every one, from its first request.
+    /// The failures the transport meets, and each line its stream carried
+    /// that names no reader. The first listener taken, here or by
+    /// `tell_failures_to`, hears the latest
+    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` met before it came, in order;
+    /// each later one, those met from then on. A `FailureStream` keeps them
+    /// so.
     fn failures(&self) -> Failures;
 
     /// Tell `listener` each failure `failures` reports, within the telling:
     /// before the call that met it returns, so in the order they were met.
-    /// A listener taken as soon as the transport is made is told every one,
-    /// as `failures` hears them. It is held until the transport closes, and
-    /// told under the transport's own lock, so it must not call back into
-    /// the transport.
+    /// Taken first, it is told at once the latest
+    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` met before it came. It is held
+    /// until the transport closes, and told under the transport's own lock,
+    /// so it must not call back into the transport.
     fn tell_failures_to(&self, listener: FailureListener);
 
     /// Await the reply to `correlation_id` on one of `reply_channels`. A
@@ -781,6 +835,48 @@ pub trait GatewayOperations: Send + Sync + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::timing::ERRORS_KEPT_FOR_FIRST_READER_COUNT;
+
+    #[test]
+    fn the_first_listener_is_told_what_was_reported_before_it_and_each_what_comes_after() {
+        let failure = |n: u16| TransportError::of_status(format!("HTTP {n}"), n, None);
+        let told = |listener: &Arc<Mutex<Vec<String>>>| -> FailureListener {
+            let telling = listener.clone();
+            Box::new(move |failure| locked(&telling).push(failure.message.clone()))
+        };
+        let first = Arc::new(Mutex::new(Vec::new()));
+        let later = Arc::new(Mutex::new(Vec::new()));
+        let mut failures = FailureStream::new();
+
+        failures.report(&failure(503));
+        failures.tell_to(told(&first));
+        failures.report(&failure(500));
+        failures.tell_to(told(&later));
+        failures.report(&failure(401));
+
+        assert_eq!(*locked(&first), ["HTTP 503", "HTTP 500", "HTTP 401"]);
+        assert_eq!(*locked(&later), ["HTTP 401"]);
+    }
+
+    #[test]
+    fn the_first_listener_is_told_the_latest_reported_before_it() {
+        let beyond = 5;
+        let reported: Vec<String> = (0..ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
+            .map(|n| format!("failure {n}"))
+            .collect();
+        let told = Arc::new(Mutex::new(Vec::new()));
+        let telling = told.clone();
+        let mut failures = FailureStream::new();
+
+        for message in &reported {
+            failures.report(&TransportError::of_status(message.clone(), 503, None));
+        }
+        failures.tell_to(Box::new(move |failure: &TransportError| {
+            locked(&telling).push(failure.message.clone())
+        }));
+
+        assert_eq!(*locked(&told), reported[beyond..]);
+    }
 
     fn frame(channel: &str, correlation_id: Option<&str>) -> Frame {
         Frame {

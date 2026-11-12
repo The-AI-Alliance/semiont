@@ -46,6 +46,7 @@ from semiont.testing import (
     create_test_session,
     retry_key_of,
 )
+from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT
 from semiont.transport import Content, ContentTransport, Frame, FrameRefusal, FrameSink, GatewayOperations, PutBinaryRequest, Transport
 from semiont.types import (
     AnchoredTextAbsent,
@@ -447,6 +448,30 @@ def test_a_closed_transport_has_ended_everything_and_does_nothing_more() -> None
         assert transport.state.value == "closed"
         assert await soon(anext(transport.frames("beckon:focus"), None)) is None
         assert await soon(anext(transport.failures(), None)) is None
+
+    run(scenario())
+
+
+def test_the_first_listener_to_its_failures_is_given_the_latest_met_before_it_came_and_what_nobody_read_is_dropped_as_it_closes() -> None:
+    beyond = 3
+    met = [
+        TransportError("unavailable", f"request {serial} unanswered") for serial in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond + 1)
+    ]
+
+    async def scenario() -> None:
+        transport = FaultyTransport(channels=BRIDGED_CHANNELS)
+        for each in met[:-1]:
+            transport.fail(each)
+        first, later = transport.failures(), transport.failures()
+        transport.fail(met[-1])
+        await transport.close()
+        assert [error async for error in first] == met[beyond:]
+        assert [error async for error in later] == met[-1:]
+
+        unread = FaultyTransport(channels=BRIDGED_CHANNELS)
+        unread.fail(met[0])
+        await unread.close()
+        assert [error async for error in unread.failures()] == []
 
     run(scenario())
 

@@ -1,6 +1,19 @@
 (** Composition of an existing session, HTTP adapter, bus and delegation. *)
 
-type t
+type session_error = Client_record.session_error = {
+  code : string;
+  message : string;
+}
+(** One of a session's own errors: its code in the session group of
+    protocol/specs/src/errors/codes.json, and what went wrong. *)
+
+(** What a client says on its errors, and a session on its: a session's own
+    error, or a failure of the transport. *)
+type said = Client_record.said =
+  | Own of session_error
+  | Transport_failure of Http_wire.failure
+
+type t = Client_record.t
 
 val connect :
   ?timing:Subscription.timing ->
@@ -27,7 +40,6 @@ val connect :
     int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->
   global:Bus_registry.packed_channel list ->
   on_event:((Wire_stream.frame, Wire_stream.refusal) result -> unit) ->
-  on_error:(Http_wire.failure -> unit) ->
   unit ->
   t
 (** Starts the bus on [sw]. The caller owns [session] and its lifetime. [global]
@@ -59,7 +71,16 @@ val request :
   string ->
   (('reply, 'failure) Subscription.reply, Subscription.request_error) result
 
-val on_error : t -> (Http_wire.failure -> unit) -> unit -> unit
+val errors :
+  t -> on_value:(said -> unit) -> on_close:(unit -> unit) -> unit -> unit
+(** Hear each failure of the transport, from its first request on, and each
+    write of what the client keeps that its storage refuses, as
+    [session.save-refused]: such a save stays owed. The first reader is first
+    given the latest errorsKeptForFirstReaderCount
+    (protocol/specs/src/client/timing.json) said before it came, in order; a
+    later reader hears what is said from when it reads. [close] says what its
+    flush meets and then ends it. The returned function stops hearing. *)
+
 val close : t -> unit
 val await_closed : t -> unit
 

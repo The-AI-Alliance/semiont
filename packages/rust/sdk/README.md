@@ -355,8 +355,10 @@ builders to the same answers.
   starts for the job.
 - **`claims.vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
-  and how many it has completed. **`claims.stalled()`** tells of a held job
-  that has shown no activity for fifteen minutes.
+  and how many it has completed. **`claims.stalled()`** is a stream of each
+  held job that has shown no activity for fifteen minutes. Its first reader
+  is given the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` stalls found
+  before it came, in order; it ends when the claiming does.
 
 What a worker promises the dispatcher is the
 [worker contract](../../../protocol/contract/WORKER-CONTRACT.md), and

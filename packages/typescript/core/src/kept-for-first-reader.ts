@@ -1,5 +1,5 @@
 import { Observable, Subject } from 'rxjs';
-import { ERRORS_KEPT_FOR_FIRST_READER_COUNT } from '@semiont/core';
+import { ERRORS_KEPT_FOR_FIRST_READER_COUNT } from './generated/client-timing';
 
 /**
  * A stream whose first reader is given the latest

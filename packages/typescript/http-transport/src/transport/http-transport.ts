@@ -11,7 +11,7 @@
  */
 
 import ky, { HTTPError, NetworkError, TimeoutError, type AfterResponseState, type KyInstance, type RetryOptions } from 'ky';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable } from 'rxjs';
 import type {
   AccessToken,
   BaseUrl,
@@ -22,6 +22,7 @@ import type {
   components,
 } from '@semiont/core';
 import {
+  KeptForFirstReader,
   SemiontError,
   busLog,
   relayFrames,
@@ -271,13 +272,16 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   private readonly http: KyInstance;
   private readonly token$: Watched<AccessToken | null>;
   private readonly logger?: Logger;
-  private readonly errorsSubject: Subject<SemiontError> = new Subject<SemiontError>();
+  private readonly failures = new KeptForFirstReader<SemiontError>();
   /**
    * Stream of `APIError` instances surfaced from any HTTP request just
    * before the transport throws to the caller. Satisfies the `ITransport`
-   * `errors$` contract — see `@semiont/core/transport.ts`.
+   * `errors$` contract — see `@semiont/core/transport.ts`. Of the failures
+   * met before its first reader, the latest
+   * `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are kept for it, in the order met;
+   * what is still kept when the transport is disposed is dropped.
    */
-  readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
+  readonly errors$: Observable<SemiontError> = this.failures.said$;
 
   private _actor: ActorStateUnit | null = null;
   private _actorStarted = false;
@@ -383,7 +387,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
             }
             // A refusal and a request that was never answered are both on
             // `errors$`, as the `APIError` the caller is also given.
-            if (reported instanceof APIError) this.errorsSubject.next(reported);
+            if (reported instanceof APIError) this.failures.say(reported);
             throw reported;
           },
         ],
@@ -428,7 +432,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       // Refused connects surface on the transport's contract stream too —
       // an SSE subscribe IS an HTTP request, refused as an `APIError` like
       // any other.
-      this._actor.errors$.subscribe((e) => this.errorsSubject.next(e));
+      this._actor.errors$.subscribe((e) => this.failures.say(e));
       // One fan-in per channel, wired once for the actor's lifetime — the
       // globally-subscribed set AND the resource-scoped set (disjoint by the
       // bus-invariants guard). Scoped events only arrive for scopes in the
@@ -585,7 +589,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     // the getter build a fresh one that nothing would ever start, and a
     // request would wait out its whole timeout on a stream that cannot open.
     this.actor.dispose();
-    this.errorsSubject.complete();
+    this.failures.end();
   }
 
   /**
@@ -596,7 +600,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    */
   pushError(error: SemiontError): void {
     if (this.disposed) return;
-    this.errorsSubject.next(error);
+    this.failures.say(error);
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────

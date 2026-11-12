@@ -344,7 +344,7 @@ public final class WorkerDriver {
             said.put("detail", text(refused.getMessage()));
             say("refused", new JsonObject(said));
         });
-        reading(made.getStalled().asPublisher(), (Optional<HeldJobStall> stall) -> stall.ifPresent(found -> say("stalled", text(found.getJobId().getValue()))));
+        reading(made.stalled().asPublisher(), (HeldJobStall stall) -> say("stalled", text(stall.getJobId().getValue())));
         Thread reader = new Thread(() -> handOut(made), "claims");
         reader.setDaemon(true);
         reader.start();

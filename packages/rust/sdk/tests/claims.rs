@@ -13,13 +13,16 @@ use opentelemetry::context::FutureExt;
 use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
 use semiont::bus::reply_channels_for;
 use semiont::claims::{
-    ClaimOptions, ClaimRefusal, ClaimTiming, Claims, HeldJob, JOB_CLAIM_CHANNELS,
+    ClaimOptions, ClaimRefusal, ClaimTiming, Claims, HeldJob, HeldJobStall, JOB_CLAIM_CHANNELS,
     JOB_COMMIT_CHANNELS, JobFailure,
 };
 use semiont::client::SemiontClient;
 use semiont::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
-use semiont::transport::{ConnectionState, Frame, FrameRefusal, FrameRefusalReason, TraceCarrier};
+use semiont::timing::ERRORS_KEPT_FOR_FIRST_READER_COUNT;
+use semiont::transport::{
+    ConnectionState, Events, Frame, FrameRefusal, FrameRefusalReason, TraceCarrier,
+};
 use semiont::types::DurabilityEvidence::{
     Acknowledged, ProbeConfirmed, ProbeRefused, ProbeUnreachable,
 };
@@ -1767,35 +1770,62 @@ fn quick() -> ClaimTiming {
     }
 }
 
+/// Longer than `quick`'s stall threshold, and its next check after it.
+const PAST_THE_STALL: Duration = Duration::from_millis(600);
+
+fn quick_claims(w: &World) -> Claims {
+    w.client.job.claim(ClaimOptions {
+        timing: quick(),
+        ..ClaimOptions::new(everything())
+    })
+}
+
+/// Each stall `stalled` reports, to its end.
+async fn stalls_to_the_end(mut stalled: Events<HeldJobStall>) -> Vec<HeldJobStall> {
+    let mut stalls = Vec::new();
+    while let Some(stall) = stalled.next().await {
+        stalls.push(stall.expect("no stall was missed"));
+    }
+    stalls
+}
+
+fn stalled_jobs(stalls: &[HeldJobStall]) -> Vec<&str> {
+    stalls.iter().map(|stall| stall.job_id.as_str()).collect()
+}
+
+/// Hold the next job past the stall threshold, then settle it.
+async fn hold_silent(claims: &Claims) {
+    let job = held(claims).await;
+    tokio::time::sleep(PAST_THE_STALL).await;
+    finish(job).await;
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_held_job_that_shows_no_activity_is_stalled_and_one_that_keeps_reporting_is_not() {
     let w = world();
     w.offer(running("job-1", "mark", json!({}), json!({})));
-    let claims = w.client.job.claim(ClaimOptions {
-        timing: quick(),
-        ..ClaimOptions::new(everything())
-    });
+    w.offer(running("job-2", "mark", json!({}), json!({})));
+    let claims = quick_claims(&w);
     let stalled = claims.stalled();
-    let job = held(&claims).await;
 
     // It reports for a second, well past the threshold, and is never stalled.
+    let job = held(&claims).await;
     for step in 0..10 {
         tokio::time::sleep(Duration::from_millis(100)).await;
         job.progress(JobProgress::new(f64::from(step)))
             .await
             .expect("sent");
     }
-    assert_eq!(*stalled.borrow(), None, "however long it runs");
+    finish(job).await;
+    hold_silent(&claims).await;
+    claims.stop().await;
 
-    tokio::time::sleep(Duration::from_millis(600)).await;
-    let stall = stalled.borrow().clone().expect("a stall");
-    assert_eq!(
-        (stall.job_id.as_str(), stall.job_type),
-        ("job-1", JobType::Mark)
-    );
+    let stalls = stalls_to_the_end(stalled).await;
+    assert_eq!(stalled_jobs(&stalls), ["job-2"], "however long job-1 ran");
+    let stall = &stalls[0];
+    assert_eq!(stall.job_type, JobType::Mark);
     assert!(stall.silent_for > Duration::from_millis(400));
     assert_eq!(stall.threshold, Duration::from_millis(400));
-    finish(job).await;
 }
 
 // A commit is no lifecycle message, and is not activity.
@@ -1803,10 +1833,7 @@ async fn a_held_job_that_shows_no_activity_is_stalled_and_one_that_keeps_reporti
 async fn a_held_job_that_only_commits_is_stalled_all_the_same() {
     let w = world();
     w.offer(running("job-1", "mark", json!({}), json!({})));
-    let claims = w.client.job.claim(ClaimOptions {
-        timing: quick(),
-        ..ClaimOptions::new(everything())
-    });
+    let claims = quick_claims(&w);
     let stalled = claims.stalled();
     let job = held(&claims).await;
 
@@ -1816,24 +1843,65 @@ async fn a_held_job_that_only_commits_is_stalled_all_the_same() {
             .await
             .expect("established");
     }
-
-    let stall = stalled.borrow().clone().expect("a stall");
-    assert_eq!(stall.job_id.as_str(), "job-1");
     finish(job).await;
+    claims.stop().await;
+
+    assert_eq!(stalled_jobs(&stalls_to_the_end(stalled).await), ["job-1"]);
 }
 
 #[tokio::test(start_paused = true)]
 async fn an_idle_worker_is_never_stalled() {
     let w = world();
-    let claims = w.client.job.claim(ClaimOptions {
-        timing: quick(),
-        ..ClaimOptions::new(everything())
-    });
+    let claims = Arc::new(quick_claims(&w));
     let stalled = claims.stalled();
-    tokio::spawn(async move { claims.next().await });
+    let reading = claims.clone();
+    tokio::spawn(async move { reading.next().await });
 
     tokio::time::sleep(Duration::from_secs(5)).await;
-    assert_eq!(*stalled.borrow(), None);
+    claims.stop().await;
+    assert_eq!(stalls_to_the_end(stalled).await, Vec::<HeldJobStall>::new());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_first_reader_of_stalls_hears_the_latest_before_it_and_a_later_one_only_what_follows() {
+    let w = world();
+    let beyond = 5;
+    let before = ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond;
+    let ids: Vec<String> = (0..=before).map(|n| format!("job-{n}")).collect();
+    for id in &ids {
+        w.offer(running(id, "mark", json!({}), json!({})));
+    }
+    let claims = quick_claims(&w);
+    // Each is stalled while nobody reads the stalls.
+    for _ in 0..before {
+        hold_silent(&claims).await;
+    }
+
+    let first = claims.stalled();
+    let later = claims.stalled();
+    hold_silent(&claims).await;
+    claims.stop().await;
+
+    assert_eq!(stalled_jobs(&stalls_to_the_end(first).await), ids[beyond..]);
+    assert_eq!(
+        stalled_jobs(&stalls_to_the_end(later).await),
+        [ids[before].as_str()]
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_first_reader_of_stalls_who_comes_after_the_claiming_has_ended_hears_nothing() {
+    let w = world();
+    w.offer(running("job-1", "mark", json!({}), json!({})));
+    let claims = quick_claims(&w);
+    // Kept for a first reader, until the claiming ends.
+    hold_silent(&claims).await;
+    claims.stop().await;
+
+    assert_eq!(
+        stalls_to_the_end(claims.stalled()).await,
+        Vec::<HeldJobStall>::new()
+    );
 }
 
 // ── Each job has a trace of its own (WORKER-CONTRACT T1) ────────────────

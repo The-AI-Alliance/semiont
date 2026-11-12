@@ -309,7 +309,7 @@ let testing () =
           incr serial;
           string_of_int !serial)
         ~call:(Testing.call transport) ~global:Bus_registry.bridged_channels
-        ~on_event:ignore ~on_error:ignore ()
+        ~on_event:ignore ()
     in
     let outcome, resolve = Promise.create () in
     let request () =
@@ -469,20 +469,21 @@ let real_delivery () =
         incr serial;
         string_of_int !serial)
       ~call:(Testing.call ~content transport)
-      ~global:Bus_registry.bridged_channels ~on_event ~on_error:ignore ()
+      ~global:Bus_registry.bridged_channels ~on_event ()
   in
   let kb =
     Models.decode Models.knowledge_base
       {|{"id":"kb","label":"Test","did":"did:web:kb.example","endpoint":{"kind":"http","host":"localhost","port":4010,"protocol":"http"}}|}
     |> Result.get_ok
   in
+  let test = Testing.create_test_session { client; kb; id = "kb" } in
   Testing.queue_session scripted "kb" (fun _ ->
       let description =
         Models.decode Models.kb_description
           {|{"name":"Test","domain":"kb.example"}|}
         |> Result.get_ok
       in
-      Ok (client, { Registry.did = "did:web:kb.example"; description }));
+      Ok (test.session, { Registry.did = "did:web:kb.example"; description }));
   let factory = Testing.factory scripted in
   let registry_storage : Registry.storage =
     {
@@ -491,14 +492,13 @@ let real_delivery () =
       remove = Storage.delete storage;
     }
   in
+  let signals = State_units.Session_signals.make () in
   check
-    (Result.is_ok (factory { kb; storage = registry_storage; signals = None }))
+    (Result.is_ok (factory { kb; storage = registry_storage; signals }))
     "scripted factory builds a session";
   check
-    (Result.is_error
-       (factory { kb; storage = registry_storage; signals = None }))
+    (Result.is_error (factory { kb; storage = registry_storage; signals }))
     "unscripted factory input fails";
-  let test = Testing.create_test_session { client; kb; id = "kb" } in
   let bus = Client.subscription client in
   let rec await_open () =
     match Subscription.state bus with
@@ -558,8 +558,9 @@ let real_delivery () =
   in
   Fun.protect
     ~finally:(fun () ->
-      test.close ();
+      State_units.Session_signals.dispose signals;
       Client.close client;
+      test.close ();
       Client.await_closed client)
     (fun () -> Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 2. checked_run)
 
@@ -616,7 +617,7 @@ let kept_client ~sw ~clock ~store ~content ~global =
       ~call:(Testing.call ~content transport)
       ~persister:store
       ~global:(Bus_registry.bridged_channels @ global)
-      ~on_event:ignore ~on_error:ignore ()
+      ~on_event:ignore ()
   in
   (transport, session, client)
 

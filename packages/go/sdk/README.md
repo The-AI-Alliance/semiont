@@ -695,7 +695,9 @@ func Run(ctx context.Context, client *semiont.Client) error {
   transport refused, which it cannot tell it does not accept), and when its
   stream opens again. A claim answered with nothing pending is no refusal, and the worker
   waits. A `*ClaimRefusal` is a claim the dispatcher refused or did not
-  answer.
+  answer. Of the refusals nobody has taken, the latest
+  `ErrorsKeptForFirstReaderCount` wait for whoever ranges over the claims
+  next, the oldest dropped beyond them; a job claimed is never dropped.
 - **A held job settles once**: `Complete`, with what its verb reports,
   `Fail`, or `Cancel`. Each says the outcome and lets the job go, and a second
   is refused. `Start` comes first, and `Progress` and `Checkpoint` as often as
@@ -717,8 +719,10 @@ func Run(ctx context.Context, client *semiont.Client) error {
   spans continue it.
 - **`claims.Vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
-  and how many it has completed. **`claims.Stalled()`** tells of a held job
-  that has shown no activity for fifteen minutes.
+  and how many it has completed. **`claims.Stalled()`** is each held job
+  that has shown no activity for fifteen minutes: its first reader is given
+  the latest `ErrorsKeptForFirstReaderCount` reported before it came, in
+  order, and it ends when the claims do.
 
 What a worker promises the dispatcher is [the worker contract][worker-contract],
 and [its conformance suite][worker-conformance] holds this module to it.
