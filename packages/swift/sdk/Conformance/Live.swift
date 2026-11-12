@@ -90,6 +90,8 @@ actor LiveDriver {
   let http: HTTPClient
   let storage = MemorySessionStorage()
   var client: SemiontClient?
+  /// Ends the failures the client's transport told, once it is disposed.
+  var telling: AsyncStream<TransportError>.Continuation?
   var closed = true
   var observers: [String: Task<Void, Never>] = [:]
   var reporters: [Task<Void, Never>] = []
@@ -135,7 +137,7 @@ actor LiveDriver {
     let transport = HttpTransport(
       baseUrl: try args.text("baseUrl"), httpClient: http, token: try args.text("token"),
       channels: bridgedChannels, timing: transportTiming)
-    let failures = transport.failures()
+    let (failures, telling) = failuresTold(by: transport)
     do {
       client = try await SemiontClient(
         transport: transport, gateway: transport,
@@ -145,16 +147,14 @@ actor LiveDriver {
       transport.dispose()
       throw error
     }
+    self.telling = telling
     closed = false
     let output = output
     reporters = [
       Task {
         for await state in transport.state { await output.say(["state": .string(state.rawValue)]) }
       },
-      Task {
-        do { for try await error in failures { await output.say(["error": failure(error)]) } } catch
-        {}
-      },
+      Task { for await error in failures { await output.say(["error": failure(error)]) } },
     ]
   }
 
@@ -211,6 +211,7 @@ actor LiveDriver {
     case "open": try await open(args)
     case "close":
       try current().dispose()
+      telling?.finish()
       closed = true
       for reporter in reporters { await reporter.value }
       for observer in observers.values { await observer.value }

@@ -198,14 +198,15 @@ public final class ScriptedTransport: Transport {
     }
   }
 
-  /// Its failures, kept for the first listener as an HTTP transport keeps them: that listener is
-  /// given first the latest `Timings.errorsKeptForFirstReaderCount` said before it listened; one
-  /// who comes after the transport is disposed, nothing.
-  public func failures() -> Events<TransportError> { failureEvents.listen() }
+  /// Its failures are those `fail(_:)` reports, kept for the first listener as an HTTP transport
+  /// keeps them.
+  public func tellFailures(to listener: @escaping @Sendable (TransportError) -> Void) {
+    failureEvents.onEach(listener)
+  }
 
-  /// Reports `error` on its failures, as a transport does of a request the gateway refused. One
-  /// reported before anyone listens is kept for the first listener; one reported after the
-  /// transport is disposed reaches nobody.
+  /// Tells `error` to each listener of its failures before it returns, as a transport does of a
+  /// request the gateway refused. One reported before anyone listens is kept for the first
+  /// listener; one reported after the transport is disposed reaches nobody.
   public func fail(_ error: TransportError) { failureEvents.yield(error) }
 
   public func dispose() {

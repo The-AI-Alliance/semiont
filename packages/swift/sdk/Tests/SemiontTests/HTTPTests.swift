@@ -566,13 +566,14 @@ private func overAQuietTransport(_ run: (HttpTransport) async throws -> [String]
   try await http.shutdown()
   return try ran.get()
 }
-/// Everything `failures` says until it ends, as what each says of itself.
-private func everythingTold(by failures: Events<TransportError>) async throws -> [String] {
-  try await withinTestDeadline {
-    var heard: [String] = []
-    for try await failure in failures { heard.append("\(failure)") }
-    return heard
+/// A listener of `transport`'s failures, taken as it is made: what it has been told, as what each
+/// says of itself.
+private final class Heard: Sendable {
+  private let told = Mutex<[String]>([])
+  init(listeningTo transport: any Transport) {
+    transport.tellFailures { [self] failure in told.withLock { $0.append("\(failure)") } }
   }
+  var all: [String] { told.withLock { $0 } }
 }
 @Test func aTransportNobodyHasListenedToKeepsTheLatestOfItsFailuresForItsFirstListener()
   async throws
@@ -583,9 +584,8 @@ private func everythingTold(by failures: Events<TransportError>) async throws ->
   }
   let heard = try await overAQuietTransport { transport in
     for failure in met { transport.failureEvents.yield(failure) }
-    let failures = transport.failures()
-    transport.dispose()
-    return try await everythingTold(by: failures)
+    // What was kept is told as the listener is taken.
+    return Heard(listeningTo: transport).all
   }
   #expect(heard == met.dropFirst(beyond).map { "\($0)" })
 }
@@ -593,32 +593,31 @@ private func everythingTold(by failures: Events<TransportError>) async throws ->
   let heard = try await overAQuietTransport { transport in
     transport.failureEvents.yield(TransportError(.unavailable, "HTTP 503", status: 503))
     transport.dispose()
-    return try await everythingTold(by: transport.failures())
+    return Heard(listeningTo: transport).all
   }
   #expect(heard == [])
 }
-@Test func aScriptedTransportKeepsTheLatestOfItsFailuresForItsFirstListenerAsAnHTTPOneDoes()
-  async throws
-{
+@Test func aScriptedTransportTellsEachFailureWithinTheTellingAsAnHTTPOneDoes() {
   let transport = ScriptedTransport(channels: [])
   let beyond = 5
   let said = (0..<(Timings.errorsKeptForFirstReaderCount + beyond)).map { n in
     TransportError(.unavailable, "failure \(n)", status: 503)
   }
   for failure in said { transport.fail(failure) }
-  let first = transport.failures()
-  let later = transport.failures()
+  let first = Heard(listeningTo: transport)
+  let later = Heard(listeningTo: transport)
   let last = TransportError(.unavailable, "a failure once the first listened", status: 503)
   transport.fail(last)
+  let toldBeforeTheDispose = (Array(said.dropFirst(beyond)) + [last]).map { "\($0)" }
+  #expect(first.all == toldBeforeTheDispose)
+  #expect(later.all == ["\(last)"], "a later listener hears only what follows it")
   transport.dispose()
-  let firstHeard = try await everythingTold(by: first)
-  let laterHeard = try await everythingTold(by: later)
-  #expect(firstHeard == (Array(said.dropFirst(beyond)) + [last]).map { "\($0)" })
-  #expect(laterHeard == ["\(last)"], "a later listener hears only what follows it")
+  transport.fail(TransportError(.unavailable, "a failure once disposed", status: 503))
+  #expect(first.all == toldBeforeTheDispose, "a failure once disposed reaches nobody")
 }
-@Test func aFirstListenerWhoComesAfterAScriptedTransportIsDisposedHearsNothing() async throws {
+@Test func aFirstListenerWhoComesAfterAScriptedTransportIsDisposedHearsNothing() {
   let transport = ScriptedTransport(channels: [])
   transport.fail(TransportError(.unavailable, "HTTP 503", status: 503))
   transport.dispose()
-  #expect(try await everythingTold(by: transport.failures()) == [])
+  #expect(Heard(listeningTo: transport).all == [])
 }
