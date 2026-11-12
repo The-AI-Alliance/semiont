@@ -35,8 +35,9 @@ vi.mock('../../client', async () => {
 });
 
 import { SemiontClient, APIError } from '../../client';
-import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
-import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, REFRESH_RETRY, SignInError, type AccessToken, type SemiontError } from '@semiont/core';
+import { SemiontSession, sayOn, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
+import { SemiontSessionError } from '../errors';
+import { accessToken, userId, ERRORS_KEPT_FOR_FIRST_READER_COUNT, MAX_RECONNECT_MS, RECONNECT_MS, REFRESH_RETRY, SignInError, type AccessToken, type SemiontError } from '@semiont/core';
 import { SESSION_PREFIX_RE, UNREADABLE, UnreadableSignIn, freshJwt, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession, keptIn } from '../storage';
 import { MemorySignIn } from '../sign-in-kept';
@@ -865,6 +866,21 @@ describe('SemiontSession — dispose', () => {
 
     await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('SemiontSession — what is kept for the first reader', () => {
+  it('keeps the latest ERRORS_KEPT_FOR_FIRST_READER_COUNT of what it says before anyone reads, the oldest dropped, and its first reader hears them in order', async () => {
+    const session = newSession();
+    await session.ready;
+    const beyond = 5;
+    const messages = Array.from({ length: ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond }, (_, n) => `failure ${n}`);
+    for (const message of messages) sayOn(session, new SemiontSessionError('session.keep-failed', message, KB.id));
+
+    const said = saidBy(session);
+    session.dispose();
+
+    expect(said.map((error) => error.message)).toEqual(messages.slice(beyond));
   });
 });
 

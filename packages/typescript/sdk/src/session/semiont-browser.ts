@@ -549,27 +549,16 @@ export class SemiontBrowser {
       // hands it back, so the first: what the session said before anyone
       // read is kept for it. The factory reads none of them.
       //  - Each of the session's own errors is said on the registry's.
-      //  - `unauthorized` goes through RECOVERY, not straight to the modal.
-      //    A single one is not session death: requests race the refresh
-      //    window, and a direct wire to the modal would fire "Session
-      //    Expired — HTTP 401" over sessions that heal a beat later — and,
-      //    for a truly dead session, WITHOUT clearing storage, so every
-      //    reload would restore the corpse and re-arm an effectively
-      //    undismissable modal (both its buttons navigate — into the same
-      //    loop). `session.refresh(refused)` covers both ends: success heals
-      //    in silence; exhaustion runs the session's own teardown — stored
-      //    session cleared, `onAuthFailed` fires the modal once, with the
-      //    session's own reason instead of the raw transport line.
-      //  - `forbidden` has no recovery: it is said as permission-denied,
-      //    with the refusal's message as its detail.
+      //  - `forbidden` has no remedy: it is said as permission-denied, with
+      //    the refusal's message as its detail.
+      //  - Every other failure of its transport is left alone, `unauthorized`
+      //    among them: the transport that met a refused token renews it, and
+      //    a session that cannot be renewed ends itself and says so through
+      //    `onAuthFailed`, once.
       // The reading ends when the session's errors do, as the session ends.
       session.errors$.subscribe((err) => {
         if (err instanceof SemiontSessionError) {
           this.error$.next(err);
-        } else if (err.code === 'unauthorized') {
-          // A failure does not say which token was refused: the one the
-          // session holds as it is read is.
-          void session.refresh(session.token$.getValue());
         } else if (err.code === 'forbidden') {
           signals.notifyPermissionDenied(err.message);
         }

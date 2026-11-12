@@ -50,6 +50,7 @@ import {
   baseUrl,
   BRIDGED_CHANNELS,
   equalJitter,
+  ERRORS_KEPT_FOR_FIRST_READER_COUNT,
   MAX_RECONNECT_MS,
   RECONNECT_MS,
   RETRY_RULES,
@@ -205,11 +206,11 @@ export class SemiontSession implements StateUnit {
    * caller (for `HttpTransport` an `APIError`, status-coded). A registry
    * (`SemiontBrowser`) is the one reader of its sessions' errors, and routes
    * them by `err.code`; headless consumers can subscribe for logging.
-   * Everything the session says before anyone reads, its own errors and its
-   * transport's failures, is kept for the first reader, in the order it was
-   * said. It ends when the session does: the client's closing flush, made
-   * first, says what it says before then, and what the client meets after
-   * is said nowhere.
+   * Of what the session says before anyone reads, its own errors and its
+   * transport's failures, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are
+   * kept for the first reader, in the order they were said. It ends when
+   * the session does: the client's closing flush, made first, says what it
+   * says before then, and what the client meets after is said nowhere.
    */
   readonly errors$: Observable<SemiontError>;
 
@@ -221,9 +222,10 @@ export class SemiontSession implements StateUnit {
   /** What the session says on `errors$`, to every reader it has: its own errors and its transport's failures. */
   readonly #said = new Subject<SemiontError>();
   /**
-   * What the session said before anyone read `errors$`, its own errors and its
-   * transport's failures in the order it said them, kept for the first
-   * reader; null once one has, or the session has ended.
+   * The latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` the session said before
+   * anyone read `errors$`, its own errors and its transport's failures in the
+   * order it said them, kept for the first reader; null once one has, or the
+   * session has ended.
    */
   #keptForFirstReader: SemiontError[] | null = [];
   readonly #transportFailures: Subscription;
@@ -411,9 +413,12 @@ export class SemiontSession implements StateUnit {
     this.#say(new SemiontSessionError(code, why, this.kb.id));
   }
 
-  /** Say `error`, one of the session's own or its transport's failure, on `errors$`, kept for the first reader while nobody has read. */
+  /** Say `error`, one of the session's own or its transport's failure, on `errors$`, kept for the first reader while nobody has read, the oldest kept dropped beyond `ERRORS_KEPT_FOR_FIRST_READER_COUNT`. */
   #say(error: SemiontError): void {
-    if (this.#keptForFirstReader !== null) this.#keptForFirstReader.push(error);
+    if (this.#keptForFirstReader !== null) {
+      this.#keptForFirstReader.push(error);
+      if (this.#keptForFirstReader.length > ERRORS_KEPT_FOR_FIRST_READER_COUNT) this.#keptForFirstReader.shift();
+    }
     this.#said.next(error);
   }
 
