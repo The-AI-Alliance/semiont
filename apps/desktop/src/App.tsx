@@ -25,7 +25,7 @@ import {
 } from './lib/chat-sessions';
 import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout, type ResourcePresentation } from './lib/split-layout';
-import { KbNav } from './components/KbNav';
+import { KbNav, SemiontMenu } from './components/KbNav';
 import { WorkspaceTabs, localRootPathFromTabId, localRootTabId } from './components/WorkspaceTabs';
 import { AppearancePanel } from './components/AppearancePanel';
 import { LanguagePanel } from './components/LanguagePanel';
@@ -1015,6 +1015,9 @@ export function App() {
     ? activeKnowledgeBaseRoot?.activeSessionUri !== undefined
     : activeConn?.opened !== undefined;
   const showWorkspaceNav = activeKbTabUri === null || activeKbConnected;
+  const workspaceColumns = showWorkspaceNav
+    ? `${sidebarWidth}px 1px minmax(0, 1fr)${semiontMenuOpen ? ' minmax(16rem, 19rem)' : ''}`
+    : `0px minmax(0, 1fr)${semiontMenuOpen ? ' minmax(16rem, 19rem)' : ''}`;
 
   return (
     <>
@@ -1056,15 +1059,11 @@ export function App() {
           onClose={closeKbTab}
           onAdd={() => openKnowledgeBases(true)}
         />
-        <div className="app__body" style={{ gridTemplateColumns: showWorkspaceNav ? `${sidebarWidth}px 1px 1fr` : '0px 1fr' }}>
+        <div className="app__body" style={{ gridTemplateColumns: workspaceColumns }}>
           <KbNav
-            semiontMenuOpen={semiontMenuOpen}
-            onSemiontMenuOpenChange={setSemiontMenuOpen}
             showWorkspaceContent={showWorkspaceNav}
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
-            hasActiveKbTab={activeKbTabUri !== null}
-            hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
             connections={connections}
             sessions={sessions}
             // doc and chat coexist now — both rows light up when both are live
@@ -1075,24 +1074,6 @@ export function App() {
             onNewChat={handleNewChat}
             onNewDocument={openNewDocument}
             onSelectSession={selectSession}
-            onOpenInference={openInference}
-            onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
-            onOpenRemoteService={setRemoteService}
-            onOpenSecrets={openSecrets}
-            onOpenMcp={openMcp}
-            mcpStatus={mcpStatus}
-            onOpenAppearance={() => setShowAppearance(true)}
-            onOpenLanguage={() => setShowLanguage(true)}
-            onOpenTelemetry={openTelemetry}
-            onOpenRuntime={openRuntime}
-            onOpenKnowledgeBase={() => {
-              setShowKnowledgeBaseDetails(true);
-              refreshKnowledgeBases();
-            }}
-            onOpenKnowledgeBaseUsers={() => {
-              setShowKnowledgeBaseUsers(true);
-              refreshKnowledgeBases();
-            }}
             queueRootPath={activeLocalRootPath}
             onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeLocalRootPath)}
           />
@@ -1145,6 +1126,32 @@ export function App() {
             onResourcesChanged={() => setDocsRefresh((n) => n + 1)}
             onConnect={() => activeKbUri && void connectKb(activeKbUri, true)}
           />
+          {semiontMenuOpen && (
+            <SemiontMenu
+              open={semiontMenuOpen}
+              onOpenChange={setSemiontMenuOpen}
+              hasActiveKbTab={activeKbTabUri !== null}
+              hasConfiguredIndex={activeLocalRootPath !== null && configuredServiceGroups.has('index')}
+              onOpenInference={openInference}
+              onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
+              onOpenRemoteService={setRemoteService}
+              onOpenSecrets={openSecrets}
+              onOpenMcp={openMcp}
+              mcpStatus={mcpStatus}
+              onOpenAppearance={() => setShowAppearance(true)}
+              onOpenLanguage={() => setShowLanguage(true)}
+              onOpenTelemetry={openTelemetry}
+              onOpenRuntime={openRuntime}
+              onOpenKnowledgeBase={() => {
+                setShowKnowledgeBaseDetails(true);
+                refreshKnowledgeBases();
+              }}
+              onOpenKnowledgeBaseUsers={() => {
+                setShowKnowledgeBaseUsers(true);
+                refreshKnowledgeBases();
+              }}
+            />
+          )}
         </div>
       </div>
       {showAppearance && (

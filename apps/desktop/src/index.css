@@ -2413,34 +2413,14 @@ button.kb-location-picker__entry:hover {
 }
 
 /* The lower-left SEMIONT wordmark is branding; the top chrome gear opens settings. */
-.nav__footer {
-  position: relative;
-}
-.semiont-panel-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 19;
-  border: 0;
-  background: rgba(15, 23, 42, 0.18);
-  cursor: default;
-}
-.app--electron .semiont-panel-backdrop {
-  top: 3rem;
-}
 .semiont-panel {
-  position: fixed;
-  inset: 0 0 0 auto;
-  z-index: 20;
   display: flex;
   flex-direction: column;
-  width: min(19rem, calc(100vw - 1rem));
-  padding: 0 0.8rem 0.8rem;
+  min-width: 0;
+  min-height: 0;
   border-left: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
-}
-.app--electron .semiont-panel {
-  top: 3rem;
+  overflow: hidden;
 }
 .semiont-panel__items {
   display: flex;
@@ -2533,8 +2513,8 @@ button.kb-location-picker__entry:hover {
 .app__body {
   display: grid;
 
-  /* sidebar | resizer | chat — the first column width is driven by inline style. */
-  grid-template-columns: 17rem 1px 1fr;
+  /* sidebar | resizer | workspace | optional settings panel */
+  grid-template-columns: 17rem 1px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }

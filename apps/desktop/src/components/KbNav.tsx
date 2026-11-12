@@ -12,14 +12,10 @@ import { QueueStatusIndicator } from './QueueStatusIndicator';
 /** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
 export interface KbNavProps {
-  semiontMenuOpen: boolean;
-  onSemiontMenuOpenChange: (open: boolean) => void;
   /** Hide KB-specific navigation while the active tab has no SDK session. */
   showWorkspaceContent: boolean;
   kbs: KbEntry[];
   hasLocalRootTab: boolean;
-  hasActiveKbTab: boolean;
-  hasConfiguredIndex: boolean;
   connections: Record<string, KbConnection>;
   sessions: AppChatSession[];
   activeSessionId: string | null;
@@ -31,6 +27,15 @@ export interface KbNavProps {
   onNewChat: (kbUri: string) => void;
   onNewDocument: (kbUri: string) => void;
   onSelectSession: (sessionId: string) => void;
+  queueRootPath: string | null;
+  onOpenDispatcherMessaging: () => void;
+}
+
+export interface SemiontMenuProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  hasActiveKbTab: boolean;
+  hasConfiguredIndex: boolean;
   onOpenInference: () => void;
   onOpenServiceGroup: (group: DesktopServiceGroup) => void;
   onOpenRemoteService: (service: RemoteService) => void;
@@ -43,8 +48,6 @@ export interface KbNavProps {
   onOpenRuntime: () => void;
   onOpenKnowledgeBase: () => void;
   onOpenKnowledgeBaseUsers: () => void;
-  queueRootPath: string | null;
-  onOpenDispatcherMessaging: () => void;
 }
 
 export function KbNav(props: KbNavProps) {
@@ -64,13 +67,18 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu open={props.semiontMenuOpen} onOpenChange={props.onSemiontMenuOpenChange} showWorkspaceContent={props.showWorkspaceContent} hasActiveKbTab={props.hasActiveKbTab} hasConfiguredIndex={props.hasConfiguredIndex} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} queueRootPath={props.queueRootPath} onOpenDispatcherMessaging={props.onOpenDispatcherMessaging} />
+      <div className="nav__footer">
+        {props.showWorkspaceContent && props.queueRootPath !== null && <QueueStatusIndicator rootPath={props.queueRootPath} onClick={props.onOpenDispatcherMessaging} />}
+        <div className="semiont-brand" aria-label="Semiont">
+          <span className="app__powered-mark">SEMIONT</span>
+        </div>
+      </div>
     </nav>
   );
 }
 
-function SemiontMenu({ open, onOpenChange, showWorkspaceContent, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, queueRootPath, onOpenDispatcherMessaging }: Pick<KbNavProps, 'showWorkspaceContent' | 'hasActiveKbTab' | 'hasConfiguredIndex' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'queueRootPath' | 'onOpenDispatcherMessaging'> & { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const menuRef = useRef<HTMLDivElement>(null);
+export function SemiontMenu({ open, onOpenChange, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime }: SemiontMenuProps) {
+  const menuRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -93,13 +101,8 @@ function SemiontMenu({ open, onOpenChange, showWorkspaceContent, hasActiveKbTab,
     action();
   };
 
-  return (
-    <div className="nav__footer" ref={menuRef}>
-      {showWorkspaceContent && queueRootPath !== null && <QueueStatusIndicator rootPath={queueRootPath} onClick={onOpenDispatcherMessaging} />}
-      {open && (
-        <>
-          <button type="button" className="semiont-panel-backdrop" aria-label="Close Semiont panel" onClick={() => onOpenChange(false)} />
-          <aside id="semiont-panel" className="semiont-panel" role="dialog" aria-modal="true" aria-label="Semiont menu">
+  return open ? (
+          <aside id="semiont-panel" className="semiont-panel" ref={menuRef} aria-label="Semiont menu">
             <nav className="semiont-panel__items" aria-label="Semiont menu items">
               <section className="semiont-menu__group" aria-labelledby="semiont-menu-app">
                 <h2 id="semiont-menu-app">App</h2>
@@ -142,13 +145,7 @@ function SemiontMenu({ open, onOpenChange, showWorkspaceContent, hasActiveKbTab,
               </section>
             </nav>
           </aside>
-        </>
-      )}
-      <div className="semiont-brand" aria-label="Semiont">
-        <span className="app__powered-mark">SEMIONT</span>
-      </div>
-    </div>
-  );
+  ) : null;
 }
 
 function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
