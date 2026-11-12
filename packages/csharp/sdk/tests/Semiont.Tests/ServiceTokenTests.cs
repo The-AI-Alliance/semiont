@@ -174,6 +174,54 @@ public sealed class ServiceTokenTests
         Assert.Equal(2, handler.Grants);
     }
 
+    // An agent disposed while its token is renewed ends the renewal: the refusal waiting on it is given no token, the
+    // issuer's later answer is not taken, and a refusal after, of the token it holds or of the one that token replaced, is
+    // given none, with the issuer not asked.
+    [Fact]
+    public async Task AnAgentThatClosesWhileItsTokenIsRenewedGivesTheRefusalNoTokenAndRenewsNothingAfter()
+    {
+        var clock = new TestClock();
+        var sequence = 0;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var handler = new Handler(async (_, cancellation) =>
+        {
+            var granted = ++sequence;
+            if (granted == 3)
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(cancellation);
+            }
+            var now = clock.GetUtcNow().ToUnixTimeSeconds();
+            return Reply(new { access_token = TokenTests.Jwt(new { iat = now, exp = now + 3600, sequence = granted }), expires_in = 3600 });
+        });
+        using var client = new HttpClient(handler);
+        using var service = new ServiceToken("https://issuer.example", "worker", "secret", client, clock);
+        var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("""{"kind":"http","host":"kb.example","port":443,"protocol":"https"}""")
+            ?? throw new InvalidOperationException("Missing endpoint");
+        using var agent = new AgentToken(endpoint, service, client);
+        await agent.SignInAsync();
+        var first = agent.Token;
+        var held = await agent.RefreshAsync(first);
+        Assert.NotEqual(first, held);
+        var refusing = agent.RefreshAsync(held);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        agent.Dispose();
+
+        // The disposal ended the renewal: the refusal is given no token, rather than a cancellation it never had.
+        Assert.Null(await refusing.WaitAsync(TimeSpan.FromSeconds(10)));
+        // The issuer's answer comes later, to the service token that asked for it, and the agent does not take it.
+        release.SetResult();
+        Assert.NotEqual("Bearer " + held, await service.AuthorizationAsync().WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(held, agent.Token);
+        // A disposed agent gives a refusal no token, of the token it holds or of the one that token replaced, and asks the
+        // issuer for nothing.
+        Assert.Null(await agent.RefreshAsync(held));
+        Assert.Null(await agent.RefreshAsync(first));
+        Assert.Equal(3, handler.Grants);
+    }
+
     private static string Text(JsonElement row, string key) => row.GetProperty(key).GetString() ?? throw new InvalidOperationException(key);
 
     private static async Task<Dictionary<string, string>> ReadFormAsync(HttpRequestMessage request, CancellationToken cancellation)

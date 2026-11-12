@@ -113,32 +113,60 @@ public sealed class SessionTests
         Assert.Equal(1, calls);
     }
 
+    // A session disposed while its token is renewed gives the refusal waiting no token at once. The renewal is not ended:
+    // an issuer that rotates refresh tokens spent the old one as it answered, so the close waits for the renewal, and the
+    // new pair is kept where the sign-in is. The session takes none of it, completes its observers and signs nothing out,
+    // and a refusal after the close, of the token it holds or of the one that token replaced, is given none, with nothing
+    // renewed.
     [Fact]
-    public async Task DisposalCancelsPendingWorkCompletesObserversAndDoesNotForgetTheSignIn()
+    public async Task DisposalGivesTheRefusalNoTokenAtOnceAndWaitsForTheRenewalUnderWayWhoseTokensAreKept()
     {
         var clock = new TestClock();
         var kept = Stored(clock);
+        var stored = (await kept.HeldAsync())?.Access ?? throw new InvalidOperationException("Nothing is stored");
+        var renewed = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 7200 });
+        var late = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 10800 });
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        async Task<string?> Renew(string? holding, CancellationToken cancellation)
+        var answer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var grants = 0;
+        async Task<(string Access, string? Refresh)> Grant(StoredSession read, CancellationToken cancellation)
         {
+            if (Interlocked.Increment(ref grants) == 1) return (renewed, "refresh-2");
             entered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellation);
-            throw new InvalidOperationException("An infinite wait returned");
+            await answer.Task.WaitAsync(cancellation);
+            return (late, "refresh-3");
         }
-        using var session = new KeptSession(kept, Renew, (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+        using var session = new KeptSession(kept, (holding, cancellation) => KeptRenewal.RenewAsync(kept, holding, Grant, clock, cancellation),
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
         await session.ReadyAsync();
+        Assert.Equal(renewed, await session.RefreshAsync(stored));
         await using var observer = session.States().GetAsyncEnumerator();
         Assert.True(await observer.MoveNextAsync());
         var next = observer.MoveNextAsync().AsTask();
-        var renewal = session.RefreshAsync(session.State.Token);
-        await entered.Task;
         var before = session.State;
+        var refusing = session.RefreshAsync(renewed);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var closing = session.DisposeAsync().AsTask();
+        // A second close is the first.
         session.Dispose();
-        session.Dispose();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => renewal);
+
+        // The refusal is given no token at once, rather than a cancellation it never had, and the close waits for the issuer.
+        Assert.Null(await refusing.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.False(await next);
+        Assert.False(closing.IsCompleted);
+        // The issuer answers: the close returns once the new pair is kept, and the session took none of it.
+        answer.SetResult();
+        await closing.WaitAsync(TimeSpan.FromSeconds(10));
+        var keptNow = await kept.HeldAsync();
+        Assert.Equal(late, keptNow?.Access);
+        Assert.Equal("refresh-3", keptNow?.Refresh);
         Assert.Equal(before, session.State);
-        Assert.NotNull(await kept.HeldAsync());
+        Assert.Null(session.EndReason);
+        // A refusal once disposed, of the token held or of the one it replaced, is given no token, and nothing is renewed.
+        Assert.Null(await session.RefreshAsync(renewed));
+        Assert.Null(await session.RefreshAsync(stored));
+        Assert.Equal(2, Volatile.Read(ref grants));
     }
 
     [Fact]

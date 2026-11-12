@@ -34,7 +34,9 @@ public sealed class SemiontSession : IStateUnit
     /// once that is recorded on <paramref name="kept"/>; it writes only while <paramref name="kept"/> still names them.
     /// A sign-in it cannot read or record ends that keeping, said on <see cref="Errors"/> as session.keep-failed, and
     /// each write the storage refuses is said there as session.save-refused. Ending the opened session ends the client,
-    /// waits for its closing save, and then ends the session, so what that save says reaches the session's errors.
+    /// waits for its closing save, and then ends the session, so what that save says reaches the session's errors. A
+    /// renewal under way at the issuer then is not ended: the close waits for it, and the tokens it brings are kept in
+    /// <paramref name="kept"/>, not taken by the session.
     /// </summary>
     public static async Task<OpenedSession> FromKeptAsync(KbTarget kb, ISignInKept kept, ISessionStorage? storage = null,
         HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null, bool validate = true,
@@ -65,7 +67,12 @@ public sealed class SemiontSession : IStateUnit
                     client.Dispose();
                     await client.Flushed.ConfigureAwait(Spawning.Captures);
                 }
-                finally { session.Dispose(); }
+                finally
+                {
+                    session.Dispose();
+                    // A renewal under way at the issuer runs to its end, and what it brings is kept, before the close returns.
+                    await credentials.DisposeAsync().ConfigureAwait(Spawning.Captures);
+                }
             }, session);
         }
         catch
