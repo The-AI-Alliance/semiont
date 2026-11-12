@@ -34,9 +34,9 @@ from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
-from semiont._heard import heard
 from semiont._reading import Reading
 from semiont._required import Fault, read_as
+from semiont._shared_task import answer, heard
 from semiont.errors import SemiontError, SignInError, TransportError
 from semiont.http._client_assertion import JWT_BEARER, client_assertion
 from semiont.http._withheld import why_unanswered
@@ -300,7 +300,7 @@ class AgentToken:
         self._closing.set()
         renewing = self._renewing
         if renewing is not None:
-            # A renewal still under way has nobody left to give its token to.
+            # A renewal still under way has nobody left to give its token to: each refusal waiting on it is given none.
             renewing.cancel()
             await asyncio.gather(renewing, return_exceptions=True)
         keeping = self._keeping
@@ -318,7 +318,9 @@ class AgentToken:
         is given, and the issuer is not asked. A refusal of the token it holds
         while that token is being renewed, for another refusal or on its
         schedule, is given what that renewal brings: one renewal answers them
-        all.
+        all. Once the agent is closed, a refusal is given nothing and the
+        issuer is not asked, and one waiting on the renewal the close ended is
+        given nothing too.
         """
         try:
             return await self._renewal(refused)
@@ -335,12 +337,15 @@ class AgentToken:
         held = self._token.value
         if held != of:
             return held
+        if self._closing.is_set():
+            # A closed agent renews nothing.
+            return None
         if self._renewing is None:
             self._renewing = asyncio.create_task(self._renew())
             # A renewal everyone stopped waiting for has nobody to tell how it ended.
             self._renewing.add_done_callback(heard)
-        # Whoever stops waiting does not stop the renewal.
-        return await asyncio.shield(self._renewing)
+        # Whoever stops waiting does not stop the renewal; one the close ended gives no token.
+        return await answer(self._renewing)
 
     async def _renew(self) -> str:
         """Ask the issuer for another, and make it the token."""

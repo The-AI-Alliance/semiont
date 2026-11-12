@@ -38,7 +38,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Hasha
 from dataclasses import dataclass, field
 from typing import Final, Literal, Protocol, final, override
 
-from semiont._heard import heard
+from semiont._shared_task import heard
 from semiont.errors import BusRequestError
 from semiont.state_unit import StateUnit
 from semiont.timing import SAVE_DEBOUNCE_MS

@@ -879,7 +879,7 @@ def test_an_agents_due_renewal_tried_again_renews_nothing_once_a_refusal_has_ren
     run(scenario())
 
 
-def test_an_agent_that_closes_while_its_token_is_renewed_ends_the_renewal_and_takes_no_token_after() -> None:
+def test_an_agent_that_closes_while_its_token_is_renewed_gives_the_refusal_no_token_and_renews_nothing_after() -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
@@ -893,11 +893,14 @@ def test_an_agent_that_closes_while_its_token_is_renewed_ends_the_renewal_and_ta
                 refusing = asyncio.create_task(agent.refresh(first))
                 await soon(gateway.arrived("POST", TOKEN, 2))
 
-            # The close ended the renewal: the refusal waits for no answer, and the one that comes later is not taken.
-            await soon(asyncio.wait([refusing]))
+            # The close ended the renewal: the refusal is given no token, rather than a cancellation it never had.
+            assert await soon(refusing) is None
+            # The answer that comes later is not taken, and a closed agent asks the issuer for nothing.
             granting.set()
             await settle()
             assert agent.token.value == first
+            assert await agent.refresh(first) is None
+            assert len(gateway.of("POST", TOKEN)) == 2
 
     run(scenario())
 
