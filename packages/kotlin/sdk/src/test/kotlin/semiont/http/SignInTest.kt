@@ -2,7 +2,11 @@ package semiont.http
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -380,6 +384,29 @@ class SignInTest {
             assertEquals(second, agent.refresh(first))
             assertEquals(2, realm.of("/token").size)
             assertEquals(listOf("Bearer $first"), realm.of("/api/users/me").map { it.authorization })
+        }
+    }
+
+    @Test
+    fun refusalsOfTheAgentsTokenThatArriveDuringItsRenewalShareItsGrant() = runBlocking {
+        val realm = realm()
+        val first = tokenFor("service-1")
+        val second = tokenFor("service-2")
+        // A third grant is there to be made, so that a refusal that made one would be given it.
+        realm.script("/token", issued(first), issued(tokenFor("service-3")))
+        realm.script("/api/users/me", named(AGENT_DID))
+        AgentToken(realm.origin, ServiceToken(SecretCredential(realm.origin, "worker", "the-secret"))).use { agent ->
+            agent.signIn()
+            // The issuer holds its answer to the first refusal's grant while the second refusal arrives.
+            realm.hold("/token")
+            val given = List(2) { async { agent.refresh(first) } }
+            withTimeout(5_000) {
+                while (realm.of("/token").size < 2) delay(5)
+            }
+            realm.release("/token", issued(second))
+            assertEquals(listOf(second, second), given.awaitAll())
+            assertEquals(2, realm.of("/token").size)
+            assertEquals(second, agent.token.value)
         }
     }
 

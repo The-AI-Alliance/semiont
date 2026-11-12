@@ -322,6 +322,28 @@ class SessionTest {
         }
     }
 
+    // A refusal's renewal is still under way when the token's wait runs out: the schedule waits for it, finds the
+    // token it was due for replaced, and renews nothing. The renewed token has a wait of its own.
+    @Test
+    fun aWaitThatRanOutForATokenSinceReplacedRenewsNothing() = runTest {
+        val access = token(300, 0)
+        val renewed = token(3600, 1)
+        val world = SessionWorld(kept = access, renewals = listOf(renewed, token(3600, 2)))
+        // An issuer that takes a while to answer: twenty seconds.
+        world.session(renew = { holding -> world.refresh(holding).also { delay(20_000) } }).use { session ->
+            session.start()
+            session.ready()
+            // Half the token's life is 150 seconds, less whatever of a second had passed when it was issued.
+            advanceTimeBy(140_000)
+            val refreshing = async { session.refresh(access) }
+            runCurrent()
+            advanceTimeBy(60_000)
+            assertEquals(renewed, refreshing.await())
+            assertEquals(listOf<String?>(access), world.handed)
+            assertEquals(renewed, session.token.value)
+        }
+    }
+
     @Test
     fun aSessionThatCannotBeRenewedIsOverAndSaysSoOnce() = runTest {
         val world = SessionWorld(kept = token(3600, 1))

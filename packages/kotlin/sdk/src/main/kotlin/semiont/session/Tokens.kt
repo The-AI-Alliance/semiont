@@ -67,18 +67,21 @@ public fun refreshDelay(token: String, now: Double): Double? {
 
 /**
  * Renew a token whenever it is due, for as long as this runs: wait what
- * `refreshDelay` says of the token as it is, and call `renew`. The wait is
+ * `refreshDelay` says of the token as it is, and hand `renew` the token whose
+ * wait ran out. `renew` renews it only while it is still the token held,
+ * checked in the step that starts or joins the renewal, so a wait that ran out
+ * for a token renewed some other way meanwhile renews nothing. The wait is
  * counted from each token as it arrives, so one renewed some other way starts
  * a wait of its own, and a renewal that changed nothing is due again a floor
  * later. A token that names no expiry schedules nothing: it is renewed when
  * whoever it is shown to refuses it.
  */
-internal suspend fun renewWhenDue(token: StateFlow<String?>, renew: suspend () -> Unit) {
+internal suspend fun renewWhenDue(token: StateFlow<String?>, renew: suspend (String) -> Unit) {
     var current = token.value
     while (true) {
         val from = current
         val due = from?.takeIf { it.isNotEmpty() }?.let { refreshDelay(it, System.currentTimeMillis() / 1000.0) }
-        if (due == null) {
+        if (from == null || due == null) {
             current = token.first { it != from }
             continue
         }
@@ -87,7 +90,7 @@ internal suspend fun renewWhenDue(token: StateFlow<String?>, renew: suspend () -
             current = arrived.token
             continue
         }
-        renew()
+        renew(from)
         current = token.value
     }
 }
