@@ -3,8 +3,8 @@ import Synchronization
 
 /// Each call creates an independent unbounded queue, beginning at the call. One that keeps for its
 /// first listener gives that listener first the latest `Timings.errorsKeptForFirstReaderCount` it
-/// was given before anyone listened. An action given to `onEach` is called with each value as it
-/// is given.
+/// was given before anyone listened, until it ends. An action given to `onEach` is called with each
+/// value as it is given; given before anyone listened, it is that first listener.
 package final class Broadcast<Value: Sendable>: Sendable {
   private let keepsForFirst: Bool
   package init(keepingForFirst: Bool = false) { keepsForFirst = keepingForFirst }
@@ -40,10 +40,17 @@ package final class Broadcast<Value: Sendable>: Sendable {
     return Events(stream, stop: { continuation.finish() })
   }
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
-  /// Calls `action` with each value it is given from now until it ends, before the giving returns.
+  /// Calls `action` with each value it is given from now until it ends, before the giving returns;
+  /// before anyone listened, first with what was kept for the first listener.
   package func onEach(_ action: @escaping @Sendable (Value) -> Void) {
     state.withLock { state in
-      if !state.closed { state.actions.append(action) }
+      guard !state.closed else { return }
+      state.actions.append(action)
+      if !state.listened {
+        state.listened = true
+        for value in state.kept { action(value) }
+        state.kept.removeAll()
+      }
     }
   }
   package func yield(_ value: Value) {

@@ -89,7 +89,7 @@ public actor SemiontBrowser {
   public nonisolated let identityToken = Watched<String?>(nil)
   public nonisolated let bus = EventBus()
 
-  private nonisolated let failures = Broadcast<any Error>()
+  private nonisolated let failures = Broadcast<any Error>(keepingForFirst: true)
   nonisolated let clock: any Clock<Duration>
   nonisolated let random: RandomSource
   private let factory: any SessionFactory
@@ -140,6 +140,9 @@ public actor SemiontBrowser {
     activate()
   }
 
+  /// What went wrong: each of its sessions' own errors, and its own. The first listener is given
+  /// first the latest `Timings.errorsKeptForFirstReaderCount` said before it listened; one who
+  /// comes after they have ended, nothing.
   public nonisolated func errors() -> Events<any Error> { failures.listen() }
   public nonisolated func setIdentityToken(_ value: String?) { identityToken.set(value) }
 

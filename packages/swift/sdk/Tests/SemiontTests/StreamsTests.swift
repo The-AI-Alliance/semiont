@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 
 @testable import Semiont
@@ -84,4 +85,25 @@ private final class Said: Sendable {}
   var heard: [Int] = []
   for try await value in first { heard.append(value) }
   #expect(heard == Array(given.dropFirst(beyond)))
+}
+/// What an action was called with, in order.
+private final class Calls: Sendable {
+  private let values = Mutex<[Int]>([])
+  func called(_ value: Int) { values.withLock { $0.append(value) } }
+  var all: [Int] { values.withLock { $0 } }
+}
+@Test func anActionGivenBeforeAnyoneListenedIsTheFirstListener() async throws {
+  let source = Broadcast<Int>(keepingForFirst: true)
+  let beyond = 5
+  let given = Array(0..<(Timings.errorsKeptForFirstReaderCount + beyond))
+  for n in given { source.yield(n) }
+  let calls = Calls()
+  source.onEach { calls.called($0) }
+  let later = source.listen()
+  source.yield(-1)
+  source.finish()
+  var heard: [Int] = []
+  for try await value in later { heard.append(value) }
+  #expect(calls.all == Array(given.dropFirst(beyond)) + [-1])
+  #expect(heard == [-1])
 }

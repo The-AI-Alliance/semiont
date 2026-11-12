@@ -6,7 +6,7 @@ public actor HttpTransport: Transport, GatewayOperations {
   public nonisolated let baseUrl: String
   public nonisolated let state = Watched<ConnectionState>(.initial)
   nonisolated let lifetime = Lifetime()
-  nonisolated let failureEvents = Broadcast<TransportError>()
+  nonisolated let failureEvents = Broadcast<TransportError>(keepingForFirst: true)
   let http: HTTPClient
   let timing: TransportTiming
   nonisolated let clock: any Clock<Duration>
@@ -73,6 +73,9 @@ public actor HttpTransport: Transport, GatewayOperations {
   }
   deinit { lifetime.end() }
   public nonisolated func dispose() { lifetime.end() }
+  /// Each failure the transport meets. The first listener, its session's when it has one, is given
+  /// first the latest `Timings.errorsKeptForFirstReaderCount` met before it listened; one who
+  /// comes after the transport is disposed, nothing.
   public nonisolated func failures() -> Events<TransportError> { failureEvents.listen() }
 
   public func frames(_ channels: [String]) throws -> Events<Carried> {

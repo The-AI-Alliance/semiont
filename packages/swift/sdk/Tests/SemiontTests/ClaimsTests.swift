@@ -121,3 +121,66 @@ private final class Answers: Sendable {
   await claims.stop()
   #expect(claimsAsked(probe) == 2, "the settle claims, and nothing was owed")
 }
+
+// ── What is kept for a first listener ───────────────────────────────────
+
+/// The refusal of the `n`th claim.
+private func refusal(_ n: Int) -> BusRequestError { BusRequestError(.busRejected, "refusal \(n)") }
+
+/// Claims over `probe` whose first `refused` claims are refused, each with its own refusal, and
+/// whose next is answered with job-1; nobody listens to their refusals. Each refused claim, an
+/// announcement asks for the next. Each refusal is said before the next claim is asked, so all
+/// are said once job-1 is handed out, which is when this returns.
+private func claimsRefused(_ refused: Int, over probe: ProbeTransport, client: SemiontClient)
+  async throws -> Claims
+{
+  let answers = Answers()
+  probe.handle { name, _ in
+    guard name == Operations.jobClaim.request.name else { throw nonePending() }
+    let answer = answers.next()
+    if answer > refused { return try jobClaimedFixture("job-1") }
+    throw refusal(answer)
+  }
+  let claims = client.job.claim(try accepted())
+  let reading = Task {
+    var jobs = claims.makeAsyncIterator()
+    return await jobs.next()?.jobId
+  }
+  for asked in 1...refused {
+    try await until { claimsAsked(probe) == asked }
+    probe.deliver(refusedAnnouncement("job-\(asked)"))
+  }
+  #expect(try await withinTestDeadline { await reading.value }?.value == "job-1")
+  return claims
+}
+
+/// What each refusal `refusals` hands out says of itself, until they end.
+private func everyRefusal(_ refusals: Events<ClaimRefusal>) async throws -> [String] {
+  try await withinTestDeadline {
+    var heard: [String] = []
+    for try await refused in refusals { heard.append(refused.detail) }
+    return heard
+  }
+}
+
+@Test func claimsNobodyListenedToKeepTheLatestRefusalsForTheirFirstListener() async throws {
+  let probe = ProbeTransport(channels: jobClaimChannels)
+  let client = try await SemiontClient(transport: probe)
+  defer { client.dispose() }
+  let beyond = 5
+  let refused = Timings.errorsKeptForFirstReaderCount + beyond
+  let claims = try await claimsRefused(refused, over: probe, client: client)
+  let refusals = claims.refused()
+  await claims.stop()
+  let latest = ((beyond + 1)...refused).map { String(describing: refusal($0)) }
+  #expect(try await everyRefusal(refusals) == latest)
+}
+
+@Test func aFirstListenerWhoComesAfterTheClaimsHaveStoppedHearsNothing() async throws {
+  let probe = ProbeTransport(channels: jobClaimChannels)
+  let client = try await SemiontClient(transport: probe)
+  defer { client.dispose() }
+  let claims = try await claimsRefused(1, over: probe, client: client)
+  await claims.stop()
+  #expect(try await everyRefusal(claims.refused()) == [])
+}

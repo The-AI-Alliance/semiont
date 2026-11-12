@@ -212,3 +212,83 @@ private func saidUntilTheLastIsRead(
     }
   }
 }
+
+// ── What is kept for a first reader ─────────────────────────────────────
+
+/// `run` with a registry whose active session is a script's, which says nothing of its own, and
+/// what a host shows about that session. Nobody reads the registry's errors but `run`.
+private func overAnUnreadRegistry(
+  _ run: (SemiontBrowser, OpenedSession, SessionSignals) async throws -> Void
+) async throws {
+  let hour = Date().timeIntervalSince1970 + 3600
+  let held = try jwt(.object(["exp": .number(hour), "name": .string("held")]))
+  let browser = try await newSemiontBrowser(
+    SemiontBrowserConfig(
+      storage: MemorySessionStorage(),
+      sessionFactory: SayingSessions(opening: [], renewal: held)))
+  do {
+    _ = try await browser.signedIn(
+      SignedIn(
+        endpoint: .httpEndpoint(HttpEndpoint(host: "localhost", port: 4000, protocol: .http)),
+        description: KbDescription(domain: "example.org", name: "KB"),
+        session: HeldSignIn(
+          access: held, clientId: "browser", refresh: "refresh", tokenEndpoint: "issuer")))
+    let opened = try #require(browser.activeSession.value, "no session is active")
+    let signals = try #require(browser.activeSignals.value, "no session is active")
+    try await run(browser, opened, signals)
+  } catch {
+    try? await browser.close()
+    throw error
+  }
+  try? await browser.close()
+}
+
+/// Has `opened`'s session say `said`, its own errors, which the registry reads and says on its
+/// own; then a refusal for lack of permission, which the registry says through `signals`. The
+/// registry reads them in order, so once it has said that refusal it has said all of `said`.
+private func sayThroughTheRegistry(
+  _ said: [SessionError], on opened: OpenedSession, signals: SessionSignals
+) async throws {
+  for error in said { opened.session.failed(error) }
+  let refusal = "the refusal said last"
+  opened.session.relay(TransportError(.forbidden, refusal))
+  let read = try await withinTestDeadline {
+    await signals.permissionDenied.contains(where: { $0?.detail == refusal })
+  }
+  #expect(read, "the registry never said the refusal through the signals")
+}
+
+@Test func aRegistryNobodyHasReadKeepsTheLatestOfWhatItSaysForItsFirstReader() async throws {
+  try await overAnUnreadRegistry { browser, opened, signals in
+    let beyond = 5
+    let said = (0..<(Timings.errorsKeptForFirstReaderCount + beyond)).map { n in
+      SessionError(.sessionKeepFailed, "failure \(n)", kbId: opened.session.kb.id)
+    }
+    try await sayThroughTheRegistry(said, on: opened, signals: signals)
+    let errors = browser.errors()
+    // Ended, it gives everything it was given.
+    errors.dispose()
+    let heard = try await withinTestDeadline {
+      var heard: [String] = []
+      for try await error in errors { heard.append("\(error)") }
+      return heard
+    }
+    #expect(heard == said.dropFirst(beyond).map { "\($0)" })
+  }
+}
+
+@Test func aFirstReaderWhoComesAfterTheRegistryHasClosedHearsNothing() async throws {
+  try await overAnUnreadRegistry { browser, opened, signals in
+    let said = SessionError(.sessionKeepFailed, "failure", kbId: opened.session.kb.id)
+    try await sayThroughTheRegistry([said], on: opened, signals: signals)
+    // What its close raises is not this test's to say.
+    try? await browser.close()
+    let errors = browser.errors()
+    let heard = try await withinTestDeadline {
+      var heard: [String] = []
+      for try await error in errors { heard.append("\(error)") }
+      return heard
+    }
+    #expect(heard == [])
+  }
+}
