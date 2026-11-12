@@ -160,14 +160,27 @@ function stackFacts(outcome: ControlOutcome<'status.snapshot'>): KnowledgeBaseSt
   if (stack.starting) return { status: 'starting', services, ...gateway };
   const hasRunningServices = stack.services.some((service) => service.state === 'running');
   if (!hasRunningServices) return { status: 'stopped', services, ...gateway };
-  if (stack.healthy) return { status: 'running', services, ...gateway };
   const silent = services.filter((service) => service.counted && !service.healthy).map((service) => service.role);
+  if (stack.healthy && silent.length === 0) return { status: 'running', services, ...gateway };
   return {
     status: 'attention',
     services,
     ...(silent.length === 0 ? {} : { statusDetail: `Not answering: ${silent.join(', ')}.` }),
     ...gateway,
   };
+}
+
+type ConnectionServiceDestination = DesktopServiceGroup | 'inference' | 'telemetry';
+
+function affectedServiceGroup(root: KnowledgeBaseRow): ConnectionServiceDestination {
+  const unhealthy = root.services?.find((service) => service.counted && !service.healthy);
+  if (unhealthy?.group === 'index') return 'index';
+  if (unhealthy?.group === 'issuer') return 'issuer';
+  if (unhealthy?.group === 'providers') return 'inference';
+  if (unhealthy?.group === 'telemetry') return 'telemetry';
+  if (unhealthy?.group === 'knowledge-workers') return unhealthy.role === 'browser' ? 'browser' : 'knowledge-workers';
+  if (unhealthy?.role === 'dispatcher' || unhealthy?.role === 'messaging') return 'dispatcher-messaging';
+  return 'gateway-archivist';
 }
 
 function normalizeGatewayUri(uri: string): string {
@@ -231,6 +244,7 @@ export function App() {
     error: null,
   });
   const [theme, setTheme] = useState<Theme>('system');
+  const rootStatusRequests = useRef(new Map<string, number>());
 
   const openServiceGroup = useCallback((group: DesktopServiceGroup, selectedRootPath: string | null) => {
     setServiceGroup(group);
@@ -262,6 +276,40 @@ export function App() {
       : current);
   }, []);
 
+  const refreshKnowledgeBaseStatus = useCallback((path: string) => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      updateKnowledgeBase(path, (row) => ({ ...row, status: 'unknown', statusDetail: 'Launcher status is available in the desktop app only.' }));
+      return;
+    }
+
+    const requestId = (rootStatusRequests.current.get(path) ?? 0) + 1;
+    rootStatusRequests.current.set(path, requestId);
+    updateKnowledgeBase(path, (row) => {
+      const next = { ...row, status: 'checking' as const };
+      delete next.statusDetail;
+      return next;
+    });
+
+    void askLauncher(bridge, 'status.snapshot', { target: { kind: 'local', root: path } }).then((answer) => {
+      if (rootStatusRequests.current.get(path) !== requestId) return;
+      updateKnowledgeBase(path, (row) => {
+        const facts = stackFacts(answer);
+        const next = { ...row, ...facts };
+        if (facts.statusDetail === undefined) delete next.statusDetail;
+        if (facts.gatewayUrl === undefined) delete next.gatewayUrl;
+        return next;
+      });
+    }, (cause: unknown) => {
+      if (rootStatusRequests.current.get(path) !== requestId) return;
+      updateKnowledgeBase(path, (row) => ({
+        ...row,
+        status: 'unknown',
+        statusDetail: cause instanceof Error ? cause.message : String(cause),
+      }));
+    });
+  }, [updateKnowledgeBase]);
+
   const refreshKnowledgeBases = useCallback(() => {
     setKnowledgeBasesState((current) => current.status === 'result' ? current : { status: 'loading' });
     const bridge = window.launcherBridge;
@@ -281,13 +329,9 @@ export function App() {
         .sort((left, right) => (right.lastUsed ?? '').localeCompare(left.lastUsed ?? ''));
       const { warnings } = outcome.result;
       setKnowledgeBasesState({ status: 'result', result: { roots: rows, ...(warnings === undefined ? {} : { warnings }) } });
-      for (const row of rows) {
-        void askLauncher(bridge, 'status.snapshot', { target: { kind: 'local', root: row.path } }).then((answer) => {
-          updateKnowledgeBase(row.path, (current) => ({ ...current, ...stackFacts(answer) }));
-        });
-      }
+      for (const row of rows) refreshKnowledgeBaseStatus(row.path);
     });
-  }, [updateKnowledgeBase]);
+  }, [refreshKnowledgeBaseStatus]);
 
   const openKnowledgeBases = useCallback((focusSearch = false, selectedPath: string | null = null) => {
     setShowKnowledgeBasePicker(true);
@@ -911,6 +955,13 @@ export function App() {
     });
   };
 
+  useEffect(() => {
+    if (activeRootPath === null || knowledgeBasesState.status !== 'result') return undefined;
+    refreshKnowledgeBaseStatus(activeRootPath);
+    const timer = window.setInterval(() => refreshKnowledgeBaseStatus(activeRootPath), 30_000);
+    return () => window.clearInterval(timer);
+  }, [activeKbTabUri, activeRootPath, knowledgeBasesState.status, refreshKnowledgeBaseStatus]);
+
   if (config === null) return <p className="app__connecting">Loading…</p>;
 
   const knowledgeBaseRows = knowledgeBasesState.status === 'result'
@@ -1029,12 +1080,23 @@ export function App() {
             viewerPrefs={viewerPrefs}
             hasOpenKb={activeKbTabUri !== null}
             activeRootPath={activeRootPath}
+            connectionRoot={activeKnowledgeBaseRoot}
+            launcherStatusError={knowledgeBasesState.status === 'failed' ? knowledgeBasesState.message : null}
+            launcherRegistryLoaded={knowledgeBasesState.status === 'result'}
             onOpenKnowledgeBases={() => openKnowledgeBases(activeRootPath === null, activeRootPath)}
             onOpenKnowledgeBaseDetails={() => {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
             }}
             onOpenDispatcherMessaging={() => openServiceGroup('dispatcher-messaging', activeLocalRootPath)}
+            onOpenServiceGroup={(group) => openServiceGroup(group, activeLocalRootPath)}
+            onOpenInference={openInference}
+            onOpenTelemetry={openTelemetry}
+            onRetryStatus={() => {
+              if (activeKnowledgeBaseRoot === null) refreshKnowledgeBases();
+              else refreshKnowledgeBaseStatus(activeKnowledgeBaseRoot.path);
+            }}
+            onOpenWorkspace={() => activeKnowledgeBaseRoot !== null && openKnowledgeBaseTab(activeKnowledgeBaseRoot)}
             queueRootPath={activeLocalRootPath}
             activeSession={activeSession}
             onNewDocument={() => activeSession && openNewDocument(activeSession.kbUri)}
@@ -1152,8 +1214,16 @@ function MainPane({
   viewerPrefs,
   hasOpenKb,
   activeRootPath,
+  connectionRoot,
+  launcherStatusError,
+  launcherRegistryLoaded,
   onOpenKnowledgeBases,
   onOpenKnowledgeBaseDetails,
+  onOpenServiceGroup,
+  onOpenInference,
+  onOpenTelemetry,
+  onRetryStatus,
+  onOpenWorkspace,
   onOpenDispatcherMessaging,
   queueRootPath,
   onNewDocument,
@@ -1162,8 +1232,16 @@ function MainPane({
   viewerPrefs: ViewerPrefs;
   hasOpenKb: boolean;
   activeRootPath: string | null;
+  connectionRoot: KnowledgeBaseRow | null;
+  launcherStatusError: string | null;
+  launcherRegistryLoaded: boolean;
   onOpenKnowledgeBases: () => void;
   onOpenKnowledgeBaseDetails: () => void;
+  onOpenServiceGroup: (group: DesktopServiceGroup) => void;
+  onOpenInference: () => void;
+  onOpenTelemetry: () => void;
+  onRetryStatus: () => void;
+  onOpenWorkspace: () => void;
   onOpenDispatcherMessaging: () => void;
   queueRootPath: string | null;
   onNewDocument: () => void;
@@ -1182,10 +1260,178 @@ function MainPane({
 }) {
   return (
     <div className="mainwrap">
-      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onNewDocument={onNewDocument} {...body} />
+      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} connectionRoot={connectionRoot} launcherStatusError={launcherStatusError} launcherRegistryLoaded={launcherRegistryLoaded} onOpenKnowledgeBases={onOpenKnowledgeBases} onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails} onOpenServiceGroup={onOpenServiceGroup} onOpenInference={onOpenInference} onOpenTelemetry={onOpenTelemetry} onRetryStatus={onRetryStatus} onOpenWorkspace={onOpenWorkspace} onNewDocument={onNewDocument} {...body} />
       <AppFooter prefs={viewerPrefs} activeRootPath={queueRootPath} onOpenDispatcherMessaging={onOpenDispatcherMessaging} />
     </div>
   );
+}
+
+function KnowledgeBaseConnectionPrompt({
+  root,
+  connection,
+  isLocalRootTab,
+  launcherStatusError,
+  launcherRegistryLoaded,
+  onOpenKnowledgeBases,
+  onConnect,
+  onOpenKnowledgeBaseDetails,
+  onOpenServiceGroup,
+  onOpenInference,
+  onOpenTelemetry,
+  onRetryStatus,
+  onOpenWorkspace,
+}: {
+  root: KnowledgeBaseRow | null;
+  connection: KbConnection | undefined;
+  isLocalRootTab: boolean;
+  launcherStatusError: string | null;
+  launcherRegistryLoaded: boolean;
+  onOpenKnowledgeBases: () => void;
+  onConnect: () => void;
+  onOpenKnowledgeBaseDetails: () => void;
+  onOpenServiceGroup: (group: DesktopServiceGroup) => void;
+  onOpenInference: () => void;
+  onOpenTelemetry: () => void;
+  onRetryStatus: () => void;
+  onOpenWorkspace: () => void;
+}) {
+  let title: string;
+  let message: string;
+  let actionLabel: string;
+  let action: () => void;
+  let secondaryAction: (() => void) | undefined;
+  let secondaryActionLabel: string | undefined;
+  let disabled = false;
+
+  if (connection?.connecting) {
+    title = 'Connecting to Knowledge Base';
+    message = 'Desktop is opening a session with this Knowledge Base.';
+    actionLabel = 'Connecting…';
+    action = onConnect;
+    disabled = true;
+  } else if (root === null && isLocalRootTab) {
+    if (launcherStatusError !== null) {
+      title = 'Launcher status unavailable';
+      message = `Desktop could not read the launcher registry: ${launcherStatusError}`;
+      actionLabel = 'Refresh launcher status';
+      action = onRetryStatus;
+    } else if (launcherRegistryLoaded) {
+      title = 'Knowledge Base not registered';
+      message = 'This local workspace is not in the launcher registry, so Desktop cannot check or start its stack.';
+      actionLabel = 'Open Knowledge Bases';
+      action = onOpenKnowledgeBases;
+    } else {
+      title = 'Checking local Knowledge Base';
+      message = 'Refresh launcher status to find this root and check whether its stack is running.';
+      actionLabel = 'Refresh status';
+      action = onRetryStatus;
+    }
+  } else if (root?.operation === 'starting' || root?.status === 'starting') {
+    title = 'Knowledge Base is starting';
+    message = 'The launcher is bringing up the local stack. Open its service panel to see progress and service health.';
+    actionLabel = 'View startup progress';
+    action = () => onOpenServiceGroup('gateway-archivist');
+  } else if (root?.operation === 'stopping') {
+    title = 'Knowledge Base is stopping';
+    message = 'The launcher is stopping the local stack. Open its service panel to see progress.';
+    actionLabel = 'View stop progress';
+    action = () => onOpenServiceGroup('gateway-archivist');
+  } else if (root?.status === 'checking') {
+    title = 'Checking Knowledge Base status';
+    message = 'Desktop is asking the launcher whether this local stack is running.';
+    actionLabel = 'Checking…';
+    action = onRetryStatus;
+    disabled = true;
+  } else if (root?.status === 'stopped') {
+    title = 'Knowledge Base is not running';
+    message = 'Start the local stack and inspect its services in Gateway & Archivist.';
+    actionLabel = 'Open Gateway & Archivist';
+    action = () => onOpenServiceGroup('gateway-archivist');
+  } else if (root?.status === 'attention') {
+    title = 'Knowledge Base needs attention';
+    message = root.statusDetail ?? 'One or more configured services are not healthy. Review their status before connecting.';
+    const destination = affectedServiceGroup(root);
+    actionLabel = `Review ${serviceDestinationTitle(destination)}`;
+    action = () => {
+      if (destination === 'inference') onOpenInference();
+      else if (destination === 'telemetry') onOpenTelemetry();
+      else onOpenServiceGroup(destination);
+    };
+  } else if (root?.status === 'unknown') {
+    title = 'Launcher status unavailable';
+    message = root.statusDetail === undefined
+      ? 'Desktop could not determine whether this local stack is running.'
+      : `Desktop could not determine whether this local stack is running: ${root.statusDetail}`;
+    actionLabel = 'Check status again';
+    action = onRetryStatus;
+    secondaryActionLabel = 'Inspect Gateway & Archivist';
+    secondaryAction = () => onOpenServiceGroup('gateway-archivist');
+  } else if (root?.status === 'running' && connection?.error !== undefined) {
+    title = 'Could not connect to Knowledge Base';
+    message = `The launcher reports that the local stack is running, but Desktop could not open a session: ${connection.error}`;
+    actionLabel = 'Try connecting again';
+    action = onConnect;
+  } else if (root?.status === 'running' && isLocalRootTab) {
+    title = 'Knowledge Base is running';
+    if (root.gatewayUrl !== undefined || root.configuredUri !== undefined) {
+      message = 'Open its workspace to connect and use resources and chats.';
+      actionLabel = 'Open Knowledge Base workspace';
+      action = onOpenWorkspace;
+    } else {
+      message = 'The launcher reports a running stack but no gateway address. Review its service status.';
+      actionLabel = 'Open Gateway & Archivist';
+      action = () => onOpenServiceGroup('gateway-archivist');
+    }
+  } else if (root?.status === 'running') {
+    title = 'Knowledge Base is running, but Desktop is not connected';
+    message = 'Review the Knowledge Base session and sign in, or connect directly if you already have a session.';
+    actionLabel = 'Open Knowledge Base details';
+    action = onOpenKnowledgeBaseDetails;
+  } else if (connection?.error !== undefined) {
+    title = 'Could not connect to Knowledge Base';
+    message = 'Desktop could not open a session. Check the connection and try again.';
+    actionLabel = 'Try connecting again';
+    action = onConnect;
+  } else {
+    title = 'Knowledge Base not connected';
+    message = 'Connect to this Knowledge Base to browse resources and start a chat.';
+    actionLabel = 'Connect';
+    action = onConnect;
+  }
+
+  return (
+    <section className="main main--empty" aria-live="polite">
+      <h1>{title}</h1>
+      <p className="main__hint">{message}</p>
+      {root?.operationError !== undefined && <p className="main__error" role="alert">{root.operationError}</p>}
+      {connection?.error !== undefined && root?.status !== 'running' && <p className="main__error" role="alert">{connection.error}</p>}
+      <button type="button" className="main__connect" onClick={action} disabled={disabled}>
+        {actionLabel}
+      </button>
+      {secondaryAction !== undefined && secondaryActionLabel !== undefined && (
+        <button type="button" className="main__connect main__connect--secondary" onClick={secondaryAction}>
+          {secondaryActionLabel}
+        </button>
+      )}
+    </section>
+  );
+}
+
+function serviceGroupTitle(group: DesktopServiceGroup): string {
+  switch (group) {
+    case 'gateway-archivist': return 'Gateway & Archivist';
+    case 'dispatcher-messaging': return 'Dispatcher & Messaging';
+    case 'index': return 'Index';
+    case 'knowledge-workers': return 'Knowledge Workers';
+    case 'browser': return 'Browser';
+    case 'issuer': return 'Identity & Stores';
+  }
+}
+
+function serviceDestinationTitle(destination: ConnectionServiceDestination): string {
+  if (destination === 'inference') return 'Inference & Embedding';
+  if (destination === 'telemetry') return 'Telemetry';
+  return serviceGroupTitle(destination);
 }
 
 /** The main pane's body. A document selected in navigation takes the full pane; one opened
@@ -1195,8 +1441,16 @@ function MainBody({
   viewerPrefs,
   hasOpenKb,
   activeRootPath,
+  connectionRoot,
+  launcherStatusError,
+  launcherRegistryLoaded,
   onOpenKnowledgeBases,
   onOpenKnowledgeBaseDetails,
+  onOpenServiceGroup,
+  onOpenInference,
+  onOpenTelemetry,
+  onRetryStatus,
+  onOpenWorkspace,
   onNewDocument,
   activeSession,
   conn,
@@ -1213,8 +1467,16 @@ function MainBody({
   viewerPrefs: ViewerPrefs;
   hasOpenKb: boolean;
   activeRootPath: string | null;
+  connectionRoot: KnowledgeBaseRow | null;
+  launcherStatusError: string | null;
+  launcherRegistryLoaded: boolean;
   onOpenKnowledgeBases: () => void;
   onOpenKnowledgeBaseDetails: () => void;
+  onOpenServiceGroup: (group: DesktopServiceGroup) => void;
+  onOpenInference: () => void;
+  onOpenTelemetry: () => void;
+  onRetryStatus: () => void;
+  onOpenWorkspace: () => void;
   onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
@@ -1311,23 +1573,37 @@ function MainBody({
         <button type="button" className="main__connect" onClick={onOpenKnowledgeBases}>Open a Knowledge Base</button>
       </section>
     ) : activeRootPath !== null ? (
-      <section className="main main--empty">
-        <h1>Knowledge Base not connected</h1>
-        <p className="main__hint">This workspace tab is open. Start the KB from Knowledge Base details, then connect it to browse resources and chat.</p>
-        <button type="button" className="main__connect" onClick={onOpenKnowledgeBaseDetails}>Open Knowledge Base details</button>
-      </section>
+      <KnowledgeBaseConnectionPrompt
+        root={connectionRoot}
+        connection={undefined}
+        isLocalRootTab
+        launcherStatusError={launcherStatusError}
+        launcherRegistryLoaded={launcherRegistryLoaded}
+        onOpenKnowledgeBases={onOpenKnowledgeBases}
+        onConnect={onConnect}
+        onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails}
+        onOpenServiceGroup={onOpenServiceGroup}
+        onOpenInference={onOpenInference}
+        onOpenTelemetry={onOpenTelemetry}
+        onRetryStatus={onRetryStatus}
+        onOpenWorkspace={onOpenWorkspace}
+      />
     ) : activeSession === null && conn?.opened === undefined ? (
-      <section className="main main--empty">
-        <h1>Knowledge Base not connected</h1>
-        <p className="main__hint">Connect to this KB to browse resources and start a chat.</p>
-        <div className="main__actions">
-          <button type="button" className="main__connect" onClick={onConnect} disabled={conn?.connecting}>
-            {conn?.connecting ? 'Connecting…' : 'Connect'}
-          </button>
-          <button type="button" className="main__connect main__connect--secondary" onClick={onOpenKnowledgeBaseDetails}>Knowledge Base details</button>
-        </div>
-        {conn?.error && <p className="main__error" role="alert">{conn.error}</p>}
-      </section>
+      <KnowledgeBaseConnectionPrompt
+        root={connectionRoot}
+        connection={conn}
+        isLocalRootTab={false}
+        launcherStatusError={null}
+        launcherRegistryLoaded={false}
+        onOpenKnowledgeBases={onOpenKnowledgeBases}
+        onConnect={onConnect}
+        onOpenKnowledgeBaseDetails={onOpenKnowledgeBaseDetails}
+        onOpenServiceGroup={onOpenServiceGroup}
+        onOpenInference={onOpenInference}
+        onOpenTelemetry={onOpenTelemetry}
+        onRetryStatus={onRetryStatus}
+        onOpenWorkspace={onOpenWorkspace}
+      />
     ) : activeSession === null ? (
       <section className="main main--empty">
         <p className="main__hint">Pick a chat, or start a new one under a knowledge base.</p>
