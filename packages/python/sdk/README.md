@@ -111,7 +111,9 @@ async def as_me(kb: KbTarget, home: str) -> None:
 
 - **An agent whose renewal fails keeps the token it has** and tries again: a
   process holding a token that still works does not stop over one bad round
-  trip. Signing in is the one step that raises.
+  trip. Signing in is the one step that raises. Its token is renewed once at a
+  time: a request refused while it is renewed, for another refusal or on its
+  schedule, is given what that renewal brings.
 - **A person's session ends once, and says why.** A token the issuer will not
   renew ends it as `expired`, and a token the issuer has just issued and the
   gateway refuses ends it as `refused` (`on_auth_failed`). The sign-in is

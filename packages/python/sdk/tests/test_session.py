@@ -606,6 +606,29 @@ def test_an_idle_session_renews_its_token_once_per_half_life_and_no_oftener() ->
     run(scenario())
 
 
+def test_a_wait_that_ran_out_for_a_token_replaced_meanwhile_renews_nothing() -> None:
+    first, other = token(300, 0), token(300, 9)
+    world = World(kept=first, renewals=[token(300, 1)])
+
+    async def scenario() -> None:
+        async with world.its_session() as session:
+            await soon(session.ready())
+            await pass_time(140)
+            # A token renewed some other way arrives a moment after the first one's wait ran out:
+            # one move of the clock passes both, so the schedule hears of the two together.
+            asyncio.get_running_loop().call_later(11, world.token.set, other)
+            await pass_time(12, step=12)
+            assert world.handed == []
+            assert session.token.value == other
+            # The token that replaced it is renewed when its own wait runs out.
+            await pass_time(140)
+            assert world.handed == []
+            await pass_time(12)
+            assert world.handed == [other]
+
+    run(scenario())
+
+
 def test_each_renewal_is_handed_the_token_it_renews() -> None:
     first, due, renewed = token(300, 0), token(300, 1), token(3600, 2)
     world = World(kept=first, renewals=[due, unanswered_by_the_issuer(), renewed])

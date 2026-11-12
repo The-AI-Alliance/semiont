@@ -38,6 +38,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Hasha
 from dataclasses import dataclass, field
 from typing import Final, Literal, Protocol, final, override
 
+from semiont._heard import heard
 from semiont.errors import BusRequestError
 from semiont.state_unit import StateUnit
 from semiont.timing import SAVE_DEBOUNCE_MS
@@ -126,12 +127,6 @@ class _Key[V]:
     def known(self) -> bool:
         """Whether anything asked for the key and has not let go of it."""
         return self.in_flight is not None or not isinstance(self.state.value, Pending)
-
-
-def _heard(fetch: asyncio.Task[object]) -> None:
-    """Retrieve a fetch's failure, which its key (`Cache._failed`) and each awaiter are told: asyncio logs one nobody retrieved."""
-    if not fetch.cancelled():
-        fetch.exception()
 
 
 async def _joined[V](fetch: asyncio.Task[V]) -> V:
@@ -255,7 +250,8 @@ class Cache[K: Hashable, V](StateUnit):
         if held.in_flight is None:
             self._fetches += 1
             fetch = self._tasks.run(self._fetched(key, self._fetches))
-            fetch.add_done_callback(_heard)
+            # Its failure is told to its key (`_failed`) and to each awaiter.
+            fetch.add_done_callback(heard)
             held.in_flight = _Flight(self._fetches, fetch)
         return held.in_flight
 
