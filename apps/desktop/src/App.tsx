@@ -36,6 +36,7 @@ import { RemoteServiceModal, type RemoteService } from './components/RemoteServi
 import { ServiceGroupModal, type DesktopServiceGroup } from './components/ServiceGroupModal';
 import { KnowledgeBaseModal, KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
 import { KnowledgeBaseUsersModal } from './components/KnowledgeBaseUsersModal';
+import { VocabularyModal } from './components/VocabularyModal';
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
@@ -226,6 +227,7 @@ export function App() {
   const [showKnowledgeBasePicker, setShowKnowledgeBasePicker] = useState(false);
   const [showKnowledgeBaseDetails, setShowKnowledgeBaseDetails] = useState(false);
   const [showKnowledgeBaseUsers, setShowKnowledgeBaseUsers] = useState(false);
+  const [showVocabulary, setShowVocabulary] = useState(false);
   const [focusKnowledgeBaseSearch, setFocusKnowledgeBaseSearch] = useState(false);
   const [knowledgeBaseSelectedPath, setKnowledgeBaseSelectedPath] = useState<string | null>(null);
   const [logsRoot, setLogsRoot] = useState<KnowledgeBaseRow | null>(null);
@@ -1146,6 +1148,7 @@ export function App() {
               setShowKnowledgeBaseDetails(true);
               refreshKnowledgeBases();
             }}
+            onOpenVocabulary={() => setShowVocabulary(true)}
             onOpenKnowledgeBaseUsers={() => {
               setShowKnowledgeBaseUsers(true);
               refreshKnowledgeBases();
@@ -1221,6 +1224,14 @@ export function App() {
           root={activeKnowledgeBaseRoot}
           kb={activeKb}
           onClose={() => setShowKnowledgeBaseUsers(false)}
+        />
+      )}
+      {showVocabulary && (
+        <VocabularyModal
+          key={activeKbTabUri ?? 'no-active-kb'}
+          name={activeKnowledgeBaseRoot?.desktopAlias || activeKnowledgeBaseRoot?.siteName || activeKb?.alias || activeKb?.uri || 'Knowledge Base'}
+          session={activeConn?.opened?.session ?? (activeKnowledgeBaseRoot?.activeSessionUri === undefined ? null : connections[activeKnowledgeBaseRoot.activeSessionUri]?.opened?.session ?? null)}
+          onClose={() => setShowVocabulary(false)}
         />
       )}
       {logsRoot !== null && <KnowledgeBaseLogsModal root={logsRoot} onClose={() => setLogsRoot(null)} />}
