@@ -9,7 +9,7 @@ use futures_core::Stream;
 use semiont::bus::{Bus, operation};
 use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{ClientOptions, ClientTiming};
-use semiont::errors::{SemiontError, SessionError, SessionErrorCode};
+use semiont::errors::{SemiontError, SessionError, SessionErrorCode, TransportError};
 use semiont::session::{
     SessionFactory, SessionFactoryOptions, SessionSignals, StoredSession, store_session,
 };
@@ -20,14 +20,15 @@ use semiont::testing::{
     FaultyTransport, InMemoryContent, ScriptedSessions, StubGateway, TestClientOptions,
     TestSessionOptions, create_test_client, create_test_session,
 };
-use semiont::transport::{ConnectionState, Content, Events, Transport};
+use semiont::timing::ERRORS_KEPT_FOR_FIRST_READER_COUNT;
+use semiont::transport::{ConnectionState, Content, Events, Failures, Transport};
 use semiont::types::{
     AnchoredTextAnswer, GatherResourceRequestOptions, HttpEndpoint, HttpEndpointProtocol,
     KbEndpoint, KbTarget, KnowledgeBase, ResourceId, UserResponse,
 };
 use serde_json::{Value, json};
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
@@ -590,5 +591,77 @@ async fn a_reply_that_names_what_it_answers_for_names_what_its_request_named() {
     assert!(
         message(unanswerable)
             .contains("the reply to gather:resource-requested names \"resourceId\""),
+    );
+}
+
+// ── A transport's failures ──────────────────────────────────────────────
+
+fn nth_failure(n: usize) -> TransportError {
+    TransportError::of_status(format!("failure {n}"), 503, None)
+}
+
+/// Each failure `failures` reports, to its end.
+async fn failures_to_the_end(mut failures: Failures) -> Vec<TransportError> {
+    let mut heard = Vec::new();
+    while let Some(failure) = failures.next().await {
+        heard.push(failure.expect("no failure was missed"));
+    }
+    heard
+}
+
+#[tokio::test]
+async fn a_faulty_transport_keeps_the_latest_failures_for_its_first_reader() {
+    let transport = FaultyTransport::new(&[], vec![]);
+    let beyond = 5;
+    let before = ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond;
+    let failed: Vec<TransportError> = (0..=before).map(nth_failure).collect();
+    for failure in &failed[..before] {
+        transport.fail(failure.clone());
+    }
+
+    let first = transport.failures();
+    let later = transport.failures();
+    transport.fail(failed[before].clone());
+    transport.close().await;
+
+    assert_eq!(failures_to_the_end(first).await, failed[beyond..]);
+    assert_eq!(failures_to_the_end(later).await, failed[before..]);
+}
+
+#[tokio::test]
+async fn a_faulty_transports_first_listener_is_told_at_once_the_latest_failures_before_it() {
+    let transport = FaultyTransport::new(&[], vec![]);
+    let beyond = 5;
+    let before = ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond;
+    let failed: Vec<TransportError> = (0..=before).map(nth_failure).collect();
+    for failure in &failed[..before] {
+        transport.fail(failure.clone());
+    }
+
+    let told = Arc::new(Mutex::new(Vec::new()));
+    let telling = told.clone();
+    transport.tell_failures_to(Box::new(move |failure: &TransportError| {
+        telling.lock().expect("what was told").push(failure.clone());
+    }));
+    assert_eq!(*told.lock().expect("what was told"), failed[beyond..before]);
+
+    // A reader taken after it hears only what follows.
+    let later = transport.failures();
+    transport.fail(failed[before].clone());
+    transport.close().await;
+
+    assert_eq!(*told.lock().expect("what was told"), failed[beyond..]);
+    assert_eq!(failures_to_the_end(later).await, failed[before..]);
+}
+
+#[tokio::test]
+async fn a_first_reader_who_comes_after_a_faulty_transport_closes_hears_nothing() {
+    let transport = FaultyTransport::new(&[], vec![]);
+    transport.fail(nth_failure(0));
+    transport.close().await;
+
+    assert_eq!(
+        failures_to_the_end(transport.failures()).await,
+        Vec::<TransportError>::new()
     );
 }

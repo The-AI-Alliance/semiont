@@ -451,7 +451,7 @@ What differs from TypeScript is what the language gives:
 - `reconcile` gives `Some` of the span it found in the text, or `None`. `annotation_of_span` gives the annotation, or an `Err` that names why the span was refused (a `SpanRefusal`).
 - A held job commits its own annotations: `job.commit(&resource_id, annotations).await?` sends the batch as `mark:commit`, citing the job, and returns once the record has it. A worker that commits gives its transport `JOB_COMMIT_CHANNELS` beside `JOB_CLAIM_CHANNELS`.
 - `complete`, `fail` and `cancel` take the job by value, so settling twice does not compile. A job dropped unsettled is failed.
-- `job.cancelled()` and `claims.stalled()` are `tokio::sync::watch` receivers: the first turns true when a cancellation names the held job, and the second holds the last stall.
+- `job.cancelled()` is a `tokio::sync::watch` receiver that turns true when a cancellation names the held job. `claims.stalled()` is a stream, read with `.next().await`: its first reader is given the stalls found before it came, the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT`.
 
 ## The same worker in Python
 

@@ -60,9 +60,10 @@ use crate::channels::{
 };
 use crate::errors::{BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode};
 use crate::job_filter::job_matches_filter;
+use crate::kept_for_first_reader::KeptForFirstReader;
 use crate::locked;
 use crate::timing::{HELD_JOB_STALL, HELD_JOB_STALL_CHECK, JOB_CLAIM_TIMEOUT, MARK_COMMIT_TIMEOUT};
-use crate::transport::{ConnectionState, Envelope, TraceCarrier, Transport};
+use crate::transport::{ConnectionState, Envelope, Events, TraceCarrier, Transport};
 use crate::types::{
     Annotation, AnnotationId, BrowseAnnotationRequest, DurabilityEvidence, FailureClass,
     JobCancelCommand, JobCheckpointCommand, JobClaimCommand, JobCompleteCommand, JobFailCommand,
@@ -353,7 +354,7 @@ struct Inner {
     state: Mutex<State>,
     /// An idle moment the loop cannot see for itself: a settle.
     settled: Notify,
-    stall: watch::Sender<Option<HeldJobStall>>,
+    stalls: KeptForFirstReader<HeldJobStall>,
 }
 
 impl Inner {
@@ -502,7 +503,7 @@ impl Inner {
                 threshold: self.timing.held_job_stall,
             }
         };
-        self.stall.send_replace(Some(stall));
+        self.stalls.say(stall);
     }
 
     fn vitals(&self) -> WorkerVitals {
@@ -1152,6 +1153,7 @@ async fn run(inner: Arc<Inner>, out: mpsc::Sender<Handed>, mut stop: watch::Rece
                     ),
                 }))
                 .await;
+            inner.stalls.end();
             return;
         }
     };
@@ -1265,6 +1267,7 @@ async fn run(inner: Arc<Inner>, out: mpsc::Sender<Handed>, mut stop: watch::Rece
         inner.fail_held(&holding, STOPPED_WHILE_HELD).await;
         drop(job);
     }
+    inner.stalls.end();
 }
 
 /// A worker's claims, from `job.claim`: each job the worker comes to hold,
@@ -1297,7 +1300,7 @@ impl Claims {
                 timing: options.timing,
                 state: Mutex::new(State::default()),
                 settled: Notify::new(),
-                stall: watch::channel(None).0,
+                stalls: KeptForFirstReader::new(),
             }),
             out: Mutex::new(Some(out)),
             handed: tokio::sync::Mutex::new(handed),
@@ -1329,11 +1332,14 @@ impl Claims {
         self.inner.vitals()
     }
 
-    /// The last stall found: a held job that has shown no activity for
-    /// `held_job_stall`, reported once. `None` until there is one, and each
-    /// one after is a change.
-    pub fn stalled(&self) -> watch::Receiver<Option<HeldJobStall>> {
-        self.inner.stall.subscribe()
+    /// Each held job that has shown no activity for `held_job_stall`,
+    /// reported once. The first reader is given the latest
+    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` reported before it came, in
+    /// order, the oldest dropped beyond that; each later one, those reported
+    /// from then on. It ends when the claiming does, and what is still kept
+    /// then is dropped: a reader who comes after that is given nothing.
+    pub fn stalled(&self) -> Events<HeldJobStall> {
+        self.inner.stalls.read()
     }
 
     /// Stop claiming. A job still held is failed first, and this returns
@@ -1347,5 +1353,6 @@ impl Claims {
         if let Some(holding) = held {
             self.inner.fail_held(&holding, STOPPED_WHILE_HELD).await;
         }
+        self.inner.stalls.end();
     }
 }
