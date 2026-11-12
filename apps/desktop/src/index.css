@@ -2257,14 +2257,63 @@ button.kb-location-picker__entry:hover {
   height: 100vh;
 }
 
-/* Keep only a narrow drag target for Electron's hidden native title bar. */
+/* Native title bar surface: keep the traffic lights in the drag region and controls in a
+   non-draggable area on its right edge. */
+.app__chrome {
+  display: flex;
+  align-items: center;
+  flex: 0 0 3rem;
+  min-width: 0;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-sidebar);
+}
 .app__dragbar {
   display: none;
 }
 .app--electron .app__dragbar {
   display: block;
-  flex: 0 0 1.5rem;
+  flex: 1 1 auto;
+  align-self: stretch;
   -webkit-app-region: drag;
+}
+.app__chrome-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+  padding: 0 0.65rem;
+  -webkit-app-region: no-drag;
+}
+.app__chrome-controls .prefctl__btn,
+.app__menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.app__chrome-controls .prefctl__btn:hover,
+.app__menu-toggle:hover,
+.app__menu-toggle:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+.app__menu-toggle--on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.app__menu-toggle--on:hover,
+.app__menu-toggle--on:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .workspace-tabs {
@@ -2363,7 +2412,7 @@ button.kb-location-picker__entry:hover {
   line-height: 1;
 }
 
-/* The lower-left SEMIONT wordmark is branding; the right-edge control opens settings. */
+/* The lower-left SEMIONT wordmark is branding; the top chrome gear opens settings. */
 .nav__footer {
   position: relative;
 }
@@ -2376,7 +2425,7 @@ button.kb-location-picker__entry:hover {
   cursor: default;
 }
 .app--electron .semiont-panel-backdrop {
-  top: 1.5rem;
+  top: 3rem;
 }
 .semiont-panel {
   position: fixed;
@@ -2391,14 +2440,7 @@ button.kb-location-picker__entry:hover {
   box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
 }
 .app--electron .semiont-panel {
-  top: 1.5rem;
-}
-.semiont-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 3.6rem;
-  border-bottom: 1px solid var(--border-soft);
+  top: 3rem;
 }
 .semiont-panel__items {
   display: flex;
@@ -2469,47 +2511,6 @@ button.kb-location-picker__entry:hover {
   outline: none;
 }
 
-.semiont-panel-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  color: var(--muted);
-  font: inherit;
-}
-.semiont-panel-toggle:hover,
-.semiont-panel-toggle:focus-visible {
-  color: var(--accent);
-  outline: none;
-}
-.semiont-panel-toggle--collapsed {
-  position: fixed;
-  top: 0.55rem;
-  right: 0.6rem;
-  z-index: 18;
-  min-width: 2.7rem;
-  height: 2.3rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-  font-size: 1.05rem;
-}
-.app--electron .semiont-panel-toggle--collapsed {
-  top: 1.8rem;
-}
-.semiont-panel-toggle--open {
-  width: 100%;
-  height: 3.6rem;
-  justify-content: flex-end;
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
 .semiont-brand {
   display: inline-flex;
   align-items: center;
@@ -2527,9 +2528,6 @@ button.kb-location-picker__entry:hover {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-}
-.semiont-panel-toggle:hover .app__powered-mark {
-  filter: brightness(1.25);
 }
 
 .app__body {
@@ -3081,12 +3079,6 @@ body.resizing {
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border-soft);
 }
-.rview__interaction-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex: none;
-}
 
 /* Entity tags under the title bar are react-ui's ResourceTagsInline — give its strip the
    same chrome inset the old chat-side row had. */
@@ -3333,13 +3325,6 @@ body.resizing {
   align-items: center;
   gap: 0.35rem;
   flex: none;
-}
-.chat__interaction-controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.35rem;
-  flex: none;
-  padding-bottom: 0.35rem;
 }
 
 .chat__composer-add,
@@ -4197,7 +4182,7 @@ body.resizing {
   border-color: var(--accent);
 }
 
-/* Footer viewer-pref controls (click action + motivation), left of the gear. */
+/* App chrome viewer preferences: click action and selection motivation. */
 .prefctl {
   position: relative;
 }

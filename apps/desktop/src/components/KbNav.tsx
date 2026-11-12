@@ -12,6 +12,8 @@ import { QueueStatusIndicator } from './QueueStatusIndicator';
 /** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
 export interface KbNavProps {
+  semiontMenuOpen: boolean;
+  onSemiontMenuOpenChange: (open: boolean) => void;
   /** Hide KB-specific navigation while the active tab has no SDK session. */
   showWorkspaceContent: boolean;
   kbs: KbEntry[];
@@ -70,22 +72,21 @@ export function KbNav(props: KbNavProps) {
         </div>
       )}
 
-      <SemiontMenu showWorkspaceContent={props.showWorkspaceContent} hasActiveKbTab={props.hasActiveKbTab} hasConfiguredIndex={props.hasConfiguredIndex} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} queueRootPath={props.queueRootPath} onOpenDispatcherMessaging={props.onOpenDispatcherMessaging} />
+      <SemiontMenu open={props.semiontMenuOpen} onOpenChange={props.onSemiontMenuOpenChange} showWorkspaceContent={props.showWorkspaceContent} hasActiveKbTab={props.hasActiveKbTab} hasConfiguredIndex={props.hasConfiguredIndex} onOpenKnowledgeBase={props.onOpenKnowledgeBase} onOpenKnowledgeBaseUsers={props.onOpenKnowledgeBaseUsers} onOpenInference={props.onOpenInference} onOpenServiceGroup={props.onOpenServiceGroup} onOpenRemoteService={props.onOpenRemoteService} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenAppearance={props.onOpenAppearance} onOpenLanguage={props.onOpenLanguage} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} queueRootPath={props.queueRootPath} onOpenDispatcherMessaging={props.onOpenDispatcherMessaging} />
     </nav>
   );
 }
 
-function SemiontMenu({ showWorkspaceContent, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, queueRootPath, onOpenDispatcherMessaging }: Pick<KbNavProps, 'showWorkspaceContent' | 'hasActiveKbTab' | 'hasConfiguredIndex' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'queueRootPath' | 'onOpenDispatcherMessaging'>) {
-  const [open, setOpen] = useState(false);
+function SemiontMenu({ open, onOpenChange, showWorkspaceContent, hasActiveKbTab, hasConfiguredIndex, onOpenKnowledgeBase, onOpenKnowledgeBaseUsers, onOpenInference, onOpenServiceGroup, onOpenRemoteService, onOpenSecrets, onOpenMcp, mcpStatus, onOpenAppearance, onOpenLanguage, onOpenTelemetry, onOpenRuntime, queueRootPath, onOpenDispatcherMessaging }: Pick<KbNavProps, 'showWorkspaceContent' | 'hasActiveKbTab' | 'hasConfiguredIndex' | 'onOpenKnowledgeBase' | 'onOpenKnowledgeBaseUsers' | 'onOpenInference' | 'onOpenServiceGroup' | 'onOpenRemoteService' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenAppearance' | 'onOpenLanguage' | 'onOpenTelemetry' | 'onOpenRuntime' | 'queueRootPath' | 'onOpenDispatcherMessaging'> & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const dismiss = (event: MouseEvent) => {
-      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setOpen(false);
+      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) onOpenChange(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') onOpenChange(false);
     };
     document.addEventListener('mousedown', dismiss);
     document.addEventListener('keydown', onKeyDown);
@@ -93,10 +94,10 @@ function SemiontMenu({ showWorkspaceContent, hasActiveKbTab, hasConfiguredIndex,
       document.removeEventListener('mousedown', dismiss);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open]);
+  }, [open, onOpenChange]);
 
   const choose = (action: () => void) => {
-    setOpen(false);
+    onOpenChange(false);
     action();
   };
 
@@ -105,13 +106,8 @@ function SemiontMenu({ showWorkspaceContent, hasActiveKbTab, hasConfiguredIndex,
       {showWorkspaceContent && queueRootPath !== null && <QueueStatusIndicator rootPath={queueRootPath} onClick={onOpenDispatcherMessaging} />}
       {open && (
         <>
-          <button type="button" className="semiont-panel-backdrop" aria-label="Close Semiont panel" onClick={() => setOpen(false)} />
+          <button type="button" className="semiont-panel-backdrop" aria-label="Close Semiont panel" onClick={() => onOpenChange(false)} />
           <aside id="semiont-panel" className="semiont-panel" role="dialog" aria-modal="true" aria-label="Semiont menu">
-            <header className="semiont-panel__header">
-              <button type="button" className="semiont-panel-toggle semiont-panel-toggle--open" onClick={() => setOpen(false)} aria-label="Collapse Semiont panel" aria-expanded="true" aria-controls="semiont-panel">
-                <span aria-hidden="true">›</span>
-              </button>
-            </header>
             <nav className="semiont-panel__items" aria-label="Semiont menu items">
               <section className="semiont-menu__group" aria-labelledby="semiont-menu-app">
                 <h2 id="semiont-menu-app">App</h2>
@@ -155,19 +151,6 @@ function SemiontMenu({ showWorkspaceContent, hasActiveKbTab, hasConfiguredIndex,
             </nav>
           </aside>
         </>
-      )}
-      {!open && (
-        <button
-          type="button"
-          className="semiont-panel-toggle semiont-panel-toggle--collapsed"
-          aria-label="Open Semiont panel"
-          aria-haspopup="dialog"
-          aria-controls="semiont-panel"
-          aria-expanded="false"
-          onClick={() => setOpen(true)}
-        >
-          <GearIcon /><span aria-hidden="true">‹</span>
-        </button>
       )}
       <div className="semiont-brand" aria-label="Semiont">
         <span className="app__powered-mark">SEMIONT</span>
@@ -394,15 +377,6 @@ function ContainerIcon() {
   return (
     <svg width="18" height="18" {...ICON_PROPS}>
       <path d="m12 3 9 5v8l-9 5-9-5V8l9-5Zm0 10 9-5M12 13 3 8m9 5v8M7.5 5.5l9 5" />
-    </svg>
-  );
-}
-
-function GearIcon() {
-  return (
-    <svg width="18" height="18" {...ICON_PROPS}>
-      <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.69 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.69a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.31 9c.36.6.99 1 1.69 1h.09a2 2 0 1 1 0 4H21a1.65 1.65 0 0 0-1.6 1Z" />
     </svg>
   );
 }

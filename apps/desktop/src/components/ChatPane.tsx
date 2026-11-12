@@ -8,7 +8,7 @@ import { AnswerView } from './AnswerView';
 import { MentionComposer, type MentionComposerHandle } from './MentionComposer';
 import type { MentionCandidate } from './MentionPicker';
 import { UploadRecord } from './UploadRecord';
-import { ViewerPrefControls, type ViewerPrefs } from './ViewerPrefControls';
+import type { ViewerPrefs } from './ViewerPrefControls';
 import { ResourceDiscoveryModal } from './ResourceDiscoveryModal';
 import {
   AGENT_MODELS,
@@ -460,9 +460,6 @@ export function ChatPane({
               </button>
             </div>
           </div>
-        </div>
-        <div className="chat__interaction-controls" role="group" aria-label="Document interaction controls">
-          <ViewerPrefControls prefs={prefs} />
         </div>
       </form>
       </section>

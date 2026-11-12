@@ -45,7 +45,7 @@ import { ChatPane, type LogEntry } from './components/ChatPane';
 import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_PROVIDER, type AgentModelId, type AgentProviderId } from './lib/agent-bridge';
 import { ResourceComposeModal } from './components/ResourceComposeModal';
 import { ResourceView } from './components/ResourceView';
-import type { ViewerPrefs } from './components/ViewerPrefControls';
+import { ViewerPrefControls, type ViewerPrefs } from './components/ViewerPrefControls';
 import {
   controlFailureText,
   type ControlAnswerState,
@@ -452,6 +452,7 @@ export function App() {
   // viewer. Mode is per-message (each MessageView's pencil); shape stays per-instance.
   const [clickAction, setClickAction] = useState<ClickAction>('follow');
   const [motivation, setMotivation] = useState<SelectionMotivation | null>('linking');
+  const [semiontMenuOpen, setSemiontMenuOpen] = useState(false);
   useEffect(() => {
     void getPref<ClickAction>(CLICK_ACTION_KEY, 'follow').then(setClickAction);
     void getPref<SelectionMotivation>(MOTIVATION_KEY, 'linking').then(setMotivation);
@@ -1018,7 +1019,25 @@ export function App() {
   return (
     <>
       <div className={isElectron ? 'app app--electron' : 'app'}>
-        {isElectron && <div className="app__dragbar" aria-hidden="true" />}
+        <div className="app__chrome">
+          {isElectron && <div className="app__dragbar" aria-hidden="true" />}
+          <div className="app__chrome-controls" role="group" aria-label="Application controls">
+            <ViewerPrefControls prefs={viewerPrefs} placement="down" />
+            <button
+              type="button"
+              className={`app__menu-toggle${semiontMenuOpen ? ' app__menu-toggle--on' : ''}`}
+              aria-label={semiontMenuOpen ? 'Close Semiont menu' : 'Open Semiont menu'}
+              aria-haspopup="dialog"
+              aria-controls="semiont-panel"
+              aria-expanded={semiontMenuOpen}
+              title={semiontMenuOpen ? 'Close Semiont menu' : 'Open Semiont menu'}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={() => setSemiontMenuOpen((open) => !open)}
+            >
+              <GearIcon />
+            </button>
+          </div>
+        </div>
         <WorkspaceTabs
           tabs={openKbTabUris.flatMap((id) => {
             const kb = config.kbs.find((entry) => entry.uri === id);
@@ -1039,6 +1058,8 @@ export function App() {
         />
         <div className="app__body" style={{ gridTemplateColumns: showWorkspaceNav ? `${sidebarWidth}px 1px 1fr` : '0px 1fr' }}>
           <KbNav
+            semiontMenuOpen={semiontMenuOpen}
+            onSemiontMenuOpenChange={setSemiontMenuOpen}
             showWorkspaceContent={showWorkspaceNav}
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
@@ -1218,6 +1239,15 @@ export function App() {
         />
       )}
     </>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
+      <path d="m19.4 15 .1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5v.2a1.8 1.8 0 1 1-3.6 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1h-.2a1.8 1.8 0 1 1 0-3.6h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a1.8 1.8 0 1 1 2.6-2.6l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5v-.2a1.8 1.8 0 1 1 3.6 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1h.2a1.8 1.8 0 1 1 0 3.6h-.2a1.7 1.7 0 0 0-1.5 1 1.7 1.7 0 0 0 .3 1.8Z" />
+    </svg>
   );
 }
 
@@ -1585,7 +1615,6 @@ function MainBody({
         key={activeResource.id}
         session={resourceSession}
         prefs={viewerPrefs}
-        showInteractionControls={layout === 'doc'}
         resourceId={activeResource.id}
         name={activeResource.name}
         onClose={onCloseResource}
