@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Semiont.Internal.SignIn (KeptSignIn(..), Rotation(..), rotation, newMemorySignIn, keptIn, renewKept) where
 
+import Control.Concurrent.Async (wait, waitCatch)
 import Control.Concurrent.STM
+import Control.Exception (mask, onException)
 import Control.Monad (when)
 import Data.Aeson (eitherDecodeStrict', encode)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Internal.Stored as Stored
 import Semiont.Types (StoredSession(..), IssuedTokens(..))
@@ -63,6 +66,9 @@ keptIn storage identity = KeptSignIn (Stored.storedSession storage identity) (St
 
 -- | A replacement already kept is used before spending a refresh token. The
 -- writer compares both read tokens afterwards, preserving renewal/sign-out.
+-- An issuer that rotates refresh tokens spends the old one when it answers:
+-- once asked, the exchange and the write of what it brought run to their end,
+-- and a caller interrupted meanwhile waits for that end before it is.
 renewKept :: KeptSignIn -> Maybe Text -> (Text -> IO Bool) -> (StoredSession -> IO IssuedTokens) -> IO (Maybe Text)
 renewKept store holding expired issue = do
   current <- held store
@@ -70,6 +76,7 @@ renewKept store holding expired issue = do
     Nothing -> pure Nothing
     Just before -> do
       stale <- expired (storedSessionAccess before)
-      if Just (storedSessionAccess before)/=holding && not stale then pure (Just (storedSessionAccess before)) else do
-        issued <- issue before
-        renewed store before issued
+      if Just (storedSessionAccess before)/=holding && not stale then pure (Just (storedSessionAccess before)) else
+        mask $ \restore -> do
+          spending <- tracedAsync (restore (issue before >>= renewed store before))
+          restore (wait spending) `onException` waitCatch spending

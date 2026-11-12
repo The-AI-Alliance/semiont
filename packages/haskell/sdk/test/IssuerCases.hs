@@ -35,7 +35,7 @@ import qualified Semiont.StateValue as State
 import qualified Semiont.Transport as Transport
 import qualified Semiont.Issuer as Issuer
 import qualified Semiont.ErrorCodes as Code
-import Semiont.Errors (SignInError(..), TransportError(..))
+import Semiont.Errors (BusRequestError, SignInError(..), TransportError(..))
 import qualified Semiont.Retry as Retry
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Registry.Stored as Stored
@@ -260,6 +260,33 @@ issuerCases fixtures = do
         =<< atomically (State.current (Session.token session))
       void (Auth.me auth Nothing)
     require "agent disposal disposed its borrowed service account" . (=="fresh") =<< Service.token service
+  -- The agent closes while its token is renewed: the refusal waiting on the
+  -- renewal is given no token, the answer that comes later is not taken, and a
+  -- refusal after the close, of the token held or one replaced, is given none,
+  -- with the issuer asked nothing more.
+  atomically (writeTVar identities [200])
+  bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service -> do
+    opened <- Session.signInAgent http agentOptions (Budget.RetryBudget 2 10 20) service
+    let session=Session.openedSession opened
+        tokenAsks = length . filter ((=="/token") . route) <$> readTVar seen
+    first <- atomically (State.current (Session.token session))
+    granting <- newEmptyTMVarIO
+    atomically (writeTVar hold (Just granting) >> writeTVar tokenBody (object ["access_token" .= String "late"]))
+    asked <- atomically tokenAsks
+    refusing <- async (try (Session.refresh session first) :: IO (Either BusRequestError (Maybe Text)))
+    atomically (tokenAsks >>= check . (==asked+1))
+    Session.closeOpenedSession opened
+    refusal <- wait refusing
+    require "a refusal waiting on the renewal the agent's close ended was not given no token" (refusal==Right Nothing)
+    atomically (putTMVar granting ())
+    Time.settle
+    require "a closed agent took the token its ended renewal brought" . (==first) =<< atomically (State.current (Session.token session))
+    afterwards <- try (Session.refresh session first) :: IO (Either BusRequestError (Maybe Text))
+    require "a refusal made once the agent was closed was not given no token" (afterwards==Right Nothing)
+    replaced <- try (Session.refresh session (Just "replaced")) :: IO (Either BusRequestError (Maybe Text))
+    require "a refusal of a token already replaced, once the agent was closed, was not given no token" (replaced==Right Nothing)
+    require "a closed agent asked the issuer for another token" . (==asked+1) =<< atomically tokenAsks
+  atomically (writeTVar hold Nothing >> writeTVar tokenBody (object ["access_token" .= String "fresh"]))
   atomically (writeTVar identities [401])
   ended <- newTVarIO []
   beforeRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
