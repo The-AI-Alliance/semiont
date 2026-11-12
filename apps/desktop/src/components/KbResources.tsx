@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useObservable } from '@semiont/react-ui';
 import type { ResourceDescriptor } from '@semiont/core';
-import { QUESTION_ENTITY_TYPE, type ChatSession } from '../lib/session';
+import type { ChatSession } from '../lib/session';
 import { isDesktopChatResource } from '../lib/agent-bridge';
 
 const notChatMessage = (r: ResourceDescriptor) =>
-  !(r.entityTypes ?? []).includes(QUESTION_ENTITY_TYPE) && !isDesktopChatResource(r.name);
+  !isDesktopChatResource(r.name);
 
 /** The clickable document rows, shared by the live list and search results. */
 function DocRows({
