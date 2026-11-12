@@ -398,6 +398,29 @@ def test_the_first_reader_of_a_session_nobody_has_read_is_given_the_latest_it_sa
     run(scenario())
 
 
+def test_a_session_drops_what_it_kept_for_a_first_reader_as_it_ends_so_a_reader_who_comes_after_hears_nothing() -> None:
+    world = World(kept=token(3600, 1))
+    keeping = Broadcast[SessionError]()
+
+    async def scenario() -> None:
+        # Not the world's: it reads the session's errors as soon as it is made.
+        session = SemiontSession(
+            kb=TARGET,
+            client=create_test_client().client,
+            token=world.token,
+            kept=world.kept,
+            refresh=world.refresh,
+            validate=world.validate,
+            said=keeping.listen(),
+        )
+        async with session:
+            await soon(session.ready())
+            keeping.deliver(SessionError("session.save-refused", "said before anyone read", kb_id=KB))
+        assert [error async for error in session.errors()] == []
+
+    run(scenario())
+
+
 def test_a_failure_its_transport_met_as_the_gateway_was_asked_who_its_token_is_is_said_before_what_the_session_says_of_it() -> None:
     world = World(kept=token(3600, 1))
     gone = TransportError("unavailable", "the gateway cannot be reached")

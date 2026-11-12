@@ -62,10 +62,11 @@ from typing import Final, Literal, Protocol, Self, final, override
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont._endpoints import same_place
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont._reading import Reading
 from semiont.errors import BusRequestError, SemiontError, SessionError, TransportError
 from semiont.event_bus import EventBus
-from semiont.events import Broadcast, Events
+from semiont.events import Events
 from semiont.identifiers import ResourceId
 from semiont.identity import kb_did
 from semiont.model import written
@@ -569,7 +570,7 @@ class SemiontBrowser:
         self._open_resources: Final = Variable[tuple[OpenResource, ...]](())
         self._last_viewed: Final = Variable[ResourceId | None](None)
         self._identity_token: Final = Variable[str | None](None)
-        self._failures: Final = Broadcast[SessionError]()
+        self._failures: Final = KeptForFirstReader[SessionError]()
         self._bus: Final = EventBus()
         self._open_by_kb = _open_by_kb_of(self._storage.get(OPEN_RESOURCES_BY_KB_KEY))
         self._viewed_by_kb = _viewed_by_kb_of(self._storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY))
@@ -639,7 +640,14 @@ class SemiontBrowser:
         return Reading(self._last_viewed)
 
     def errors(self) -> Events[SessionError]:
-        """Each of its sessions' own errors, and each session it could not build, from now on, until the registry is closed."""
+        """Each of its sessions' own errors, and each session it could not build, until the registry is closed.
+
+        Its first reader is given first the latest
+        `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said before it came, in the order
+        they were said, the oldest beyond them dropped; every later one, what
+        is said from then on. What is still kept when the registry closes is
+        dropped: a reader that comes after is given nothing.
+        """
         return self._failures.listen()
 
     @property

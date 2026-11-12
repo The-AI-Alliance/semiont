@@ -10,6 +10,9 @@ gateway, whose session's client keeps the entity types it read in a storage
 that refuses every write of them, on a loop whose clock does not move: the
 save the read leaves owed still waits out its debounce as the registry's close
 begins, and the close is the first to make it.
+
+Beside the table, over `Scripted`: what the registry's own errors keep for a
+first reader who has not come, and drop as the registry closes.
 """
 
 from collections.abc import AsyncGenerator, Sequence
@@ -44,6 +47,7 @@ from semiont.session_signals import PermissionDenied
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import StoredSession, cache_key, person_key
 from semiont.testing import FaultyTransport, create_test_client
+from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT
 from semiont.transport import Transport
 from semiont.types import HttpEndpoint, KbTarget, KnowledgeBase
 from semiont.watched import Variable, reached
@@ -230,6 +234,55 @@ def test_a_registry_reads_what_its_session_says_as_the_table_states(case: Case) 
             assert factory.handed == []
             stated = None if case.permission_denied is None else PermissionDenied(detail=case.permission_denied)
             assert signals.permission_denied.value == stated
+
+    run(scenario())
+
+
+# ── what the registry's errors keep for a first reader ──────────────────
+
+
+LAST_WORD: Final = TransportError("forbidden", "refused for lack of permission, said last")
+"""Said after what a case has the session say: once the registry has said it through the signals, it has read everything before it."""
+
+
+async def speaking_once_read(browser: SemiontBrowser, factory: Scripted, said: Sequence[SessionError]) -> None:
+    """Have the active session say each of `said`, then `LAST_WORD`, and wait until the registry has read them all."""
+    await active_session(browser)
+    signals = browser.active_signals.value
+    assert signals is not None
+    (speaking,) = factory.built
+    speaking.say([*said, LAST_WORD])
+    heard_last = PermissionDenied(detail=LAST_WORD.message)
+    await soon(reached(signals.permission_denied, lambda denied: denied == heard_last))
+
+
+def test_the_first_reader_of_a_registrys_errors_is_given_the_latest_said_before_it_came_in_order_and_no_more() -> None:
+    beyond = 3
+    said = [
+        SessionError("session.save-refused", f"write {serial} refused", kb_id=KB)
+        for serial in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
+    ]
+
+    async def scenario() -> None:
+        factory = Scripted([])
+        storage = holding_signed_in(MemoryStorage(), scripted_kb(), "https://issuer.test/token")
+        async with SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=factory)) as browser:
+            await speaking_once_read(browser, factory, said)
+            errors = browser.errors()
+            given = [(await soon(anext(errors))).message for _ in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT)]
+        assert given == [error.message for error in said[beyond:]]
+
+    run(scenario())
+
+
+def test_a_registry_drops_what_it_kept_for_a_first_reader_as_it_closes_so_a_reader_who_comes_after_hears_nothing() -> None:
+    async def scenario() -> None:
+        factory = Scripted([])
+        storage = holding_signed_in(MemoryStorage(), scripted_kb(), "https://issuer.test/token")
+        browser = SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=factory))
+        async with browser:
+            await speaking_once_read(browser, factory, [SessionError("session.save-refused", "said before anyone read", kb_id=KB)])
+        assert [error async for error in browser.errors()] == []
 
     run(scenario())
 

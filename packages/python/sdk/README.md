@@ -133,7 +133,8 @@ async def as_me(kb: KbTarget, home: str) -> None:
   stream ends when the session ends: `session_from_kept` closes the client
   first and writes what it still owed, so what that met is said before the
   stream ends, and what the client meets once the session has ended is said
-  nowhere.
+  nowhere. What is still kept then is dropped: a reader that comes after the
+  end is given nothing.
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer, a renewal the issuer did not refuse is tried
   again inside a bounded budget, and one under way runs to its end whoever
@@ -780,7 +781,10 @@ async def pick_up_where_i_was(storage: SessionStorage, sessions: SessionFactory)
   of permission raises `permission_denied`. Every other failure of the
   session's transport is left alone: a token the gateway refuses is renewed
   by the transport that sent it. A factory reads none of them, so a session
-  your own `SessionFactory` builds is read the same way.
+  your own `SessionFactory` builds is read the same way. The first reader of
+  `browser.errors()` is given the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT`
+  said before it came, in order, and what is still kept when the registry
+  closes is dropped.
 - **Another context's writes are heard.** Each change to what is open is made
   against what the storage holds, as one step (`SessionStorage.update`), and
   a storage that hears what another window or process writes

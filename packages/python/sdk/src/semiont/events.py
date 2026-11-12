@@ -109,11 +109,12 @@ class Broadcast[T]:
     def listen_with(self, kept: Iterable[T]) -> Events[T]:
         """A reader given `kept` first, in order, then what is delivered from now on.
 
-        Of a closed broadcast, one given `kept`, then ended.
+        Of a closed broadcast, one that has already ended: `kept` is not given.
         """
         reader: _Reader[T] = _Reader()
-        for item in kept:
-            reader.take(item)
+        if not self._closed:
+            for item in kept:
+                reader.take(item)
         return self._admit(reader)
 
     def _admit(self, reader: _Reader[T]) -> Events[T]:

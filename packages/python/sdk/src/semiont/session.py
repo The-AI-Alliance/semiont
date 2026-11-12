@@ -64,7 +64,6 @@ import base64
 import binascii
 import time
 import uuid
-from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 from types import TracebackType
@@ -72,13 +71,14 @@ from typing import Final, Literal, Protocol, Self, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont._reading import Reading
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError, SessionError, SignInError, TransportError
-from semiont.events import Broadcast, Events
+from semiont.events import Events
 from semiont.retry import REFRESH, RetryFacts, equal_jitter
 from semiont.state_unit import StateUnit
-from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT, MAX_RECONNECT_MS, MIN_REFRESH_DELAY_MS, RECONNECT_MS, REFRESH_BEFORE_EXP_MS
+from semiont.timing import MAX_RECONNECT_MS, MIN_REFRESH_DELAY_MS, RECONNECT_MS, REFRESH_BEFORE_EXP_MS
 from semiont.transport import ConnectionState, Transport
 from semiont.types import KbTarget, UserResponse
 from semiont.watched import Variable, Watched
@@ -380,9 +380,7 @@ class SemiontSession[T: Transport](StateUnit):
         self._validate: Final = validate
         self._on_auth_failed: Final = on_auth_failed
         self._said: Final = said
-        self._errors: Final = Broadcast[SemiontError]()
-        self._kept_for_first_reader: deque[SemiontError] | None = deque(maxlen=ERRORS_KEPT_FOR_FIRST_READER_COUNT)
-        """The latest the session said while nobody has read its errors, in the order met, for the first who does; none once one has."""
+        self._errors: Final = KeptForFirstReader[SemiontError]()
         self._closing: Final = asyncio.Event()
         self._relays: Final[list[Callable[[], None]]] = []
         """What stops each relay onto its errors: of `said`, from when it is made, and of its transport's failures, from its start."""
@@ -425,12 +423,13 @@ class SemiontSession[T: Transport](StateUnit):
         transport's telling of it. Its first reader is given first the latest
         `ERRORS_KEPT_FOR_FIRST_READER_COUNT` said before it came, in the order
         they were met, the oldest beyond them dropped; every later one, what
-        is said from then on. It ends when the session does. A host routes
-        them by code; a refusal for want of a valid token among them asks
-        nothing of it: the transport that met it renews the token it sent.
+        is said from then on. It ends when the session does, and what is
+        still kept then is dropped: a reader that comes after is given
+        nothing. A host routes them by code; a refusal for want of a valid
+        token among them asks nothing of it: the transport that met it renews
+        the token it sent.
         """
-        kept, self._kept_for_first_reader = self._kept_for_first_reader, None
-        return self._errors.listen() if kept is None else self._errors.listen_with(kept)
+        return self._errors.listen()
 
     def expires_at(self) -> float | None:
         """When the token the session holds expires, in seconds since the epoch."""
@@ -462,7 +461,7 @@ class SemiontSession[T: Transport](StateUnit):
         await asyncio.gather(running, return_exceptions=True)
         # Whatever ended the session's work that was not its ending is raised here.
         if not running.cancelled():
-            await running
+            running.result()
 
     @override
     def dispose(self) -> None:
@@ -643,10 +642,7 @@ class SemiontSession[T: Transport](StateUnit):
         """Say `error` on the session's errors, until they end: to every reader, or, while none has come, kept for the first."""
         if self._closing.is_set():
             return
-        if self._kept_for_first_reader is None:
-            self._errors.deliver(error)
-        else:
-            self._kept_for_first_reader.append(error)
+        self._errors.deliver(error)
 
     async def _start(self, kept: HeldSignIn | None) -> None:
         """What a session does at its start, with the sign-in it found kept.
