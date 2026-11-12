@@ -1035,10 +1035,10 @@ func TestTheFirstReaderOfTheStallsIsGivenTheLatestReportedBeforeItAndALaterReade
 	beyond := 5
 	reported := make([]*HeldJobStall, timing.ErrorsKeptForFirstReaderCount+beyond)
 	for n := range reported {
-		reported[n] = claims.stalls.report(&HeldJobStall{SilentFor: time.Duration(n)})
+		reported[n] = claims.stalls.Report(&HeldJobStall{SilentFor: time.Duration(n)})
 	}
 	first, later := claims.Stalled(), claims.Stalled()
-	following := claims.stalls.report(&HeldJobStall{SilentFor: time.Duration(len(reported))})
+	following := claims.stalls.Report(&HeldJobStall{SilentFor: time.Duration(len(reported))})
 	claims.Close()
 
 	if heard := slices.Collect(first); !slices.Equal(heard, append(slices.Clone(reported[beyond:]), following)) {
@@ -1054,7 +1054,7 @@ func TestTheFirstReaderOfTheStallsIsGivenTheLatestReportedBeforeItAndALaterReade
 func TestAFirstReaderOfTheStallsWhoComesAfterTheClaimsEndedIsGivenNothing(t *testing.T) {
 	w := newClaimWorld(t, DefaultTiming())
 	claims := w.client.Job.Claim(filters(t, everything))
-	claims.stalls.report(&HeldJobStall{})
+	claims.stalls.Report(&HeldJobStall{})
 	claims.Close()
 
 	if heard := slices.Collect(claims.Stalled()); len(heard) != 0 {
@@ -1062,43 +1062,92 @@ func TestAFirstReaderOfTheStallsWhoComesAfterTheClaimsEndedIsGivenNothing(t *tes
 	}
 }
 
-// While nobody takes what the claims hand out, they keep, of the refusals,
-// the latest ErrorsKeptForFirstReaderCount, the oldest dropped beyond them,
-// and a job claimed after them is handed out all the same.
-func TestClaimsNobodyTakesFromKeepTheLatestRefusalsAndTheJobClaimedAfterThem(t *testing.T) {
+// A reader ranging over the claims is handed every refusal, in order, however
+// slowly it takes them, and the job claimed after them.
+func TestAReaderRangingOverTheClaimsIsHandedEveryRefusalHoweverSlowlyItTakesThem(t *testing.T) {
 	timing := DefaultTiming()
 	w := newClaimWorld(t, timing)
-	beyond := 5
-	unread := timing.ErrorsKeptForFirstReaderCount + beyond
-	for n := range unread + 1 {
-		w.refusals = append(w.refusals, fmt.Sprintf(`{"message": "refusal %d", "code": "unauthorized"}`, n))
-	}
+	untaken := timing.ErrorsKeptForFirstReaderCount + 5
+	w.refusing(untaken + 1)
 	claims := w.client.Job.Claim(filters(t, everything))
 	defer claims.Close()
-	claimsSent := func() int { return len(w.wire.sent(bus.JobClaim.Request().Channel())) }
-	refusedWith := func(one pulled, n int) bool {
-		var refusal *ClaimRefusal
-		return errors.As(one.err, &refusal) && refusal.Message == fmt.Sprintf("refusal %d", n)
-	}
 	pull := pulling(t, claims)
 	if one := pull.take(t); !refusedWith(one, 0) {
 		t.Fatalf("the first claim handed out %+v, want refusal 0", one)
 	}
 
-	for n := 1; n <= unread; n++ {
-		w.wire.relay(bus.JobQueued.Channel(), queuedOf("highlighting"))
-		eventually(t, fmt.Sprintf("claim %d", n), func() bool { return claimsSent() == n+1 })
-	}
+	// The reader's loop is still under way, in the body that took refusal 0.
+	w.claimEachAnnounced(t, untaken)
 	w.offer(running("job-1", "mark", "", ""))
-	w.wire.relay(bus.JobQueued.Channel(), queuedOf("highlighting"))
-	eventually(t, "the claim of the job", func() bool { return claimsSent() == unread+2 })
+	w.claimEachAnnounced(t, 1)
 
-	for n := beyond + 1; n <= unread; n++ {
+	for n := 1; n <= untaken; n++ {
 		if one := pull.take(t); !refusedWith(one, n) {
-			t.Fatalf("handed out %+v, want refusal %d: the latest %d refusals, in order", one, n, timing.ErrorsKeptForFirstReaderCount)
+			t.Fatalf("handed out %+v, want refusal %d: every refusal, in order", one, n)
 		}
 	}
 	finish(t, pull.held(t))
+}
+
+// Of the refusals met while nobody ranges over the claims, the latest
+// ErrorsKeptForFirstReaderCount are kept for the next range, the oldest
+// dropped beyond them, and a job claimed after them is handed out all the
+// same.
+func TestClaimsNobodyRangesOverKeepTheLatestRefusalsAndTheJobClaimedAfterThem(t *testing.T) {
+	timing := DefaultTiming()
+	w := newClaimWorld(t, timing)
+	beyond := 5
+	unread := timing.ErrorsKeptForFirstReaderCount + beyond
+	w.refusing(unread + 1)
+	claims := w.client.Job.Claim(filters(t, everything))
+	defer claims.Close()
+	first := pulling(t, claims)
+	if one := first.take(t); !refusedWith(one, 0) {
+		t.Fatalf("the first claim handed out %+v, want refusal 0", one)
+	}
+	first.stop()
+
+	w.claimEachAnnounced(t, unread)
+	w.offer(running("job-1", "mark", "", ""))
+	w.claimEachAnnounced(t, 1)
+
+	next := pulling(t, claims)
+	for n := beyond + 1; n <= unread; n++ {
+		if one := next.take(t); !refusedWith(one, n) {
+			t.Fatalf("handed out %+v, want refusal %d: the latest %d refusals, in order", one, n, timing.ErrorsKeptForFirstReaderCount)
+		}
+	}
+	finish(t, next.held(t))
+}
+
+// refusing has the dispatcher refuse the next count claims, the nth with the
+// message "refusal n".
+func (w *claimWorld) refusing(count int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for n := range count {
+		w.refusals = append(w.refusals, fmt.Sprintf(`{"message": "refusal %d", "code": "unauthorized"}`, n))
+	}
+}
+
+// refusedWith is whether one is the refusal "refusal n".
+func refusedWith(one pulled, n int) bool {
+	var refusal *ClaimRefusal
+	return errors.As(one.err, &refusal) && refusal.Message == fmt.Sprintf("refusal %d", n)
+}
+
+// claimsSent is how many claims the worker has sent.
+func (w *claimWorld) claimsSent() int { return len(w.wire.sent(bus.JobClaim.Request().Channel())) }
+
+// claimEachAnnounced announces a job count times, each once the claim the
+// announcement before it woke has been sent.
+func (w *claimWorld) claimEachAnnounced(t *testing.T, count int) {
+	t.Helper()
+	sent := w.claimsSent()
+	for n := 1; n <= count; n++ {
+		w.wire.relay(bus.JobQueued.Channel(), queuedOf("highlighting"))
+		eventually(t, fmt.Sprintf("claim %d", n), func() bool { return w.claimsSent() == sent+n })
+	}
 }
 
 func TestAHeldJobStatesTheTraceItsReplyArrivedIn(t *testing.T) {

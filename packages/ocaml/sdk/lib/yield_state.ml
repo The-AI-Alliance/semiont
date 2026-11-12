@@ -96,7 +96,8 @@ let generate t ?stall_ms params =
         ~on_failure:(fun failure ->
           if current () then (
             set t.failure (Some failure);
-            if failure.code <> "job.cancelled" then set t.progress None))
+            if failure.code <> Error_codes.Job.cancelled then
+              set t.progress None))
         ~on_close:(fun () ->
           t.runs <- List.filter (fun active -> active != run) t.runs;
           if current () then (

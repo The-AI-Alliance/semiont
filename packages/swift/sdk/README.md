@@ -167,7 +167,10 @@ transport. Dispose that owner before shutting down the HTTP client. The session 
 gateway who its token is unless it is opened with `validate: false`. Its `ready()` raises
 startup task failures; `errors()` is its one stream of what went wrong: its own
 `SessionError`s (a sign-in it could not check, renew, read or record, a write its storage
-refused) and its transport’s failures, each said once, in the order they were met. Of what it
+refused) and its transport’s failures, each said once, in the order they were met. A session
+listens to its client’s transport, whatever the transport, from when it is made, and says each
+failure as the transport tells it; taken first, its listener is told what the transport kept,
+which is said ahead of everything the session says. Of what it
 says before anyone reads `errors()`, the latest `errorsKeptForFirstReaderCount` are kept for
 the first reader. The stream ends when the session ends. Disposing the
 `OpenedSession` closes the client first and ends the session once the client’s closing flush
@@ -281,7 +284,10 @@ delivers only those, and a resource-scoped frame only while its resource is held
 a test of a full client gives it `bridgedChannels`, and a worker's test
 `jobClaimChannels`. It keeps no
 deadline: a dropped reply never comes, and the client's bus fails the request
-at its own. A `LivenessSpec`'s `timeout` is the
+at its own. `fail(_:)` tells a `TransportError` to each listener of its
+failures, as a transport does of a request the gateway refused, so a session
+made over it says it on its `errors()`; one reported before anyone listens is
+kept for the first listener. A `LivenessSpec`'s `timeout` is the
 time its composition gives a bus request, so its `setup` builds the client with
 that many milliseconds as its `busRequestTimeoutMs`.
 
@@ -342,7 +348,7 @@ gives a request up by cancelling its task, which the transport ends.
 
 The HTTP transport uses the caller's AsyncHTTPClient `HTTPClient` for every request. Its default proxy setting is `nil`; it does not read proxy environment variables. Callers configure trust and proxies on that client and shut it down after disposing the transport. The SDK reads only `SEMIONT_BUS_LOG`.
 
-`HttpTransport` is always given the global channels its stream names, and assumes none of its own: a full client's transport is given `bridgedChannels`, which `SemiontClient.fromHttp` and `sessionFromKept` pass. A request whose reply channels it was not given fails at once as `bus.unsubscribed`. It exposes connection state, independent lossless `frames` sequences of `Carried` (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Each frame is held to `BusFrame`: one it allows is `Carried.frame`, one it does not that names its channel's readers is `Carried.refused`, and anything else is reported on `failures()`. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
+`HttpTransport` is always given the global channels its stream names, and assumes none of its own: a full client's transport is given `bridgedChannels`, which `SemiontClient.fromHttp` and `sessionFromKept` pass. A request whose reply channels it was not given fails at once as `bus.unsubscribed`. It exposes connection state, independent lossless `frames` sequences of `Carried` (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Each frame is held to `BusFrame`: one it allows is `Carried.frame`, one it does not that names its channel's readers is `Carried.refused`, and anything else is a failure. Each failure a transport meets (a refusal, a request the gateway never answered, a line no reader can read) is told to every listener taken with `tellFailures(to:)` before the call that met it returns, so in the order met; the first listener is told at once the latest `errorsKeptForFirstReaderCount` met before it came, and one taken after the transport is disposed is told nothing. A listener must not wait. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
 
 ## Working on the SDK
 

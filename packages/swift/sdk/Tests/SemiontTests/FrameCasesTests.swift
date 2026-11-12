@@ -124,6 +124,13 @@ private func first<Source: AsyncSequence & Sendable>(_ count: Int, of source: So
   }
 }
 
+/// Each failure `transport` tells a listener taken now, in the order told.
+private func failuresTold(by transport: HttpTransport) -> AsyncStream<TransportError> {
+  let (told, telling) = AsyncStream<TransportError>.makeStream()
+  transport.tellFailures { telling.yield($0) }
+  return told
+}
+
 /// A gateway that answers nothing: an emit sent to it is never answered, so a request goes on
 /// awaiting its reply until the case settles it.
 private final class Unanswering: ChannelInboundHandler {
@@ -226,7 +233,7 @@ private func awaitingReply(_ transport: HttpTransport) async throws -> (
     try await carrying { transport in
       let frames = try await transport.frames([channel])
       let typed = try await reader?(transport)
-      let failures = transport.failures()
+      let failures = failuresTold(by: transport)
       await transport.carryForTest(try line(stated), id: "e-1")
       await transport.carryForTest(namesNoChannel, id: "e-2")
       guard case .frame(let frame)? = try await first(1, of: frames).first else {
@@ -272,7 +279,7 @@ private func awaitingReply(_ transport: HttpTransport) async throws -> (
       let frames = try await transport.frames([channel])
       let typed = try await Bus(transport).frames(read)
       let typedReply = try await Bus(transport).frames(Channels.browseResourceResult)
-      let failures = transport.failures()
+      let failures = failuresTold(by: transport)
       let text: String
       if let data { text = data } else { text = try line(#require(frame)) }
       await transport.carryForTest(text, id: "e-1")

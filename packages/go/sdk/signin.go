@@ -21,6 +21,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 )
 
 // renewing is a kept sign-in's renewals, one at a time: a renewal asked for
@@ -227,7 +228,7 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
 		SkipAskingWhoTokenIs: config.SkipAskingWhoTokenIs, OnAuthFailed: config.OnAuthFailed,
 	}, baseURL)
-	failures := newFailureStream[Error](config.Timing.ErrorsKeptForFirstReaderCount)
+	failures := kept.NewStream[Error](config.Timing.ErrorsKeptForFirstReaderCount)
 	var keeps *keptFor
 	if keepsForAPerson {
 		keeps = &keptFor{SignInKept: config.Kept, storage: config.Storage, kbID: config.Kb.Id, client: client, transport: transport, failures: failures}
@@ -278,7 +279,7 @@ type keptFor struct {
 	transport *HTTPTransport
 	// failures is the session's errors: what stops the client keeping, and
 	// each write the storage refuses, are said there.
-	failures *failureStream[Error]
+	failures *kept.Stream[Error]
 
 	mu sync.Mutex
 	// keeping is where the client keeps the person's things: nil until it is
@@ -309,7 +310,7 @@ func (k *keptFor) attach(personKey string) {
 // refused says, as session.save-refused, a write of what the client keeps
 // that the storage refused: of a cache, or of the places its write carries.
 func (k *keptFor) refused(err error) {
-	k.failures.report(&SessionError{Code: SessionErrorCodeSaveRefused, Message: "The storage refused a write of what the client keeps: " + err.Error(), KbID: k.kbID})
+	k.failures.Report(&SessionError{Code: SessionErrorCodeSaveRefused, Message: "The storage refused a write of what the client keeps: " + err.Error(), KbID: k.kbID})
 }
 
 // Forget is the session forgetting its sign-in (its expiry, its refusal).
@@ -338,7 +339,7 @@ func (k *keptFor) stopsKeeping(why string) {
 	k.keepFailed = true
 	k.mu.Unlock()
 	if !said {
-		k.failures.report(&SessionError{Code: SessionErrorCodeKeepFailed, Message: why, KbID: k.kbID})
+		k.failures.Report(&SessionError{Code: SessionErrorCodeKeepFailed, Message: why, KbID: k.kbID})
 	}
 }
 

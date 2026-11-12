@@ -24,10 +24,12 @@ let request ?(on_sent = ignore) bus http ~client_id ~key operation payload =
     | Ok (Subscription.Result response) ->
         Ok (J.member "response" (Yojson.Safe.from_string (B.encode response)))
     | Ok (Subscription.Failure failure) -> Error (Http_wire.bus_failure failure)
-    | Error Subscription.Timeout -> Error "bus.timeout"
-    | Error Subscription.Transport_closed -> Error "bus.closed"
-    | Error Subscription.Unsubscribed -> Error "bus.unsubscribed"
-    | Error _ -> Error "bus.rejected"
+    | Error Subscription.Timeout -> Error Error_codes.Bus_request.timeout
+    | Error Subscription.Transport_closed ->
+        Error Error_codes.Bus_request.closed
+    | Error Subscription.Unsubscribed ->
+        Error Error_codes.Bus_request.unsubscribed
+    | Error _ -> Error Error_codes.Bus_request.rejected
   with Http_wire.Failed failure -> Error failure.code
 
 let join_limits engines limits =
@@ -53,14 +55,14 @@ let make ?window_ms ?restore ?save ~sw ~clock ~bus ~http ~client_id ~key () =
           Option.bind resource (fun id ->
               Result.to_option (Identifiers.Resource_id.of_string id))
         with
-        | None -> Error "bad-request"
+        | None -> Error Error_codes.Transport.bad_request
         | Some id -> (
             try
               Ok
                 (J.member "annotations"
                    (Yojson.Safe.from_string (Http_wire.annotations http id)))
             with Http_wire.Failed failure -> Error failure.code))
-    | None -> Error "bad-request"
+    | None -> Error Error_codes.Transport.bad_request
     | Some (B.Operation operation) ->
         let field name = Option.map (fun value -> (name, `String value)) in
         let payload =
@@ -78,7 +80,7 @@ let make ?window_ms ?restore ?save ~sw ~clock ~bus ~http ~client_id ~key () =
           request ?on_sent bus http ~client_id ~key operation payload
         in
         if name = "engines" then (
-          let answer = ref (Error "bus.closed") in
+          let answer = ref (Error Error_codes.Bus_request.closed) in
           let limits = ref [] in
           let sent, mark_sent = Promise.create () in
           let ready () =

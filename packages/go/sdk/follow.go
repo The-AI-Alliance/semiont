@@ -348,8 +348,8 @@ func followed[C any](ctx context.Context, l *links, create api.JobCreateCommand,
 			report(JobCreated{Data: created.value.Response})
 			askAt = time.Now().Add(silence)
 			said, held = held, nil
-		case <-frames.ready:
-			items, closed := frames.drain()
+		case <-frames.Ready():
+			items, closed := frames.Drain()
 			for _, item := range items {
 				if one, ok := hear(item); ok {
 					if jobID.IsZero() {
@@ -364,7 +364,7 @@ func followed[C any](ctx context.Context, l *links, create api.JobCreateCommand,
 			}
 			if closed {
 				// What came before the close is handled; the next turn ends the follower.
-				frames.signal()
+				frames.Signal()
 			}
 		case status := <-asking:
 			asking = nil

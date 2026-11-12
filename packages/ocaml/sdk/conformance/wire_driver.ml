@@ -341,7 +341,7 @@ let run mode env =
               ~on_refused:(fun status ->
                 on_error
                   {
-                    code = "unauthorized";
+                    code = Semiont.Error_codes.Transport.unauthorized;
                     status = Some status;
                     message = "The gateway refused the stream's credential";
                   })
@@ -707,7 +707,8 @@ let run mode env =
         | Error (Semiont.Client.Refused code) -> ("error", error code)
         | Error (Semiont.Client.Http failure) ->
             ("error", error ?status:failure.status failure.code)
-        | Error (Semiont.Client.Transport _) -> ("error", error "bus.closed"))
+        | Error (Semiont.Client.Transport _) ->
+            ("error", error Semiont.Error_codes.Bus_request.closed))
     | "markDelegate" when mode = Live ->
         delegate ~verb:"mark" input;
         done_
@@ -747,7 +748,8 @@ let run mode env =
           (Hashtbl.find_opt observers observer);
         Hashtbl.remove observers observer;
         done_
-    | "fresh" when mode = Live && !stopping -> ("error", error "bus.closed")
+    | "fresh" when mode = Live && !stopping ->
+        ("error", error Semiont.Error_codes.Bus_request.closed)
     | "fresh" when mode = Live -> (
         match Semiont.Client.fresh (live_query (field "query" input)) with
         | Ok value -> ok (`Assoc [ ("value", value) ])
@@ -794,7 +796,8 @@ let run mode env =
                   "scope" input)
              ?correlation_id:(optional J.to_string "correlationId" input)
              channel (field "payload" input))
-    | "request" when !stopping -> ("error", error "bus.closed")
+    | "request" when !stopping ->
+        ("error", error Semiont.Error_codes.Bus_request.closed)
     | "request" -> (
         let (B.Operation operation) = operation (string "operation" input) in
         let client = get_client () in
@@ -816,11 +819,15 @@ let run mode env =
             ok
               (`Assoc (List.filter (fun (name, _) -> name = "response") fields))
         | Ok (S.Failure payload) -> ("error", error (H.bus_failure payload))
-        | Error S.Timeout -> ("error", error "bus.timeout")
-        | Error S.Transport_closed -> ("error", error "bus.closed")
-        | Error S.Unsubscribed -> ("error", error "bus.unsubscribed")
-        | Error S.Unrecognized_failure -> ("error", error "bus.rejected")
-        | Error _ -> ("error", error "error"))
+        | Error S.Timeout ->
+            ("error", error Semiont.Error_codes.Bus_request.timeout)
+        | Error S.Transport_closed ->
+            ("error", error Semiont.Error_codes.Bus_request.closed)
+        | Error S.Unsubscribed ->
+            ("error", error Semiont.Error_codes.Bus_request.unsubscribed)
+        | Error S.Unrecognized_failure ->
+            ("error", error Semiont.Error_codes.Bus_request.rejected)
+        | Error _ -> ("error", error Semiont.Error_codes.Transport.error))
     | "health" -> ok (Yojson.Safe.from_string (H.health (get_client ()).http))
     | "status" -> ok (Yojson.Safe.from_string (H.status (get_client ()).http))
     | "current-user" ->
@@ -914,7 +921,7 @@ let run mode env =
                   ("misuse", text message)
               | H.Failed failure ->
                   ("error", error ?status:failure.status failure.code)
-              | Eio.Io _ -> ("error", error "error")
+              | Eio.Io _ -> ("error", error Semiont.Error_codes.Transport.error)
             in
             output_json (`Assoc [ ("id", `Int id); answer ]));
         loop ()

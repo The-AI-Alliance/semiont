@@ -55,6 +55,15 @@ actor Output {
     } catch { FileHandle.standardError.write(Data("Cannot encode driver output: \(error)\n".utf8)) }
   }
 }
+/// Each failure `transport` tells a listener taken now, in the order told, and what ends them: a
+/// disposed transport tells nothing more, so a driver ends them once it has disposed it.
+func failuresTold(by transport: any Transport) -> (
+  AsyncStream<TransportError>, AsyncStream<TransportError>.Continuation
+) {
+  let (told, telling) = AsyncStream<TransportError>.makeStream()
+  transport.tellFailures { telling.yield($0) }
+  return (told, telling)
+}
 func failure(_ error: any Error) -> JSONValue {
   var fields: [String: JSONValue] = ["detail": .string(String(describing: error))]
   if let error = error as? TransportError {
@@ -80,6 +89,8 @@ private actor Driver {
   let flush: @Sendable () async -> Void
   let http = HTTPClient(eventLoopGroupProvider: .singleton)
   var transport: HttpTransport?
+  /// Ends the failures `transport` told, once it is disposed.
+  var telling: AsyncStream<TransportError>.Continuation?
   let live: LiveDriver?
   let worker: WorkerDriver?
   var tasks: [Int: Task<Void, Never>] = [:]
@@ -199,20 +210,19 @@ private actor Driver {
         baseUrl: try args.text("baseUrl"), httpClient: http, token: try args.text("token"),
         channels: try args.texts("channels"), timing: timing, refresher: refresh)
       transport = client
-      let errors = client.failures()
+      let (errors, telling) = failuresTold(by: client)
+      self.telling = telling
       let output = self.output
       reporters.append(
         Task {
           for await state in client.state { await output.say(["state": .string(state.rawValue)]) }
         })
       reporters.append(
-        Task {
-          do { for try await error in errors { await output.say(["error": failure(error)]) } } catch
-          {}
-        })
+        Task { for await error in errors { await output.say(["error": failure(error)]) } })
       return .null
     case "close":
       try current().dispose()
+      telling?.finish()
       await flush()
       return .null
     case "set-token":

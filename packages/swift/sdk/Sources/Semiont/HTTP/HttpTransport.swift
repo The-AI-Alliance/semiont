@@ -73,10 +73,10 @@ public actor HttpTransport: Transport, GatewayOperations {
   }
   deinit { lifetime.end() }
   public nonisolated func dispose() { lifetime.end() }
-  /// Each failure the transport meets. The first listener, its session's when it has one, is given
-  /// first the latest `Timings.errorsKeptForFirstReaderCount` met before it listened; one who
-  /// comes after the transport is disposed, nothing.
-  public nonisolated func failures() -> Events<TransportError> { failureEvents.listen() }
+  /// The first listener is its session's, when it has one.
+  public nonisolated func tellFailures(
+    to listener: @escaping @Sendable (TransportError) -> Void
+  ) { failureEvents.onEach(listener) }
 
   public func frames(_ channels: [String]) throws -> Events<Carried> {
     for channel in channels

@@ -10,9 +10,10 @@ public actor SemiontSession: StateUnit {
   public nonisolated let token = Watched<String?>(nil)
   public nonisolated let user = Watched<UserResponse?>(nil)
   nonisolated let lifetime = Lifetime()
-  /// Its one errors stream, its own errors and its transport's failures in the order they were met:
-  /// of what it says before anyone reads it, the latest `Timings.errorsKeptForFirstReaderCount`
-  /// are kept for the first reader.
+  /// Its one errors stream, its own errors and its client's transport's failures, whatever the
+  /// transport, each said as it is met, so in the order they were met: of what it says before
+  /// anyone reads it, the latest `Timings.errorsKeptForFirstReaderCount` are kept for the first
+  /// reader.
   private nonisolated let failures = Broadcast<any Error>(keepingForFirst: true)
   let kept: any SignInKept
   /// Forgets the sign-in `kept` holds.
@@ -65,6 +66,8 @@ public actor SemiontSession: StateUnit {
     let token = token
     let user = user
     let failures = failures
+    // Before the session says anything of its own: what its transport kept is said first.
+    client.transport.tellFailures { failures.yield($0) }
     lifetime.onEnd {
       token.finish(with: token.value)
       user.finish(with: user.value)
@@ -81,7 +84,7 @@ public actor SemiontSession: StateUnit {
   /// Waits for the renewal of its sign-in under way, when there is one, to end.
   func renewalEnded() async { _ = await renewal?.result }
   nonisolated func failed(_ error: SessionError) { failures.yield(error) }
-  nonisolated func relay(_ error: any Error) { failures.yield(error) }
+  nonisolated func say(_ error: any Error) { failures.yield(error) }
   public nonisolated func errors() -> Events<any Error> { failures.listen() }
   public nonisolated func expiresAt() -> Double? { token.value.flatMap(tokenExpiry) }
   package func start() {
@@ -310,7 +313,7 @@ public actor SemiontSession: StateUnit {
         try await wait()
         guard !life.ended, let self else { return }
         try await self.due(id, counted: counted)
-      } catch is CancellationError {} catch { self?.relay(error) }
+      } catch is CancellationError {} catch { self?.say(error) }
     }
     scheduled = id
     life.keep(task, id: id)

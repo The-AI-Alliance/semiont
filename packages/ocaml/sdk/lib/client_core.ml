@@ -26,7 +26,7 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
     | Error { route = None; _ } ->
         report
           {
-            Http_wire.code = "error";
+            Http_wire.code = Error_codes.Transport.error;
             status = None;
             message = "The stream carried a line that names no reader";
           }
@@ -41,7 +41,7 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
       ~on_refused:(fun status ->
         report
           {
-            Http_wire.code = "unauthorized";
+            Http_wire.code = Error_codes.Transport.unauthorized;
             status = Some status;
             message = "The gateway refused the stream's credential";
           })
@@ -99,7 +99,7 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
                   Kept_for_first_reader.say said
                     (Own
                        {
-                         code = "session.save-refused";
+                         code = Error_codes.Session.save_refused;
                          message =
                            "The storage refused a write of what the client \
                             keeps: " ^ Printexc.to_string refusal;

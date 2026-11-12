@@ -17,9 +17,10 @@
  * explicit `timeoutMs` to `Bus.request`, so nothing waits 30 s.
  */
 
-import { BehaviorSubject, Subject, type Observable } from 'rxjs';
+import { BehaviorSubject, type Observable } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import type { SemiontError } from './errors';
+import { KeptForFirstReader } from './kept-for-first-reader';
 import type { BaseUrl } from './branded-types';
 import { baseUrl as makeBaseUrl } from './branded-types';
 import type { ResourceId } from './identifiers';
@@ -131,8 +132,14 @@ export function retryKeyOf(channel: string, payload: Record<string, unknown>): s
 export class FaultyTransport implements ITransport {
   readonly baseUrl: BaseUrl = makeBaseUrl('faulty://simulator');
   readonly state$ = new BehaviorSubject<ConnectionState>('open');
-  private readonly errorsSubject = new Subject<SemiontError>();
-  readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
+  private readonly failures = new KeptForFirstReader<SemiontError>();
+  /**
+   * The failures `fail` reports. Of those reported before its first reader,
+   * the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` are kept for it, in the
+   * order reported; what is still kept when the transport is disposed is
+   * dropped.
+   */
+  readonly errors$: Observable<SemiontError> = this.failures.said$;
 
   /** Every request-channel emit, in order — the L2 accounting surface. */
   readonly requestLog: RequestLogEntry[] = [];
@@ -173,6 +180,14 @@ export class FaultyTransport implements ITransport {
     const q = this.replyQueues.get(op) ?? [];
     q.push(...responses);
     this.replyQueues.set(op, q);
+  }
+
+  /**
+   * Report `error` on `errors$`, as a transport reports a request the
+   * gateway refused. A disposed transport reports nothing.
+   */
+  fail(error: SemiontError): void {
+    this.failures.say(error);
   }
 
   // ── Bus primitives ──────────────────────────────────────────────────────
@@ -386,7 +401,7 @@ export class FaultyTransport implements ITransport {
     this.timers.clear();
     this.state$.next('closed');
     this.state$.complete();
-    this.errorsSubject.complete();
+    this.failures.end();
     // Completes every subject: in-flight busRequests resolve `bus.closed`.
     this.bus.destroy();
   }

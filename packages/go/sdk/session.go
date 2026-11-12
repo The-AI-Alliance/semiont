@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/kept"
 )
 
 // SessionEndReason is why a session ended, as its host is told: not a
@@ -210,7 +211,7 @@ type Session struct {
 	renewedMu sync.Mutex
 	renewed   string
 	// failures is the session's errors (Errors).
-	failures *failureStream[Error]
+	failures *kept.Stream[Error]
 	// stopCarrying stops the transport's failures being said among the
 	// session's errors.
 	stopCarrying func()
@@ -238,13 +239,13 @@ func notRenewed(failure error) string {
 // one that asks nobody gives it at once. What the session does at its start,
 // it does on its own: Ready says when it is done.
 func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
-	return startSession(ctx, config, newFailureStream[Error](config.Timing.ErrorsKeptForFirstReaderCount))
+	return startSession(ctx, config, kept.NewStream[Error](config.Timing.ErrorsKeptForFirstReaderCount))
 }
 
 // startSession is StartSession, saying what goes wrong on failures: made
 // before the session, so that what keeps its sign-in can say there what it
 // meets while the session starts.
-func startSession(ctx context.Context, config SessionConfig, failures *failureStream[Error]) (*Session, error) {
+func startSession(ctx context.Context, config SessionConfig, failures *kept.Stream[Error]) (*Session, error) {
 	kept, has, err := config.Kept.Held(ctx)
 	if err != nil {
 		return nil, err
@@ -258,7 +259,7 @@ func startSession(ctx context.Context, config SessionConfig, failures *failureSt
 	// Taken now: a failure the transport meets once the session is made is
 	// among the session's errors, said within the transport's telling of it,
 	// so before whatever the session says next.
-	s.stopCarrying = config.Client.Transport.Failures(func(failure *TransportError) { s.failures.report(failure) })
+	s.stopCarrying = config.Client.Transport.Failures(func(failure *TransportError) { s.failures.Report(failure) })
 	s.work.Add(3)
 	go func() {
 		defer s.work.Done()
@@ -324,7 +325,7 @@ func (s *Session) StreamState() Watched[ConnectionState] { return s.config.Clien
 // the client's closing flush meets is said before it ends; what the client
 // meets once the session is closing is said nowhere. A refusal for want of a
 // valid token among them is the transport's to renew, not their reader's.
-func (s *Session) Errors() iter.Seq[Error] { return s.failures.failures() }
+func (s *Session) Errors() iter.Seq[Error] { return s.failures.Reported(nil) }
 
 // ExpiresAt is when the token the session holds expires; false when it holds
 // none, or the token names no time.
@@ -354,7 +355,7 @@ func (s *Session) Close() {
 	s.renewals.Wait()
 	s.config.Token.End()
 	s.user.End()
-	s.failures.close()
+	s.failures.Close()
 }
 
 // Refresh answers the gateway's refusal of refused, the session's token: it
@@ -579,7 +580,7 @@ func notForgotten(err *SessionError, forgotten error) *SessionError {
 }
 
 // failed says err among the session's errors.
-func (s *Session) failed(err *SessionError) { s.failures.report(err) }
+func (s *Session) failed(err *SessionError) { s.failures.Report(err) }
 
 // start is what a session does at its start, with the sign-in it found kept.
 // It renews one that has expired, then asks the gateway who it is. A token

@@ -131,15 +131,15 @@
     "lib/claims.mli": "5b2543de444959a69e170ae6fe60efe4f543969ecceaf1da90bbd8aac9834650",
     "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
     "lib/client.mli": "6e08b6b7851820acced98ca320e6ec093455f2d0340828149b2f43e255d30e39",
-    "lib/client_core.ml": "78633ac786b37aa6ef75a596b88221e822ca71ed08749bf46780e24d0b8afb8c",
+    "lib/client_core.ml": "a8aa069b3f8b2920e43b0b2b02fe59bb551020b8e98599121bdf56f029cdbba9",
     "lib/client_core.mli": "332f7bb6fde85b3730a125d768d85be422629c6364f34cfc75c11433a086ee74",
-    "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
+    "lib/client_query.ml": "00e39b4ccb288c9520ba5325d91d857eee33a8d87e74288fc165f92c8c33ed79",
     "lib/client_record.ml": "4426f9cc4ab4e5d96403cb5c1e780d8f5cbcc593905964062219847f202bcead",
     "lib/client_timing.ml": "732e11672617ce037116eb5596dd0e6881b379ec497893868d062a6fa36e2454",
     "lib/client_timing.mli": "2e166d36864335e6a11fbbfbfc97faa6ceee1fcf014b5d5ae67983fcb5ad4796",
     "lib/clock.ml": "71063b036aa3069ad2ed649ba8a73505b4eb4a00631c48af43a01f732c6623ab",
     "lib/clock.mli": "5333b1d2447f81415c54bfc99d87ae98362a4ce249695d7783c35df41cdab364",
-    "lib/delegation.ml": "09c55853d2dd7798e6637eb7b29aff23c13bc3db70786a52d4965eb1f058059d",
+    "lib/delegation.ml": "9a6b1489cd1b15429d964747265ec0ca008c188d69b72eb4f706f4bd412c1641",
     "lib/delegation.mli": "577b0158488a8f1dd3cd5aaef32b816c4c5324a38af03289b762e63d33ae5afe",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
@@ -147,16 +147,17 @@
     "lib/encoding_facts.ml": "8d971c2160eea6fe4fbc60d553d2479917de25ffb9e4c7be3dac16dbba78a021",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
+    "lib/error_codes.ml": "0b680c28b357a9de6f5ea485640ccab02619f7c8250d4a079b1105472cb189ee",
     "lib/frame.ml": "6e0ba59a959758ccdc672cec1d8d802be2f882a5d1354ded4e5ab21398716d54",
     "lib/gather.ml": "c1b78c87f2e5c35a9636e61aa0ca9b1477a41341f38acda6ff396cb380b3d3b7",
-    "lib/gather_state.ml": "2d016b90cab4635ef647118ddb6cb6e49f674e9f4c73311c79a8f845a31f4df5",
+    "lib/gather_state.ml": "a05e57b36c0b128cb30f94f70432582326b186f8cebb3e52de37de585f0f3954",
     "lib/gather_state.mli": "f5da939b80588f462f13befe2c6974e46448be17e64bb43bfaabfaf848cfe6ae",
     "lib/host_name.ml": "5f793a4dace4a309161cce83e5d3f23df9b63bbd5f27f89dc1e4bd6f42e98345",
     "lib/host_name.mli": "ae48395a873d6cb0d60dc1fce328a283adb07c6e0bb9d7107260a1ae8d57bc69",
     "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
     "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
     "lib/http_facts.ml": "8110fad987c67600def3bb6599ef8b978df928d5f4b4071e75a8ad9663caedec",
-    "lib/http_wire.ml": "84c1e634939a180c4b33acfd80cd6b90f0026b50e3a082b5792b73f87d59826a",
+    "lib/http_wire.ml": "6d6acb996b8e83f4d2efc5509a248c610c950b6dbdb0b8b1fadeb0f9a8c6947a",
     "lib/http_wire.mli": "dea21fe6dacbbb4f02f7b64fa87527890bd6219c8cae8fa32aab45544beb7bdc",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
@@ -167,16 +168,16 @@
     "lib/kept_for_first_reader.ml": "6f853f2a44415317489ea3e910cbab9aaf6df0ba1960bed261f3503332f341ae",
     "lib/kept_renewal.ml": "3c69043d8304fa35dcbe80e5322ea71bb0f39d7ee57e4d772cc789b1de36ddee",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
-    "lib/live_query.ml": "7038b501e02b72ed14594aed3d0a44d1a91813ad5494367bbbc625a58f4bf4d0",
+    "lib/live_query.ml": "a7e7b275b7ae7f4c9fb22b2195efbd7ec2a519fdd048ffefae8d89688e2cab6f",
     "lib/live_query.mli": "f18de5f9c81f1c3a92b247ef50fd8df03bc558c1fea3878fbeba4e01d01f6c18",
     "lib/log_facts.ml": "7fbe278d5eb452d36445aa0cd571ce86ef65e0c69d9fab65b6bc3b4a6a5a45cf",
     "lib/mark.ml": "d539b4cea644c035198f7b22d9384e1e19c7815e806e240a2309e9e1e17a7072",
     "lib/mark.mli": "daa70a35284997cf8b5796bda5f3262c19e8690a40090dc415729c4e3dddbbb3",
-    "lib/mark_state.ml": "1a250b00085656bb6b547c7a254fe7356f1ac50f8d18cb82104aa5978dddb6d8",
+    "lib/mark_state.ml": "b85e4cedb400d15ed8e4d4b31c18401ad5a416bc3fdb41b27b3b1f0b00d8304f",
     "lib/mark_state.mli": "016f04747b303cd634184d4e4d656fa014b46aab99cf890b56c5adcf67d16d8b",
     "lib/match.ml": "254bb2bc11199a5aef049c209368d41f6655735168e6f5e7cfe8d6160ae59f51",
     "lib/match.mli": "54ac094a6a9f8e8a09b7bc5f175ae198788c3d82b9b80a1f7efc9014fd135179",
-    "lib/match_state.ml": "81fe38e465a2218dc3091a197b92bcecc2e92b1a5f31fd6bb0b5d140ead518ab",
+    "lib/match_state.ml": "6667b713046ac9f3c41da077bdf1d6502b72aa51b188f6c86294fcdfa0eaf678",
     "lib/match_state.mli": "8d03f88a685f32af82e994b883611746f9775689e61a7a455009be21e03d6f54",
     "lib/media_facts.ml": "79064b570a1612769c84ad4e2941e8b7b03c1122d9e5031a214398d6950c38d1",
     "lib/media_types.ml": "627feecc23b4f887709476ee12e6fe99099303c19e06be88240ac8bf1905413d",
@@ -192,8 +193,8 @@
     "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
     "lib/redirect_sign_in.ml": "0d4bab713f5a86ddd705b15dca1aa01919702bfc5484469d104c9a1776d723fd",
     "lib/refusals.ml": "53b42a4d41b53e88968f5010a843038ffa0ddbcd842f390ce88acba818ad15d1",
-    "lib/registry.ml": "1961c291da05a0ee0e8681ce29371cb3c2ba25435eb82d7dc253fb32ef8d500f",
-    "lib/registry.mli": "98461330f84f794e2d7c1c824455e7d6570dcd8c1d5358d8f046def7c74babc6",
+    "lib/registry.ml": "8fd2da843127b215b285b6d35ea271bd1e1a61e2a9b0c485a9e56e090f4da38f",
+    "lib/registry.mli": "5915d907ef47d923bf1d41b658a14bf29e10fd3da590bcccba0514a0b7a9b81f",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/resources.ml": "99f49caf9937bf6754e62b0011196873fdfbc1488ed90817a49fcd292d6a9fd4",
     "lib/resources.mli": "681c8d831db9af64fc28b7b91b6e913bf992f99529f2a3edb7f0d16121b10bf2",
@@ -208,8 +209,8 @@
     "lib/search_pipeline.mli": "8569d48ac54fb0e5b0165613f479fce0d4dcd897d89dae4699c8d25f6d5db0d3",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "6ff093ff5b0338a7d7b91e824600378ba3ee799586001dbf0d0f941166ddf0ff",
-    "lib/semiont.mli": "ad66133c5c2990ae041ba20bcc18c94de468d68e6a0a9bd82227eff1418ce726",
+    "lib/semiont.ml": "5905c4650d1fd442f290b0364072740595dcdc781c75b114f9ad0f9f92110bf6",
+    "lib/semiont.mli": "eb59d8db1ded093762eedb4d4b1c8cfb3574b218d75918ef62f3f1cce4a7c221",
     "lib/service_token.ml": "5869384fb25f8c9f9ca54fe5beb5dfa5da4b7546dc87930d9eb66d3247322ed2",
     "lib/service_token.mli": "0b0f3278aa4e36179de32dd07002737067901c3ac9d8c24a0b9888241979f8e8",
     "lib/session.ml": "9c113a57dca817eda4ef9e843ee120bf8aa489bd7c541d11cbb14ed0f85af0cf",
@@ -217,7 +218,7 @@
     "lib/session_notices.ml": "cccea843423b06e5802f1675a614063b9533b8a5ea8038fa19d76db1f8eeec59",
     "lib/session_signals.ml": "dba5deb3b0b7804f9296bd220a4b919824c565cb77e69cc9e816c9866eb7dc1d",
     "lib/session_signals.mli": "f7fcf9e704a1a62abe71aac063076d71dc45f8f7c7c9c2ac5ed9a961dc02835d",
-    "lib/session_state.ml": "26a53105f513c4ae994302817ade970ed7c61b16e2ae3673efb82802d973685e",
+    "lib/session_state.ml": "9d74e5b62c1335cfd2fbcfb4a6fa18b5628ffdb26dbfdaadf765d1f6bc969ff4",
     "lib/session_state.mli": "80fd3922b0ce149e425640284c249703f452b711cee4cd77598127ef16cc6582",
     "lib/sign_in_store.ml": "861b740e2ccd5cf3f192f07a21dec9d7dd44ed80afa73d5b8b1d05c2a44c676d",
     "lib/sign_in_store.mli": "e6d3f45d44a69f6becfc3079c6055341ab5c53cb93bb74da150edbb86704f1eb",
@@ -253,11 +254,11 @@
     "lib/upload.mli": "904e332f05d2fd57caa955aa4119d702c29420d0711e2be826585594f42e4592",
     "lib/wire_stream.ml": "247fed187f15e0c30724e0000391252b954fd48d819835e8f93a536d30ac6673",
     "lib/wire_stream.mli": "d145d5064298080786a7d80eb55a4936a8dbe89cd0e0ccf4fa81b6e82fc799a5",
-    "lib/worker.ml": "e6eb53d23aa074d55dd27d1ff62732c3e8fef2dbfd0ea5c0e9c618f479545dfe",
+    "lib/worker.ml": "0f0bd14f76c4bcb2d43811165429a0fb7cc9992bb52a8a8591071fdad9f77af4",
     "lib/worker.mli": "d5c6c60e407f915b03a1a65f578a2663b8e6d26aaae77f9db5455656e20db49e",
-    "lib/yield.ml": "c4668051c2fea5f416839b841895fb2df82e9c8c7860d076deb76d46ae32d8b7",
+    "lib/yield.ml": "7966506e35563a3285eeea9d75c172d432467fc106ebad33affa0b24eafedb46",
     "lib/yield.mli": "ebe751eaa065d7816cfff15194d77d5d7364dbfc80ded3043396fa1e44b56210",
-    "lib/yield_state.ml": "1adf3f472069b3f4c8d3d4dee57bd1ab227032180cfe62c8115935ac2cdc57ba",
+    "lib/yield_state.ml": "964626f32956299da2c452708bd8be0e9c69017c7c98b8cef2a96cbfae777cf0",
     "lib/yield_state.mli": "fe746d0f5b1657d53c8a2856e1ee7b0626dd570e0c855ba57fe502958686b978",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
@@ -12438,6 +12439,162 @@
       "kind": "value",
       "path": "Semiont.Http_wire.check_user",
       "declaration": "val check_user : t -> string -> (string, failure) result"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Error_codes",
+      "declaration": "module Error_codes = Semiont__.Error_codes",
+      "alias": "Semiont__.Error_codes"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Error_codes.Bus_request",
+      "declaration": "module Bus_request :\n  sig\n    val timeout : string\n    val rejected : string\n    val closed : string\n    val not_found : string\n    val unsubscribed : string\n    val peer_unavailable : string\n    val unauthorized : string\n    val none_pending : string\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.timeout",
+      "declaration": "val timeout : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.rejected",
+      "declaration": "val rejected : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.closed",
+      "declaration": "val closed : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.not_found",
+      "declaration": "val not_found : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.unsubscribed",
+      "declaration": "val unsubscribed : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.peer_unavailable",
+      "declaration": "val peer_unavailable : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.unauthorized",
+      "declaration": "val unauthorized : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Bus_request.none_pending",
+      "declaration": "val none_pending : string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Error_codes.Transport",
+      "declaration": "module Transport :\n  sig\n    val unauthorized : string\n    val forbidden : string\n    val not_found : string\n    val conflict : string\n    val bad_request : string\n    val unprocessable : string\n    val rate_limited : string\n    val unavailable : string\n    val error : string\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.unauthorized",
+      "declaration": "val unauthorized : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.forbidden",
+      "declaration": "val forbidden : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.not_found",
+      "declaration": "val not_found : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.conflict",
+      "declaration": "val conflict : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.bad_request",
+      "declaration": "val bad_request : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.unprocessable",
+      "declaration": "val unprocessable : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.rate_limited",
+      "declaration": "val rate_limited : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.unavailable",
+      "declaration": "val unavailable : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Transport.error",
+      "declaration": "val error : string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Error_codes.Job",
+      "declaration": "module Job :\n  sig val failed : string val cancelled : string val stalled : string end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Job.failed",
+      "declaration": "val failed : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Job.cancelled",
+      "declaration": "val cancelled : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Job.stalled",
+      "declaration": "val stalled : string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Error_codes.Session",
+      "declaration": "module Session :\n  sig\n    val construct_failed : string\n    val auth_failed : string\n    val refresh_exhausted : string\n    val credential_refused : string\n    val keep_failed : string\n    val save_refused : string\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Session.construct_failed",
+      "declaration": "val construct_failed : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Session.auth_failed",
+      "declaration": "val auth_failed : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Session.refresh_exhausted",
+      "declaration": "val refresh_exhausted : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Session.credential_refused",
+      "declaration": "val credential_refused : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Session.keep_failed",
+      "declaration": "val keep_failed : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Session.save_refused",
+      "declaration": "val save_refused : string"
     },
     {
       "kind": "module",

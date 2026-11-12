@@ -45,12 +45,15 @@ private enum Said: Sendable {
     return code
   }
 
-  /// Says it on `session`'s errors.
-  func say(on session: SemiontSession) {
+  /// Says it on `opened`'s session's errors: one of its own as the session says it, a failure of
+  /// its transport as the transport tells it.
+  func say(on opened: OpenedSession) throws {
     switch self {
     case .own(let code):
-      session.failed(SessionError(code, "said by the case", kbId: session.kb.id))
-    case .transport(let code, let message): session.relay(TransportError(code, message))
+      opened.session.failed(SessionError(code, "said by the case", kbId: opened.session.kb.id))
+    case .transport(let code, let message):
+      try #require(opened.client.transport as? ScriptedTransport).fail(
+        TransportError(code, message))
     }
   }
 }
@@ -100,7 +103,7 @@ private final class SayingSessions: SessionFactory {
           return try await kept.renewed(read: read, access: renewal, refresh: read.refresh)
         }, onAuthFailed: options.signals.notifySessionEnded)
     ).opened
-    for said in opening { said.say(on: opened.session) }
+    for said in opening { try said.say(on: opened) }
     return opened
   }
 
@@ -171,7 +174,7 @@ private func saidUntilTheLastIsRead(
       let opened = try #require(browser.activeSession.value, "\(why): no session is active")
       let signals = try #require(browser.activeSignals.value, "\(why): no session is active")
       if phase == "active" {
-        for one in said { one.say(on: opened.session) }
+        for one in said { try one.say(on: opened) }
       }
       let codes = try await withinTestDeadline {
         try await saidUntilTheLastIsRead(said, errors: errors, signals: signals)
@@ -251,7 +254,8 @@ private func sayThroughTheRegistry(
 ) async throws {
   for error in said { opened.session.failed(error) }
   let refusal = "the refusal said last"
-  opened.session.relay(TransportError(.forbidden, refusal))
+  try #require(opened.client.transport as? ScriptedTransport).fail(
+    TransportError(.forbidden, refusal))
   let read = try await withinTestDeadline {
     await signals.permissionDenied.contains(where: { $0?.detail == refusal })
   }

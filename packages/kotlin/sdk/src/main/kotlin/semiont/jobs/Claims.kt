@@ -83,7 +83,8 @@ internal class Holder(
  * time, and a wake-up during it earns exactly one more. A refusal does not
  * end the claims: the worker waits for its next idle moment, and what the
  * refusal means is its host's to judge. Claiming ends when `stop` is called,
- * which fails a job still held first, or when the stream ends. A claim is made
+ * which fails a job still held first, when the stream ends, or at its start
+ * on a stream that does not name what claiming reads. A claim is made
  * in no trace, and a job it hands over states the trace its reply arrived in.
  */
 public class Claims internal constructor(
@@ -136,7 +137,7 @@ public class Claims internal constructor(
      * The next job the worker comes to hold, once the one before it is
      * settled: none once the claims have ended. The first call begins
      * claiming. Throws `BusRequestError` (`bus.unsubscribed`) for a transport
-     * whose stream does not name what claiming reads.
+     * whose stream does not name what claiming reads, and the claims end.
      */
     public suspend fun next(): HeldJob? {
         begin()
@@ -199,6 +200,7 @@ public class Claims internal constructor(
         }
         val unnamed = JOB_CLAIM_CHANNELS.filterNot(transport::isSubscribed)
         if (unnamed.isNotEmpty()) {
+            end()
             throw BusRequestError(
                 BusRequestErrorCode.Unsubscribed,
                 "This transport's stream does not name ${unnamed.joinToString(", ")}: a worker on it would never be answered, woken or told of a cancellation. " +

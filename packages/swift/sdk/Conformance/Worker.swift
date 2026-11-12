@@ -29,6 +29,8 @@ actor WorkerDriver {
   let http: HTTPClient
   var client: SemiontClient?
   var transport: HttpTransport?
+  /// Ends the failures `transport` told, once it is disposed.
+  var telling: AsyncStream<TransportError>.Continuation?
   var timing = WorkerTiming()
   var claims: Claims?
   var held: (any HeldJob)?
@@ -71,7 +73,7 @@ actor WorkerDriver {
     let transport = HttpTransport(
       baseUrl: try args.text("baseUrl"), httpClient: http, token: try args.text("token"),
       channels: channels.sorted(), timing: transportTiming)
-    let failures = transport.failures()
+    let (failures, telling) = failuresTold(by: transport)
     do {
       client = try await SemiontClient(transport: transport)
     } catch {
@@ -79,16 +81,14 @@ actor WorkerDriver {
       throw error
     }
     self.transport = transport
+    self.telling = telling
     let output = output
     reporters.append(
       Task {
         for await state in transport.state { await output.say(["state": .string(state.rawValue)]) }
       })
     reporters.append(
-      Task {
-        do { for try await error in failures { await output.say(["error": failure(error)]) } } catch
-        {}
-      })
+      Task { for await error in failures { await output.say(["error": failure(error)]) } })
   }
 
   private func claimed(_ job: any HeldJob) async {
@@ -181,6 +181,7 @@ actor WorkerDriver {
     case "close":
       await claims?.stop()
       client?.dispose()
+      telling?.finish()
       for reporter in reporters { await reporter.value }
       reporters.removeAll()
       scopes.removeAll()

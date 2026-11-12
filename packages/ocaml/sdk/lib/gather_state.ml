@@ -75,8 +75,9 @@ let run t side operation payload =
                      (List.filter
                         (fun (name, _) -> name = "message" || name = "code")
                         (J.to_assoc (decoded payload))))
-            | Error Subscription.Timeout -> Error (code "bus.timeout")
-            | Error _ -> Error (code "bus.closed")
+            | Error Subscription.Timeout ->
+                Error (code Error_codes.Bus_request.timeout)
+            | Error _ -> Error (code Error_codes.Bus_request.closed)
           with Http_wire.Failed failure -> Error (code failure.code)
         in
         if current () then (

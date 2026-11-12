@@ -110,7 +110,10 @@ let rec fetch ?(force = false) ?(retry = true) t key entry =
             Fiber.first
               (fun () ->
                 match t.load key with
-                | Error code when retry && code <> "bus.closed" && current () ->
+                | Error code
+                  when retry
+                       && code <> Error_codes.Bus_request.closed
+                       && current () ->
                     (* The patches kept with the failed ask go with it; the
                        retry is asked after their events (B13b). *)
                     entry.patches <- [];
@@ -118,7 +121,7 @@ let rec fetch ?(force = false) ?(retry = true) t key entry =
                 | result -> result)
               (fun () ->
                 Promise.await t.stopped;
-                Error "bus.closed")
+                Error Error_codes.Bus_request.closed)
           in
           let result =
             if Promise.is_resolved t.stopped || not (current ()) then result
@@ -173,7 +176,7 @@ let observe t key ~on_state ~on_close =
         entry.release <- Fun.id)
 
 let fresh t key =
-  if Promise.is_resolved t.stopped then Error "bus.closed"
+  if Promise.is_resolved t.stopped then Error Error_codes.Bus_request.closed
   else Promise.await (fetch ~retry:false t key (entry t key))
 
 let refetch_held t key =
@@ -362,7 +365,8 @@ let refetch t ~on ~payload =
                               (name annotation_way)))
               in
               if applies then (
-                if List.mem query removes then remove t key "bus.not-found";
+                if List.mem query removes then
+                  remove t key Error_codes.Bus_request.not_found;
                 (if List.mem query writes then
                    let value = at carries payload in
                    match query with

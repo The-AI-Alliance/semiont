@@ -7,10 +7,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.jdk9.asPublisher
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -24,7 +22,8 @@ import java.util.concurrent.Flow.Publisher
  * it gives every report and then the final value, and ends, a failure thrown
  * where the final value would have been given. Nothing is sent until it is
  * first awaited or collected. Its caller abandons it by cancelling what awaits
- * or collects it: what was sent stays sent, and nothing more is.
+ * or collects it, which ends cancelled whatever the work came to: what was
+ * sent stays sent, and nothing more is.
  */
 public class Running<T : Any> internal constructor(
     private val scope: CoroutineScope,
@@ -54,13 +53,16 @@ public class Running<T : Any> internal constructor(
     private suspend fun outcome(): T {
         val work = begun()
         try {
-            return work.await()
-        } catch (cancelled: CancellationException) {
-            if (currentCoroutineContext().isActive && work.isCancelled) {
-                throw BusRequestError(BusRequestErrorCode.Closed, "The client closed before the operation ended")
-            }
+            // `await` gives a work that has already ended without asking whether its caller was cancelled: `join` asks.
+            work.join()
+        } catch (abandoned: CancellationException) {
             work.cancel()
-            throw cancelled
+            throw abandoned
+        }
+        try {
+            return work.await()
+        } catch (_: CancellationException) {
+            throw BusRequestError(BusRequestErrorCode.Closed, "The client closed before the operation ended")
         }
     }
 
@@ -71,9 +73,12 @@ public class Running<T : Any> internal constructor(
     }
 
     /** `await`, for Java: cancelling the future abandons the operation. */
-    public fun awaitFuture(): CompletableFuture<T> {
+    public fun awaitFuture(): CompletableFuture<T> = awaitFuture { it }
+
+    /** `await`, for Java, of what `then` makes of the final value: cancelling the future abandons the operation. */
+    internal fun <R> awaitFuture(then: (T) -> R): CompletableFuture<R> {
         take()
-        return scope.futureOf { outcome() }
+        return scope.futureOf { then(outcome()) }
     }
 
     override suspend fun collect(collector: FlowCollector<T>) {

@@ -3,6 +3,7 @@ package semiont
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -323,7 +324,7 @@ class SurfaceTest {
                         assertEquals(expected to step.name, did.route to did.name)
                         assertTrue(sameJson(step.sends, did.sends), "sent ${did.sends}, not ${step.sends}")
                     }
-                    running.cancel()
+                    running.cancelAndJoin()
                 }
             }
         }

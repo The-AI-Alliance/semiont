@@ -74,7 +74,9 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
     storage.withLock { $0.onFrames }?()
     return source
   }
-  func failures() -> Events<TransportError> { failureEvents.listen() }
+  func tellFailures(to listener: @escaping @Sendable (TransportError) -> Void) {
+    failureEvents.onEach(listener)
+  }
   func subscribeToResource(_ resource: ResourceId) async -> ResourceHold {
     subscription.hold(resource)
   }

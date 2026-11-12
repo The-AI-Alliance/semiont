@@ -13,7 +13,14 @@ public protocol Transport: Sendable {
   /// It keeps no deadline: the bus that asks keeps the request's, and gives the request up by
   /// cancelling its task, which ends it.
   func request(operation: String, payload: [String: JSONValue]) async throws -> [String: JSONValue]
-  func failures() -> Events<TransportError>
+  /// Tells `listener` each failure the transport meets (everything a server refused, every request
+  /// the gateway never answered, and every line its stream carried that names no reader) within
+  /// the telling: before the call that met it returns, so in the order they were met. Taken first,
+  /// it is told at once the latest `Timings.errorsKeptForFirstReaderCount` met before it came, in
+  /// order; taken later, those met from then on. It is held until the transport is disposed, and
+  /// one taken after that is told nothing. It must not wait, nor call back into the transport's
+  /// failures.
+  func tellFailures(to listener: @escaping @Sendable (TransportError) -> Void)
   func dispose()
 }
 public protocol GatewayOperations: Sendable {

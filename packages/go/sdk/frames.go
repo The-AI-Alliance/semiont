@@ -1,10 +1,10 @@
 package semiont
 
 // What a transport delivers, and to whom: frames by channel, and the failures
-// it met. Each listener of frames, and of what a session says went wrong, has
-// a queue of its own, and delivering to it never waits: a slow listener delays
-// no other listener and no reply, and is given every item, in order. Each
-// failure a transport meets is told to its listeners within its report.
+// it met. Each listener of frames has a queue of its own (kept.Queue), and
+// delivering to it never waits: a slow listener delays no other listener and
+// no reply, and is given every item, in order. Each failure a transport meets
+// is told to its listeners within its report.
 
 import (
 	"context"
@@ -111,168 +111,6 @@ func toldFrames(arrivals iter.Seq[arrival]) iter.Seq2[Frame, error] {
 	}
 }
 
-// queue is one listener's: every item given to it, in order, however far
-// behind its reader is.
-type queue[T any] struct {
-	mu     sync.Mutex
-	items  []T
-	closed bool
-	// ready is signalled when an item is added or the queue closes.
-	ready chan struct{}
-}
-
-func newQueue[T any]() *queue[T] {
-	return &queue[T]{ready: make(chan struct{}, 1)}
-}
-
-func (q *queue[T]) signal() {
-	select {
-	case q.ready <- struct{}{}:
-	default:
-	}
-}
-
-// push adds item without waiting; false when the queue has closed.
-func (q *queue[T]) push(item T) bool {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if q.closed {
-		return false
-	}
-	q.items = append(q.items, item)
-	q.signal()
-	return true
-}
-
-// close ends the queue once its reader has taken what it holds.
-func (q *queue[T]) close() {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	q.closed = true
-	q.signal()
-}
-
-// next is the next item, waiting for one; false once the queue has closed and
-// is empty, or stop is closed first. A nil stop never is.
-func (q *queue[T]) next(stop <-chan struct{}) (T, bool) {
-	for {
-		q.mu.Lock()
-		if len(q.items) > 0 {
-			item := q.items[0]
-			var zero T
-			q.items[0] = zero
-			q.items = q.items[1:]
-			q.mu.Unlock()
-			return item, true
-		}
-		if q.closed {
-			q.mu.Unlock()
-			var zero T
-			return zero, false
-		}
-		q.mu.Unlock()
-		select {
-		case <-q.ready:
-		case <-stop:
-			var zero T
-			return zero, false
-		}
-	}
-}
-
-// keepLatest drops the oldest items the queue holds beyond n.
-func (q *queue[T]) keepLatest(n int) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	q.items = kept.Latest(q.items, n)
-}
-
-// drain takes every item the queue holds now, without waiting; closed is
-// whether the queue has closed and nothing more will come. A reader that
-// selects on ready drains after each signal.
-func (q *queue[T]) drain() (items []T, closed bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	items, q.items = q.items, nil
-	return items, q.closed
-}
-
-// all is what the queue is given, until it closes, stop is closed, or the
-// loop over it stops; leave is called once any of them happens. A nil stop is
-// never closed: the loop is ended by its reader.
-func (q *queue[T]) all(stop <-chan struct{}, leave func()) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		defer leave()
-		for {
-			item, ok := q.next(stop)
-			if !ok || !yield(item) {
-				return
-			}
-		}
-	}
-}
-
-// broadcast gives each item to every queue listening when it is given.
-type broadcast[T any] struct {
-	mu        sync.Mutex
-	listeners map[*queue[T]]struct{}
-	closed    bool
-}
-
-func newBroadcast[T any]() *broadcast[T] {
-	return &broadcast[T]{listeners: map[*queue[T]]struct{}{}}
-}
-
-// listen is a queue of what is given from now on; of a closed broadcast, one
-// that has ended.
-func (b *broadcast[T]) listen() *queue[T] {
-	q := newQueue[T]()
-	b.join(q)
-	return q
-}
-
-// join makes q a listener: it is given what is given from now on. Joining a
-// closed broadcast ends q.
-func (b *broadcast[T]) join(q *queue[T]) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
-		q.close()
-		return
-	}
-	b.listeners[q] = struct{}{}
-}
-
-// leave stops q's listening and ends it.
-func (b *broadcast[T]) leave(q *queue[T]) {
-	b.mu.Lock()
-	delete(b.listeners, q)
-	b.mu.Unlock()
-	q.close()
-}
-
-// give hands item to every listener; how many there were.
-func (b *broadcast[T]) give(item T) int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	for q := range b.listeners {
-		q.push(item)
-	}
-	return len(b.listeners)
-}
-
-// close ends every listener's queue once it is read, and every later one at
-// once.
-func (b *broadcast[T]) close() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.closed = true
-	for q := range b.listeners {
-		q.close()
-	}
-	clear(b.listeners)
-}
-
 // FrameSink is where a transport delivers every frame it receives, and the
 // refusal of each frame it refuses that names its readers: its client's own
 // bus.
@@ -289,14 +127,14 @@ type FrameSink interface {
 // delivers.
 type FrameHub struct {
 	mu       sync.Mutex
-	channels map[bus.Channel]*broadcast[arrival]
+	channels map[bus.Channel]*kept.Broadcast[arrival]
 	bridged  []FrameSink
 	closed   bool
 }
 
 // NewFrameHub is a hub with no listener.
 func NewFrameHub() *FrameHub {
-	return &FrameHub{channels: map[bus.Channel]*broadcast[arrival]{}}
+	return &FrameHub{channels: map[bus.Channel]*kept.Broadcast[arrival]{}}
 }
 
 // Frames is the frames delivered on any of channels from now on, in the order
@@ -305,26 +143,26 @@ func NewFrameHub() *FrameHub {
 // over what it returns stops, ctx is done or the hub closes. Of a closed hub,
 // a sequence that has ended.
 func (h *FrameHub) Frames(ctx context.Context, channels ...bus.Channel) iter.Seq2[Frame, error] {
-	q := newQueue[arrival]()
+	q := kept.NewQueue[arrival]()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
-		q.close()
-		return toldFrames(q.all(nil, func() {}))
+		q.Close()
+		return toldFrames(q.All(nil, func() {}))
 	}
-	joined := make([]*broadcast[arrival], 0, len(channels))
+	joined := make([]*kept.Broadcast[arrival], 0, len(channels))
 	for _, channel := range channels {
 		b, ok := h.channels[channel]
 		if !ok {
-			b = newBroadcast[arrival]()
+			b = kept.NewBroadcast[arrival]()
 			h.channels[channel] = b
 		}
-		b.join(q)
+		b.Join(q)
 		joined = append(joined, b)
 	}
-	return toldFrames(q.all(ctx.Done(), func() {
+	return toldFrames(q.All(ctx.Done(), func() {
 		for _, b := range joined {
-			b.leave(q)
+			b.Leave(q)
 		}
 	}))
 }
@@ -351,7 +189,7 @@ func (h *FrameHub) Deliver(frame Frame) {
 		sink.Deliver(everyone)
 	}
 	if listening != nil {
-		listening.give(arrival{frame: frame})
+		listening.Give(arrival{frame: frame})
 	}
 }
 
@@ -365,13 +203,13 @@ func (h *FrameHub) DeliverRefusal(refusal *FrameRefusal) {
 		sink.DeliverRefusal(&everyone)
 	}
 	if listening != nil {
-		listening.give(arrival{refusal: refusal})
+		listening.Give(arrival{refusal: refusal})
 	}
 }
 
 // listeners is the buses bridged into, and channel's listeners: nil when
 // nobody has listened to it.
-func (h *FrameHub) listeners(channel bus.Channel) ([]FrameSink, *broadcast[arrival]) {
+func (h *FrameHub) listeners(channel bus.Channel) ([]FrameSink, *kept.Broadcast[arrival]) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return slices.Clone(h.bridged), h.channels[channel]
@@ -383,64 +221,7 @@ func (h *FrameHub) Close() {
 	defer h.mu.Unlock()
 	h.closed = true
 	for _, b := range h.channels {
-		b.close()
+		b.Close()
 	}
 	h.bridged = nil
-}
-
-// failureStream is what a session, or a worker's claims, say went wrong: T is
-// what each is. Its first listener's queue is made with it and held until a
-// listener takes it or the stream closes, because the stream opens before
-// whatever reads it is handed the session or the claims: the first who asks
-// to hear it before then is given the latest keptForFirst of what was said
-// before. Reporting never waits for a reader.
-type failureStream[T any] struct {
-	b     *broadcast[T]
-	mu    sync.Mutex
-	first *queue[T]
-	// keptForFirst is how many the first listener's queue holds while it is
-	// held: the latest, the oldest dropped beyond them.
-	keptForFirst int
-}
-
-func newFailureStream[T any](keptForFirst int) *failureStream[T] {
-	b := newBroadcast[T]()
-	return &failureStream[T]{b: b, first: b.listen(), keptForFirst: keptForFirst}
-}
-
-// failures is the failures reported from now on; its first listener is given
-// first the latest keptForFirst reported since the stream was made. Once the
-// stream has closed, every listener is given only its end.
-func (f *failureStream[T]) failures() iter.Seq[T] {
-	f.mu.Lock()
-	q := f.first
-	f.first = nil
-	f.mu.Unlock()
-	if q == nil {
-		q = f.b.listen()
-	}
-	return q.all(nil, func() { f.b.leave(q) })
-}
-
-// report hands err to every listener, and returns it for its caller. While
-// the first listener's queue is held, the oldest it holds beyond keptForFirst
-// is dropped, under the lock it is handed over under, so its listener is
-// given no more.
-func (f *failureStream[T]) report(err T) T {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.b.give(err)
-	if f.first != nil {
-		f.first.keepLatest(f.keptForFirst)
-	}
-	return err
-}
-
-// close ends every listener's failures once it has read what it holds. What
-// was kept for a first listener who has not come is let go of.
-func (f *failureStream[T]) close() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.first = nil
-	f.b.close()
 }
