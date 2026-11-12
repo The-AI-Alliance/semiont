@@ -25,6 +25,7 @@ import { resourceId as brandResourceId, type ResourceId } from '@semiont/sdk';
 import { findAnnotation } from '../lib/annotation-detail';
 import type { ChatSession } from '../lib/session';
 import { AnnotationDetailCard } from './AnnotationDetailCard';
+import { ResourceAnnotationsPanel } from './ResourceAnnotationsPanel';
 import { PendingCreationPopover, useAnnotationCreation } from './AnnotationCreator';
 import { DelegationControl } from './DelegationControl';
 import { ShapeControl } from './ShapeControl';
@@ -77,6 +78,7 @@ export function ResourceView({
 
   // Per-document annotate mode — the pencil in the header (controlled prop on the viewer).
   const [annotate, setAnnotate] = useState(false);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
@@ -199,6 +201,20 @@ export function ResourceView({
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
           </svg>
         </button>
+        <button
+          type="button"
+          className={`rview__annotations-toggle${annotationsOpen ? ' rview__annotations-toggle--on' : ''}`}
+          onClick={() => setAnnotationsOpen((open) => !open)}
+          aria-pressed={annotationsOpen}
+          aria-label={annotationsOpen ? 'Hide annotations' : 'Show annotations'}
+          title={annotationsOpen ? 'Hide annotations' : 'Show annotations'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M15 4v16" />
+            <path d="M7 8h4M7 12h4M7 16h4" />
+          </svg>
+        </button>
         <button type="button" className="rview__close" onClick={onClose} aria-label="Close document" title="Close">
           ×
         </button>
@@ -228,25 +244,44 @@ export function ResourceView({
         </p>
       )}
       <div className="rview__body" ref={bodyRef}>
-        <div className="rview__zoom-canvas">
-          {error !== null ? (
-            <p className="rview__status" role="alert">
-              {error.message}
-            </p>
-          ) : loading || resource === undefined ? (
-            <p className="rview__status">Loading…</p>
-          ) : (
-            <LoadedDocument
+        <div className={`rview__columns${annotationsOpen ? ' rview__columns--annotations-open' : ''}`}>
+          <div className="rview__viewer">
+            <div className="rview__zoom-canvas">
+              {error !== null ? (
+                <p className="rview__status" role="alert">
+                  {error.message}
+                </p>
+              ) : loading || resource === undefined ? (
+                <p className="rview__status">Loading…</p>
+              ) : (
+                <LoadedDocument
+                  session={session}
+                  rid={rid}
+                  resource={resource}
+                  annotations={annotations}
+                  prefs={prefs}
+                  zoom={zoom}
+                  annotate={annotate}
+                  onAnnotateModeChange={setAnnotate}
+                  shape={shape}
+                  onShapeChange={setShape}
+                  onOpenResource={onOpenResource}
+                />
+              )}
+            </div>
+          </div>
+          {annotationsOpen && (
+            <ResourceAnnotationsPanel
               session={session}
-              rid={rid}
-              resource={resource}
               annotations={annotations}
-              prefs={prefs}
-              zoom={zoom}
-              annotate={annotate}
-              onAnnotateModeChange={setAnnotate}
-              shape={shape}
-              onShapeChange={setShape}
+              loading={loading}
+              error={error}
+              onRetry={() => {
+                void Promise.allSettled([
+                  session.client.browse.resource(rid).fresh(),
+                  session.client.browse.annotations(rid).fresh(),
+                ]);
+              }}
               onOpenResource={onOpenResource}
             />
           )}
