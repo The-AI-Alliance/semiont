@@ -42,6 +42,11 @@ Per-KB lifetime object, and a state unit. Holds:
 - `token$`, `user$` — observable auth state.
 - `errors$` — the session's errors: its own (a `SemiontSessionError`) and its
   transport's, each said once.
+- `ready` — resolves once the session's start is done: what the start meets
+  is said on `errors$`. A kept sign-in that cannot be forgotten is said with
+  why it had to be (`session.refresh-exhausted` when the issuer refused its
+  renewal at the start, the ending's own code when the session ends), followed
+  by what its storage said.
 - `refresh(refused)` — renews the token the gateway refused (null when the
   request carried none). A token the session has already replaced is answered
   with the one it holds, and nothing is renewed.
@@ -85,6 +90,18 @@ App-level singleton. Owns:
 
 All persistence goes through a `SessionStorage` adapter provided at
 construction. The classes never touch `localStorage` or `window` directly.
+
+**Activating a KB.** `setActiveKb(id)` ends the session that was active, its
+client first, before it asks its `SessionFactory` for the next: what that
+client's closing flush says (a save its storage refused, say) is read to the
+end of the session's errors and said on `error$` before anything of the next.
+The factory's refusal is the one way an activation fails. One of the
+session's own errors is said on `error$` as it is, its code and its message;
+anything else as `session.construct-failed`, with its message as it is. No
+session is then active, and `activeKbId$` names the KB asked for. Once
+`dispose()` has begun, `setActiveKb` is refused with a `BusRequestError`
+(`bus.closed`) before anything else: no session is asked for, nothing is said,
+and the active KB is unchanged. Disposing twice is disposing once.
 
 ## Two buses
 

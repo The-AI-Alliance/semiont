@@ -12,9 +12,9 @@
 //!   no gateway behind it does not implement it.
 //!
 //! Two kinds of thing are observed here, and they behave differently for a
-//! reader that falls behind. An **event stream** (`Frames`, `Failures`) is a
-//! sequence: a reader is given every item, and one that fell too far behind
-//! is told how many it missed (`Lagged`), never left with a silent gap. A
+//! reader that falls behind. An **event stream** (`Frames`) is a sequence: a
+//! reader is given every item, and one that fell too far behind is told how
+//! many it missed (`Lagged`), never left with a silent gap. A
 //! **state** (`state()`) is what is true now: a reader always holds the
 //! current value, and may see a run of changes as the latest one.
 
@@ -294,31 +294,24 @@ impl<T: Clone + Send + 'static> Stream for Events<T> {
 /// The frames delivered on one channel, and in place of each frame refused
 /// that names its readers there, its refusal.
 pub type Frames = Events<Result<Frame, FrameRefusal>>;
-/// The failures a transport met: what a server refused, what the gateway
-/// never answered, and each line its stream carried that names no reader.
-/// Each is reported here as it is returned to its caller.
-pub type Failures = Events<TransportError>;
 /// Told each failure a transport meets, within the transport's telling of it
 /// (`Transport::tell_failures_to`).
 pub type FailureListener = Box<dyn Fn(&TransportError) + Send + Sync>;
 
 /// A transport's failures, from its making: each one reported is told to
-/// each listener (`Transport::tell_failures_to`), then said to each reader
-/// (`Transport::failures`). The first listener or reader taken hears the
-/// latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` reported before it came, in
-/// order, the oldest dropped beyond that; each later one, what is reported
-/// from then on. Dropped, it ends each reader's stream, and what is still
-/// kept is dropped with it.
+/// each listener (`Transport::tell_failures_to`). The first listener taken
+/// is told at once the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` reported
+/// before it came, in order, the oldest dropped beyond that; each later one,
+/// what is reported from then on. Dropped, it lets go of its listeners, and
+/// what is still kept is dropped with it.
 pub struct FailureStream {
     said: KeptForFirstReader<TransportError>,
-    listeners: Vec<FailureListener>,
 }
 
 impl Default for FailureStream {
     fn default() -> FailureStream {
         FailureStream {
             said: KeptForFirstReader::new(),
-            listeners: Vec::new(),
         }
     }
 }
@@ -328,26 +321,15 @@ impl FailureStream {
         FailureStream::default()
     }
 
-    /// A reader: taken first, it hears what is kept, then each failure
-    /// reported after; taken later, each reported from now on.
-    pub fn listen(&self) -> Failures {
-        self.said.read()
-    }
-
     /// Tell `listener` each failure reported from now on, as it is reported.
     /// Taken first, it is told at once what is kept.
     pub fn tell_to(&mut self, listener: FailureListener) {
-        for kept in self.said.take_kept() {
-            listener(&kept);
-        }
-        self.listeners.push(listener);
+        self.said.tell_to(listener);
     }
 
-    /// Report `error`: to each listener, then to each reader.
+    /// Report `error` to each listener, and keep it for the first while none
+    /// has been taken.
     pub fn report(&self, error: &TransportError) {
-        for listener in &self.listeners {
-            listener(error);
-        }
         self.said.say(error.clone());
     }
 }
@@ -586,20 +568,15 @@ pub trait Transport: Send + Sync + 'static {
     /// The connection's state: the current value, and each change after it.
     fn state(&self) -> watch::Receiver<ConnectionState>;
 
-    /// The failures the transport meets, and each line its stream carried
-    /// that names no reader. The first listener taken, here or by
-    /// `tell_failures_to`, hears the latest
-    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` met before it came, in order;
-    /// each later one, those met from then on. A `FailureStream` keeps them
-    /// so.
-    fn failures(&self) -> Failures;
-
-    /// Tell `listener` each failure `failures` reports, within the telling:
-    /// before the call that met it returns, so in the order they were met.
-    /// Taken first, it is told at once the latest
-    /// `ERRORS_KEPT_FOR_FIRST_READER_COUNT` met before it came. It is held
-    /// until the transport closes, and told under the transport's own lock,
-    /// so it must not call back into the transport.
+    /// Tell `listener` each failure the transport meets (everything a server
+    /// refused, every request the gateway never answered, and each line its
+    /// stream carried that names no reader) within the telling: before the
+    /// call that met it returns, so in the order they were met. Taken first,
+    /// it is told at once the latest `ERRORS_KEPT_FOR_FIRST_READER_COUNT` met
+    /// before it came, in order; taken later, those met from then on. It is
+    /// held until the transport closes, and one taken after that is told
+    /// nothing. It is told under the transport's own lock, so it must not
+    /// call back into the transport. A `FailureStream` keeps them so.
     fn tell_failures_to(&self, listener: FailureListener);
 
     /// Await the reply to `correlation_id` on one of `reply_channels`. A

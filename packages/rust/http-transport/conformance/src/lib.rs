@@ -7,6 +7,7 @@
 //! transport, and `semiont-live-driver` the SDK's client over one.
 
 use semiont::errors::{JobError, SemiontError, TransportError};
+use semiont::transport::Transport;
 use semiont::types::InvalidIdentifier;
 use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
@@ -60,9 +61,19 @@ pub fn say(line: Value) {
     let _ = writeln!(out, "{line}");
 }
 
+/// Write each failure `transport` meets as an `error` line, as it is told:
+/// before the call that met it returns.
+pub fn say_failures(transport: &dyn Transport) {
+    transport.tell_failures_to(Box::new(|error| {
+        say(json!({
+            "error": failure(error.code.as_str(), error.status, error.message.clone())
+        }))
+    }));
+}
+
 /// A failure as the protocol carries it: the SDK's code, and the status when
 /// a server stated one.
-pub fn failure(code: &str, status: Option<u16>, detail: String) -> Value {
+fn failure(code: &str, status: Option<u16>, detail: String) -> Value {
     let mut failure = json!({ "code": code, "detail": detail });
     if let Some(status) = status {
         failure["status"] = json!(status);

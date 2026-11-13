@@ -52,7 +52,10 @@ caller's wait leaves that renewal running for the others. Transient renewal fail
 retains the kept sign-in and retries on the reconnect backoff. The session signs out
 when the issuer refuses its renewal, a renewal gives no token, or the gateway refuses a
 token the issuer has just issued: it forgets the kept sign-in and tells `onAuthFailed`
-why, before it says so on `Errors()`.
+why, before it says so on `Errors()`. A kept sign-in that cannot be forgotten is said with
+why it had to be, under the ending's code, or as `session.refresh-exhausted` when the
+issuer refused its renewal at the start, followed by `; and the sign-in could not be
+forgotten: ` and what its storage said.
 
 `Errors()` is the session's one stream of what went wrong: its own errors, each a
 `SessionError` with one of the generated session error codes, and its client's
@@ -75,7 +78,12 @@ renewed by the transport that met it, so the registry does nothing with it, nor 
 any other failure of the transport. A session from a factory you write is read the
 same way. Such a factory hands its options' `Signals.NotifySessionEnded` to
 `SemiontSession.FromKeptAsync` as `onAuthFailed`: the registry raises no session end
-itself.
+itself. A factory's refusal is the one way an activation fails, and leaves no session
+active: the registry says a `SessionError` as it is, and any other `SemiontError` as
+`session.construct-failed` with its message. Activating a knowledge base ends the session
+active before, its errors read to their end, before the factory is asked for the next.
+From the moment the registry's disposal begins, every change to it, an activation among
+them, throws `BusRequestError` with `bus.closed` at the call.
 
 `Issuer.RenewAsync(kept, holding)` exchanges the stored refresh token at its stored
 endpoint. It adopts another writer's usable renewal before spending a refresh token,

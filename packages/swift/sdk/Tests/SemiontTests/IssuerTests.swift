@@ -466,7 +466,7 @@ private func form(_ data: Data) -> [String: String] {
       )
       let opened = try await sessionFromKept(kb: target, kept: kept, httpClient: http)
       defer { opened.dispose() }
-      try await opened.session.ready()
+      await opened.session.ready()
       #expect(opened.session.token.value == renewed)
       #expect(opened.session.user.value?.did.value == "did:web:kb:users:alice")
       #expect(grants.withLock { $0 } == 1)
@@ -517,7 +517,7 @@ private func form(_ data: Data) -> [String: String] {
           opened = try await sessionFromKept(kb: target, kept: kept, httpClient: http)
         }
         defer { opened.dispose() }
-        try await withinTestDeadline { try await opened.session.ready() }
+        try await withinTestDeadline { await opened.session.ready() }
         #expect(opened.session.token.value == access, "\(why)")
         if validate == false {
           #expect(asks.withLock { $0 } == 0, "\(why)")

@@ -12,7 +12,10 @@ its storage, and under which keys, is `semiont.stored`'s.
 active closes it first: its readers see no session, then the new one.
 Activations do not overlap, and one that was overtaken while it waited does
 nothing. `session_activating` is true while one is under way, which is what
-tells "a session is coming" from "there is none".
+tells "a session is coming" from "there is none". A session's readiness never
+fails, so the factory's refusal is the one way an activation fails. Once the
+registry's close has begun, an activation is refused at the call
+(`bus.closed`).
 
 **Look up by address, verify by did.** A sign-in lands on the entry, among
 those at the address, whose did is the one the knowledge base reported, or on
@@ -728,7 +731,21 @@ class SemiontBrowser:
         return "expired" if is_token_expired(stored.access, now=time.time()) else "authenticated"
 
     async def set_active_kb(self, kb_id: str | None) -> None:
-        """Make a knowledge base the active one, or none. Returns once its session is up, or once it is known there will be none."""
+        """Make a knowledge base the active one, or none. Returns once its session is up, or once it is known there will be none.
+
+        The session that was active is closed, and its errors read to their
+        end, before the factory is asked for the next. The factory's refusal is
+        the one way an activation fails: one of the session's own errors is
+        said on `errors` as it is, any other `SemiontError` as
+        `session.construct-failed` with its message, and then no session is
+        active, though `active_kb_id` names the one asked for. Once the
+        registry's close has begun, the call is refused with a
+        `BusRequestError` (`bus.closed`), before anything else: no session is
+        asked for, nothing is said, and the active knowledge base is
+        unchanged. One taken before then ends as an overtaken one does.
+        """
+        if self._closing.is_set():
+            raise BusRequestError("bus.closed", "The knowledge-base registry is closed")
         await self._set_active_kb(kb_id)
 
     async def sign_in(self, kb_id: str, session: StoredSession) -> None:
@@ -884,6 +901,7 @@ class SemiontBrowser:
     async def close(self) -> None:
         """End the registry: its session is closed, and everything it holds ends.
 
+        From the moment it begins, `set_active_kb` is refused (`bus.closed`).
         Returns once what it was running has stopped, and raises what any of it
         failed with. Called from within what it runs, it ends that work too
         but does not wait for it, which would be waiting for itself, and raises

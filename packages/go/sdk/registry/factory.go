@@ -33,7 +33,10 @@ type SessionFactory interface {
 	// flush, then ends the session, whose errors end then, and then closes
 	// what they were built on. A knowledge base this factory cannot reach is
 	// refused with a *semiont.SessionError of code
-	// session.construct-failed. ctx ends when the registry is closed: the
+	// session.construct-failed. Its refusal is the one way an activation
+	// fails: one that is a *semiont.SessionError the registry says as it
+	// is, and any other as session.construct-failed, with its message as it
+	// is. ctx ends when the registry is closed: the
 	// registry stops waiting then, and ends a session handed back afterwards
 	// at once.
 	Session(ctx context.Context, options SessionFactoryOptions) (session *semiont.Session, end func(), err error)

@@ -1085,8 +1085,12 @@ func TestClosingTheRegistryClosesItsSessionAndEndsWhatItHolds(t *testing.T) {
 		if ctx.Err() != nil {
 			t.Error("the bus or the failures did not end")
 		}
-		// Nothing it is told afterwards does anything, and what is stored stays.
-		must(t, browser.SetActiveKb(""))
+		// Nothing it is told afterwards does anything, and what is stored
+		// stays: an activation is refused.
+		var refused *semiont.BusRequestError
+		if err := browser.SetActiveKb(""); !errors.As(err, &refused) || refused.Code != semiont.BusRequestErrorCodeClosed {
+			t.Errorf("an activation once the registry had closed returned %v", err)
+		}
 		must(t, browser.SignIn(kbA, tokens("late")))
 		if active, _ := w.storage.Get(registry.ActiveKey); active != kbA {
 			t.Errorf("the active one is stored as %q", active)

@@ -101,9 +101,16 @@ public actor SemiontSession: StateUnit {
     starting = task
     life.keep(task, id: id)
   }
-  public func ready() async throws {
+  /// Waits for its start: the token found kept is renewed when it has expired, and the gateway is
+  /// asked who it is. What the start meets is said on its errors, and then it is ready: its start
+  /// never fails. A waiter that is cancelled, or whose session has ended, waits no longer.
+  public func ready() async {
     guard let starting else { preconditionFailure("Session not started") }
-    _ = try await sharedValue(starting, lifetime: lifetime)
+    do {
+      try await sharedValue(starting, lifetime: lifetime)
+    } catch {
+      precondition(error is CancellationError, "A session's start fails only by ending: \(error)")
+    }
   }
   /// The gateway refused `refused`, the token a request carried (nil when it carried none): renew it,
   /// and ask the gateway who the new one is. A caller that wants the token renewed passes the token
@@ -138,7 +145,7 @@ public actor SemiontSession: StateUnit {
       let named = try await validate(renewed)
       if !lifetime.ended, token.value == renewed { user.set(named) }
     } catch let failure as TransportError where failure.reason == .unauthorized {
-      if token.value == renewed { try await signedOut(.refused, code: .sessionCredentialRefused) }
+      if token.value == renewed { await signedOut(.refused, code: .sessionCredentialRefused) }
     } catch {
       if Task.isCancelled { throw CancellationError() }
       // The gateway has refused nothing: the renewed token remains usable.
@@ -181,6 +188,7 @@ public actor SemiontSession: StateUnit {
   /// and acts on nothing of how it ended.
   private func renewing(_ holding: String?, startup: Bool) async throws -> String? {
     defer { renewal = nil }
+    var refusal: SignInError?
     do {
       if let next = try await renew(holding) {
         guard !lifetime.ended else { throw CancellationError() }
@@ -196,29 +204,34 @@ public actor SemiontSession: StateUnit {
       }
     } catch let failure as SignInError where refusedAtIssuer(failure) {
       // The issuer refused it: the session is over, below.
+      refusal = failure
     } catch {
       if lifetime.ended { throw CancellationError() }
       await setToken(nil)
       unanswered = true
       failed(
         SessionError(
-          startup ? .sessionAuthFailed : .sessionRefreshExhausted,
-          "The token was not renewed: " + String(describing: error), kbId: kb.id))
+          startup ? .sessionAuthFailed : .sessionRefreshExhausted, notRenewed(error), kbId: kb.id))
       schedule()
       return nil
     }
     // The issuer refused it, or its renewal gave nothing while the sign-in is still kept: an ended
-    // session signs nobody out on either.
+    // session signs nobody out on either. At the start there was no session to end: the sign-in is
+    // forgotten, and nothing is said unless it could not be.
     guard !lifetime.ended else { throw CancellationError() }
     if startup {
       await setToken(nil)
-      try await forget()
+      do { try await forget() } catch {
+        failed(
+          SessionError(
+            .sessionRefreshExhausted, notForgotten(notRenewed(refusal), error), kbId: kb.id))
+      }
     } else {
-      try await signedOut(.expired, code: .sessionRefreshExhausted)
+      await signedOut(.expired, code: .sessionRefreshExhausted)
     }
     return nil
   }
-  private func signedOut(_ reason: SessionEndReason, code: SessionErrorCode) async throws {
+  private func signedOut(_ reason: SessionEndReason, code: SessionErrorCode) async {
     unanswered = false
     if let scheduled {
       lifetime.cancel(scheduled)
@@ -228,14 +241,27 @@ public actor SemiontSession: StateUnit {
     if !lifetime.ended { user.set(nil) }
     var why = "Session ended: " + reason.rawValue
     do { try await forget() } catch {
-      why += "; and the sign-in could not be forgotten: \(error)"
+      why = notForgotten(why, error)
     }
     guard !lifetime.ended else { return }
     onAuthFailed?(reason)
     failed(SessionError(code, why, kbId: kb.id))
   }
+  /// Its start, over the sign-in it finds kept. What it meets is said on its errors: a sign-in that
+  /// cannot be read says why, and the session starts with none. (Whoever opens a session from a
+  /// kept sign-in reads it first, and is given its failure: ``sessionFromKept``.) It throws only as
+  /// the session ends.
   private func begin() async throws {
-    guard let found = try await kept.held() else { return }
+    let held: HeldSignIn?
+    do {
+      held = try await kept.held()
+    } catch {
+      if lifetime.ended { throw CancellationError() }
+      failed(
+        SessionError(.sessionAuthFailed, "The sign-in could not be read: \(error)", kbId: kb.id))
+      return
+    }
+    guard let found = held else { return }
     var credential = found.access
     lastHeld = credential
     var justIssued = isTokenExpired(credential, now: Date().timeIntervalSince1970)
@@ -269,7 +295,7 @@ public actor SemiontSession: StateUnit {
           continue
         }
         if justIssued {
-          try await signedOut(.refused, code: .sessionCredentialRefused)
+          await signedOut(.refused, code: .sessionCredentialRefused)
           return
         }
         guard let next = try await renewed() else { return }
@@ -332,6 +358,17 @@ public actor SemiontSession: StateUnit {
       _ = try await renewed()
     }
   }
+}
+
+/// Why a renewal gave no token: what failed, when something did.
+private func notRenewed(_ failure: (any Error)?) -> String {
+  guard let failure else { return "The token was not renewed" }
+  return "The token was not renewed: \(failure)"
+}
+
+/// Why a session failed, and why its sign-in could not be forgotten.
+private func notForgotten(_ why: String, _ forgotten: any Error) -> String {
+  why + "; and the sign-in could not be forgotten: \(forgotten)"
 }
 
 /// Whether the issuer refused a renewal: an answer the `refresh` rule of

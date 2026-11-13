@@ -15,7 +15,7 @@
  *
  * `closing` runs a registry over the HTTP session factory, over a gateway
  * that is `fetch` and nothing else (fake-gateway.ts), as a registry's
- * sessions are: the session's client keeps for jo in the registry's storage,
+ * sessions are: the session's client keeps for Jo in the registry's storage,
  * which refuses every write once the session is active, and a read of a
  * resource, made while the clock is held, leaves the client owing its save,
  * still waiting out its debounce as the close begins.
@@ -26,9 +26,8 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { BehaviorSubject, filter, firstValueFrom, lastValueFrom, map, toArray } from 'rxjs';
-import { BRIDGED_CHANNELS, SemiontError, resourceId } from '@semiont/core';
-import type { AccessToken, NewKnowledgeBase, SemiontSessionErrorCode, TransportErrorCode } from '@semiont/core';
-import { isReady } from '../../cache';
+import { BRIDGED_CHANNELS, SemiontError } from '@semiont/core';
+import type { AccessToken, SemiontSessionErrorCode, TransportErrorCode } from '@semiont/core';
 import { SemiontClient } from '../../client';
 import { FaultyTransport, inMemoryContent } from '../../testing';
 import { SemiontSessionError } from '../errors';
@@ -36,8 +35,8 @@ import { createHttpSessionFactory } from '../http-session-factory';
 import { SemiontBrowser } from '../semiont-browser';
 import { SemiontSession, sayOn } from '../semiont-session';
 import type { SessionFactory } from '../session-factory';
-import { keptIn, personKey } from '../storage';
-import { fakeGateway, GATEWAY_ENDPOINT, renews } from './fake-gateway';
+import { keptIn } from '../storage';
+import { KB, joGateway, keptForJo, owingItsSave } from './registry-runners';
 import { RefusingStorage, TestStorage, freshJwt, testSession } from './test-storage-helpers';
 
 /** What a case's session says: one of its own errors, by its code, or a failure of its transport, by its code, with its message. */
@@ -59,11 +58,6 @@ interface ClosingCase {
 
 const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/session/registry-errors-cases.json');
 const { cases, closing } = JSON.parse(readFileSync(TABLE, 'utf-8')) as { cases: Case[]; closing: ClosingCase[] };
-
-/** The knowledge base each registry signs in to, where the fake gateway is. */
-const KB: NewKnowledgeBase = { did: 'did:web:kb.example.org:kb-a', label: 'KB A', endpoint: GATEWAY_ENDPOINT };
-
-const JO = { did: 'did:web:example.org:users:jo', email: 'jo@example.org', name: 'Jo', image: null, domain: 'example.org' };
 
 /** Say each of `entries` on `session`'s errors, in order: its own through `sayOn`, its transport's failures through `transport`. Gives each error as it was said. */
 function sayAll(session: SemiontSession, transport: FaultyTransport, entries: readonly Said[]): SemiontError[] {
@@ -151,25 +145,19 @@ describe('protocol/specs/src/session/registry-errors-cases.json', () => {
 
   describe('closing', () => {
     it.each(closing)('owed $owed: $why', async (row) => {
-      const storage = new RefusingStorage();
-      const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: renews, resourceName: 'kept' });
+      let refuses = false;
+      const storage = new RefusingStorage(() => refuses);
+      const gateway = joGateway();
       const browser = new SemiontBrowser({ storage, sessionFactory: createHttpSessionFactory(gateway.fetch) });
       try {
-        browser.addKb(KB, { ...testSession(freshJwt(), 'refresh'), personKey: personKey(JO.did) });
+        browser.addKb(KB, keptForJo());
         const active = await firstValueFrom(browser.activeSession$.pipe(filter((live): live is SemiontSession => live !== null)));
-        storage.refusing = true;
-        if (row.owed) {
-          // The clock is held until the close begins: the save the read leaves the client owing waits out its debounce
-          // on a timer that never falls due, so the close is the first to make it.
-          vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-          await firstValueFrom(active.client.browse.resource(resourceId('res-1')).pipe(filter(isReady)));
-          vi.useRealTimers();
-        }
+        refuses = true;
+        if (row.owed) await owingItsSave(active);
         const said = lastValueFrom(browser.error$.pipe(map((error) => error.code), toArray()));
         await browser.dispose();
         expect(await said).toEqual(row.registryErrors);
       } finally {
-        vi.useRealTimers();
         gateway.close();
       }
     });

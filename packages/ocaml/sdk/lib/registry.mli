@@ -65,10 +65,12 @@ type session_factory_options = {
 
 type session_factory =
   session_factory_options ->
-  (State_units.Session.t * connection_identity, string) result
+  (State_units.Session.t * connection_identity, Client.session_error) result
 (** Builds the knowledge base's session, and reads none of its errors: the
     registry reads them from the first thing the session said. The registry
-    makes the [signals] it is handed for the session. *)
+    makes the [signals] it is handed for the session. It refuses a session it
+    cannot build with one of the session's own errors, session.construct-failed
+    among them, which the registry says as it is. *)
 
 type semiont_browser_config = {
   storage : storage;
@@ -83,6 +85,9 @@ type activation_error =
   | Unavailable of string
   | Identity_conflict of string
   | Superseded
+  | Closed
+      (** Refused at the call, once the registry's close has begun, with
+          bus.closed ([Error_codes.Bus_request.closed]). *)
 
 val new_semiont_browser :
   ?storage:Storage.t -> semiont_browser_config -> semiont_browser
@@ -99,16 +104,22 @@ val describe_connection : Client.t -> (connection_identity, string) result
 
 val activate :
   semiont_browser -> string -> (State_units.Session.t, activation_error) result
-(** Builds the knowledge base's session and reads its errors until it ends: each
+(** Stores the key as the active one and ends the session that was active,
+    reading its errors to their end, before it asks the factory for the
+    knowledge base's session. It reads that session's errors until it ends: each
     of the session's own errors is said on [errors]; a refusal for lack of
     permission is said through its signals, with the failure's message as the
     detail; any other failure of its transport is said nowhere, and the registry
-    renews no session. The session it ends closes its client first. A session
-    the factory cannot build is said on [errors] as session.construct-failed,
-    and the activation is [Unavailable] for the factory's reason. An activation
-    that a later one, a sign-in, a sign-out or [close] overtakes is
-    [Superseded], its session ended at once, and so is one begun after [close],
-    which builds nothing. *)
+    renews no session. The session it ends closes its client first. The
+    factory's refusal is said on [errors] as it is, and the activation is
+    [Unavailable] for its code, with no session active; the signals made for a
+    factory that raises are disposed, and its exception goes on. A session whose
+    knowledge base says a did other than the one registered is ended, and the
+    activation is [Identity_conflict] for the did it says. An activation that a
+    later one, a sign-in, a sign-out or [close] overtakes is [Superseded], its
+    session ended at once. From the moment [close] begins an activation is
+    [Closed]: it asks the factory for nothing, says nothing, and leaves the
+    active key as it was. *)
 
 val errors :
   semiont_browser ->
@@ -116,22 +127,26 @@ val errors :
   on_close:(unit -> unit) ->
   unit ->
   unit
-(** Hear each own error of the sessions the registry activates, and each session
-    its factory could not build. The first reader is first given the latest
+(** Hear each own error of the sessions the registry activates, and each refusal
+    of its factory. The first reader is first given the latest
     errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) said
     before it came, in order; a later reader hears what is said from when it
     reads. [close] ends it. The returned function stops hearing. *)
 
 val close : semiont_browser -> unit
 (** Ends the active session, its client first, so what the client's closing
-    flush meets is said on [errors], and then ends [errors]. *)
+    flush meets is said on [errors], and then ends [errors]. A second close does
+    nothing. *)
 
 val sign_out : semiont_browser -> string -> unit
 val session_status : semiont_browser -> string -> kb_session_status
 
 val http_session_factory :
-  (session_factory_options -> (State_units.Session.t, string) result) ->
+  (session_factory_options ->
+  (State_units.Session.t, Client.session_error) result) ->
   session_factory
+(** A factory over [connect] that asks the knowledge base who it is: one that
+    does not say is refused as session.construct-failed. *)
 
 val sort_open_resources : open_resource list -> open_resource list
 

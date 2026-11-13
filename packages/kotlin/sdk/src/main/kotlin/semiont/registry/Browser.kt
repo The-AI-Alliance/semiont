@@ -142,6 +142,9 @@ internal fun samePlace(one: KbEndpoint, other: KbEndpoint): Boolean = when (one)
 /** What a knowledge base said of itself now, beyond its name. */
 private fun readNow(description: KbDescription): KbRead = KbRead(AT.format(Instant.now()), description.gitBranch)
 
+/** What an activation asked for once a registry's close has begun is refused with. */
+private fun closedToActivations(): BusRequestError = BusRequestError(BusRequestErrorCode.Closed, "The knowledge-base registry is closed")
+
 /** A factory's refusal as the failure a registry says: the factory's own when it is a session's. */
 private fun constructFailed(refused: SemiontError, kbId: String): SessionError =
     refused as? SessionError ?: SessionError(SessionErrorCode.ConstructFailed, refused.message, kbId)
@@ -164,6 +167,12 @@ private class Live(val opened: OpenedSession, val signals: SessionSignals, val r
         signals.close()
     }
 
+    /** Close it, and read its errors to their end: what its client's closing flush met is said before whatever comes after. */
+    suspend fun closeAndReadOut() {
+        close()
+        reading.join()
+    }
+
     /** Close it, then wait until its client writes nothing more of what it keeps: what comes before deleting what forgetting a saved sign-in deletes. */
     suspend fun end() {
         close()
@@ -180,9 +189,11 @@ private class Live(val opened: OpenedSession, val signals: SessionSignals, val r
  * session, and hears what another context writes of what is open.
  *
  * One session is live at a time, the active knowledge base's. Making another
- * active closes it first: its readers see no session, then the new one.
- * Activations take turns, and one that was overtaken while it waited does
- * nothing. `sessionActivating` is true while one is under way.
+ * active closes it first, and reads its errors to their end before the next
+ * is asked for: its readers see no session, then the new one. Activations
+ * take turns, and one that was overtaken while it waited does nothing.
+ * `sessionActivating` is true while one is under way. The factory's refusal
+ * is the one way an activation fails: a session's readiness never does.
  *
  * Look up by address, verify by did. A sign-in lands on the entry, among those
  * at the address, whose did is the one the knowledge base reported, or on a
@@ -346,11 +357,22 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         return if (isTokenExpired(stored.access, System.currentTimeMillis() / 1000.0)) KbSessionStatus.Expired else KbSessionStatus.Authenticated
     }
 
-    /** Make a knowledge base the active one, or none. Returns once its session is up, or once it is known there will be none. */
-    public suspend fun setActiveKb(kbId: String?): Unit = setActive(kbId)
+    /**
+     * Make a knowledge base the active one, or none. Returns once its session
+     * is up, or once it is known there will be none. Once the registry's close
+     * has begun it is refused with `BusRequestError` (`bus.closed`), before
+     * anything else: no session is asked for, nothing is said, and the active
+     * knowledge base is unchanged. An activation taken before then ends as an
+     * overtaken one does.
+     */
+    public suspend fun setActiveKb(kbId: String?) {
+        if (closing) throw closedToActivations()
+        setActive(kbId)
+    }
 
-    /** `setActiveKb`, for Java. */
-    public fun setActiveKbFuture(kbId: String?): CompletableFuture<Unit> = scope.futureOf { setActive(kbId) }
+    /** `setActiveKb`, for Java: refused at the call, once the registry's close has begun. */
+    public fun setActiveKbFuture(kbId: String?): CompletableFuture<Unit> =
+        if (closing) CompletableFuture.failedFuture(closedToActivations()) else scope.futureOf { setActiveKb(kbId) }
 
     /**
      * Keep new tokens for a registered knowledge base and bring its session up
@@ -490,7 +512,8 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
      * the background is ended, and everything it holds ends. It returns once
      * that work has stopped, and throws the first failure of any of it:
      * bringing up the session it began with, and the checks a session's
-     * arrival starts. What closing ended is no failure.
+     * arrival starts. What closing ended is no failure. From the moment it
+     * begins, an activation is refused at the call (`setActiveKb`).
      * Called from within that work, it does not wait for the work to stop,
      * which would never happen. Closing twice is closing once.
      */
@@ -572,10 +595,11 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         activating(+1)
         try {
             turn.withLock {
-                taken?.close()
+                // Ended before the next is asked for: what it says as it ends is said before anything of the next.
+                taken?.closeAndReadOut()
                 if (!closing && activeKbIdHeld.value == kbId) {
                     // One left live by whoever had the turn before.
-                    takeSession()?.close()
+                    takeSession()?.closeAndReadOut()
                     if (kbId != null) activate(kbId)
                 }
             }
@@ -606,12 +630,13 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         val live = Live(opened, signals, scope.launch { route(heard, signals) })
         try {
             opened.session.ready()
-        } catch (ended: Throwable) {
+        } catch (cancelled: CancellationException) {
+            // An activation cancelled while its session starts leaves nothing open.
             live.close()
-            throw ended
+            throw cancelled
         }
         if (closing || activeKbIdHeld.value != kbId) {
-            live.close()
+            live.closeAndReadOut()
             return
         }
         putSession(live)

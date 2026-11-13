@@ -14,14 +14,13 @@ import qualified Prelude
 import Control.Concurrent.Async (race)
 import Control.Concurrent.MVar (MVar, newMVar, modifyMVar, modifyMVar_)
 import Control.Concurrent.STM
-import Control.Exception (SomeException, SomeAsyncException, displayException, fromException, throwIO, try, mask, onException, finally, toException)
+import Control.Exception (SomeException, SomeAsyncException, fromException, throwIO, try, mask, onException, finally)
 import Control.Monad (forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (isJust)
 import Data.IORef
 import Data.Scientific (Scientific)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Semiont.Client as Client
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors
@@ -31,6 +30,7 @@ import qualified Semiont.ServiceToken as Service
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Gateway as Gateway
 import qualified Semiont.Internal.Broadcast as Broadcast
+import Semiont.Internal.Exception (exceptionMessage, trySync)
 import Semiont.Internal.Kept (personKey)
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.StateValue as State
@@ -123,6 +123,13 @@ errors session consume = Broadcast.withSubscription (said session) $ \reader ->
         value <- liftIO (atomically (Broadcast.next reader))
         case value of Nothing -> pure (); Just next -> Stream.yield next >> reading
   in consume reading
+-- | Waits until the session's start is done: the token found stored is
+-- renewed when it has expired, and the gateway is asked who it is. What the
+-- start meets is said on 'errors', and then the session is ready: a kept
+-- sign-in that cannot be forgotten is said with why it had to be, and what
+-- its storage said. A session closed before its start is done is ready, its
+-- start ended by the close. It raises what the host's own callbacks raise
+-- and what reading the kept sign-in raises.
 ready :: Session -> IO ()
 ready session = atomically (readTMVar (initialized session)) >>= either throwIO pure
 expiresAt :: Session -> STM (Maybe Scientific)
@@ -254,10 +261,10 @@ made keeper write dropped = do
   case outcome of
     Made result -> pure result
     Refused problem -> do
-      tell keeper Code.SessionSaveRefused ("The storage refused a write of what the client keeps: " <> Text.pack (displayException problem))
+      tell keeper Code.SessionSaveRefused ("The storage refused a write of what the client keeps: " <> exceptionMessage problem)
       throwIO problem
     Unreadable problem -> do
-      tell keeper Code.SessionKeepFailed ("The sign-in could not be read before the client saved what it keeps: " <> Text.pack (displayException problem))
+      tell keeper Code.SessionKeepFailed ("The sign-in could not be read before the client saved what it keeps: " <> exceptionMessage problem)
       dropped
     Dropped -> dropped
 
@@ -276,7 +283,7 @@ recording keeper validateWith owned access = do
       Left problem -> do
         ended <- modifyMVar (keeperState keeper) $ \state -> pure $ case state of Over -> (state, False); _ -> (Over, True)
         when ended $ tell keeper Code.SessionKeepFailed
-          ("The sign-in could not record the person the gateway named: " <> Text.pack (displayException problem))
+          ("The sign-in could not record the person the gateway named: " <> exceptionMessage problem)
   pure answer
 
 -- | The session's sign-in, whose forget stops what the client keeps first.
@@ -411,16 +418,21 @@ construct owned options time settings shared stream unrelay = mask $ \restore ->
           pure (not previous)
         when first (maybe (pure ()) Prelude.id detach)
   let session = Session options owned time settings lifetime shared handed person done queue flight generation detachOnce stream unrelay
-      -- A refusal still waiting is given no token once this closes the lifetime.
+      -- What ends the work before its start is done is the session's own close: the start is done, and nothing is
+      -- wrong with it. A refusal still waiting is given no token once this closes the lifetime.
       finish = do
-        atomically (void (tryPutTMVar done (Left (toException (BusRequestError Code.BusRequestClosed "Session is closed" Nothing)))))
+        atomically (void (tryPutTMVar done (Right ())))
         unsubscribe session `finally` (atomically (State.complete shared >> State.complete person)
           `finally` Lifetime.close lifetime)
       work = do
         schedule <- newIORef (Schedule Nothing (Timing.reconnectMs settings))
         started <- try (startup session schedule)
-        atomically (putTMVar done started)
-        either throwIO (const (loop session schedule)) started
+        closed <- atomically (Lifetime.isClosed lifetime)
+        case started of
+          Left problem | closed, Just (_ :: SomeAsyncException) <- fromException problem -> throwIO problem
+          _ -> do
+            atomically (putTMVar done started)
+            either throwIO (const (loop session schedule)) started
   void (Lifetime.start lifetime (restore work `finally` finish))
     `onException` (unsubscribe session `finally` Lifetime.close lifetime)
   pure session
@@ -502,13 +514,6 @@ attempt session = case sessionRefresh (configuration session) of
           && maybe False (\status -> not (Retry.retryable Retry.Refresh (Just status) Nothing False)) (signInStatus failure)
         Nothing -> False
 
-trySync :: IO value -> IO (Either SomeException value)
-trySync action = do
-  outcome <- try action
-  case outcome of
-    Left problem | Just (_ :: SomeAsyncException) <- fromException problem -> throwIO problem
-    _ -> pure outcome
-
 startup :: Session -> IORef Schedule -> IO ()
 startup session schedule = do
   current <- atomically (State.current (token session))
@@ -522,11 +527,16 @@ startup session schedule = do
       if not expired then validate session schedule (storedSessionAccess value) False True else do
         atomically (writeTVar (renewing session) (Just (storedSessionAccess value)))
         outcome <- attempt session
+        -- There was no session to end: nothing is said, unless the sign-in could not be forgotten.
+        let unrenewable = do
+              unforgotten <- forget session
+              clear session schedule
+              forM_ unforgotten (report session Code.SessionRefreshExhausted . notForgotten notRenewed)
         case outcome of
           Renewed access -> accept session schedule access >> validate session schedule access True True
           Superseded -> pure ()
-          NoGrant -> forget session >> clear session schedule
-          Unrenewed True -> forget session >> clear session schedule
+          NoGrant -> unrenewable
+          Unrenewed True -> unrenewable
           Unrenewed False -> do
             withhold session
             later session schedule
@@ -597,18 +607,32 @@ accept session schedule access = do
   atomically (modifyTVar' (revision session) (+1) >> State.update (token session) (Just access))
   scheduleToken session schedule access
 
-forget :: Session -> IO ()
+-- | Forgets the kept sign-in, and the session holds nothing of it: what the
+-- sign-in's storage said, when it could not be forgotten.
+forget :: Session -> IO (Maybe Text)
 forget session = do
-  SignIn.forget (sessionKept (configuration session))
+  forgotten <- trySync (SignIn.forget (sessionKept (configuration session)))
   atomically (modifyTVar' (revision session) (+1) >> State.update (token session) Nothing >> State.update (user session) Nothing
     >> writeTVar (renewing session) Nothing)
+  pure (either (Just . exceptionMessage) (const Nothing) forgotten)
 
+notRenewed :: Text
+notRenewed = "The credential could not be renewed"
+
+-- | Why the sign-in had to be forgotten, and what its storage said when it could not be.
+notForgotten :: Text -> Text -> Text
+notForgotten why unforgotten = why <> "; and the sign-in could not be forgotten: " <> unforgotten
+
+-- | The session is over: its kept sign-in is forgotten, the host is told
+-- why, and so is the session's reader, with why it could not be forgotten
+-- when it could not.
 signedOut :: Session -> IORef Schedule -> SessionEndReason -> Code.SessionCode -> IO ()
 signedOut session schedule reason code = do
   clear session schedule
-  forget session
+  unforgotten <- forget session
   sessionOnAuthFailed (configuration session) reason
-  report session code (case reason of SessionEndReasonExpired -> "The credential could not be renewed"; SessionEndReasonRefused -> "The gateway refused a newly issued credential")
+  let why = case reason of SessionEndReasonExpired -> notRenewed; SessionEndReasonRefused -> "The gateway refused a newly issued credential"
+  report session code (maybe why (notForgotten why) unforgotten)
 
 report :: Session -> Code.SessionCode -> Text -> IO ()
 report session code message = atomically (Broadcast.publish (said session) (Left (SessionError code message (kbTargetId (kb session)))))

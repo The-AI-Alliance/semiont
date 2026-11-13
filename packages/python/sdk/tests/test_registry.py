@@ -24,7 +24,7 @@ from pydantic import JsonValue
 from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, token
 
-from semiont.errors import TransportError
+from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import ResourceId
 from semiont.registry import (
     Expected,
@@ -1517,8 +1517,10 @@ def test_closing_the_registry_closes_its_session_and_ends_what_it_holds() -> Non
         assert await ended(browser.active_signals)
         assert browser.bus.destroyed
         assert [error async for error in errors] == []
-        # Nothing it is told afterwards does anything, and what is stored stays.
-        await browser.set_active_kb(None)
+        # An activation afterwards is refused, nothing else it is told does anything, and what is stored stays.
+        with pytest.raises(BusRequestError) as refused:
+            await browser.set_active_kb(None)
+        assert refused.value.code == "bus.closed"
         await browser.sign_in(KB_A, tokens("late"))
         assert world.storage.get(ACTIVE_KEY) == KB_A
         assert world.stored_refresh(KB_A) == "r"

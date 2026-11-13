@@ -8,7 +8,7 @@ import Control.Concurrent.Async (race)
 import Data.Either (isLeft)
 import Data.Text (Text)
 import Control.Concurrent.STM
-import Control.Exception (Exception, SomeException, SomeAsyncException, bracket, finally, fromException, mask, throwIO, try)
+import Control.Exception (Exception, SomeException, bracket, finally, fromException, mask, throwIO, try)
 import Control.Monad (forever, unless, void, when)
 import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
@@ -17,6 +17,7 @@ import OpenTelemetry.Context.ThreadLocal (attachContext, detachContext, getConte
 import OpenTelemetry.Context.ThreadLocal.Propagation (tracedWithAsync)
 import qualified Semiont.Bus as Bus
 import qualified Semiont.Internal.Bus as Typed
+import Semiont.Internal.Exception (trySync)
 import Semiont.Channels hiding (JobComplete)
 import qualified Semiont.Channels as Channel
 import qualified Semiont.ErrorCodes as Code
@@ -131,11 +132,9 @@ follow (Follower wire local clock timing lifetime) command verb resource stallMs
         pollWorker = forever $ do
           (generation,identity,parent) <- atomically (readTQueue polls)
           let ask = do
-                result <- try $ withParent parent $
+                result <- trySync $ withParent parent $
                   jobStatusResultResponse <$> Bus.request wire JobStatusRequestedOperation (JobStatusRequest identity mempty) (Timing.busRequestTimeoutMs timing)
-                case result of
-                  Left problem | Just (_::SomeAsyncException) <- fromException problem -> throwIO problem
-                  _ -> atomically (writeTQueue events (Status generation result))
+                atomically (writeTQueue events (Status generation result))
           ask `finally` atomically (writeTVar asking False)
         stallTimer threshold = do
           (generation,lastHeard,_) <- readTVarIO activity
@@ -207,11 +206,8 @@ follow (Follower wire local clock timing lifetime) command verb resource stallMs
               (current,_,parent) <- readTVarIO activity
               if current/=generation then loop known held else do
                 identity <- readTVarIO activeId
-                mapM_ (\jobId -> void $ Lifetime.start lifetime $ withParent parent $ do
-                  result <- try (Bus.request wire JobCancelRequestedOperation (JobCancelRequest jobId mempty) (Timing.busRequestTimeoutMs timing))
-                  case result of
-                    Left problem | Just (_::SomeAsyncException) <- fromException problem -> throwIO problem
-                    _ -> pure ()) identity
+                mapM_ (\jobId -> void $ Lifetime.start lifetime $ withParent parent $
+                  void (trySync (Bus.request wire JobCancelRequestedOperation (JobCancelRequest jobId mempty) (Timing.busRequestTimeoutMs timing)))) identity
                 throwIO (JobError Code.JobStalled identity Nothing Nothing stallMs)
     bracket (Local.tapLocal local (receive events)) id $ \_ ->
       tracedWithAsync (restore creation) $ \_ ->

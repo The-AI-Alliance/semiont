@@ -6,7 +6,8 @@
 //! Sessions are built by `ScriptedSessions`, each over a scripted transport:
 //! a test says what each knowledge base answers when asked who it is and
 //! what of each resource, and reads what was asked. The cases of what the
-//! registry reads of its session's errors build theirs as `Tabled` does.
+//! registry reads of its session's errors build theirs as `Tabled` does, and
+//! the cases of how it activates a knowledge base are asked of `Activating`.
 //! Every wait is bounded.
 
 use base64::Engine;
@@ -14,13 +15,17 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures_core::Stream;
 use semiont::channels::BRIDGED_CHANNELS;
 use semiont::client::{CachePersistence, ClientOptions};
-use semiont::errors::{SessionError, SessionErrorCode, TransportError, TransportErrorCode};
+use semiont::errors::{
+    BusRequestErrorCode, SemiontError, SessionError, SessionErrorCode, TransportError,
+    TransportErrorCode,
+};
+use semiont::refresh::CacheQuery;
 use semiont::session::{
     ACTIVE_KEY, Expected, KNOWLEDGE_BASES_KEY, KbIdentityConflict, KbReadVerdict, KbSessionStatus,
     LAST_VIEWED_RESOURCE_BY_KB_KEY, MemorySignIn, OPEN_RESOURCES_BY_KB_KEY, OpenResource,
     PermissionDenied, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SemiontSessionConfig,
     SessionEnded, SessionFactory, SessionFactoryOptions, SignInKept, SignedIn, StoredSession,
-    load_knowledge_bases, person_key, save_knowledge_bases, session_key, store_session,
+    cache_key, load_knowledge_bases, person_key, save_knowledge_bases, session_key, store_session,
     stored_session,
 };
 use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
@@ -29,7 +34,7 @@ use semiont::testing::{
     FaultyTransport, ScriptedSessions, SharedStorage, TestClientOptions, create_test_client,
 };
 use semiont::timing::SAVE_DEBOUNCE;
-use semiont::transport::{BoxFuture, ConnectionState, Events, Transport};
+use semiont::transport::{BoxFuture, ConnectionState, Events, STREAM_BACKLOG, Transport};
 use semiont::types::{
     HttpEndpoint, HttpEndpointProtocol, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase,
     UserResponse,
@@ -667,30 +672,6 @@ async fn a_session_being_brought_up_is_said_to_be_on_its_way() {
     assert_eq!(session_of(&browser), None);
 
     live(&browser).await;
-    assert!(!*browser.session_activating().borrow());
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_session_that_cannot_be_built_is_said_and_there_is_none() {
-    let world = World::with(&[kb_a()]);
-    world
-        .factory
-        .sessions
-        .refuse_to_build(Some("this factory builds nothing"));
-    let browser = world.browser();
-    let mut errors = browser.errors();
-
-    let refused = tokio::time::timeout(Duration::from_secs(60), errors.next())
-        .await
-        .expect("the failure is said")
-        .expect("the browser lives")
-        .expect("no failure was missed");
-    settle().await;
-
-    assert_eq!(refused.code, SessionErrorCode::ConstructFailed);
-    assert_eq!(refused.kb_id.as_deref(), Some(A));
-    assert_eq!(session_of(&browser), None);
-    assert!(browser.active_signals().borrow().is_none());
     assert!(!*browser.session_activating().borrow());
 }
 
@@ -1603,6 +1584,29 @@ async fn a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not()
     assert_eq!(ended(&browser), None);
 }
 
+#[tokio::test(start_paused = true)]
+async fn what_a_session_says_is_heard_however_much_it_says_at_once() {
+    let world = World::with(&[kb_a()]);
+    let browser = world.browser();
+    live(&browser).await;
+    let transport = world.factory.transports(A)[0].clone();
+
+    // More than a stream keeps for a reader who has not caught up, said
+    // with nothing between them: the first is heard all the same.
+    transport.fail(TransportError::of_status("not yours", 403, None));
+    for _ in 0..STREAM_BACKLOG * 2 {
+        transport.fail(refusal(503));
+    }
+    settle().await;
+
+    assert_eq!(
+        denied(&browser),
+        Some(PermissionDenied {
+            detail: Some("not yours".to_owned())
+        })
+    );
+}
+
 // ── A write the storage refuses ─────────────────────────────────────────
 
 fn full() -> Box<dyn std::error::Error + Send + Sync> {
@@ -1999,13 +2003,7 @@ async fn say(session: &SemiontSession, transport: &FaultyTransport, said: &[Valu
             (Some("session.save-refused"), None) => {
                 // A change its client owes a save of, which its storage
                 // refuses once the save is made.
-                session
-                    .client()
-                    .browse
-                    .entity_types()
-                    .fresh()
-                    .await
-                    .expect("the entity types");
+                owing_its_save(session).await;
                 tokio::time::sleep(SAVE_DEBOUNCE * 4).await;
             }
             (None, Some(code)) => {
@@ -2034,17 +2032,38 @@ async fn next_said(errors: &mut Events<SessionError>, why: &str) -> Option<&'sta
     })
 }
 
-/// The codes the registry has said on its errors and were not read yet.
-fn said_so_far(errors: &mut Events<SessionError>, why: &str) -> Vec<&'static str> {
+/// What the registry has said on its errors and was not read yet.
+fn heard_so_far(errors: &mut Events<SessionError>, why: &str) -> Vec<SessionError> {
     let mut said = Vec::new();
     while let Poll::Ready(Some(item)) =
         Pin::new(&mut *errors).poll_next(&mut Context::from_waker(Waker::noop()))
     {
-        let error =
-            item.unwrap_or_else(|missed| panic!("{why}: the registry's errors missed {missed}"));
-        said.push(error.code.as_str());
+        said.push(
+            item.unwrap_or_else(|missed| panic!("{why}: the registry's errors missed {missed}")),
+        );
     }
     said
+}
+
+/// The codes the registry has said on its errors and were not read yet.
+fn said_so_far(errors: &mut Events<SessionError>, why: &str) -> Vec<&'static str> {
+    heard_so_far(errors, why)
+        .iter()
+        .map(|error| error.code.as_str())
+        .collect()
+}
+
+/// Leave `session`'s client owing its save of what it read, still waiting
+/// out its debounce: on a paused clock, until something waits on the clock,
+/// so a close made before then is the first to make it.
+async fn owing_its_save(session: &SemiontSession) {
+    session
+        .client()
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
 }
 
 /// Wait, within a bound, until `done`.
@@ -2196,15 +2215,7 @@ async fn registry_errors_closing_cases() {
         match case["owed"].as_bool() {
             // A change its client owes a save of, made a while after it or
             // as the client closes, whichever is first: here, the close.
-            Some(true) => {
-                session
-                    .client()
-                    .browse
-                    .entity_types()
-                    .fresh()
-                    .await
-                    .expect("the entity types");
-            }
+            Some(true) => owing_its_save(&session).await,
             Some(false) => {}
             other => panic!("{why}: owed {other:?}"),
         }
@@ -2220,6 +2231,460 @@ async fn registry_errors_closing_cases() {
             registry_errors(case, why),
             "{why}: what the registry said as it closed"
         );
+    }
+}
+
+// ── How the registry activates a knowledge base ─────────────────────────
+
+/// What a factory was asked and a storage was told to write, in order.
+type Steps = Arc<Mutex<Vec<String>>>;
+
+fn asked_for(kb_id: &str) -> String {
+    format!("asked for {kb_id}")
+}
+
+const WROTE_THE_OWED_SAVE: &str = "wrote the owed save";
+
+/// Where the save A's client owes is written: what it keeps of the entity
+/// types it read for alice.
+fn owed_save() -> String {
+    cache_key(A, &alices_key(), CacheQuery::EntityTypes)
+}
+
+/// Every code of the session's own errors. The match is the compiler's
+/// census: a code added to errors/codes.json does not compile here until it
+/// is listed.
+fn session_codes() -> [SessionErrorCode; 6] {
+    let every = [
+        SessionErrorCode::ConstructFailed,
+        SessionErrorCode::AuthFailed,
+        SessionErrorCode::RefreshExhausted,
+        SessionErrorCode::CredentialRefused,
+        SessionErrorCode::KeepFailed,
+        SessionErrorCode::SaveRefused,
+    ];
+    for code in every {
+        match code {
+            SessionErrorCode::ConstructFailed
+            | SessionErrorCode::AuthFailed
+            | SessionErrorCode::RefreshExhausted
+            | SessionErrorCode::CredentialRefused
+            | SessionErrorCode::KeepFailed
+            | SessionErrorCode::SaveRefused => {}
+        }
+    }
+    every
+}
+
+/// One of the session's own errors a row names, by its code and with its
+/// message, as the session of `kb_id` says it.
+fn own_error(named: &Value, kb_id: &str, why: &str) -> SessionError {
+    let own = named["own"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{why}: {named} is none of the session's own errors"));
+    let code = session_codes()
+        .into_iter()
+        .find(|code| code.as_str() == own)
+        .unwrap_or_else(|| panic!("{why}: no session says {own}"));
+    let message = named["message"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{why}: {named} has no message"));
+    SessionError::new(code, message, kb_id)
+}
+
+/// The storage A's client keeps in. It records each write of the save the
+/// client owes in `steps`, and refuses every write while `refuses`. From
+/// within that write, while it holds it open, it does what `within` does.
+struct Keeping {
+    beneath: SharedStorage,
+    steps: Steps,
+    refuses: bool,
+    within: Option<Box<dyn Fn() + Send + Sync>>,
+}
+
+impl SessionStorage for Keeping {
+    fn get(&self, key: &str) -> Option<String> {
+        self.beneath.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if key == owed_save() {
+            self.steps
+                .lock()
+                .expect("steps")
+                .push(WROTE_THE_OWED_SAVE.to_owned());
+            if let Some(within) = &self.within {
+                within();
+            }
+        }
+        if self.refuses {
+            return Err(full());
+        }
+        self.beneath.set(key, value)
+    }
+
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.refuses {
+            return Err(full());
+        }
+        self.beneath.delete(key)
+    }
+
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.refuses {
+            change(self.beneath.get(key).as_deref());
+            return Err(full());
+        }
+        self.beneath.update(key, change)
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.beneath.subscribe(on_change)
+    }
+}
+
+/// The activation runner's factory. It records in `steps` each knowledge
+/// base it is asked for a session of, and then refuses with the one of the
+/// session's own errors `refusals` names for it, or builds the scripted
+/// session `sessions` builds, whose client keeps for alice in what
+/// `keeps_in` names for it.
+struct Activating {
+    sessions: ScriptedSessions,
+    steps: Steps,
+    refusals: HashMap<String, SessionError>,
+    keeps_in: HashMap<String, Arc<dyn SessionStorage>>,
+}
+
+impl Activating {
+    /// Over sessions of knowledge bases whose gateways answer what the
+    /// entity types are, and say every token is alice's.
+    fn new(steps: &Steps) -> Activating {
+        let sessions = ScriptedSessions::answering(
+            |_, operation, _| match operation {
+                "browse:entity-types-requested" => Ok(Some(json!({ "entityTypes": ["Person"] }))),
+                other => Err(format!("{other} is not answered here")),
+            },
+            None,
+        );
+        sessions.says_who(alice());
+        Activating {
+            sessions,
+            steps: steps.clone(),
+            refusals: HashMap::new(),
+            keeps_in: HashMap::new(),
+        }
+    }
+}
+
+impl SessionFactory for Activating {
+    fn session(&self, options: SessionFactoryOptions) -> Result<SemiontSession, SessionError> {
+        let kb_id = options.kb.id.clone();
+        self.steps.lock().expect("steps").push(asked_for(&kb_id));
+        if let Some(refusal) = self.refusals.get(&kb_id) {
+            return Err(refusal.clone());
+        }
+        let session = self.sessions.session(options)?;
+        if let Some(storage) = self.keeps_in.get(&kb_id) {
+            session.client().attach_persistence(&CachePersistence {
+                storage: storage.clone(),
+                kb_id,
+                person_key: alices_key(),
+            });
+        }
+        Ok(session)
+    }
+
+    fn revoke(&self, _: StoredSession) -> BoxFuture<'static, ()> {
+        Box::pin(async {})
+    }
+}
+
+/// A registry's storage in which each of `kbs` is registered with a sign-in
+/// kept for alice, A the one active; and a registry over it and `factory`,
+/// which activates A as it is made.
+fn activating_over(
+    kbs: &[KnowledgeBase],
+    factory: Activating,
+) -> (Arc<SharedStorage>, Arc<SemiontBrowser>) {
+    let storage = Arc::new(SharedStorage::new());
+    save_knowledge_bases(storage.as_ref(), kbs).expect("stored");
+    for kb in kbs {
+        let kept = StoredSession {
+            person_key: Some(alices_key()),
+            ..tokens("r")
+        };
+        store_session(storage.as_ref(), &kb.id, &kept).expect("stored");
+    }
+    storage.set(ACTIVE_KEY, A).expect("stored");
+    let browser = SemiontBrowser::new(SemiontBrowserConfig {
+        storage: storage.clone(),
+        session_factory: Arc::new(factory),
+    })
+    .expect("a browser");
+    (storage, Arc::new(browser))
+}
+
+/// What an activation of `kb_id` ended with at the call: the first poll of
+/// it, which is pending when it was not ended there.
+type Begun = Poll<Result<(), Box<dyn std::error::Error + Send + Sync>>>;
+
+fn begin_activation(browser: &SemiontBrowser, kb_id: &str) -> Begun {
+    let mut activation = Box::pin(browser.set_active_kb(Some(kb_id)));
+    activation
+        .as_mut()
+        .poll(&mut Context::from_waker(Waker::noop()))
+}
+
+/// Whether an activation was refused at the call with `bus.closed`.
+fn refused_as_closed(begun: &Begun) -> bool {
+    matches!(
+        begun,
+        Poll::Ready(Err(refusal)) if matches!(
+            refusal.downcast_ref::<SemiontError>(),
+            Some(SemiontError::Bus(refused)) if refused.code == BusRequestErrorCode::Closed
+        )
+    )
+}
+
+/// `refused`: no session being active, the registry activates A over a
+/// factory that refuses with the row's `refusal`.
+async fn registry_activation_refused(row: &Value, why: &str) {
+    let steps = Steps::default();
+    let mut factory = Activating::new(&steps);
+    factory
+        .refusals
+        .insert(A.to_owned(), own_error(&row["refusal"], A, why));
+    let (storage, browser) = activating_over(&[kb_a()], factory);
+    let mut errors = browser.errors();
+    until(
+        why,
+        "the activation the registry began as it was made",
+        || !steps.lock().expect("steps").is_empty() && !*browser.session_activating().borrow(),
+    )
+    .await;
+
+    let heard = heard_so_far(&mut errors, why);
+    let said: Vec<(&str, &str)> = heard
+        .iter()
+        .map(|error| (error.code.as_str(), error.message.as_str()))
+        .collect();
+    let expected: Vec<(&str, &str)> = row["registryErrors"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{why}: no registryErrors"))
+        .iter()
+        .map(|said| {
+            let text = |member: &str| {
+                said[member]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{why}: {said} has no {member}"))
+            };
+            (text("code"), text("message"))
+        })
+        .collect();
+    assert_eq!(said, expected, "{why}: what the registry said");
+    assert!(
+        heard.iter().all(|error| error.kb_id.as_deref() == Some(A)),
+        "{why}: what the registry said is of another knowledge base: {heard:?}"
+    );
+    assert_eq!(
+        *steps.lock().expect("steps"),
+        [asked_for(A)],
+        "{why}: the sessions the factory was asked for"
+    );
+    assert_eq!(session_of(&browser), None, "{why}: a session is active");
+    assert!(
+        browser.active_signals().borrow().is_none(),
+        "{why}: there are signals of a session"
+    );
+    assert_eq!(
+        browser.active_kb_id().borrow().as_deref(),
+        Some(A),
+        "{why}: the knowledge base the registry has active"
+    );
+    assert_eq!(
+        storage.get(ACTIVE_KEY).as_deref(),
+        Some(A),
+        "{why}: the storage's active key"
+    );
+    browser.close().await.expect("the registry closes");
+}
+
+/// `closed`: A's session is active, and B is activated once the registry's
+/// close has returned, or from within the write of the save A's client owes,
+/// which its closing flush makes: on a paused runtime nothing else runs while
+/// that write is held.
+async fn registry_activation_closed(row: &Value, why: &str) {
+    let closing = match row["while"].as_str() {
+        Some("closed") => false,
+        Some("closing") => true,
+        other => panic!("{why}: activated while {other:?}"),
+    };
+    let steps = Steps::default();
+    let begun: Arc<Mutex<Vec<Begun>>> = Arc::default();
+    let registry: Arc<OnceLock<Weak<SemiontBrowser>>> = Arc::default();
+    let within: Option<Box<dyn Fn() + Send + Sync>> = closing.then(|| {
+        let (registry, begun) = (registry.clone(), begun.clone());
+        Box::new(move || {
+            let browser = registry
+                .get()
+                .and_then(Weak::upgrade)
+                .expect("the owed save is written by a registry that lives");
+            let ended = begin_activation(&browser, B);
+            begun.lock().expect("begun").push(ended);
+        }) as Box<dyn Fn() + Send + Sync>
+    });
+    let mut factory = Activating::new(&steps);
+    let keeping: Arc<dyn SessionStorage> = Arc::new(Keeping {
+        beneath: SharedStorage::new(),
+        steps: steps.clone(),
+        refuses: false,
+        within,
+    });
+    factory.keeps_in.insert(A.to_owned(), keeping);
+    let (storage, browser) = activating_over(&[kb_a(), kb_b()], factory);
+    registry
+        .set(Arc::downgrade(&browser))
+        .expect("the registry is made once");
+    let mut errors = browser.errors();
+    let first = live(&browser).await;
+    if closing {
+        owing_its_save(&first).await;
+    }
+
+    browser.close().await.expect("the registry closes");
+    if !closing {
+        let ended = begin_activation(&browser, B);
+        begun.lock().expect("begun").push(ended);
+    }
+
+    let begun = std::mem::take(&mut *begun.lock().expect("begun"));
+    assert_eq!(begun.len(), 1, "{why}: the activations begun");
+    assert!(
+        refused_as_closed(&begun[0]),
+        "{why}: the activation was not refused at the call with bus.closed"
+    );
+    let asked = if closing {
+        vec![asked_for(A), WROTE_THE_OWED_SAVE.to_owned()]
+    } else {
+        vec![asked_for(A)]
+    };
+    assert_eq!(
+        *steps.lock().expect("steps"),
+        asked,
+        "{why}: what the factory and the storage were asked, in order"
+    );
+    let mut said = Vec::new();
+    while let Some(code) = next_said(&mut errors, why).await {
+        said.push(code);
+    }
+    assert_eq!(said, Vec::<&str>::new(), "{why}: what the registry said");
+    assert_eq!(
+        storage.get(ACTIVE_KEY).as_deref(),
+        Some(A),
+        "{why}: the storage's active key"
+    );
+
+    // A second close does nothing.
+    browser.close().await.expect("the registry closes again");
+    assert_eq!(*steps.lock().expect("steps"), asked, "{why}: closing again");
+}
+
+/// `switching`: A's session is active, its client owing a save to a storage
+/// that writes it or refuses every write, and B is activated over a factory
+/// that builds its session or refuses it.
+async fn registry_activation_switching(row: &Value, why: &str) {
+    let refuses = match row["storage"].as_str() {
+        Some("writes") => false,
+        Some("refuses") => true,
+        other => panic!("{why}: a storage that {other:?}"),
+    };
+    let steps = Steps::default();
+    let mut factory = Activating::new(&steps);
+    match &row["next"] {
+        Value::String(built) if built == "built" => {}
+        refused @ Value::Object(_) => {
+            factory
+                .refusals
+                .insert(B.to_owned(), own_error(refused, B, why));
+        }
+        other => panic!("{why}: a next session that is {other}"),
+    }
+    let keeping: Arc<dyn SessionStorage> = Arc::new(Keeping {
+        beneath: SharedStorage::new(),
+        steps: steps.clone(),
+        refuses,
+        within: None,
+    });
+    factory.keeps_in.insert(A.to_owned(), keeping);
+    let (storage, browser) = activating_over(&[kb_a(), kb_b()], factory);
+    let mut errors = browser.errors();
+    let first = live(&browser).await;
+    owing_its_save(&first).await;
+
+    browser
+        .set_active_kb(Some(B))
+        .await
+        .expect("the activation returns");
+
+    // The first session ended, its owed save written once, by its closing
+    // flush, before the next was asked for.
+    assert_eq!(
+        *steps.lock().expect("steps"),
+        [asked_for(A), WROTE_THE_OWED_SAVE.to_owned(), asked_for(B)],
+        "{why}: what the factory and the storage were asked, in order"
+    );
+    assert_eq!(
+        said_so_far(&mut errors, why),
+        registry_errors(row, why),
+        "{why}: what the registry said"
+    );
+    let active = row["active"]
+        .as_bool()
+        .unwrap_or_else(|| panic!("{why}: no active"));
+    assert_eq!(
+        session_of(&browser).is_some(),
+        active,
+        "{why}: a session is active"
+    );
+    assert_eq!(
+        storage.get(ACTIVE_KEY).as_deref(),
+        Some(B),
+        "{why}: the storage's active key"
+    );
+    browser.close().await.expect("the registry closes");
+}
+
+/// protocol/specs/src/session/registry-activation-cases.json: what a
+/// registry does when its factory refuses the session, once its close has
+/// begun, and when another knowledge base's session is active. Each of the
+/// table's arrays is a section; one no runner here runs fails.
+#[tokio::test(start_paused = true)]
+async fn registry_activation_cases() {
+    let table: Value = serde_json::from_str(include_str!(
+        "../specs/session/registry-activation-cases.json"
+    ))
+    .expect("the table is JSON");
+    let members = table.as_object().expect("the table is an object");
+    for (section, rows) in members {
+        let Some(rows) = rows.as_array() else {
+            continue;
+        };
+        assert!(!rows.is_empty(), "{section} has no row");
+        for row in rows {
+            let why = row["why"].as_str().expect("a row says why");
+            match section.as_str() {
+                "refused" => registry_activation_refused(row, why).await,
+                "closed" => registry_activation_closed(row, why).await,
+                "switching" => registry_activation_switching(row, why).await,
+                other => panic!(
+                    "registry-activation-cases.json has a section no runner here runs: {other}"
+                ),
+            }
+        }
     }
 }
 
@@ -2401,8 +2866,11 @@ async fn closing_the_browser_closes_its_session_and_ends_what_it_holds() {
             .expect("the failures end")
             .is_none()
     );
-    // Nothing it is told afterwards does anything, and what is stored stays.
-    browser.set_active_kb(None).await.expect("made active");
+    // Nothing it is told afterwards does anything, and what is stored stays:
+    // an activation is refused.
+    assert!(refused_as_closed(&Poll::Ready(
+        browser.set_active_kb(None).await
+    )));
     browser
         .sign_in(A, &tokens("late"))
         .await

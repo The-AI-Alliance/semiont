@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import semiont.ClientTiming
 import semiont.KeptWrites
 import semiont.Timings
 import semiont.transport.Broadcast
@@ -128,7 +129,10 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
  * said through `say` (`session.save-refused`, with what the storage said) and
  * owed still (`owesARefusedWrite`), until a write of its key is made, or the
  * client's closing flush makes it (`writeRefused`): nothing is thrown at
- * whoever asked for it, nor into any scope.
+ * whoever asked for it, nor into any scope. Once the client has begun to close
+ * (`beginClosing`), in its turn among the writes, each write is made once: one
+ * the storage refuses is said, and lost with the client, and the places stay
+ * held back behind it.
  */
 private class WhileNamed(
     private val kept: SignInKept,
@@ -139,14 +143,18 @@ private class WhileNamed(
     private val turn = Mutex()
     private val writing = CoroutineScope(context + SupervisorJob(context[Job]))
 
-    // Read and written only while `turn` is held.
+    // Each read and written only while `turn` is held.
     private var dropped = false
+    private var closing = false
 
     /** A write of one key, made for the person whose key is `personKey`. */
     private class Write(val personKey: String, val change: () -> Unit)
 
-    /** Each write the storage refused, by its key. Written only while `turn` is held, and guarded by itself. */
+    /** Each write the storage refused and not made since, by its key. Written only while `turn` is held, and guarded by itself. */
     private val refusedWrites = LinkedHashMap<String, Write>()
+
+    /** The keys of the writes among `refusedWrites` the storage refused once the client had begun to close: nothing makes them again. Read and written only while `turn` is held. */
+    private val lost = HashSet<String>()
 
     override val owesARefusedWrite: Boolean
         get() = synchronized(refusedWrites) { refusedWrites.isNotEmpty() }
@@ -154,18 +162,21 @@ private class WhileNamed(
     /**
      * Make `write` of `key`, while its person is named: it stands for any
      * write of `key` owed before it. One the storage refuses is said, and owed
-     * still. Called while `turn` is held.
+     * still, or lost, once the client has begun to close. Called while `turn`
+     * is held.
      */
     private suspend fun make(key: String, write: Write) {
         if (!dropped && !names(write.personKey)) drop()
         if (dropped) return
         synchronized(refusedWrites) { refusedWrites.remove(key) }
+        lost.remove(key)
         try {
             write.change()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (refused: Exception) {
             synchronized(refusedWrites) { refusedWrites[key] = write }
+            if (closing) lost += key
             say(SessionError(SessionErrorCode.SaveRefused, "The storage refused a write of what the client keeps: $refused", kbId))
         }
     }
@@ -174,6 +185,7 @@ private class WhileNamed(
     private fun drop() {
         dropped = true
         synchronized(refusedWrites) { refusedWrites.clear() }
+        lost.clear()
     }
 
     /**
@@ -212,15 +224,20 @@ private class WhileNamed(
         override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = beneath.subscribe(onChange)
     }
 
+    /** From this turn on, a write the storage refuses is said, and lost with the client. */
+    override fun beginClosing() {
+        writing.launch(start = CoroutineStart.UNDISPATCHED) { turn.withLock { closing = true } }
+    }
+
     /**
-     * Make each write owed since the storage refused it, in turn, as the
-     * client's closing flush does. One refused again is said again, and is
-     * lost with the client.
+     * Make each write the storage refused before the client began to close,
+     * and not made since, in turn, as the client's closing flush does last.
+     * One refused again is said again, and is lost with the client.
      */
     override fun writeRefused() {
         writing.launch(start = CoroutineStart.UNDISPATCHED) {
             turn.withLock {
-                for ((key, write) in synchronized(refusedWrites) { refusedWrites.toList() }) make(key, write)
+                for ((key, write) in synchronized(refusedWrites) { refusedWrites.filterKeys { it !in lost }.toList() }) make(key, write)
             }
         }
     }
@@ -275,7 +292,7 @@ private fun gatewayOf(kb: KbTarget): String {
  * the session says so once (`session.keep-failed`); it goes on, its token held
  * and its person signed in. The gateway and the issuer are asked with `http`.
  * What it builds runs on `context`, keeps `clock`, and draws its jitter from
- * `random`.
+ * `random`, and its client keeps the waits `timing` gives.
  */
 internal suspend fun sessionStarted(
     kb: KbTarget,
@@ -287,6 +304,7 @@ internal suspend fun sessionStarted(
     context: CoroutineContext,
     clock: TimeSource,
     random: Random,
+    timing: ClientTiming,
 ): OpenedSession {
     val baseUrl = gatewayOf(kb)
     val token = MutableStateFlow<String?>(null)
@@ -312,7 +330,7 @@ internal suspend fun sessionStarted(
         random = random,
     )
     val content = HttpContentTransport(transport)
-    val client = SemiontClient(transport, content, transport, persistence = atStart?.persistence, context = context, clock = clock)
+    val client = SemiontClient(transport, content, transport, timing, atStart?.persistence, context, clock)
     // The client's caches write through `named`, which makes each write in its turn, and keeps one the storage refused
     // until it is made: the client's closing flush makes it, and the session's errors end once the writes begun have landed.
     client.writes = named
@@ -415,7 +433,7 @@ public suspend fun sessionFromKept(
     clock: TimeSource = TimeSource.Monotonic,
     random: Random = Random.Default,
 ): OpenedSession {
-    val opened = sessionStarted(kb, kept, validate, storage, onAuthFailed, http, context, clock, random)
+    val opened = sessionStarted(kb, kept, validate, storage, onAuthFailed, http, context, clock, random, ClientTiming())
     try {
         opened.session.ready()
     } catch (failure: Throwable) {
@@ -472,6 +490,7 @@ public class HttpSessionFactory @JvmOverloads constructor(
             context,
             clock,
             random,
+            ClientTiming(),
         )
     }
 

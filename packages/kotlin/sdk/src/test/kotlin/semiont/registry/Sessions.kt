@@ -1,7 +1,9 @@
 package semiont.registry
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -14,14 +16,24 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import semiont.KeptWrites
-import semiont.errors.SessionError
-import semiont.errors.SessionErrorCode
+import org.junit.jupiter.api.Assertions.assertFalse
+import semiont.ClientTiming
+import semiont.cache.CacheQuery
+import semiont.cache.CacheState
+import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
+import semiont.http.Realm
+import semiont.http.Said
+import semiont.http.ownHttp
+import semiont.http.sessionStarted
 import semiont.http.tokenFor
+import semiont.identifiers.ResourceId
 import semiont.session.OpenedSession
 import semiont.session.SemiontSession
+import semiont.signin.HeldSignIn
+import semiont.signin.MemorySignIn
+import semiont.signin.SignInKept
 import semiont.storage.SessionStorage
 import semiont.testing.FaultyTransport
 import semiont.testing.ScriptedSessions
@@ -31,9 +43,16 @@ import semiont.transport.Watched
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbRead
+import semiont.types.KbTarget
 import semiont.types.KnowledgeBase
 import semiont.types.UserResponse
 import semiont.types.wireJson
+import java.io.IOException
+import java.net.URI
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.random.Random
+import kotlin.time.TimeSource
 
 internal const val KB_A = "kb-a"
 internal const val KB_B = "kb-b"
@@ -45,10 +64,13 @@ internal const val RESOURCE_REQUESTED = "browse:resource-requested"
 /** Whether a transport a factory built has been closed. */
 internal val FaultyTransport.closed: Boolean get() = state.value == ConnectionState.Closed
 
-internal fun alice(): UserResponse = wireJson.decodeFromString(
-    UserResponse.serializer(),
-    """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}""",
-)
+/** Who Alice is, as a gateway says. */
+private const val ALICE_AS_SAID = """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}"""
+
+internal fun alice(): UserResponse = wireJson.decodeFromString(UserResponse.serializer(), ALICE_AS_SAID)
+
+/** The key what is kept for Alice is kept under. */
+internal val ALICE_KEY: String = personKey(alice().did.value)
 
 private fun resourceOf(payload: JsonObject): String = payload.getValue("resourceId").jsonPrimitive.content
 
@@ -140,26 +162,105 @@ internal class HeldSessions(private val sessions: ScriptedSessions) : SessionFac
     override suspend fun revoke(stored: StoredSession): Unit = sessions.revoke(stored)
 }
 
+/** A step a storage takes when it is asked to write the save kb-a's client owes. */
+internal const val WROTE_THE_OWED_SAVE = "wrote the owed save"
+
+/** Where kb-a's client writes the save it owes: what it keeps of a resource for Alice. */
+private val OWED_SAVE = cacheKey(KB_A, ALICE_KEY, CacheQuery.Resource.wire)
+
+/** Whether `key` is one kb-a's client writes what it keeps for Alice under: its kept queries' documents, and its stream's places. */
+private fun ofKbAsClient(key: String): Boolean =
+    key == lastEventIdKey(KB_A, ALICE_KEY) || PERSISTED_QUERIES.any { key == cacheKey(KB_A, ALICE_KEY, it.query.wire) }
+
 /**
- * A factory over `sessions` whose every session's client, when `owed`, owes a
- * save to a storage that refuses every write: its closing flush makes it, and
- * the session says it was refused, as its writer would. Otherwise it owes
- * nothing, and its closing flush makes nothing.
+ * What the sessions of `KeepingSessions` keep, in `beneath`. Each ask to
+ * write the save kb-a's client owes puts `WROTE_THE_OWED_SAVE` in `steps`,
+ * and the first runs `within`, once one is given, holding the write open while
+ * it runs. While `refuses` holds, it refuses every write of kb-a's client,
+ * keeping nothing of it.
  */
-internal class RefusedAsItCloses(private val sessions: ScriptedSessions, private val owed: Boolean) : SessionFactory {
-    override suspend fun session(options: SessionFactoryOptions): OpenedSession = sessions.session(options).also { opened ->
-        opened.client.writes = object : KeptWrites {
-            override val owesARefusedWrite: Boolean = owed
+internal class SteppedCaches(private val steps: MutableList<String>, private val beneath: SessionStorage) : SessionStorage by beneath {
+    @Volatile
+    var refuses = false
 
-            override fun writeRefused() {
-                if (owed) opened.session.say(SessionError(SessionErrorCode.SaveRefused, "the storage refused the closing write", options.kb.id))
-            }
+    @Volatile
+    var within: (() -> Unit)? = null
 
-            override suspend fun landed() = Unit
+    private val entered = AtomicBoolean(false)
+
+    private fun asked(key: String, writes: Boolean) {
+        if (writes && key == OWED_SAVE) {
+            steps += WROTE_THE_OWED_SAVE
+            within?.let { if (entered.compareAndSet(false, true)) it() }
         }
+        if (refuses && ofKbAsClient(key)) throw IOException("the storage refuses every write of kb-a's client")
     }
 
-    override suspend fun revoke(stored: StoredSession): Unit = sessions.revoke(stored)
+    override fun set(key: String, value: String) {
+        asked(key, writes = true)
+        beneath.set(key, value)
+    }
+
+    override fun delete(key: String) {
+        asked(key, writes = false)
+        beneath.delete(key)
+    }
+
+    override fun update(key: String, change: (String?) -> String?) {
+        asked(key, writes = true)
+        beneath.update(key, change)
+    }
+}
+
+/**
+ * A factory of sessions over HTTP, at the gateway each knowledge base names,
+ * over the sign-in `kept`, as a registry's are built: each client keeps what it
+ * holds for the person `kept` names, in `caches`, and its caches wait an hour,
+ * longer than any test, after what they hold last changed before they save, so
+ * its closing is the first to make a save one owes. It reads none of its
+ * sessions' errors, and revokes nothing.
+ */
+internal class KeepingSessions(private val kept: SignInKept, private val caches: SessionStorage) : SessionFactory {
+    override suspend fun session(options: SessionFactoryOptions): OpenedSession = sessionStarted(
+        KbTarget(options.kb.id, options.kb.label, options.kb.endpoint),
+        kept,
+        true,
+        caches,
+        options.signals::notifySessionEnded,
+        ownHttp,
+        Dispatchers.Default,
+        TimeSource.Monotonic,
+        Random.Default,
+        ClientTiming(saveDebounceMs = TimeUnit.HOURS.toMillis(1)),
+    )
+
+    override suspend fun revoke(stored: StoredSession): Unit = Unit
+}
+
+/**
+ * A storage in which kb-a and kb-b are registered at `realm`'s gateway, kb-a
+ * active. The gateway names Alice to each of their sessions as it asks who its
+ * token is, and its knowledge base answers each read of a resource.
+ */
+internal fun registeredAt(realm: Realm): SharedStorage {
+    realm.answersFresh()
+    val namesAlice = Said(200, Json.parseToJsonElement(ALICE_AS_SAID).jsonObject)
+    realm.script("/api/users/me", namesAlice, namesAlice)
+    val at = endpoint("127.0.0.1", URI(realm.origin).port.toLong())
+    val storage = SharedStorage()
+    saveKnowledgeBases(storage, listOf(kb(KB_A, "KB A", DID_A, at), kb(KB_B, "KB B", DID_B, at)))
+    storage.set(ACTIVE_KEY, KB_A)
+    return storage
+}
+
+/** A sign-in that names Alice, renewed at `realm`'s issuer. */
+internal fun keptNamingAlice(realm: Realm): SignInKept =
+    MemorySignIn(HeldSignIn(tokenFor("access"), "r1", "semiont-browser", "${realm.origin}/token", "${realm.origin}/revoke", ALICE_KEY))
+
+/** Leave the client of `session`, one of `KeepingSessions`', owing its save: a fresh read of a resource, which its closing is the first to write. */
+internal suspend fun owingItsSave(session: SemiontSession) {
+    soon { session.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+    assertFalse(session.client.persistenceSettled, "the client owes no save")
 }
 
 internal fun endpoint(host: String, port: Long): HttpEndpoint =

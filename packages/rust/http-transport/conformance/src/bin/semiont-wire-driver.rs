@@ -20,8 +20,8 @@ use semiont::transport::{
 };
 use semiont::types::ResourceId;
 use semiont_conformance_drivers::{
-    Arguments, Driver, Ended, Running, count, failure, identifier, locked, object,
-    optional_identifier, optional_text, say, serve, text, texts,
+    Arguments, Driver, Ended, Running, count, identifier, locked, object, optional_identifier,
+    optional_text, say, say_failures, serve, text, texts,
 };
 use semiont_http_transport::content::HttpContentTransport;
 use semiont_http_transport::transport::{
@@ -154,17 +154,7 @@ impl Wire {
                 }
             }
         });
-        let mut failures = transport.failures();
-        reporters.spawn(async move {
-            while let Some(reported) = failures.next().await {
-                match reported {
-                    Ok(error) => say(json!({
-                        "error": failure(error.code.as_str(), error.status, error.message)
-                    })),
-                    Err(lagged) => eprintln!("the error stream: {lagged}"),
-                }
-            }
-        });
+        say_failures(&transport);
         drop(reporters);
 
         *locked(&self.client) = Some(Arc::new(Client {

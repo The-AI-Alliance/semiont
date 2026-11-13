@@ -6,7 +6,10 @@
 //! another active closes it first: its readers see no session, then the new
 //! one. Activations do not overlap, and one that was overtaken while it
 //! waited does nothing. `session_activating` is true while one is under way,
-//! which is what tells "a session is coming" from "there is none".
+//! which is what tells "a session is coming" from "there is none". A
+//! session's readiness never fails: the factory's refusal is the one way an
+//! activation fails. Once the browser's close has begun, an activation is
+//! refused.
 //!
 //! **Look up by address, verify by did.** A sign-in lands on the entry, among
 //! those at the address, whose did is the one the knowledge base reported, or
@@ -27,7 +30,8 @@
 //! - no answer is no verdict, and changes nothing.
 //!
 //! **The browser is the one reader of each session's errors**, from the
-//! first thing the session said until its errors end; the factory that
+//! first thing the session said until its errors end, told each as it is
+//! said, so it misses none however much is said at once; the factory that
 //! built it reads none of them. Each of the session's own errors is said on
 //! the browser's (`errors`). A request refused for lack of permission is
 //! said at once, through the session's signals. A refusal for want of a
@@ -52,7 +56,9 @@ use super::stored::{
     forget_kept, is_token_expired, load_knowledge_bases, replace_stored_session,
     save_knowledge_bases, store_session, stored_session,
 };
-use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
+use crate::errors::{
+    BusRequestError, BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode,
+};
 use crate::event_bus::EventBus;
 use crate::kept_for_first_reader::KeptForFirstReader;
 use crate::locked;
@@ -69,7 +75,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinSet;
 
 pub struct SemiontBrowserConfig {
     /// Where everything the browser keeps is kept.
@@ -142,13 +148,14 @@ struct Inner {
     active_kb_id: Held<Option<String>>,
     active_session: Held<Option<Arc<SemiontSession>>>,
     active_signals: Held<Option<Arc<SessionSignals>>>,
-    /// The reading of the live session's errors (`Inner::read`).
-    active_reading: Mutex<Option<JoinHandle<()>>>,
     session_activating: Held<bool>,
     open_resources: Held<Vec<OpenResource>>,
     last_viewed_resource: Held<Option<ResourceId>>,
     identity_token: Held<Option<String>>,
-    errors: KeptForFirstReader<SessionError>,
+    /// Held apart from the browser by what hears each session's errors: that
+    /// is told within the session's saying, where a last hold of the browser
+    /// let go of would end the session it holds, and so the saying.
+    errors: Arc<KeptForFirstReader<SessionError>>,
     bus: EventBus,
     kept: Mutex<Kept>,
     /// One activation at a time.
@@ -202,12 +209,11 @@ impl SemiontBrowser {
             active_kb_id: Held::new(None),
             active_session: Held::new(None),
             active_signals: Held::new(None),
-            active_reading: Mutex::new(None),
             session_activating: Held::new(false),
             open_resources: Held::new(Vec::new()),
             last_viewed_resource: Held::new(None),
             identity_token: Held::new(None),
-            errors: KeptForFirstReader::new(),
+            errors: Arc::new(KeptForFirstReader::new()),
             bus: EventBus::new(),
             turn: tokio::sync::Mutex::new(()),
             tasks: Tasks::new(),
@@ -368,11 +374,27 @@ impl SemiontBrowser {
     }
 
     /// Make a knowledge base the active one, or none. Resolves when its
-    /// session is up, or when it is known there will be none.
+    /// session is up, or when it is known there will be none. The session
+    /// that was active ends first, and what it says as it ends is read to
+    /// the end of its errors, before the factory is asked for the next. The
+    /// factory's refusal is said on `errors` as it is, and then no session is
+    /// active, though the knowledge base asked for is the active one.
+    ///
+    /// Once `close` has begun it is refused, with `bus.closed`, before
+    /// anything else: no session is asked for, nothing is said, and the
+    /// active knowledge base is as it was. One asked for before then ends as
+    /// an overtaken one does.
     pub async fn set_active_kb(
         &self,
         id: Option<&str>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.inner.closed() {
+            return Err(SemiontError::from(BusRequestError::new(
+                BusRequestErrorCode::Closed,
+                "The knowledge-base registry is closed",
+            ))
+            .into());
+        }
         self.inner.set_active_kb(id.map(str::to_owned)).await
     }
 
@@ -593,7 +615,8 @@ impl SemiontBrowser {
     /// ends, and what the session said is read to the end of its errors;
     /// then everything the browser holds ends. It returns once what it was
     /// running has stopped, and the first failure of any of it is the
-    /// error. Closing twice is closing once.
+    /// error. From the moment it begins, an activation is refused
+    /// (`set_active_kb`). Closing twice is closing once.
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed.swap(true, Ordering::SeqCst) {
@@ -632,31 +655,25 @@ fn same_place(one: &KbEndpoint, other: &KbEndpoint) -> bool {
     }
 }
 
-/// A live session, what a host shows about it, and the browser's reading of
-/// its errors, taken out of the browser to be closed.
+/// A live session, and what a host shows about it, taken out of the browser
+/// to be closed.
 struct Ended {
     session: Arc<SemiontSession>,
     signals: Option<Arc<SessionSignals>>,
-    reading: Option<JoinHandle<()>>,
 }
 
 impl Ended {
     /// The client the session was built with closes, which the session only
     /// used, and makes the saves its caches owe; then the session ends, so
     /// what those saves meet is said before its errors end, and a renewal
-    /// it had under way finishes, keeping what it brings. The browser
-    /// reads them to their end, and then the signals end, which that
-    /// reading says a refusal through. The factory built the client and the
-    /// session for this browser.
+    /// it had under way finishes, keeping what it brings. The browser has
+    /// heard each of them as it was said, to their end, and then the signals
+    /// end, through which it said a refusal. The factory built the client
+    /// and the session for this browser.
     async fn close(self) {
         self.session.client().close().await;
         crate::state_unit::StateUnit::dispose(self.session.as_ref());
         self.session.renewals_finished().await;
-        if let Some(reading) = self.reading {
-            // It ends with the session's errors; a panic in it is not the
-            // close's to give.
-            let _ = reading.await;
-        }
         if let Some(signals) = self.signals {
             crate::state_unit::StateUnit::dispose(signals.as_ref());
         }
@@ -670,12 +687,9 @@ impl Inner {
 
     /// End everything the browser holds. Its session is closed by whoever
     /// took it out first; one still in it, as a dropped browser leaves it,
-    /// is read no more.
+    /// is heard no more once the browser is gone.
     fn end(&self) {
         self.tasks.stop();
-        if let Some(reading) = locked(&self.active_reading).take() {
-            reading.abort();
-        }
         *locked(&self.storage_changes) = None;
         self.errors.end();
         self.kbs.end();
@@ -811,27 +825,16 @@ impl Inner {
     fn take_session(&self) -> Option<Ended> {
         let session = self.active_session.now()?;
         let signals = self.active_signals.now();
-        let reading = locked(&self.active_reading).take();
         self.active_session.raise(None);
         self.active_signals.raise(None);
         self.project();
-        Some(Ended {
-            session,
-            signals,
-            reading,
-        })
+        Some(Ended { session, signals })
     }
 
     /// The signals first: putting the session is what starts the checks of
     /// it, and a conflict they find is said through the signals. A session
     /// is put once, so what is open is checked once per session.
-    fn put_session(
-        self: &Arc<Self>,
-        session: Arc<SemiontSession>,
-        signals: Arc<SessionSignals>,
-        reading: JoinHandle<()>,
-    ) {
-        *locked(&self.active_reading) = Some(reading);
+    fn put_session(self: &Arc<Self>, session: Arc<SemiontSession>, signals: Arc<SessionSignals>) {
         self.active_signals.raise(Some(signals));
         self.active_session.raise(Some(session.clone()));
         self.project();
@@ -902,56 +905,46 @@ impl Inner {
                 return;
             }
         };
-        // Read before anything is awaited, as the session's first reader:
-        // what it said as it started is read too.
-        let reading = self.read(&session, signals.clone());
+        // Heard before anything is awaited, as the session's first listener:
+        // what it said as it started is heard too.
+        self.hear(&session, signals.clone());
         session.ready().await;
         if self.closed() || self.active_kb_id.now().as_deref() != Some(id) {
             Ended {
                 session,
                 signals: Some(signals),
-                reading: Some(reading),
             }
             .close()
             .await;
             return;
         }
-        self.put_session(session, signals, reading);
+        self.put_session(session, signals);
     }
 
-    /// Read what `session` says, as the one reader of its errors, from the
-    /// first thing it said until they end: each of its own errors is said on
-    /// the browser's, and a refusal for lack of permission, which has no
+    /// Hear what `session` says, as the one listener of its errors, from the
+    /// first thing it said until they end, each within its saying, so none
+    /// is missed however much it says at once: each of its own errors is said
+    /// on the browser's, and a refusal for lack of permission, which has no
     /// remedy, is said through `signals`. Any other failure of its transport,
     /// a refusal for want of a valid token among them, is not acted on. The
-    /// reading holds neither the session nor the browser, so it never keeps
-    /// either alive.
-    fn read(
-        self: &Arc<Self>,
-        session: &SemiontSession,
-        signals: Arc<SessionSignals>,
-    ) -> JoinHandle<()> {
-        let mut errors = session.errors();
-        let saying = Arc::downgrade(self);
-        tokio::spawn(async move {
-            while let Some(said) = errors.next().await {
-                // What was missed is not known, and is not acted on.
-                let Ok(said) = said else { continue };
-                match said {
-                    SemiontError::Session(error) => {
-                        if let Some(inner) = saying.upgrade() {
-                            inner.failed(error);
-                        }
+    /// listener holds neither the session nor the browser, so it never keeps
+    /// either alive, and once the browser is gone it hears nothing.
+    fn hear(&self, session: &SemiontSession, signals: Arc<SessionSignals>) {
+        let saying = Arc::downgrade(&self.errors);
+        session.tell_errors_to(Box::new(move |said| {
+            let Some(errors) = saying.upgrade() else {
+                return;
+            };
+            match said {
+                SemiontError::Session(error) => errors.say(error.clone()),
+                SemiontError::Transport(failure) => {
+                    if failure.code == TransportErrorCode::Forbidden {
+                        signals.notify_permission_denied(Some(&failure.message));
                     }
-                    SemiontError::Transport(failure) => {
-                        if failure.code == TransportErrorCode::Forbidden {
-                            signals.notify_permission_denied(Some(&failure.message));
-                        }
-                    }
-                    SemiontError::Bus(_) | SemiontError::Job(_) => {}
                 }
+                SemiontError::Bus(_) | SemiontError::Job(_) => {}
             }
-        })
+        }));
     }
 
     // ── What is shown ───────────────────────────────────────────────────

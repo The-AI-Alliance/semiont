@@ -146,16 +146,27 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
         unanswered = false;
         ended = true;
         Set(null, null);
-        await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
+        var unforgotten = await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
         onAuthFailed?.Invoke(reason);
-        Report(code);
+        if (unforgotten is null) Report(code);
+        else ReportUnforgotten(code, unforgotten);
     }
 
-    private async Task ForgetStoredAsync()
+    /// <summary>Forgets the stored sign-in: what its storage threw, when it could not.</summary>
+    private async Task<Exception?> ForgetStoredAsync()
     {
-        try { await kept.ForgetAsync(lifetime.Token).ConfigureAwait(Spawning.Captures); }
-        catch (Exception error) when (error is not OperationCanceledException) { Report("auth-failed", error); }
+        try
+        {
+            await kept.ForgetAsync(lifetime.Token).ConfigureAwait(Spawning.Captures);
+            return null;
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { return error; }
     }
+
+    /// <summary>Says <paramref name="name"/>, why the sign-in had to be forgotten, and what its storage said as it could not
+    /// be.</summary>
+    private void ReportUnforgotten(string name, Exception unforgotten) => errors.Publish(new SessionError(ProtocolFacts.SessionError(name),
+        name + "; and the sign-in could not be forgotten: " + unforgotten.Message, unforgotten));
 
     private async Task<string?> RenewCoreAsync(bool starting = false)
     {
@@ -191,12 +202,13 @@ internal sealed class KeptSession : IDisposable, IAsyncDisposable
             return null;
         }
         // The issuer refused the renewal, or it gave no token while the sign-in is still kept. At the start there was no
-        // session to end: the sign-in is forgotten, and nothing is said.
+        // session to end: the sign-in is forgotten, and nothing is said unless it could not be.
         if (starting)
         {
             ended = true;
             Set(null, null);
-            await ForgetStoredAsync().ConfigureAwait(Spawning.Captures);
+            if (await ForgetStoredAsync().ConfigureAwait(Spawning.Captures) is { } unforgotten)
+                ReportUnforgotten("refresh-exhausted", unforgotten);
         }
         else await EndAsync(SessionEndReason.Expired, "refresh-exhausted").ConfigureAwait(Spawning.Captures);
         return null;

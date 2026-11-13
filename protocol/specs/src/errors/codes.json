@@ -14,7 +14,7 @@
       },
       {
         "code": "bus.closed",
-        "docs": "The bus stopped before a reply came: its client was disposed, or its transport closed."
+        "docs": "The bus stopped before a reply came: its client was disposed, or its transport closed. A registry of knowledge bases whose close has begun refuses an activation with it, at the call, before it asks for anything."
       },
       {
         "code": "bus.not-found",

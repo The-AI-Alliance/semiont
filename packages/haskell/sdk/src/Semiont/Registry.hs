@@ -13,22 +13,23 @@ module Semiont.Registry
   , module Semiont.Registry.Stored
   ) where
 
-import Control.Concurrent (myThreadId)
+import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, asyncThreadId, wait, waitCatch, waitCatchSTM, mapConcurrently)
 import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 import Control.Concurrent.QSem (newQSem, waitQSem, signalQSem)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Exception (SomeException, SomeAsyncException, bracket, bracket_, finally, fromException, mask, onException, throwIO, try)
+import Control.Exception (SomeException, bracket, bracket_, finally, fromException, mask, onException, throwIO)
 import Control.Monad (forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (FromJSON, ToJSON, Value(..), eitherDecodeStrict', encode, fromJSON, toJSON, Result(..))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Foldable (asum)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -40,11 +41,12 @@ import qualified Semiont.Browse as Browse
 import qualified Semiont.Cache as Cache
 import qualified Semiont.Client as Client
 import qualified Semiont.ErrorCodes as Code
-import Semiont.Errors (SessionError(..), TransportError(..), BusRequestError(..), SignInError)
+import Semiont.Errors (SessionError(..), TransportError(..), BusRequestError(..), SignInError(..))
 import qualified Semiont.EventBus as Local
 import qualified Semiont.Http as Http
 import qualified Semiont.Identity as Identity
 import qualified Semiont.Internal.Broadcast as Broadcast
+import Semiont.Internal.Exception (trySync)
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.Stored as Kept
 import qualified Semiont.Timing as Timing
@@ -74,7 +76,7 @@ data SemiontBrowserConfig = SemiontBrowserConfig
 data Live = Live Integer Session.OpenedSession Signals.SessionSignals (Async ())
 data SemiontBrowser = SemiontBrowser
   { configuration :: SemiontBrowserConfig, lifetime :: Lifetime.Lifetime, activation :: MVar ()
-  , revision :: TVar Integer, live :: TVar (Maybe Live), activations :: TVar Integer
+  , revision :: TVar Integer, live :: TVar (Maybe Live), activations :: TVar Integer, calling :: TVar (Maybe ThreadId)
   , registered :: State.StateValue [KnowledgeBase], selected :: State.StateValue (Maybe Text)
   , connected :: State.StateValue (Maybe Session.Session), notices :: State.StateValue (Maybe Signals.SessionSignals)
   , activating :: State.StateValue Bool, opened :: State.StateValue [OpenResource], viewed :: State.StateValue (Maybe ResourceId)
@@ -139,11 +141,11 @@ newSemiontBrowser config = mask $ \restore -> do
   let chosen=case rawSelected >>= \key -> knowledgeBaseId <$> find ((==key) . knowledgeBaseId) initial of
         Just key->Just key
         Nothing->case initial of first:_->Just (knowledgeBaseId first); []->Nothing
-  life <- Lifetime.newLifetime "Registry is closed"
+  life <- Lifetime.newLifetime closedMessage
   turn <- newMVar ()
   applicationBus <- Local.newEventBus
   closer <- newMVar Nothing
-  owner <- atomically $ SemiontBrowser config life turn <$> newTVar 0 <*> newTVar Nothing <*> newTVar 0
+  owner <- atomically $ SemiontBrowser config life turn <$> newTVar 0 <*> newTVar Nothing <*> newTVar 0 <*> newTVar Nothing
     <*> State.newStateValue initial <*> State.newStateValue chosen <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> State.newStateValue False <*> State.newStateValue [] <*> State.newStateValue Nothing <*> State.newStateValue Nothing
     <*> Broadcast.newKeptEvents <*> newTVar (fromMaybe KM.empty (document rawOpened)) <*> newTVar (fromMaybe KM.empty (document rawViewed))
@@ -153,19 +155,13 @@ newSemiontBrowser config = mask $ \restore -> do
         maybe (Storage.delete store activeKey) (Storage.set store activeKey) chosen
         unsubscribe <- Storage.subscribe store (writtenElsewhere owner)
         atomically (writeTVar (detach owner) (fromMaybe (pure ()) unsubscribe))
-        forM_ chosen (\key -> spawn owner (setActiveKb owner (Just key)))
+        forM_ chosen (\key -> spawn owner (selectOwn owner (Just key)))
         pure owner
   restore initialize `onException` dispose owner
 
 spawn :: SemiontBrowser -> IO () -> IO ()
-spawn owner action=void $ Lifetime.start (lifetime owner) $ action `catchSync` \problem -> atomically (modifyTVar' (backgroundFailures owner) (<>[problem]))
-catchSync :: IO result -> (SomeException -> IO result) -> IO result
-catchSync action recover=do
-  result <- try action
-  case result of
-    Left problem | Just (_::SomeAsyncException)<-fromException problem -> throwIO problem
-    Left problem -> recover problem
-    Right value -> pure value
+spawn owner action=void $ Lifetime.start (lifetime owner) $
+  trySync action >>= either (\problem -> atomically (modifyTVar' (backgroundFailures owner) (<>[problem]))) pure
 
 project :: SemiontBrowser -> STM ()
 project owner=do
@@ -196,34 +192,56 @@ drainRetired owner=bracket (atomically (modifyTVar' (draining owner) (+1) >> flu
   (const (atomically (modifyTVar' (draining owner) (subtract 1))))
   (foldr (\held rest -> closeLive held `finally` rest) (pure ()))
 
+closedMessage :: Text
+closedMessage="Registry is closed"
+
+-- | Once the registry's close has begun, the activation is refused at the
+-- call with bus.closed, before anything else: no session is asked for,
+-- nothing is said, and the knowledge base active before is still the one
+-- stored. One taken before then ends as an overtaken one does, and the call
+-- returns: the close stops its call to the factory, and a session the factory
+-- hands back once it has is closed at once, with nothing of it said.
 setActiveKb :: SemiontBrowser -> Maybe Text -> IO ()
-setActiveKb owner requested=Lifetime.run (lifetime owner) $ mask $ \restore -> do
-  selectedVersion <- atomically $ do
-    ending <- readTVar (disposing owner)
-    existing <- readTVar (live owner)
-    current <- State.current (selected owner)
-    case existing of
-      _ | ending -> pure Nothing
-      Just _ | current==requested -> pure Nothing
-      _ -> do
-        modifyTVar' (revision owner) (+1)
-        version <- readTVar (revision owner)
-        State.update (selected owner) requested
-        void (takeLive owner)
-        modifyTVar' (activations owner) (+1)
-        State.update (activating owner) True
-        pure (Just version)
-  forM_ selectedVersion $ \version -> do
-    let finish=atomically $ do
-          modifyTVar' (activations owner) (subtract 1)
-          readTVar (activations owner) >>= State.update (activating owner) . (>0)
-        run=do
-          maybe (Storage.delete (storage owner) activeKey) (Storage.set (storage owner) activeKey) requested
-          withMVar (activation owner) $ \() -> do
-            drainRetired owner
-            current <- readTVarIO (revision owner)
-            when (current==version) (forM_ requested (activate owner version))
-    restore run `finally` finish
+setActiveKb owner=select owner (throwSTM (BusRequestError Code.BusRequestClosed closedMessage Nothing))
+
+-- | An activation the registry makes of its own: as it is made, and as a
+-- knowledge base is added, signed in to again or removed. Once the
+-- registry's close has begun it does nothing.
+selectOwn :: SemiontBrowser -> Maybe Text -> IO ()
+selectOwn owner=select owner (pure ())
+
+-- | An activation refused is refused before it runs under the lifetime: the
+-- lifetime's close ends what runs under it quietly, as one the close overtook.
+select :: SemiontBrowser -> STM () -> Maybe Text -> IO ()
+select owner refuse requested=do
+  atomically (readTVar (disposing owner) >>= flip when refuse)
+  void $ Lifetime.runUntilClosed (lifetime owner) $ mask $ \restore -> do
+    selectedVersion <- atomically $ do
+      ending <- readTVar (disposing owner)
+      existing <- readTVar (live owner)
+      current <- State.current (selected owner)
+      case existing of
+        _ | ending -> pure Nothing
+        Just _ | current==requested -> pure Nothing
+        _ -> do
+          modifyTVar' (revision owner) (+1)
+          version <- readTVar (revision owner)
+          State.update (selected owner) requested
+          void (takeLive owner)
+          modifyTVar' (activations owner) (+1)
+          State.update (activating owner) True
+          pure (Just version)
+    forM_ selectedVersion $ \version -> do
+      let finish=atomically $ do
+            modifyTVar' (activations owner) (subtract 1)
+            readTVar (activations owner) >>= State.update (activating owner) . (>0)
+          run=do
+            maybe (Storage.delete (storage owner) activeKey) (Storage.set (storage owner) activeKey) requested
+            withMVar (activation owner) $ \() -> do
+              drainRetired owner
+              current <- readTVarIO (revision owner)
+              when (current==version) (forM_ requested (activate owner version))
+      restore run `finally` finish
 
 activate :: SemiontBrowser -> Integer -> Text -> IO ()
 activate owner version key=do
@@ -234,15 +252,15 @@ activate owner version key=do
       case held of Just (Live actual _ _ _) | actual==version -> pure (); _->Signals.dispose signals) $ \signals -> do
       let failed failure=atomically (Broadcast.publish (failures owner) failure)
           options=SessionFactoryOptions entry (storage owner) signals
-      acquired <- try (openSession (registryFactory (configuration owner)) options)
+      caller <- myThreadId
+      let asked=bracket_ (atomically (writeTVar (calling owner) (Just caller))) (atomically (writeTVar (calling owner) Nothing))
+      acquired <- trySync (asked (openSession (registryFactory (configuration owner)) options))
       case acquired of
-        Left (problem::SomeException) | Just (_::SomeAsyncException)<-fromException problem -> throwIO problem
         Left problem -> case fromException problem :: Maybe SessionError of
           Just failure -> failed failure
-          Nothing | isJust (fromException problem :: Maybe TransportError)
-            ||isJust (fromException problem :: Maybe BusRequestError)||isJust (fromException problem :: Maybe SignInError) ->
-              failed (SessionError Code.SessionConstructFailed "Could not construct the knowledge base's session" key)
-          Nothing -> throwIO problem
+          Nothing -> case notTheSessions problem of
+            Just message -> failed (SessionError Code.SessionConstructFailed message key)
+            Nothing -> throwIO problem
         Right openedSession -> do
           let session=Session.openedSession openedSession
               route (Left failure)=failed failure
@@ -256,21 +274,27 @@ activate owner version key=do
           routing <- Lifetime.start (lifetime owner)
             (Session.errors session (\failures -> atomically (putTMVar subscribed ()) >> Stream.mapM_ route failures))
             `onException` Session.closeOpenedSession openedSession
-          atomically (readTMVar subscribed `orElse` void (waitCatchSTM routing))
           let owned=Live version openedSession signals routing
-          ready <- try (Session.ready session)
-          case ready of
-            Left (problem::SomeException) -> closeLive owned >> throwIO problem
-            Right () -> do
-              accepted <- atomically $ do
-                current <- readTVar (revision owner)
-                if current/=version then pure False else do
-                  writeTVar (live owner) (Just owned)
-                  State.update (connected owner) (Just session)
-                  State.update (notices owner) (Just signals)
-                  project owner
-                  pure True
-              if accepted then spawn owner (validateOpened owner version session) else closeLive owned
+          -- The registry owns the session until it is accepted: an activation cancelled as it waits closes it.
+          accepted <- (do
+            atomically (readTMVar subscribed `orElse` void (waitCatchSTM routing))
+            Session.ready session
+            atomically $ do
+              current <- readTVar (revision owner)
+              if current/=version then pure False else do
+                writeTVar (live owner) (Just owned)
+                State.update (connected owner) (Just session)
+                State.update (notices owner) (Just signals)
+                project owner
+                pure True) `onException` closeLive owned
+          if accepted then spawn owner (validateOpened owner version session) else closeLive owned
+
+-- | The message of a factory's failure that is one of the SDK's errors but not one of the session's own.
+notTheSessions :: SomeException -> Maybe Text
+notTheSessions problem=asum
+  [ transportErrorMessage <$> fromException problem
+  , busRequestErrorMessage <$> fromException problem
+  , signInErrorMessage <$> fromException problem ]
 
 writeKbs :: SemiontBrowser -> ([KnowledgeBase] -> [KnowledgeBase]) -> IO [KnowledgeBase]
 writeKbs owner change=do
@@ -290,7 +314,7 @@ addKb owner proposed grant=Lifetime.run (lifetime owner) $ do
         (newKnowledgeBaseLastRead proposed) mempty
   storeSession (storage owner) key grant
   void (writeKbs owner (<>[added]))
-  setActiveKb owner (Just key)
+  selectOwn owner (Just key)
   pure added
 
 updateKb :: SemiontBrowser -> Text -> Maybe Text -> Maybe KbRead -> IO ()
@@ -309,7 +333,7 @@ signIn owner key grant=Lifetime.run (lifetime owner) $ do
     when (current==Just key) (modifyTVar' (revision owner) (+1) >> void (takeLive owner))
   withMVar (activation owner) (const (drainRetired owner))
   Kept.forgetNamed (storage owner) key previous
-  setActiveKb owner (Just key)
+  selectOwn owner (Just key)
 
 kbSessionStatus :: SemiontBrowser -> Text -> IO KbSessionStatus
 kbSessionStatus owner key=do
@@ -371,7 +395,7 @@ removeKb owner key=Lifetime.run (lifetime owner) $ do
   entries <- writeKbs owner (filter ((/=key) . knowledgeBaseId))
   atomically (writeTVar (openByKb owner) opens >> writeTVar (viewedByKb owner) lastSeen >> project owner)
   current <- atomically (State.current (selected owner))
-  when (current==Just key) (setActiveKb owner (case entries of first:_->Just (knowledgeBaseId first); []->Nothing))
+  when (current==Just key) (selectOwn owner (case entries of first:_->Just (knowledgeBaseId first); []->Nothing))
   withMVar (activation owner) (const (drainRetired owner))
   Kept.forgetNamed (storage owner) key grant
 
@@ -422,13 +446,13 @@ readKb owner session key=do
   case find ((==key) . knowledgeBaseId) entries of
     Nothing -> pure noVerdict
     Just entry -> do
-      readBack <- (do
+      readBack <- trySync $ do
         description <- Browse.kb (Client.browse (Session.client session))
         did <- either (ioError . userError) (pure . userIdValue) (Identity.kbDid (kbDescriptionDomain description))
-        pure (Just (description,did))) `catchSync` const (pure Nothing)
+        pure (description,did)
       case readBack of
-        Nothing -> pure noVerdict
-        Just (description,did) ->
+        Left _ -> pure noVerdict
+        Right (description,did) ->
           if did/=knowledgeBaseDid entry then pure (KbReadVerdictBranch2 (KbReadVerdictBranch2Value KbReadKindConflict did (kbDescriptionName description))) else do
             reading <- readNow owner description
             updateKb owner key (Just (kbDescriptionName description)) (Just reading)
@@ -459,12 +483,13 @@ validateOpened owner version session=do
     _ -> do
       raw <- Storage.get (storage owner) openResourcesByKbKey
       let waiting=fromMaybe [] (document raw >>= KM.lookup (Key.fromText (Session.id session)) >>= readValue)
-          checkTab tab = (do
-            value <- Cache.fresh (Browse.resource (Client.browse (Session.client session)) (openResourceId tab))
-            pure (openResourceId tab,TabCheckBranch2 (TabCheckBranch2Value (Resources.getPrimaryMediaType value) (resourceDescriptorName value) TabVerdictReady)))
-            `catchSync` \problem -> pure (openResourceId tab,case fromException problem of
-              Just failure | busRequestErrorCode failure==Code.BusRequestNotFound -> TabCheckBranch1 (TabCheckBranch1Value TabVerdictGone)
-              _ -> TabCheckBranch3 (TabCheckBranch3Value TabVerdictUnknown))
+          checkTab tab = do
+            checked <- trySync (Cache.fresh (Browse.resource (Client.browse (Session.client session)) (openResourceId tab)))
+            pure (openResourceId tab,case checked of
+              Right value -> TabCheckBranch2 (TabCheckBranch2Value (Resources.getPrimaryMediaType value) (resourceDescriptorName value) TabVerdictReady)
+              Left problem -> case fromException problem of
+                Just failure | busRequestErrorCode failure==Code.BusRequestNotFound -> TabCheckBranch1 (TabCheckBranch1Value TabVerdictGone)
+                _ -> TabCheckBranch3 (TabCheckBranch3Value TabVerdictUnknown))
       lanes <- newQSem (fromInteger Timing.checksAtOnceCount)
       checks <- Map.fromList <$> mapConcurrently (\tab -> bracket_ (waitQSem lanes) (signalQSem lanes) (checkTab tab)) waiting
       latest <- readTVarIO (revision owner)
@@ -495,6 +520,13 @@ completeSignIn owner callback=Lifetime.run (lifetime owner) $ do
         (pendingAuthorizationExpectedDid pending) (pendingAuthorizationExpectedName pending) (pendingAuthorizationKbId pending) grant
   signedIn owner completed
 
+-- | Ends the registry. From the moment it begins 'setActiveKb' is refused,
+-- and the registry's own activations do nothing. An activation taken before
+-- then ends as an overtaken one does: its call to the factory is told to stop,
+-- and a session the factory hands back once it has is closed at once. Called
+-- from within that call, it returns at once, and the call it is made from is
+-- then stopped. It raises what the work it ran in the background failed
+-- with. Disposing twice is disposing once.
 dispose :: SemiontBrowser -> IO ()
 dispose owner=mask $ \restore -> do
   closer <- modifyMVar (closing owner) $ \prior -> case prior of
@@ -516,4 +548,6 @@ dispose owner=mask $ \restore -> do
         case problems of first:_->throwIO first; []->pure ()
       pure (Just worker,worker)
   caller <- myThreadId
-  unless (caller==asyncThreadId closer) (restore (wait closer))
+  -- The close stops a call to the factory, and waits for it to end: called from within one, it cannot wait.
+  asking <- readTVarIO (calling owner)
+  unless (caller==asyncThreadId closer || asking==Just caller) (restore (wait closer))

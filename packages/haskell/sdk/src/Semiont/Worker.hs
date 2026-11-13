@@ -23,7 +23,6 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import qualified Data.Text as T
 import qualified OpenTelemetry.Context as Context
 import OpenTelemetry.Context.ThreadLocal (attachContext, detachContext)
 import Semiont.Channels hiding (JobCheckpoint, JobComplete)
@@ -33,6 +32,7 @@ import Semiont.ErrorCodes
 import Semiont.Errors (BusRequestError(..))
 import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Bus as Bus
+import Semiont.Internal.Exception (exceptionMessage, trySync)
 import Semiont.JobFilter (jobMatchesFilter)
 import qualified Semiont.StateValue as State
 import qualified Semiont.Timing.Settings as Timing
@@ -200,10 +200,7 @@ begin claims = modifyMVar_ (workers claims) $ \existing -> mask $ \restore -> do
     readyCancel <- newEmptyMVar
     readyState <- newEmptyMVar
     readyStall <- newEmptyMVar
-    let spawn action = async (restore action `catch` \(problem :: SomeException) ->
-          case fromException problem :: Maybe SomeAsyncException of
-            Just _ -> throwIO problem
-            Nothing -> atomically (void (tryPutTMVar (fatal claims) problem)))
+    let spawn action = async (trySync (restore action) >>= either (atomically . void . tryPutTMVar (fatal claims)) pure)
     queuedWorker <- spawn $ Transport.stream (transport claims) (channelName JobQueued) $ \events -> do
       putMVar readyQueued ()
       Stream.mapM_ (either (const (refusedAnnouncement claims)) (announced claims)) events
@@ -252,11 +249,6 @@ cancellation claims payload = atomically $ do
       over <- settled value
       unless over (writeTVar (heldCancelled value) True)
 
-trySync :: IO value -> IO (Either SomeException value)
-trySync action = try action >>= \result -> case result of
-  Left problem | Just (_ :: SomeAsyncException) <- fromException problem -> throwIO problem
-  _ -> pure result
-
 claimLoop :: Claims -> IO ()
 claimLoop claims = forever $ mask $ \restore -> do
   atomically $ do
@@ -276,7 +268,7 @@ claimLoop claims = forever $ mask $ \restore -> do
       maybeRefusal -> atomically $ do
         current <- readTVar (runtime claims)
         when (phase current == Claiming) $ Broadcast.publish (refusals claims)
-          (ClaimRefusal (busRequestErrorCode <$> maybeRefusal) (maybe (T.pack (displayException problem)) busRequestErrorMessage maybeRefusal))
+          (ClaimRefusal (busRequestErrorCode <$> maybeRefusal) (maybe (exceptionMessage problem) busRequestErrorMessage maybeRefusal))
     Right delivered -> do
       let record = jobClaimedResultResponse (Bus.deliveredPayload delivered)
       state <- newTVarIO Claimed

@@ -196,34 +196,15 @@ public sealed partial class TransportTests
         var store = new MemoryStorage();
         var kb = RegistryKb("one", "one.test");
         RegistryStorage.SaveKnowledgeBases(store, [kb]);
-        var signIn = new MemorySignIn(RegistryTokens() with
-        {
-            Access = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600 }),
-            PersonKey = RegistryStorage.PersonKey(UserId.Parse(kb.Did + ":users:alice")),
-        });
-        using var server = new Handler();
-        using var http = new HttpClient(server);
-        server.Answer = sent =>
-        {
-            if (Text(sent, "channel") == BusOperations.BrowseKbRequested.Request.Name)
-            {
-                Reply(server, sent, BusOperations.BrowseKbRequested.Result.Name,
-                    new { response = new { domain = kb.Did["did:web:".Length..], name = kb.Label } });
-                return;
-            }
-            Assert.Equal(BusOperations.BrowseResourceRequested.Request.Name, Text(sent, "channel"));
-            Reply(server, sent, BusOperations.BrowseResourceRequested.Result.Name,
-                new { response = new { resource = Described(Text(sent.GetProperty("payload"), "resourceId"), "fresh"), lastSequence = 1 } });
-        };
-        var factory = new RegistryFactory((options, cancellation) => SemiontSession.FromKeptAsync(Target(options.Kb), signIn,
-            new RefusesEveryWrite(), http, clock, validate: false, cancellation: cancellation));
+        var signIn = new MemorySignIn(NamingSignIn(kb, clock));
+        var keeping = new WatchedStorage(RefuseTheWrite);
+        var factory = new RegistryFactory((options, cancellation) => KeepingSessionAsync(options.Kb, signIn, keeping, clock, cancellation));
         await using var browser = new SemiontBrowser(new SemiontBrowserConfig(store, factory, clock));
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await browser.SetActiveKbAsync(kb.Id, deadline.Token);
-        var session = Assert.IsType<SemiontSession>(Assert.IsType<OpenedSession>(browser.State.ActiveSession).Session);
-        await session.ReadyAsync(deadline.Token);
-        if (row.GetProperty("owed").GetBoolean())
-            Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+        var opened = Assert.IsType<OpenedSession>(browser.State.ActiveSession);
+        await Assert.IsType<SemiontSession>(opened.Session).ReadyAsync(deadline.Token);
+        if (row.GetProperty("owed").GetBoolean()) await OwingItsSaveAsync(opened, deadline.Token);
 
         await using IAsyncEnumerator<SemiontError> errors = browser.Errors(deadline.Token).GetAsyncEnumerator();
         var told = errors.MoveNextAsync().AsTask();
@@ -291,13 +272,85 @@ public sealed partial class TransportTests
             }, session);
         });
 
-    /// <summary>A storage that holds nothing and refuses every write, as a host's storage that cannot write does.</summary>
-    private sealed class RefusesEveryWrite : ISessionStorage
+    /// <summary>A sign-in, unexpired on <paramref name="clock"/>, that names alice, one person of <paramref name="kb"/>: the
+    /// client of a session over it keeps for her from its start.</summary>
+    private static StoredSession NamingSignIn(KnowledgeBase kb, TimeProvider clock) => RegistryTokens() with
     {
-        public string? Get(string key) => null;
-        public void Set(string key, string value) => throw new IOException("The storage cannot write " + key);
-        public void Delete(string key) => throw new IOException("The storage cannot delete " + key);
-        public void Update(string key, Func<string?, string?> change) => throw new IOException("The storage cannot write " + key);
+        Access = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600 }),
+        PersonKey = AlicesKey(kb),
+    };
+
+    private static string AlicesKey(KnowledgeBase kb) => RegistryStorage.PersonKey(UserId.Parse(kb.Did + ":users:alice"));
+
+    /// <summary>Where the save a client of <paramref name="kb"/>'s left owing by <see cref="OwingItsSaveAsync"/> is
+    /// written: what it keeps for alice of the resource it read.</summary>
+    private static string OwedSave(KnowledgeBase kb) => RegistryStorage.CacheKey(kb.Id, AlicesKey(kb), "resource");
+
+    /// <summary>
+    /// The session SemiontSession.FromKeptAsync makes of <paramref name="kb"/> over <paramref name="signIn"/>, which names
+    /// its person, so its client keeps in <paramref name="keeping"/> from the start. It asks nobody who its token is. Its
+    /// gateway describes the knowledge base as itself, and each resource it is asked for as `fresh`; ending the session
+    /// ends its gateway.
+    /// </summary>
+    private static async Task<OpenedSession> KeepingSessionAsync(KnowledgeBase kb, ISignInKept signIn, ISessionStorage keeping,
+        TimeProvider clock, CancellationToken cancellation)
+    {
+        var server = new Handler();
+        var http = new HttpClient(server);
+        server.Answer = sent =>
+        {
+            if (Text(sent, "channel") == BusOperations.BrowseKbRequested.Request.Name)
+            {
+                Reply(server, sent, BusOperations.BrowseKbRequested.Result.Name,
+                    new { response = new { domain = kb.Did["did:web:".Length..], name = kb.Label } });
+                return;
+            }
+            Assert.Equal(BusOperations.BrowseResourceRequested.Request.Name, Text(sent, "channel"));
+            Reply(server, sent, BusOperations.BrowseResourceRequested.Result.Name,
+                new { response = new { resource = Described(Text(sent.GetProperty("payload"), "resourceId"), "fresh"), lastSequence = 1 } });
+        };
+        var opened = await SemiontSession.FromKeptAsync(Target(kb), signIn, keeping, http, clock, validate: false, cancellation: cancellation);
+        return new OpenedSession(opened.Client, async () =>
+        {
+            try { await opened.DisposeAsync(); }
+            finally { http.Dispose(); }
+        }, opened.Session);
+    }
+
+    /// <summary>Leaves <paramref name="opened"/>'s client owing its save: a read of a resource, whose save waits out a
+    /// debounce that never passes on the runner's clock, so the client's closing flush is the first to make it.</summary>
+    private static async Task OwingItsSaveAsync(OpenedSession opened, CancellationToken cancellation) =>
+        Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(cancellation)).Name);
+
+    /// <summary>A storage's refusal of a write, as a host's storage that cannot write refuses it.</summary>
+    private static void RefuseTheWrite(string key) => throw new IOException("The storage cannot write " + key);
+
+    /// <summary>A storage in memory that subscribes no one, and hands the key of each write to <paramref name="writing"/>
+    /// before it makes it: the write is refused when <paramref name="writing"/> throws, and held while it waits.</summary>
+    private sealed class WatchedStorage(Action<string> writing) : ISessionStorage
+    {
+        private readonly MemoryStorage values = new();
+
+        public string? Get(string key) => values.Get(key);
+
+        public void Set(string key, string value)
+        {
+            writing(key);
+            values.Set(key, value);
+        }
+
+        public void Delete(string key)
+        {
+            writing(key);
+            values.Delete(key);
+        }
+
+        public void Update(string key, Func<string?, string?> change)
+        {
+            writing(key);
+            values.Update(key, change);
+        }
+
         public IDisposable? Subscribe(Action<string, string?> onChange) => null;
     }
 }

@@ -68,16 +68,22 @@ type registryClosingRow struct {
 	RegistryErrors []semiont.SessionErrorCode `json:"registryErrors"`
 }
 
-// readRegistryErrorsCases is the table, read whole: a member it gains that
-// this runner does not read fails here.
-func readRegistryErrorsCases(t *testing.T) registryErrorsCases {
+// readSessionTable reads protocol/specs/src/session's table named name into
+// table, whole: a member it gains that its runner does not read fails here.
+func readSessionTable(t *testing.T, name string, table any) {
 	t.Helper()
-	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "protocol", "specs", "src", "session", "registry-errors-cases.json"))
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "protocol", "specs", "src", "session", name))
 	must(t, err)
 	decoder := json.NewDecoder(bytes.NewReader(text))
 	decoder.DisallowUnknownFields()
+	must(t, decoder.Decode(table))
+}
+
+// readRegistryErrorsCases is the table, read whole.
+func readRegistryErrorsCases(t *testing.T) registryErrorsCases {
+	t.Helper()
 	var table registryErrorsCases
-	must(t, decoder.Decode(&table))
+	readSessionTable(t, "registry-errors-cases.json", &table)
 	if len(table.Cases) == 0 || len(table.Closing) == 0 {
 		t.Fatal("a part of the registry's errors cases has no rows")
 	}
@@ -149,12 +155,16 @@ func (f keepingSessions) Session(ctx context.Context, options registry.SessionFa
 
 func (keepingSessions) Revoke(context.Context, registry.StoredSession) {}
 
-// stagedRegistry is a registry of kb-a at the stage, its sessions built by
-// factory, closed when the test ends.
-func stagedRegistry(t *testing.T, s *stage, factory registry.SessionFactory) *registry.SemiontBrowser {
+// stagedRegistry is a registry of each of kbIDs at the stage, the first of
+// them active, its sessions built by factory, closed when the test ends.
+func stagedRegistry(t *testing.T, s *stage, factory registry.SessionFactory, kbIDs ...string) *registry.SemiontBrowser {
 	t.Helper()
 	storage := semiont.NewMemoryStorage()
-	must(t, registry.SaveKnowledgeBases(storage, []api.KnowledgeBase{s.registered(t, kbA)}))
+	kbs := []api.KnowledgeBase{}
+	for _, kbID := range kbIDs {
+		kbs = append(kbs, s.registered(t, kbID))
+	}
+	must(t, registry.SaveKnowledgeBases(storage, kbs))
 	browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: factory})
 	must(t, err)
 	closedAtTheEnd(t, browser)
@@ -167,6 +177,18 @@ func keptNamingAlice(ctx context.Context, t *testing.T, s *stage, kept semiont.S
 	t.Helper()
 	person := alicesKey
 	must(t, kept.Keep(ctx, s.heldSignIn(jwt(time.Hour), "r1", &person)))
+}
+
+// owingItsSave leaves the client of session, one of keepingSessions' with a
+// save that waits out longer than the test, owing its save: a fresh read of
+// a resource, which its close is the first to write.
+func owingItsSave(ctx context.Context, t *testing.T, session *semiont.Session) {
+	t.Helper()
+	_, err := session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
+	must(t, err)
+	if session.Client().PersistenceSettled() {
+		t.Fatal("the client owes no save")
+	}
 }
 
 // runOwnErrorsCase has kb-a's session over the stage say each of what the
@@ -200,7 +222,7 @@ func runOwnErrorsCase(t *testing.T, c registryErrorsCase) {
 	}
 	keptNamingAlice(ctx, t, s, kept)
 	gate := gated{SessionFactory: keepingSessions{stage: s, kept: kept, caches: caches, saveWait: time.Millisecond}, open: make(chan struct{})}
-	browser := stagedRegistry(t, s, gate)
+	browser := stagedRegistry(t, s, gate, kbA)
 	heard := hearRegistry(ctx, browser)
 	close(gate.open)
 	session := liveOver(t, browser)
@@ -421,14 +443,10 @@ func runRegistryClosing(t *testing.T, row registryClosingRow) {
 	keptNamingAlice(ctx, t, s, kept)
 	caches := &refusing{SharedStorage: semionttest.NewSharedStorage()}
 	// Nothing the client holds is written before the registry closes.
-	browser := stagedRegistry(t, s, keepingSessions{stage: s, kept: kept, caches: caches, saveWait: time.Hour})
+	browser := stagedRegistry(t, s, keepingSessions{stage: s, kept: kept, caches: caches, saveWait: time.Hour}, kbA)
 	session := liveOver(t, browser)
 	if *row.Owed {
-		_, err := session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
-		must(t, err)
-		if session.Client().PersistenceSettled() {
-			t.Fatal("the client owes no save before the registry closes")
-		}
+		owingItsSave(ctx, t, session)
 	} else {
 		until(t, "the client owes nothing", session.Client().PersistenceSettled)
 	}

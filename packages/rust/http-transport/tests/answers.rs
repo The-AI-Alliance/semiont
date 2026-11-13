@@ -2,12 +2,15 @@
 //! this process: what the wire cases of the SDK conformance suite cannot
 //! stage, because the gateway answers only its declared bodies.
 
+mod failures_told;
+
 use axum::Router;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
+use failures_told::failures_told;
 use semiont::channels::BRIDGED_CHANNELS;
 use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::transport::{GatewayOperations, Transport};
@@ -56,7 +59,7 @@ async fn an_answer_that_is_not_its_declared_body_fails_as_error_naming_its_first
         timing: Timing::default(),
         random: None,
     });
-    let mut failures = transport.failures();
+    let mut failures = failures_told(&transport);
 
     for (media_type, body, said) in [
         (
@@ -84,11 +87,10 @@ async fn an_answer_that_is_not_its_declared_body_fails_as_error_naming_its_first
             .await
             .expect_err("an answer with a fault is refused");
         assert_eq!(failed, refused, "{body}");
-        let reported = tokio::time::timeout(Duration::from_secs(5), failures.next())
+        let reported = tokio::time::timeout(Duration::from_secs(5), failures.recv())
             .await
             .expect("the refusal is reported")
-            .expect("a failure")
-            .expect("not lagged");
+            .expect("a failure");
         assert_eq!(reported, refused, "{body}");
     }
     transport.close().await;

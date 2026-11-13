@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import semiont.ClientTiming
 import semiont.cache.CacheState
 import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.SemiontError
@@ -58,6 +59,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
+import kotlin.time.TimeSource
 
 private val alice = Json.parseToJsonElement(
     """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}""",
@@ -442,6 +444,31 @@ class SessionFromKeptTest {
             val said = withTimeout(5_000) { errors.toList() }
             assertEquals(listOf(SessionErrorCode.SaveRefused, SessionErrorCode.SaveRefused), said.filterIsInstance<SessionError>().map { it.reason }, "$said")
             assertEquals(2, storage.refusals.get())
+            assertNull(storage.get(KEPT_FOR_ALICE.first))
+        }
+    }
+
+    @Test
+    fun aSaveOwedAsTheClientClosesThatTheStorageRefusesIsAskedForOnceAndSaidOnce() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = RefusingEveryWriteOf(MemoryStorage(), KEPT_FOR_ALICE.first)
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY))
+            // Its caches wait an hour after they last change before they save: its closing is the first to make the save one owes.
+            val timing = ClientTiming(saveDebounceMs = TimeUnit.HOURS.toMillis(1))
+            val opened = sessionStarted(kb(realm), kept, true, storage, null, ownHttp, Dispatchers.Default, TimeSource.Monotonic, Random.Default, timing)
+            val errors = opened.session.errors()
+            opened.use {
+                opened.session.ready()
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                assertFalse(opened.client.persistenceSettled, "the client owes no save")
+                assertEquals(0, storage.refusals.get())
+            }
+            // The closing flush asked the storage for the save once, and it was refused: that is said once, and the save is lost.
+            val said = withTimeout(5_000) { errors.toList() }
+            assertEquals(listOf(SessionErrorCode.SaveRefused), said.filterIsInstance<SessionError>().map { it.reason }, "$said")
+            assertEquals(1, storage.refusals.get())
             assertNull(storage.get(KEPT_FOR_ALICE.first))
         }
     }

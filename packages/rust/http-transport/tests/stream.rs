@@ -7,6 +7,8 @@
 //! from a superseded connection leaves (L4) — the two ways a handoff can go
 //! wrong, and an open the gateway takes and never answers.
 
+mod failures_told;
+
 use axum::Json;
 use axum::Router;
 use axum::body::Body;
@@ -15,6 +17,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use bytes::Bytes;
+use failures_told::failures_told;
 use proptest::collection::vec;
 use proptest::prelude::{Just, prop_oneof};
 use proptest::strategy::Strategy;
@@ -449,7 +452,7 @@ async fn a_line_that_names_no_channel_is_told_to_the_failure_report_and_the_stre
     let gateway = Gateway::start().await;
     let transport = gateway.client(Duration::from_secs(5));
     let delivered = deliveries(&transport);
-    let mut failures = transport.failures();
+    let mut failures = failures_told(&transport);
     reaches(&transport, ConnectionState::Open).await;
     let subscribes = gateway.arrived();
 
@@ -474,11 +477,10 @@ async fn a_line_that_names_no_channel_is_told_to_the_failure_report_and_the_stre
         "it has no `channel`",
         "its `channel` is malformed",
     ] {
-        let told = tokio::time::timeout(Duration::from_secs(5), failures.next())
+        let told = tokio::time::timeout(Duration::from_secs(5), failures.recv())
             .await
             .expect("the line is told")
-            .expect("a failure")
-            .expect("not lagged");
+            .expect("a failure");
         assert_eq!(
             told,
             TransportError {
@@ -522,7 +524,7 @@ async fn a_handoff_that_cannot_open_is_tried_again_and_the_state_stays_open() {
     let transport = gateway.client(Duration::from_millis(60));
     reaches(&transport, ConnectionState::Open).await;
     let states = states_of(&transport);
-    let mut failures = transport.failures();
+    let mut failures = failures_told(&transport);
 
     gateway.refuse(StatusCode::SERVICE_UNAVAILABLE, Said::Nothing);
     let _hold = transport.subscribe_to_resource(&as_id("res-1"));
@@ -534,11 +536,7 @@ async fn a_handoff_that_cannot_open_is_tried_again_and_the_state_stays_open() {
     let scoped = &gateway.opened()[1].subscription["scoped"];
     assert_eq!(scoped[0]["scope"], "res-1");
 
-    let refused = failures
-        .next()
-        .await
-        .expect("a failure")
-        .expect("not lagged");
+    let refused = failures.recv().await.expect("a failure");
     assert_eq!(refused.code.as_str(), "unavailable");
     assert_eq!(refused.status, Some(503));
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -556,12 +554,11 @@ async fn a_listener_taken_after_the_first_connect_was_refused_still_hears_the_re
     reaches(&transport, ConnectionState::Open).await;
     assert_eq!(gateway.arrived(), 2);
 
-    let mut failures = transport.failures();
-    let refused = tokio::time::timeout(Duration::from_secs(5), failures.next())
+    let mut failures = failures_told(&transport);
+    let refused = tokio::time::timeout(Duration::from_secs(5), failures.recv())
         .await
         .expect("the refusal reported before anything listened")
-        .expect("a failure")
-        .expect("not lagged");
+        .expect("a failure");
     assert_eq!(refused.code.as_str(), "unavailable");
     assert_eq!(refused.status, Some(503));
     transport.close().await;
@@ -575,12 +572,11 @@ async fn a_refused_connect_is_reported_in_the_gateways_words() {
         Said::Words("the gateway is draining"),
     );
     let transport = gateway.client(Duration::from_millis(60));
-    let mut failures = transport.failures();
-    let refused = tokio::time::timeout(Duration::from_secs(5), failures.next())
+    let mut failures = failures_told(&transport);
+    let refused = tokio::time::timeout(Duration::from_secs(5), failures.recv())
         .await
         .expect("the refusal is heard")
-        .expect("a failure")
-        .expect("not lagged");
+        .expect("a failure");
     assert_eq!(
         refused.message,
         "SSE connect failed: 503: the gateway is draining"
@@ -597,12 +593,11 @@ async fn a_refused_connect_whose_body_never_ends_is_reported_at_the_request_dead
         http_request: Duration::from_millis(100),
         ..quick(Duration::from_millis(60))
     });
-    let mut failures = transport.failures();
-    let refused = tokio::time::timeout(Duration::from_secs(5), failures.next())
+    let mut failures = failures_told(&transport);
+    let refused = tokio::time::timeout(Duration::from_secs(5), failures.recv())
         .await
         .expect("the refusal is heard")
-        .expect("a failure")
-        .expect("not lagged");
+        .expect("a failure");
     assert_eq!(refused.message, "SSE connect failed: 503");
     assert_eq!(refused.status, Some(503));
     reaches(&transport, ConnectionState::Open).await;

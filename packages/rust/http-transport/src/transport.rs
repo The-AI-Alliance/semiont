@@ -20,9 +20,9 @@ use semiont::event_bus::EventBus;
 use semiont::retry::{self, RetryFacts, RetryPolicy, retry_after, retry_with_backoff};
 use semiont::timing;
 use semiont::transport::{
-    BoxFuture, ConnectionState, Envelope, Events, FailureListener, FailureStream, Failures,
-    FrameHub, Frames, GatewayOperations, PendingReply, ReplyRouter, ResourceHold, TraceCarrier,
-    Transport, unsubscribed,
+    BoxFuture, ConnectionState, Envelope, FailureListener, FailureStream, FrameHub, Frames,
+    GatewayOperations, PendingReply, ReplyRouter, ResourceHold, TraceCarrier, Transport,
+    unsubscribed,
 };
 use semiont::types::{
     BusEmitAccepted, BusEmitRequest, ErrorResponse, HealthResponse, LimitRefusal, LimitRefusalCode,
@@ -36,7 +36,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 
 /// The header that names an emit or an upload: a new key for each, and the
 /// same on every attempt at it, so a request sent again is not carried out
@@ -710,13 +710,6 @@ impl Transport for HttpTransport {
 
     fn state(&self) -> watch::Receiver<ConnectionState> {
         self.inner.state.clone()
-    }
-
-    fn failures(&self) -> Failures {
-        match locked(&self.inner.shared.failures).as_ref() {
-            Some(failures) => failures.listen(),
-            None => Events::new(broadcast::channel(1).1),
-        }
     }
 
     fn tell_failures_to(&self, listener: FailureListener) {

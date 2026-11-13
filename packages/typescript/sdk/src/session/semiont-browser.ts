@@ -471,20 +471,31 @@ export class SemiontBrowser {
    * Switch the active KB. Follows this disposal contract:
    *   1. Synchronously announce the new id on `activeKbId$` and null out
    *      `activeSession$` so views see a safe empty state first.
-   *   2. End the session that was live, and its client. It is ended whether
-   *      or not this call goes on to activate: one that is overtaken while it
-   *      waits its turn returns early, and the session it hid is still its
-   *      to end.
+   *   2. End the session that was live, and its client, before the factory
+   *      is asked for the next: what the client's closing flush says is read
+   *      to the end of the session's errors. It is ended whether or not this
+   *      call goes on to activate: one that is overtaken while it waits its
+   *      turn returns early, and the session it hid is still its to end.
    *   3. Serialize overlapping calls — if an activation is in flight, wait
    *      for it before proceeding — and dispose whatever a superseded
    *      activation left live.
-   *   4. Construct the next session and await `session.ready`.
+   *   4. Ask the factory for the next session, and await `session.ready`,
+   *      which never fails. The factory's refusal is the one way an
+   *      activation fails: one of the session's own errors is said on
+   *      `error$` as it is, anything else as `session.construct-failed` with
+   *      its message, and no session is then active, though `activeKbId$`
+   *      still names the KB asked for.
    *   5. Before emitting, re-check `activeKbId$` — if a newer call superseded
    *      us while we waited, dispose our session and skip the emit.
    *   6. Emit the new session.
+   *
+   * Once `dispose` has begun, the call is refused with a `BusRequestError`
+   * (`bus.closed`), before anything else: no session is asked for, nothing
+   * is said, and the active KB is unchanged. An activation taken before then
+   * ends as a superseded one does.
    */
   async setActiveKb(id: string | null): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposed) throw new BusRequestError('The knowledge-base registry is closed', 'bus.closed');
 
     const prevId = this.activeKbId$.getValue();
     const prevSession = this.activeSession$.getValue();
@@ -573,19 +584,7 @@ export class SemiontBrowser {
         }
       });
 
-      try {
-        await session.ready;
-      } catch (err) {
-        this.said.say(
-          new SemiontSessionError(
-            'session.construct-failed',
-            err instanceof Error ? err.message : String(err),
-            id,
-          ),
-        );
-        this.endSession(session, signals);
-        return;
-      }
+      await session.ready;
 
       if (this.disposed || this.activeKbId$.getValue() !== id) {
         this.endSession(session, signals);

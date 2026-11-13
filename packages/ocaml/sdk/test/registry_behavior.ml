@@ -588,28 +588,29 @@ let sign_in () =
     decode Models.kb_description
       (`Assoc [ ("name", text domain); ("domain", text domain) ])
   in
-  let sign port domain access =
-    Result.get_ok
-      (R.record_sign_in browser
-         {
-           endpoint = endpoint port;
-           description = description domain;
-           session =
-             {
-               access;
-               refresh = "refresh";
-               client_id = "script";
-               token_endpoint = "https://issuer.example/token";
-               revocation_endpoint = None;
-             };
-           kb_id = Some "kb-1";
-           expected_did = Some "did:web:one.example";
-           expected_name = None;
-         })
+  let record port domain access =
+    R.record_sign_in browser
+      {
+        endpoint = endpoint port;
+        description = description domain;
+        session =
+          {
+            access;
+            refresh = "refresh";
+            client_id = "script";
+            token_endpoint = "https://issuer.example/token";
+            revocation_endpoint = None;
+          };
+        kb_id = Some "kb-1";
+        expected_did = Some "did:web:one.example";
+        expected_name = None;
+      }
   in
+  let sign port domain access = Result.get_ok (record port domain access) in
   let id (outcome : R.sign_in_outcome) =
     (Records.Knowledge_base.of_model outcome.kb).id
   in
+  assert (record 4010 "" "unnamed" = Error Error_codes.Kb_identity.not_reported);
   assert (id (sign 4010 "one.example" "first") = "kb-1");
   assert (id (sign 4010 "one.example" "new") = "kb-1");
   assert (id (sign 4011 "one.example" "different-address") = "kb-2");
@@ -663,6 +664,9 @@ let redirect () =
       (Yojson.Safe.from_string {|{"name":"Actual","domain":"kb.example"}|})
   in
   let discovery = ref 0 and exchanges = ref 0 in
+  let issued =
+    ref (200, {|{"access_token":"access","refresh_token":"refresh"}|})
+  in
   let http (request : OAuth.request) =
     match request.meth with
     | "GET" ->
@@ -675,7 +679,7 @@ let redirect () =
         assert (request.url = "https://issuer.example/token");
         assert (List.assoc "code" request.form = "one");
         assert (List.assoc "code_verifier" request.form <> "");
-        (200, {|{"access_token":"access","refresh_token":"refresh"}|})
+        !issued
     | _ -> assert false
   in
   let origin = "http://localhost:4010/callback" in
@@ -700,8 +704,9 @@ let redirect () =
   let location = begin_ () in
   let state = Option.get (Uri.get_query_param location "state") in
   let callback = origin ^ "?code=one&state=" ^ state in
-  assert (complete (callback ^ "bad") = Error "oauth.invalid-redirect");
-  assert (complete callback = Error "oauth.invalid-redirect");
+  let module Code = Error_codes.Sign_in in
+  assert (complete (callback ^ "bad") = Error Code.state);
+  assert (complete callback = Error Code.no_pending);
   assert (!exchanges = 0);
   ignore (begin_ ());
   let outcome = Result.get_ok (complete callback) in
@@ -710,8 +715,34 @@ let redirect () =
   let kept = Option.get ((R.kept_in storage "kb-redirect").held ()) in
   assert (kept.access = "access" && kept.refresh = "refresh");
   assert (kept.revocation_endpoint = Some "https://issuer.example/revoke");
-  assert (complete callback = Error "oauth.invalid-redirect");
-  assert (!discovery = 2 && !exchanges = 1 && !takes = 4)
+  assert (complete callback = Error Code.no_pending);
+  (* Each sign-in below is begun afresh, and the callback or the issuer's
+     answer fails it. *)
+  let failed callback =
+    ignore (begin_ ());
+    complete callback
+  in
+  assert (
+    failed (origin ^ "?error=access_denied&state=" ^ state) = Error Code.denied);
+  assert (
+    failed (origin ^ "?error=server_error&state=" ^ state) = Error Code.exchange);
+  assert (failed (origin ^ "?state=" ^ state) = Error Code.exchange);
+  issued := (400, {|{"error":"invalid_grant"}|});
+  assert (failed callback = Error Code.exchange);
+  issued := (200, {|{"access_token":"access"}|});
+  assert (failed callback = Error Code.exchange);
+  issued := (200, "{}");
+  assert (failed callback = Error Code.exchange);
+  ignore (begin_ ());
+  let pending = Option.get (storage.read R.pending_authorization_key) in
+  storage.write R.pending_authorization_key
+    (match Yojson.Safe.from_string pending with
+    | `Assoc fields ->
+        Yojson.Safe.to_string
+          (`Assoc (("target", `Null) :: List.remove_assoc "target" fields))
+    | _ -> assert false);
+  assert (complete callback = Error Code.no_pending);
+  assert (!discovery = 9 && !exchanges = 4 && !takes = 11)
 
 let session_unit startup () =
   Eio_mock.Backend.run @@ fun () ->
@@ -1089,13 +1120,22 @@ let claims_stalled () =
    over a factory that builds a scripted session and reads none of them. *)
 let errors_table = Yojson.Safe.from_string Registry_cases.errors_cases
 
-let errors_kb =
+(* protocol/specs/src/session/registry-activation-cases.json: what a registry
+   does when its factory refuses the session, once its close has begun, and
+   when another knowledge base's session is active, over a factory that counts
+   the sessions it is asked for. *)
+let activation_table = Yojson.Safe.from_string Registry_cases.activation_cases
+
+(* Knowledge bases on one gateway, each with a did of its own. *)
+let did_of id = "did:web:kb.example.org:" ^ id
+
+let registered id =
   decode Models.knowledge_base
     (`Assoc
        [
-         ("id", text "kb-a");
-         ("label", text "KB A");
-         ("did", text "did:web:kb.example.org:kb-a");
+         ("id", text id);
+         ("label", text id);
+         ("did", text (did_of id));
          ( "endpoint",
            `Assoc
              [
@@ -1106,14 +1146,15 @@ let errors_kb =
              ] );
        ])
 
-let errors_identity : R.connection_identity =
+let identity id : R.connection_identity =
   {
-    did = "did:web:kb.example.org:kb-a";
+    did = did_of id;
     description =
       decode Models.kb_description
-        (`Assoc [ ("name", text "KB A"); ("domain", text "kb.example.org") ]);
+        (`Assoc [ ("name", text id); ("domain", text "kb.example.org") ]);
   }
 
+(* A registry of kb-a and kb-b, each with a kept sign-in. *)
 let errors_browser ~clock factory =
   let values = Hashtbl.create 4 in
   let storage : R.storage =
@@ -1123,9 +1164,70 @@ let errors_browser ~clock factory =
       remove = Hashtbl.remove values;
     }
   in
-  R.save_knowledge_bases storage [ errors_kb ];
+  let ids = [ "kb-a"; "kb-b" ] in
+  R.save_knowledge_bases storage (List.map registered ids);
+  List.iter
+    (fun id ->
+      R.store_session storage id
+        {
+          access = "token";
+          refresh = "refresh";
+          client_id = "browser";
+          token_endpoint = "https://kb.example.org/token";
+          revocation_endpoint = None;
+        })
+    ids;
   R.new_semiont_browser
     { storage; clock; fresh_id = (fun () -> "kb-fresh"); factory }
+
+(* The runner's factory: each session it is asked for is put in [asked], and it
+   builds what [script] has queued. *)
+let counting asked script (options : R.session_factory_options) =
+  asked := !asked @ [ "ask " ^ (Records.Knowledge_base.of_model options.kb).id ];
+  Testing.factory script options
+
+(* A storage a session's client keeps in, which writes what it is handed or
+   refuses every write, as a row says; [on_write] is told of each write. *)
+let keeping ~on_write = function
+  | "writes" ->
+      Storage.make
+        ~get:(fun _ -> None)
+        ~update:(fun _ change ->
+          on_write ();
+          ignore (change None))
+        ()
+  | "refuses" ->
+      Storage.make
+        ~get:(fun _ -> None)
+        ~update:(fun _ _ ->
+          on_write ();
+          failwith "the storage refuses every write")
+        ()
+  | other -> Alcotest.fail ("a storage that " ^ other ^ " every write")
+
+let persisted ~clock storage =
+  Storage_persister.make ~storage ~key:"kept" ~version:1 ~max_bytes:8192 ~clock
+
+(* A read that leaves the client owing a save. The monotonic clock never moves,
+   so the save is still waiting out its debounce when the client closes. *)
+let owe why client =
+  let resource = Result.get_ok (Identifiers.Resource_id.of_string "res-1") in
+  match Client.fresh (Client.Browse.annotations client resource) with
+  | Ok _ -> ()
+  | Error _ -> Alcotest.fail (why ^ ": the read the save is owed for failed")
+
+let heard browser =
+  let said = ref [] in
+  let _release =
+    R.errors browser
+      ~on_value:(fun (error : Client.session_error) ->
+        said := !said @ [ error ])
+      ~on_close:ignore
+  in
+  said
+
+let codes said =
+  List.map (fun (error : Client.session_error) -> error.code) said
 
 (* The knowledge base's session over the testing transport: the gateway names
    one person, and each renewal records the token it is handed. Its client
@@ -1190,7 +1292,7 @@ let registry_errors_case row () =
       let session = scripted_session ~sw ~clock ~handed options in
       built := Some (session, options.signals);
       if opening then List.iter (Testing.say_on session) said;
-      Ok (session, errors_identity));
+      Ok (session, identity "kb-a"));
   let browser = errors_browser ~clock (Testing.factory script) in
   let registry_said = ref [] in
   let _release =
@@ -1223,30 +1325,20 @@ let registry_errors_case row () =
   Client.await_closed (State_units.Session.client session)
 
 (* The closing rows: the session's client keeps in a storage that refuses every
-   write. The monotonic clock never moves, so the save a read leaves owed is
-   still waiting out its debounce as the close begins. *)
+   write, and owes a save still waiting out its debounce as the close begins. *)
 let registry_closing row () =
   Eio_mock.Backend.run @@ fun () ->
   Switch.run @@ fun sw ->
   let _, clock = mock_clock () in
   let why = string "why" row in
-  let refusing =
-    Storage.make
-      ~get:(fun _ -> None)
-      ~update:(fun _ _ -> failwith "the storage refuses every write")
-      ()
-  in
-  let persister =
-    Storage_persister.make ~storage:refusing ~key:"kept" ~version:1
-      ~max_bytes:8192 ~clock
-  in
+  let persister = persisted ~clock (keeping ~on_write:ignore "refuses") in
   let handed = ref [] in
   let built = ref None in
   let script = Testing.scripted_sessions () in
   Testing.queue_session script "kb-a" (fun options ->
       let session = scripted_session ~sw ~clock ~handed ~persister options in
       built := Some session;
-      Ok (session, errors_identity));
+      Ok (session, identity "kb-a"));
   let browser = errors_browser ~clock (Testing.factory script) in
   let registry_said = ref [] in
   let ended = ref false in
@@ -1262,11 +1354,7 @@ let registry_closing row () =
   let session = Option.get !built in
   State_units.Session.ready session;
   let client = State_units.Session.client session in
-  (if J.to_bool (field "owed" row) then
-     let resource = Result.get_ok (Identifiers.Resource_id.of_string "res-1") in
-     match Client.fresh (Client.Browse.annotations client resource) with
-     | Ok _ -> ()
-     | Error _ -> Alcotest.fail (why ^ ": the read the save is owed for failed"));
+  if J.to_bool (field "owed" row) then owe why client;
   let before = List.length !registry_said in
   R.close browser;
   Alcotest.(check bool) (why ^ ": the registry's errors end") true !ended;
@@ -1276,50 +1364,220 @@ let registry_closing row () =
     (List.filteri (fun index _ -> index >= before) !registry_said);
   Client.await_closed client
 
-(* A factory that cannot build the knowledge base's session: the registry says
-   so on its errors, and the activation is unavailable for the factory's
-   reason. *)
-let registry_construct_failed () =
+let refusal_of value : Client.session_error =
+  { code = string "own" value; message = string "message" value }
+
+(* The refused rows: no session being active, the factory refuses kb-a's. *)
+let registry_refused row () =
   Eio_mock.Backend.run @@ fun () ->
   let _, clock = mock_clock () in
+  let why = string "why" row in
+  let refusal = refusal_of (field "refusal" row) in
+  let asked = ref [] in
   let script = Testing.scripted_sessions () in
-  Testing.queue_session script "kb-a" (fun _ ->
-      Error Error_codes.Transport.unavailable);
-  let browser = errors_browser ~clock (Testing.factory script) in
-  let registry_said = ref [] in
-  let _release =
-    R.errors browser
-      ~on_value:(fun (error : Client.session_error) ->
-        registry_said := !registry_said @ [ error.code ])
-      ~on_close:ignore
-  in
+  Testing.queue_session script "kb-a" (fun _ -> Error refusal);
+  let browser = errors_browser ~clock (counting asked script) in
+  let said = heard browser in
   (match R.activate browser "kb-a" with
-  | Error (R.Unavailable code) when code = Error_codes.Transport.unavailable ->
-      ()
+  | Error (R.Unavailable code) when code = refusal.code -> ()
   | _ ->
-      Alcotest.fail
-        "an activation whose factory failed was not unavailable for its reason");
+      Alcotest.fail (why ^ ": the activation was not refused as its factory was"));
+  Alcotest.(check (list (pair string string)))
+    (why ^ ": said on the registry's errors")
+    (List.map
+       (fun error -> (string "code" error, string "message" error))
+       (rows "registryErrors" row))
+    (List.map
+       (fun (error : Client.session_error) -> (error.code, error.message))
+       !said);
   Alcotest.(check (list string))
-    "said on the registry's errors"
-    [ Error_codes.Session.construct_failed ]
-    !registry_said;
+    (why ^ ": the sessions the factory was asked for")
+    [ "ask kb-a" ] !asked;
+  Alcotest.(check bool)
+    (why ^ ": a session is active")
+    false
+    (Option.is_some (R.active_client browser));
+  Alcotest.(check (option string))
+    (why ^ ": the storage's active key")
+    (Some "kb-a") (R.active_id browser);
   R.close browser
 
-(* A registry that has closed builds no session. *)
-let registry_closed_activation () =
+(* The closed rows: kb-a's session is active, and kb-b is activated once the
+   registry's close has returned, or while its close waits for kb-a's client to
+   write the save it owes, from within that write and from another fiber. *)
+let registry_closed row () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let why = string "why" row in
+  let asked = ref [] in
+  let refused = ref [] in
+  let script = Testing.scripted_sessions () in
+  let browser = errors_browser ~clock (counting asked script) in
+  let activate_next () =
+    refused :=
+      !refused
+      @ [
+          (match R.activate browser "kb-b" with
+          | Error R.Closed -> true
+          | _ -> false);
+        ]
+  in
+  let held, release = Promise.create () in
+  let holding, held_open = Promise.create () in
+  let holds =
+    Storage.make
+      ~get:(fun _ -> None)
+      ~update:(fun _ change ->
+        asked := !asked @ [ "write" ];
+        activate_next ();
+        Promise.resolve held_open ();
+        Promise.await held;
+        ignore (change None))
+      ()
+  in
+  let closing =
+    match string "while" row with
+    | "closed" -> false
+    | "closing" -> true
+    | other -> Alcotest.fail (why ^ ": activates while " ^ other)
+  in
+  let handed = ref [] in
+  let built = ref None in
+  Testing.queue_session script "kb-a" (fun options ->
+      let session =
+        if closing then
+          scripted_session ~sw ~clock ~handed
+            ~persister:(persisted ~clock holds) options
+        else scripted_session ~sw ~clock ~handed options
+      in
+      built := Some session;
+      Ok (session, identity "kb-a"));
+  let said = heard browser in
+  (match R.activate browser "kb-a" with
+  | Ok _ -> ()
+  | Error _ -> Alcotest.fail (why ^ ": the registry activated no session"));
+  let session = Option.get !built in
+  State_units.Session.ready session;
+  let client = State_units.Session.client session in
+  if closing then (
+    owe why client;
+    Fiber.both
+      (fun () -> R.close browser)
+      (fun () ->
+        Promise.await holding;
+        activate_next ();
+        Promise.resolve release ()))
+  else (
+    R.close browser;
+    activate_next ());
+  Alcotest.(check (list bool))
+    (why ^ ": each activation refused at the call with bus.closed")
+    (if closing then [ true; true ] else [ true ])
+    !refused;
+  Alcotest.(check (list string))
+    (why ^ ": what the factory and the storage were asked, in order")
+    (if closing then [ "ask kb-a"; "write" ] else [ "ask kb-a" ])
+    !asked;
+  Alcotest.(check (list string))
+    (why ^ ": said on the registry's errors")
+    [] (codes !said);
+  Alcotest.(check (option string))
+    (why ^ ": the storage's active key")
+    (Some "kb-a") (R.active_id browser);
+  Client.await_closed client
+
+(* The switching rows: kb-a's session is active, its client owing a save still
+   waiting out its debounce, and kb-b is activated. *)
+let registry_switching row () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let why = string "why" row in
+  let asked = ref [] in
+  let storage =
+    keeping
+      ~on_write:(fun () -> asked := !asked @ [ "write" ])
+      (string "storage" row)
+  in
+  let handed = ref [] in
+  let first = ref None and next = ref None in
+  let script = Testing.scripted_sessions () in
+  Testing.queue_session script "kb-a" (fun options ->
+      let session =
+        scripted_session ~sw ~clock ~handed
+          ~persister:(persisted ~clock storage) options
+      in
+      first := Some session;
+      Ok (session, identity "kb-a"));
+  Testing.queue_session script "kb-b" (fun options ->
+      match field "next" row with
+      | `String "built" ->
+          let session = scripted_session ~sw ~clock ~handed options in
+          next := Some session;
+          Ok (session, identity "kb-b")
+      | refusal -> Error (refusal_of refusal));
+  let browser = errors_browser ~clock (counting asked script) in
+  let said = heard browser in
+  (match R.activate browser "kb-a" with
+  | Ok _ -> ()
+  | Error _ -> Alcotest.fail (why ^ ": the registry activated no session"));
+  let session = Option.get !first in
+  State_units.Session.ready session;
+  owe why (State_units.Session.client session);
+  let activated = Result.is_ok (R.activate browser "kb-b") in
+  Alcotest.(check (list string))
+    (why ^ ": said on the registry's errors")
+    (List.map J.to_string (rows "registryErrors" row))
+    (codes !said);
+  Alcotest.(check (list string))
+    (why ^ ": what the factory and the storage were asked, in order")
+    [ "ask kb-a"; "write"; "ask kb-b" ]
+    !asked;
+  Alcotest.(check bool)
+    (why ^ ": a session is active")
+    (J.to_bool (field "active" row))
+    (Option.is_some (R.active_client browser));
+  Alcotest.(check bool)
+    (why ^ ": the activation")
+    (J.to_bool (field "active" row))
+    activated;
+  Alcotest.(check (option string))
+    (why ^ ": the storage's active key")
+    (Some "kb-b") (R.active_id browser);
+  R.close browser;
+  List.iter
+    (fun session -> Client.await_closed (State_units.Session.client session))
+    (Option.to_list !first @ Option.to_list !next)
+
+(* A factory that raises: the signals made for its session are disposed, and its
+   exception goes on, said nowhere. *)
+let registry_factory_raises () =
   Eio_mock.Backend.run @@ fun () ->
   let _, clock = mock_clock () in
-  let built = ref false in
+  let signals = ref None in
   let browser =
-    errors_browser ~clock (fun _ ->
-        built := true;
-        Error Error_codes.Session.construct_failed)
+    errors_browser ~clock (fun options ->
+        signals := Some options.signals;
+        failwith "the factory fails")
   in
-  R.close browser;
+  let said = heard browser in
   (match R.activate browser "kb-a" with
-  | Error R.Superseded -> ()
-  | _ -> Alcotest.fail "an activation after the registry closed was not over");
-  Alcotest.(check bool) "a session built after the close" false !built
+  | _ -> Alcotest.fail "an activation whose factory raised returned"
+  | exception Failure message ->
+      Alcotest.(check string)
+        "the factory's exception" "the factory fails" message);
+  let disposed = ref false in
+  let _release =
+    State_value.observe
+      (State_units.Session_signals.session_ended (Option.get !signals))
+      ~on_value:ignore
+      ~on_close:(fun () -> disposed := true)
+  in
+  Alcotest.(check bool) "the signals made for it disposed" true !disposed;
+  Alcotest.(check (list string))
+    "said on the registry's errors" [] (codes !said);
+  R.close browser
 
 let refusal index = "refusal " ^ string_of_int index
 
@@ -1420,7 +1678,7 @@ let registry_errors_kept () =
   Testing.queue_session script "kb-a" (fun options ->
       let session = scripted_session ~sw ~clock ~handed options in
       built := Some session;
-      Ok (session, errors_identity));
+      Ok (session, identity "kb-a"));
   let browser = errors_browser ~clock (Testing.factory script) in
   (match R.activate browser "kb-a" with
   | Ok _ -> ()
@@ -1474,6 +1732,65 @@ let registry_errors_kept () =
     "a reader after the end hears only the end" true !told_end;
   Client.await_closed (State_units.Session.client session)
 
+(* What a knowledge base reached with a fresh sign-in says of itself: a refusal
+   that names no code it is known to name is its answer that it cannot say
+   what it is, any other failure is not having reached it, and a domain no did
+   can hold says nothing of who it is. *)
+let describe_connection () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let described answer =
+    let testing =
+      Testing.transport ~sw ~clock ~schedule:[] ~respond:(fun ~channel _ ->
+          if channel = "browse:kb-requested" then Some answer else None)
+    in
+    let session =
+      Session.start ~sw ~clock ~initial_token:(Some "token")
+        ~renew:(fun ~holding:_ -> Session.Refused)
+        ()
+    in
+    let serial = ref 0 in
+    let client =
+      Client.connect ~sw ~clock ~session ~client_id:"describe"
+        ~key:(fun () ->
+          incr serial;
+          "describe-" ^ string_of_int !serial)
+        ~call:(Testing.call testing) ~global:Bus_registry.bridged_channels
+        ~on_event:ignore ()
+    in
+    let identity = R.describe_connection client in
+    Client.close client;
+    Result.map (fun (identity : R.connection_identity) -> identity.did) identity
+  in
+  let refused code =
+    ( "browse:kb-failed",
+      `Assoc
+        (("message", text "no identity is declared")
+        :: Option.to_list (Option.map (fun code -> ("code", text code)) code))
+    )
+  in
+  let answered domain =
+    ( "browse:kb-result",
+      `Assoc
+        [
+          ("response", `Assoc [ ("name", text "KB"); ("domain", text domain) ]);
+        ] )
+  in
+  let module Code = Error_codes.Kb_identity in
+  let check = Alcotest.(check (result string string)) in
+  check "an answer names the knowledge base" (Ok "did:web:kb.example")
+    (described (answered "kb.example"));
+  check "a refusal that names no code" (Error Code.not_reported)
+    (described (refused None));
+  check "a refusal whose code is none of CommandError's"
+    (Error Code.not_reported)
+    (described (refused (Some "no-such-code")));
+  check "a refusal that names a code" (Error Code.unreachable)
+    (described (refused (Some "unauthorized")));
+  check "a domain no did can hold" (Error Code.not_reported)
+    (described (answered ""))
+
 let () =
   Alcotest.run "OCaml registry and discovery"
     [
@@ -1483,6 +1800,8 @@ let () =
           Alcotest.test_case "shared gateway origins" `Quick gateway_urls;
           Alcotest.test_case "verified sign-in" `Quick sign_in;
           Alcotest.test_case "durable redirect and replay" `Quick redirect;
+          Alcotest.test_case "what a knowledge base says of itself" `Quick
+            describe_connection;
           Alcotest.test_case "session unit and durable renewal" `Quick
             (session_unit `Accept);
           Alcotest.test_case "startup refuses once then confirms" `Quick
@@ -1520,9 +1839,29 @@ let () =
               `Quick client_errors_kept;
             Alcotest.test_case "a registry's errors kept for the first reader"
               `Quick registry_errors_kept;
-            Alcotest.test_case "a session its factory could not build" `Quick
-              registry_construct_failed;
-            Alcotest.test_case "an activation after the registry closed" `Quick
-              registry_closed_activation;
+          ] );
+      ( "registry activation",
+        List.concat_map
+          (fun (section, cases) ->
+            let run =
+              match section with
+              | "refused" -> registry_refused
+              | "closed" -> registry_closed
+              | "switching" -> registry_switching
+              | other ->
+                  failwith
+                    ("session/registry-activation-cases.json has a section no \
+                      runner runs: " ^ other)
+            in
+            List.map
+              (fun row ->
+                Alcotest.test_case
+                  (section ^ ": " ^ string "why" row)
+                  `Quick (run row))
+              (J.to_list cases))
+          (J.to_assoc activation_table)
+        @ [
+            Alcotest.test_case "a factory that raises" `Quick
+              registry_factory_raises;
           ] );
     ]

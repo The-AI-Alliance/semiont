@@ -38,6 +38,11 @@ lifetimeCases = do
     require "self-close did not terminate its operation" (either ((== BusRequestClosed) . busRequestErrorCode) (const False) ended)
     Lifetime.close self
 
+    overtaken <- Lifetime.newLifetime "test lifetime is closed"
+    quiet <- Lifetime.runUntilClosed overtaken (Lifetime.close overtaken)
+    require "an operation its lifetime's close overtook did not end with nothing" (quiet == Nothing)
+    Lifetime.close overtaken
+
     abandoned <- Lifetime.newLifetime "test lifetime is closed"
     running <- newEmptyTMVarIO
     released <- newEmptyTMVarIO

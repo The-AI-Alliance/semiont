@@ -40,7 +40,9 @@ type BusRequestErrorCode = Literal[
     # The peer answered with a failure that states no code, or one CommandError does not list,
     # which is read as none.
     "bus.rejected",
-    # The bus stopped before a reply came: its client was disposed, or its transport closed.
+    # The bus stopped before a reply came: its client was disposed, or its transport closed. A
+    # registry of knowledge bases whose close has begun refuses an activation with it, at the
+    # call, before it asks for anything.
     "bus.closed",
     # The peer says this resource does not exist in its knowledge base.
     "bus.not-found",

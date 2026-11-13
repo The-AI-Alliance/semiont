@@ -1268,7 +1268,8 @@
             "typescript": "TypeScript's is with @semiont/core's other error codes.",
             "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",
             "go": "Go's is semiont.SpanRefusal, generated with the other error codes.",
-            "kotlin": "Kotlin's is semiont.errors.SpanRefusal, generated with the other error codes."
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusal, generated with the other error codes.",
+            "ocaml": "OCaml's is Error_codes.Span_refusal, generated with the other error codes."
           }
         },
         {

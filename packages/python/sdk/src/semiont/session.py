@@ -45,7 +45,11 @@ renewal and one ask, whatever the gateway and the issuer answer.
 
 A session whose issuer refuses to renew it clears its token and what it kept,
 so a dead credential is never used again. One that never had a credential is
-only signed out: there is nothing to end, and nothing is said. A renewal that
+only signed out: there is nothing to end, and nothing is said. A kept sign-in
+that cannot be forgotten is said with why it had to be: as
+`session.refresh-exhausted` when the issuer refused its renewal at the start,
+and under its ending's code when the session ends, each with "; and the
+sign-in could not be forgotten: " and what its storage said. A renewal that
 got no answer, whenever it is made, leaves the session no usable token and
 keeps what is kept: the next refusal renews again, and so does the session on
 its own, on the reconnect backoff (each wait a jittered share of a step that
@@ -74,6 +78,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 from semiont._kept_for_first_reader import KeptForFirstReader
 from semiont._reading import Reading
 from semiont.client import SemiontClient
+from semiont.error_codes import SemiontSessionErrorCode
 from semiont.errors import SemiontError, SessionError, SignInError, TransportError
 from semiont.events import Events
 from semiont.retry import REFRESH, RetryFacts, equal_jitter
@@ -323,6 +328,11 @@ def _not_renewed(failure: Exception | None) -> str:
     return "Token refresh failed" if failure is None else f"Token refresh failed: {failure}"
 
 
+def _not_forgotten(why: str, storage: str) -> str:
+    """Why a session failed, and why its kept sign-in could not be forgotten."""
+    return f"{why}; and the sign-in could not be forgotten: {storage}"
+
+
 def _refused(failure: Exception) -> bool:
     """Whether a renewal failed because the issuer refused it: an answer the `refresh` rule does not try again.
 
@@ -438,7 +448,7 @@ class SemiontSession[T: Transport](StateUnit):
         return None if token is None else token_expiry(token)
 
     async def ready(self) -> None:
-        """Wait until the session has done what it does at its start. It returns whatever that came to."""
+        """Wait until the session has done what it does at its start. It never fails: what the start meets is said on `errors`."""
         await self._ready.wait()
 
     async def __aenter__(self) -> Self:
@@ -528,9 +538,7 @@ class SemiontSession[T: Transport](StateUnit):
                 # refused.
                 renewed_refused = isinstance(refusal, TransportError) and refusal.code == "unauthorized"
                 if renewed_refused and not self._closing.is_set() and self._token.value == renewed:
-                    await self._signed_out(
-                        "refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb.id)
-                    )
+                    await self._signed_out("refused", "session.credential-refused", _JUST_ISSUED_AND_REFUSED)
             else:
                 # Who the token the session still holds is, as the gateway said.
                 if not self._closing.is_set() and self._token.value == renewed:
@@ -571,8 +579,10 @@ class SemiontSession[T: Transport](StateUnit):
         self._token.set(None)
         # A session that never had a credential cannot expire: it is signed
         # out, which is no failure. Ending the session below also forgets the
-        # credential, so the refusals that follow it are quiet too. A renewal
-        # that could not read the sign-in got no answer, and it is not read again.
+        # credential, so the refusals that follow it are quiet too; a credential
+        # that could not be forgotten is still kept, and each refusal that
+        # follows ends the session again and says so. A renewal that could not
+        # read the sign-in got no answer, and it is not read again.
         if failure is None or isinstance(failure, SignInError):
             try:
                 still_kept = await self._kept.held() is not None
@@ -621,24 +631,35 @@ class SemiontSession[T: Transport](StateUnit):
         renews again, and so does the reconnect backoff, each renewing `holding`.
         """
         self._token.set(None)
-        not_renewed = SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id)
+        why = _not_renewed(failure)
         if failure is not None and not _refused(failure):
             self._given_up = holding
             self._unanswered.set()
-            self._failed(not_renewed)
+            self._failed(SessionError("session.refresh-exhausted", why, kb_id=self.kb.id))
         else:
-            await self._signed_out("expired", not_renewed)
+            await self._signed_out("expired", "session.refresh-exhausted", why)
 
-    async def _signed_out(self, told: SessionEndReason, error: SessionError) -> None:
-        """The session is over: its credential is forgotten, and its host is told why. The one teardown, whichever way it ended."""
+    async def _signed_out(self, told: SessionEndReason, code: SemiontSessionErrorCode, why: str) -> None:
+        """The session is over: its credential is forgotten, and its host is told why, and why it could not be forgotten when it could not.
+
+        The one teardown, whichever way it ended.
+        """
         self._unanswered.clear()
         self._given_up = None
         self._token.set(None)
         self._user.set(None)
-        await self._kept.forget()
+        unforgotten = await self._forget()
         if self._on_auth_failed is not None:
             self._on_auth_failed(told)
-        self._failed(error)
+        self._failed(SessionError(code, why if unforgotten is None else _not_forgotten(why, unforgotten), kb_id=self.kb.id))
+
+    async def _forget(self) -> str | None:
+        """Forget the kept sign-in: what its storage said, when it could not."""
+        try:
+            await self._kept.forget()
+        except Exception as unforgotten:
+            return str(unforgotten)
+        return None
 
     def _failed(self, error: SemiontError) -> None:
         """Say `error` on the session's errors, until they end: to every reader, or, while none has come, kept for the first."""
@@ -664,8 +685,11 @@ class SemiontSession[T: Transport](StateUnit):
             renewed, failure = await self._try_refresh(token)
             if renewed is None:
                 if failure is None or _refused(failure):
-                    # There was no session to end: the sign-in is forgotten, and nothing is said.
-                    await self._kept.forget()
+                    # There was no session to end: the sign-in is forgotten, and nothing is said unless it could not be.
+                    unforgotten = await self._forget()
+                    if unforgotten is not None:
+                        not_forgotten = _not_forgotten(_not_renewed(failure), unforgotten)
+                        self._failed(SessionError("session.refresh-exhausted", not_forgotten, kb_id=self.kb.id))
                 else:
                     # The issuer did not refuse it: the sign-in is kept, and renewed on the reconnect backoff or when a request is refused.
                     self._given_up = token
@@ -690,7 +714,7 @@ class SemiontSession[T: Transport](StateUnit):
             if self._closing.is_set():
                 return
             if just_issued:
-                await self._signed_out("refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb.id))
+                await self._signed_out("refused", "session.credential-refused", _JUST_ISSUED_AND_REFUSED)
                 return
             # The session's token is no longer the one asked about: the stream
             # was refused with it too, and `refresh` has renewed it meanwhile.

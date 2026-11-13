@@ -104,7 +104,7 @@ private func status(_ session: SemiontSession) -> String {
         }
       }
       await session.start()
-      try await session.ready()
+      await session.ready()
       if part == "refusal" {
         let refused: String?
         switch try required(row, "refused").text {
@@ -201,7 +201,7 @@ private func status(_ session: SemiontSession) -> String {
     }, random: RandomSource(SystemRandomNumberGenerator()))
   defer { session.dispose() }
   await session.start()
-  try await session.ready()
+  await session.ready()
   let first = Task { try await session.refresh(token) }
   try await withinTestDeadline { for await entered in renewing where entered { return } }
   first.cancel()
@@ -256,7 +256,7 @@ private func status(_ session: SemiontSession) -> String {
     }, random: RandomSource(SystemRandomNumberGenerator()),
     onAuthFailed: { reason in ended.withLock { $0.append(reason) } })
   await session.start()
-  try await session.ready()
+  await session.ready()
   let opened = OpenedSession(session: session)
   let renewing = Task { try await session.refresh(access) }
   try await withinTestDeadline { for await value in entered where value { return } }
@@ -301,7 +301,22 @@ private struct UnwritableSignIn: SignInKept {
   }
   func forget() async throws { throw RefusedWrite() }
 }
-@Test func aQuietStartupForgetStillRaisesTheStoresFailure() async throws {
+/// Everything `session` says on its errors, once it is ready and then disposed.
+private func saidOnceReadyAndDisposed(_ session: SemiontSession) async throws -> [any Error] {
+  let errors = session.errors()
+  await session.start()
+  try await withinTestDeadline { await session.ready() }
+  session.dispose()
+  return try await withinTestDeadline {
+    var said: [any Error] = []
+    for try await error in errors { said.append(error) }
+    return said
+  }
+}
+// A sign-in the issuer will not renew at the start is forgotten, and nothing is said unless it
+// could not be: then the session says why it had to be, as session.refresh-exhausted, with what
+// its store said, and it is ready all the same.
+@Test func aStartupForgetTheStoreRefusesIsSaidWithWhyItHadToBe() async throws {
   let access = try jwt(.object(["exp": .number(1)]))
   let kept = UnwritableSignIn(
     entry: HeldSignIn(
@@ -315,8 +330,64 @@ private struct UnwritableSignIn: SignInKept {
     validate: { _ in throw SpecFailure.shape("Must not validate") },
     random: RandomSource(SystemRandomNumberGenerator()))
   defer { session.dispose() }
-  await session.start()
-  await #expect(throws: RefusedWrite.self) { try await session.ready() }
+  let said = try await saidOnceReadyAndDisposed(session)
+  let refused = said.compactMap { $0 as? SessionError }
+  #expect(refused.map(\.code) == ["session.refresh-exhausted"], "\(said)")
+  #expect(
+    refused.first?.description.hasSuffix(
+      "; and the sign-in could not be forgotten: \(RefusedWrite())") == true, "\(said)")
+  #expect(session.token.value == nil)
+}
+// A sign-in its start cannot read is said, as session.auth-failed, and the session starts with no
+// token, keeps what is stored, and is ready all the same. (Whoever opens a session from a kept
+// sign-in reads it first, and is given its failure; this one's start makes the first read.)
+@Test func aSignInItsStartCannotReadIsSaidAndTheSessionStartsWithNone() async throws {
+  let access = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
+  let memory = MemorySignIn(
+    HeldSignIn(
+      access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
+  let kept = ReadLimitedSignIn(memory, readable: 0)
+  let session = SemiontSession(
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept, forget: { await kept.forget() },
+    renew: { _ in throw SpecFailure.shape("Must not renew") },
+    validate: { _ in throw SpecFailure.shape("Must not validate") },
+    random: RandomSource(SystemRandomNumberGenerator()))
+  defer { session.dispose() }
+  let said = try await saidOnceReadyAndDisposed(session)
+  #expect(said.compactMap { ($0 as? SessionError)?.code } == ["session.auth-failed"], "\(said)")
+  #expect(said.count == 1, "\(said)")
+  #expect(session.token.value == nil)
+  #expect(await memory.held() != nil, "the stored sign-in is forgotten")
+}
+// A session that ends forgets its sign-in, and when its store cannot forget it, says so under the
+// ending's own code, with what its store said.
+@Test func anEndingsForgetTheStoreRefusesIsSaidUnderTheEndingsCode() async throws {
+  let hour = Date().timeIntervalSince1970 + 3600
+  let access = try jwt(.object(["exp": .number(hour)]))
+  let renewed = try jwt(.object(["exp": .number(hour), "name": .string("renewed")]))
+  let kept = UnwritableSignIn(
+    entry: HeldSignIn(
+      access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
+  let told = Mutex<[SessionEndReason]>([])
+  let session = SemiontSession(
+    kb: target(),
+    client: try await SemiontClient(transport: ProbeTransport(channels: bridgedChannels)),
+    kept: kept,
+    forget: { try await kept.forget() },
+    renew: { _ in renewed },
+    validate: { _ in throw TransportError(.unauthorized, "refused") },
+    random: RandomSource(SystemRandomNumberGenerator()),
+    onAuthFailed: { reason in told.withLock { $0.append(reason) } })
+  defer { session.dispose() }
+  let said = try await saidOnceReadyAndDisposed(session)
+  let refused = said.compactMap { $0 as? SessionError }
+  #expect(refused.map(\.code) == ["session.credential-refused"], "\(said)")
+  #expect(
+    refused.first?.description.hasSuffix(
+      "; and the sign-in could not be forgotten: \(RefusedWrite())") == true, "\(said)")
+  #expect(told.withLock { $0 } == [.refused])
 }
 @Test func aRefusalBeforeTheSessionIsInstalledIsAnsweredAfterInstallation() async throws {
   let access = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
@@ -334,7 +405,7 @@ private struct UnwritableSignIn: SignInKept {
     }, random: RandomSource(SystemRandomNumberGenerator()))
   defer { session.dispose() }
   await session.start()
-  try await session.ready()
+  await session.ready()
   let gate = SessionGate()
   let waiting = Task { try await gate.refresh(access) }
   try await Task.sleep(for: .milliseconds(10))
@@ -368,7 +439,7 @@ private struct UnwritableSignIn: SignInKept {
   try await withinTestDeadline { for await value in asked where value { return } }
   #expect(try await session.refresh(old) == "new-token")
   release.set(true)
-  try await session.ready()
+  await session.ready()
   #expect(session.user.value?.name == "new-token")
 }
 /// What `session` says on its errors stream until it ends: each SessionError's code, and anything
@@ -424,7 +495,7 @@ private func errorsOf(_ session: SemiontSession) -> (Watched<[String]>, Task<Voi
   let (said, hearing) = errorsOf(session)
   await gate.set(session)
   await session.start()
-  try await withinTestDeadline { try await session.ready() }
+  try await withinTestDeadline { await session.ready() }
   #expect(asks.withLock { $0 } == 2)
   #expect(session.user.value == nil)
   session.dispose()
@@ -530,7 +601,7 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
   let (said, hearing) = errorsOf(session)
   await session.start()
   // A start whose renewal got no answer has started, with no token.
-  try await withinTestDeadline { try await session.ready() }
+  try await withinTestDeadline { await session.ready() }
   switch when {
   case .atStart: #expect(session.token.value == nil, "\(why): a token")
   case .onSchedule:
@@ -612,7 +683,7 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
   defer { session.dispose() }
   let (said, hearing) = errorsOf(session)
   await session.start()
-  try await withinTestDeadline { try await session.ready() }
+  try await withinTestDeadline { await session.ready() }
   // The gateway refuses the token the session holds, and its renewal gets no answer.
   let given = try await withinTestDeadline { try await session.refresh(stored) }
   #expect(given == nil, "a renewal with no answer gives a token")
@@ -672,7 +743,7 @@ private func renewsOverAnUnreadableSignIn(_ when: Renews) async throws {
       }, random: RandomSource(SystemRandomNumberGenerator()))
     defer { session.dispose() }
     await session.start()
-    try await session.ready()
+    await session.ready()
     await executor.settle()
     #expect(
       clock.wakes.contains(clock.now.advanced(by: .milliseconds(Timings.minRefreshDelayMs))),

@@ -38,7 +38,7 @@ private func personKeyOf(_ table: [String: JSONValue], _ name: String) throws ->
 }
 
 /// The keys the table's `keys` part states for a person on a knowledge base.
-private struct PersonKeys {
+struct PersonKeys {
   let stream: String
   /// Each persisted query's key, by the query's name.
   let queries: [String: String]
@@ -62,6 +62,13 @@ private func keysOf(_ table: [String: JSONValue], kbId: String, personKey: Strin
       queries: try required(row, "cacheKeys").object.mapValues { try $0.text })
   }
   throw SpecFailure.shape("The keys part states no row of \(personKey) on \(kbId)")
+}
+
+/// The keys the client of jo's session on kb-a keeps under: a registry's first session's, over
+/// the gateway in this process (overARegistry).
+func keysOfJoOnKbA() throws -> PersonKeys {
+  let table = try casesTable()
+  return try keysOf(table, kbId: "kb-a", personKey: personKeyOf(table, "jo"))
 }
 
 /// The person kb-a's stored sign-in names as a row's `signedIn` says: jo for `named`, nobody for
@@ -331,7 +338,7 @@ private final class ClosingWrites: SessionFactory {
         defer { opened.dispose() }
         let heard = HeardErrors(opened.session)
         // Its start ends as the row says: it is ready once it has forgotten the stored sign-in.
-        try await withinTestDeadline { try await opened.session.ready() }
+        try await withinTestDeadline { await opened.session.ready() }
         // A refused one says on its errors that it ended as session.credential-refused.
         if by == "refusal" { try await heard.said(.sessionCredentialRefused) }
         opened.dispose()
@@ -678,7 +685,7 @@ private func overGateway(
       let givenFirst = try await withinTestDeadline { try await early.first() }
       #expect(givenFirst.name == first, "\(why)")
       gateway.answerWhoAmI()
-      try await withinTestDeadline { try await opened.session.ready() }
+      try await withinTestDeadline { await opened.session.ready() }
       let signedIn = try storedSession(storage, kbId: "kb-a")
       #expect(signedIn?.personKey == recorded, "\(why)")
       let late = Observed(opened.client.browse.resource(askedThen))
@@ -751,7 +758,7 @@ private func archivedEvent(of scope: ResourceId, id: String) throws -> String {
         SessionFactoryOptions(
           kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
       defer { opened.dispose() }
-      try await withinTestDeadline { try await opened.session.ready() }
+      try await withinTestDeadline { await opened.session.ready() }
       let holding = Observed(opened.client.browse.resource(held))
       defer { holding.stop() }
       _ = try await withinTestDeadline { try await holding.first() }
@@ -892,7 +899,7 @@ private enum SignInChange: Sendable {
         kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: memory,
         httpClient: http, storage: caches, clock: TestClock())
       defer { opened.dispose() }
-      try await withinTestDeadline { try await opened.session.ready() }
+      try await withinTestDeadline { await opened.session.ready() }
       let observed = Observed(opened.client.browse.resource(asked))
       let held = try await withinTestDeadline { try await observed.first() }
       observed.stop()
@@ -998,7 +1005,7 @@ private func sessionErrors(_ said: [any Error], _ reason: SessionErrorCode) -> [
     defer { opened.dispose() }
     let session = opened.session
     let heard = HeardErrors(session)
-    try await withinTestDeadline { try await session.ready() }
+    try await withinTestDeadline { await session.ready() }
     let first = try Observed(opened.client.browse.resource(ResourceId("res-1")))
     _ = try await withinTestDeadline { try await first.first() }
     first.stop()
@@ -1049,7 +1056,7 @@ private func sessionErrors(_ said: [any Error], _ reason: SessionErrorCode) -> [
     defer { opened.dispose() }
     let session = opened.session
     let heard = HeardErrors(session)
-    try await withinTestDeadline { try await session.ready() }
+    try await withinTestDeadline { await session.ready() }
     let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
     _ = try await withinTestDeadline { try await observed.first() }
     observed.stop()
@@ -1109,7 +1116,7 @@ private struct UnrecordedPerson: Error {}
     // The gateway names the person once the session's errors are heard.
     let heard = HeardErrors(session)
     gateway.answerWhoAmI()
-    try await withinTestDeadline { try await session.ready() }
+    try await withinTestDeadline { await session.ready() }
     #expect(session.user.value != nil, "the gateway named nobody")
     #expect(session.token.value != nil, "the session did not go on")
     let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
@@ -1203,7 +1210,7 @@ private func owingASave(
       httpClient: http, storage: caches, clock: clock)
     defer { opened.dispose() }
     let heard = HeardErrors(opened.session)
-    try await withinTestDeadline { try await opened.session.ready() }
+    try await withinTestDeadline { await opened.session.ready() }
     let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
     _ = try await withinTestDeadline { try await observed.first() }
     observed.stop()
@@ -1263,38 +1270,50 @@ private func owingASave(
   }
 }
 
-/// Closes a registry over a gateway in this process once it has recorded what kb-a, its active
-/// knowledge base, says of itself (its last write) and its storage refuses every write, and gives
-/// `heard` what the close raised and every error the registry said from its close until its errors
-/// ended. When `owingASave`, kb-a's session's client has read res-1 and owes the save of its value,
-/// which on a clock that never moves waits for the client's close; otherwise it owes nothing.
-func closeARegistry(
-  owingASave: Bool, _ heard: @Sendable (_ raised: (any Error)?, _ said: [any Error]) throws -> Void
+/// `run` with a registry over a gateway in this process, once it has recorded what its first
+/// knowledge base, the one active, says of itself (its last write). `storage` registers each of
+/// `kbIds` with a sign-in kept for jo; each session is the one an HttpSessionFactory makes, which
+/// `factory` is handed and asks. `run` is given the registry and the first knowledge base's
+/// session. When `owingASave`, that session's client has read res-1 and owes the save of its value,
+/// which on a clock that never moves waits for the client's close; otherwise it owes nothing. The
+/// registry is closed once `run` has returned or anything has failed, and what that close raises is
+/// no caller's to say.
+func overARegistry(
+  storage: any SessionStorage, kbIds: [String], owingASave: Bool,
+  factory: @Sendable (HttpSessionFactory) -> any SessionFactory,
+  run: @Sendable (SemiontBrowser, OpenedSession) async throws -> Void
 ) async throws {
+  guard let first = kbIds.first else { throw SpecFailure.shape("a registry of no knowledge base") }
   let table = try casesTable()
   let jo = try personKeyOf(table, "jo")
   let user = try JSONEncoder().encode(required(table, "whoAmI"))
   try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
-    let storage = RefusingStorage()
-    try saveKnowledgeBases(storage, knowledgeBases: [knowledgeBase("kb-a", port: port)])
-    try storage.set(activeKey, "kb-a")
-    try storeSession(
-      storage, kbId: "kb-a",
-      session: signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
+    try saveKnowledgeBases(storage, knowledgeBases: kbIds.map { knowledgeBase($0, port: port) })
+    try storage.set(activeKey, first)
+    for id in kbIds {
+      try storeSession(
+        storage, kbId: id,
+        session: signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
+    }
     let clock = TestClock()
     let browser = try await newSemiontBrowser(
       SemiontBrowserConfig(
-        storage: storage, sessionFactory: HttpSessionFactory(httpClient: http, clock: clock)))
+        storage: storage,
+        sessionFactory: factory(HttpSessionFactory(httpClient: http, clock: clock))
+      ))
     do {
       let opened = try await withinTestDeadline { () async throws -> OpenedSession in
         for await opened in browser.activeSession {
           if let opened { return opened }
         }
-        throw SpecFailure.shape("kb-a's session never opened")
+        throw SpecFailure.shape("\(first)'s session never opened")
       }
       try await withinTestDeadline {
-        for await bases in browser.knowledgeBases where bases.first?.lastRead != nil { return }
-        throw SpecFailure.shape("kb-a was never read")
+        for await bases in browser.knowledgeBases
+        where bases.first(where: { $0.id == first })?.lastRead != nil {
+          return
+        }
+        throw SpecFailure.shape("\(first) was never read")
       }
       if owingASave {
         let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
@@ -1306,35 +1325,51 @@ func closeARegistry(
           while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
         }
       }
+      try await run(browser, opened)
     } catch {
       try? await browser.close()
       throw error
     }
-    let errors = browser.errors()
-    let said = Task { () async throws -> [any Error] in
-      var said: [any Error] = []
-      for try await error in errors { said.append(error) }
-      return said
-    }
-    storage.setRefusing(true)
-    let raised: (any Error)?
-    do {
-      try await browser.close()
-      raised = nil
-    } catch {
-      raised = error
-    }
-    try heard(raised, try await withinTestDeadline { try await said.value })
+    try? await browser.close()
   }
 }
 
-// What a registry said first is what its close raises, though it says it as it closes: a write its
-// active session's closing flush cannot make.
-@Test func aRegistrysCloseRaisesTheClosingSaveItsActiveSessionCouldNotMake() async throws {
-  try await closeARegistry(owingASave: true) { raised, _ in
-    let refused = try #require(raised as? SessionError, "\(String(describing: raised))")
-    #expect(refused.reason == .sessionSaveRefused)
-    #expect(refused.kbId == "kb-a")
+/// Closes a registry over a gateway in this process (overARegistry) once its storage refuses every
+/// write, and gives `heard` what the close raised and every error the registry said from its close
+/// until its errors ended. When `owingASave`, kb-a's session's client owes the save of res-1's
+/// value; otherwise it owes nothing.
+func closeARegistry(
+  owingASave: Bool,
+  _ heard: @Sendable (_ raised: (any Error)?, _ said: [SessionError]) throws -> Void
+) async throws {
+  let storage = RefusingStorage()
+  try await overARegistry(
+    storage: storage, kbIds: ["kb-a"], owingASave: owingASave, factory: { $0 },
+    run: { browser, _ in
+      let errors = browser.errors()
+      let said = Task { () async throws -> [SessionError] in
+        var said: [SessionError] = []
+        for try await error in errors { said.append(error) }
+        return said
+      }
+      storage.setRefusing(true)
+      let raised: (any Error)?
+      do {
+        try await browser.close()
+        raised = nil
+      } catch {
+        raised = error
+      }
+      try heard(raised, try await withinTestDeadline { try await said.value })
+    })
+}
+
+// A registry's close raises only what its own work failed with: a write its active session's
+// closing flush cannot make is said on its errors, and not raised.
+@Test func aRegistrysCloseRaisesNotTheClosingSaveItsActiveSessionCouldNotMake() async throws {
+  try await closeARegistry(owingASave: true) { raised, said in
+    #expect(raised == nil, "\(String(describing: raised))")
+    #expect(said.map(\.code) == ["session.save-refused"], "\(said)")
   }
 }
 
@@ -1428,50 +1463,52 @@ private final class HoldingStorage: SessionStorage {
   let resourceKey = try joOnA.query("resource")
   let user = try JSONEncoder().encode(required(table, "whoAmI"))
   let asked = try ResourceId("res-1")
-  try await overGateway(.names, issuer: .refuses, user: user) { _, port, http in
-    let storage = HoldingStorage(key: resourceKey)
-    for key in joOnA.all {
-      let text = try #require(seeded[key], "\(key) is not seeded")
-      storage.set(key, text)
-    }
-    try storeSession(
-      storage, kbId: "kb-a",
-      session: signIn(
-        personKey: jo, expired: false, tokenEndpoint: "http://127.0.0.1:\(port)/token"))
-    let clock = TestClock()
-    let opened = try await HttpSessionFactory(httpClient: http, clock: clock).session(
-      SessionFactoryOptions(
-        kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
-    defer { opened.dispose() }
-    let session = opened.session
-    try await withinTestDeadline { try await session.ready() }
-    #expect(session.user.value != nil, "the gateway named the person")
-    let observed = Observed(opened.client.browse.resource(asked))
-    let held = try await withinTestDeadline { try await observed.first() }
-    observed.stop()
-    #expect(held.name == "fresh")
-    // The save is due saveDebounceMs after the value, by a clock that has not moved.
-    let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
-    try await withinTestDeadline {
-      while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
-    }
-    // A session ending its sign-in no longer names who its token is, last before it forgets it.
-    storage.hold(until: { session.user.value == nil })
-    clock.advance(by: .milliseconds(Timings.saveDebounceMs))
-    try await withinTestDeadline {
-      while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
-    }
-    // The session's own forget, as it expires: the issuer will not renew the token it holds.
-    let token = session.token.value
-    _ = try await withinTestDeadline { try await session.refresh(token) }
-    try await withinTestDeadline {
-      while !storage.written { try await Task.sleep(for: .milliseconds(1)) }
-    }
-    #expect(!storage.neverBegan, "the session's forget did not begin while the save was written")
-    #expect(!storage.deletedWhileHeld, "the forget deleted while a save it deletes was in flight")
-    #expect(try storedSession(storage, kbId: "kb-a") == nil, "the sign-in is kept")
-    for key in joOnA.all {
-      #expect(storage.get(key) == nil, "\(key) holds what was written after the forget deleted")
+  try await OffPoolExecutor.run {
+    try await overGateway(.names, issuer: .refuses, user: user) { _, port, http in
+      let storage = HoldingStorage(key: resourceKey)
+      for key in joOnA.all {
+        let text = try #require(seeded[key], "\(key) is not seeded")
+        storage.set(key, text)
+      }
+      try storeSession(
+        storage, kbId: "kb-a",
+        session: signIn(
+          personKey: jo, expired: false, tokenEndpoint: "http://127.0.0.1:\(port)/token"))
+      let clock = TestClock()
+      let opened = try await HttpSessionFactory(httpClient: http, clock: clock).session(
+        SessionFactoryOptions(
+          kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
+      defer { opened.dispose() }
+      let session = opened.session
+      try await withinTestDeadline { await session.ready() }
+      #expect(session.user.value != nil, "the gateway named the person")
+      let observed = Observed(opened.client.browse.resource(asked))
+      let held = try await withinTestDeadline { try await observed.first() }
+      observed.stop()
+      #expect(held.name == "fresh")
+      // The save is due saveDebounceMs after the value, by a clock that has not moved.
+      let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
+      try await withinTestDeadline {
+        while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
+      }
+      // A session ending its sign-in no longer names who its token is, last before it forgets it.
+      storage.hold(until: { session.user.value == nil })
+      clock.advance(by: .milliseconds(Timings.saveDebounceMs))
+      try await withinTestDeadline {
+        while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
+      }
+      // The session's own forget, as it expires: the issuer will not renew the token it holds.
+      let token = session.token.value
+      _ = try await withinTestDeadline { try await session.refresh(token) }
+      try await withinTestDeadline {
+        while !storage.written { try await Task.sleep(for: .milliseconds(1)) }
+      }
+      #expect(!storage.neverBegan, "the session's forget did not begin while the save was written")
+      #expect(!storage.deletedWhileHeld, "the forget deleted while a save it deletes was in flight")
+      #expect(try storedSession(storage, kbId: "kb-a") == nil, "the sign-in is kept")
+      for key in joOnA.all {
+        #expect(storage.get(key) == nil, "\(key) holds what was written after the forget deleted")
+      }
     }
   }
 }

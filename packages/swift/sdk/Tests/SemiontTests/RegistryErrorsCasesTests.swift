@@ -58,13 +58,6 @@ private enum Said: Sendable {
   }
 }
 
-/// What the registry said, by its code: one of a session's own errors by its code, and anything
-/// else as it describes itself, which no case's `registryErrors` holds.
-private func registryCode(_ error: any Error) -> String {
-  guard let own = error as? SessionError else { return String(describing: error) }
-  return own.code
-}
-
 /// A registry's sessions, each over a scripted transport that answers a read of the knowledge base
 /// as its entry and refuses all else, and over the sign-in the registry keeps for it. Each says
 /// `opening` as it is built, before it is handed back; each renewal records the token it is
@@ -115,7 +108,7 @@ private final class SayingSessions: SessionFactory {
 /// `signals`, for a refusal for lack of permission. Gives the codes the registry said on `errors`
 /// up to then.
 private func saidUntilTheLastIsRead(
-  _ said: [Said], errors: Events<any Error>, signals: SessionSignals
+  _ said: [Said], errors: Events<SessionError>, signals: SessionSignals
 ) async throws -> [String] {
   guard let last = said.last else { throw SpecFailure.shape("the session says nothing") }
   switch last {
@@ -124,8 +117,8 @@ private func saidUntilTheLastIsRead(
     var codes: [String] = []
     var heard = 0
     for try await error in errors {
-      codes.append(registryCode(error))
-      if (error as? SessionError)?.reason == code { heard += 1 }
+      codes.append(error.code)
+      if error.reason == code { heard += 1 }
       if heard == count { return codes }
     }
     throw SpecFailure.shape("the registry's errors ended before \(code.rawValue) was said")
@@ -139,7 +132,7 @@ private func saidUntilTheLastIsRead(
   // What the registry said before then is what it has given `errors`: ended, they give it all.
   errors.dispose()
   var codes: [String] = []
-  for try await error in errors { codes.append(registryCode(error)) }
+  for try await error in errors { codes.append(error.code) }
   return codes
 }
 
@@ -211,7 +204,7 @@ private func saidUntilTheLastIsRead(
     let registryErrors = try required(row, "registryErrors").array.map { try $0.text }
     // What its close raises is no case's to say.
     try await closeARegistry(owingASave: owed) { _, said in
-      #expect(said.map(registryCode) == registryErrors, "\(why): \(said)")
+      #expect(said.map(\.code) == registryErrors, "\(why): \(said)")
     }
   }
 }

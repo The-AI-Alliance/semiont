@@ -10,4 +10,6 @@ public data class ClientTiming @JvmOverloads constructor(
     public val jobStatusPollMs: Long = Timings.JOB_STATUS_POLL_MS,
     /** How long the refetches of one key that events ask for are taken as one. */
     public val invalidationWindowMs: Long = Timings.INVALIDATION_WINDOW_MS,
+    /** How long a cache the client keeps waits, after its values last changed, before it saves them: its closing makes a save it owes at once. */
+    public val saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
 )

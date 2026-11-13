@@ -761,6 +761,65 @@ describe('SemiontSession — a kept sign-in that cannot be read when the session
   });
 });
 
+/** What forgetting an `UnforgettableSignIn` throws. */
+const UNFORGETTABLE = 'the kept sign-in could not be forgotten';
+
+/** A sign-in kept in memory that cannot be forgotten, as a store whose delete fails: `forget()` throws. */
+class UnforgettableSignIn extends MemorySignIn {
+  override forget(): void {
+    throw new Error(UNFORGETTABLE);
+  }
+}
+
+/** Why the session failed, then why its kept sign-in could not be forgotten. */
+const unforgotten = (why: string): string => `${why}; and the sign-in could not be forgotten: ${UNFORGETTABLE}`;
+
+describe('SemiontSession — a kept sign-in that cannot be forgotten as the session starts', () => {
+  // A session's readiness never fails: a kept sign-in that cannot be
+  // forgotten is said once, with why it had to be and what its storage said,
+  // and the session is then ready.
+
+  it('the issuer refuses to renew the expired token found stored: said as session.refresh-exhausted', async () => {
+    const kept = new UnforgettableSignIn(testSession(freshJwt(-3600), 'refresh-tok'));
+    const refusal = 'The issuer refused the token request (invalid_grant: Token is not active)';
+    refresh.mockRejectedValue(new SignInError('exchange', refusal, 400));
+    const onAuthFailed = vi.fn();
+    const session = newSession({ kept, onAuthFailed });
+    const said = saidBy(session);
+
+    await expect(session.ready).resolves.toBeUndefined();
+    expect(said).toEqual([
+      expect.objectContaining({ code: 'session.refresh-exhausted', message: unforgotten(`Token refresh failed: ${refusal}`) }),
+    ]);
+    expect(onAuthFailed).not.toHaveBeenCalled();
+    expect(session.token$.getValue()).toBeNull();
+
+    session.dispose();
+  });
+
+  it('the gateway refuses the token its issuer has just issued: said as the ending, session.credential-refused', async () => {
+    const kept = new UnforgettableSignIn(testSession(freshJwt(), 'refresh-tok'));
+    validate.mockRejectedValue(APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined));
+    refresh.mockResolvedValue(freshJwt());
+    const onAuthFailed = vi.fn();
+    const session = newSession({ kept, onAuthFailed });
+    const said = saidBy(session);
+
+    await expect(session.ready).resolves.toBeUndefined();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(said).toEqual([
+      expect.objectContaining({
+        code: 'session.credential-refused',
+        message: unforgotten('The gateway refused a token its issuer had just issued'),
+      }),
+    ]);
+    expect(onAuthFailed).toHaveBeenCalledExactlyOnceWith('refused');
+    expect(session.token$.getValue()).toBeNull();
+
+    session.dispose();
+  });
+});
+
 describe('SemiontSession — every renewal is handed the token it renews', () => {
   // A kept sign-in's renewal (`renewKept`) gives back a kept token that has
   // not expired, with no grant, when it is handed another token or none: a

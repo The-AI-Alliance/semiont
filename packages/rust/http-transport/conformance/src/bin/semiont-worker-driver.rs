@@ -23,7 +23,7 @@ use semiont::client::{ClientOptions, SemiontClient};
 use semiont::transport::{ConnectionState, ResourceHold, Transport};
 use semiont::types::{Annotation, JobProgress, ResourceId};
 use semiont_conformance_drivers::{
-    Arguments, Driver, Ended, Running, count, failure, identifier, locked, object, say, serve,
+    Arguments, Driver, Ended, Running, count, identifier, locked, object, say, say_failures, serve,
     text, texts,
 };
 use semiont_http_transport::content::HttpContentTransport;
@@ -197,17 +197,7 @@ impl Worker {
                 }
             }
         });
-        let mut failures = transport.failures();
-        reporters.spawn(async move {
-            while let Some(reported) = failures.next().await {
-                match reported {
-                    Ok(error) => say(json!({
-                        "error": failure(error.code.as_str(), error.status, error.message)
-                    })),
-                    Err(lagged) => eprintln!("the error stream: {lagged}"),
-                }
-            }
-        });
+        say_failures(&transport);
         drop(reporters);
 
         let client = SemiontClient::new(

@@ -66,7 +66,7 @@ use crate::client::{Owner, SemiontClient};
 use crate::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportErrorCode,
 };
-use crate::kept_for_first_reader::KeptForFirstReader;
+use crate::kept_for_first_reader::{KeptForFirstReader, Listener};
 use crate::locked;
 use crate::retry::{REFRESH, RetryFacts, equal_jitter};
 use crate::state::{Held, Tasks};
@@ -303,6 +303,15 @@ impl SemiontSession {
     /// errors of each session it holds (`super::SemiontBrowser`).
     pub fn errors(&self) -> Events<SemiontError> {
         self.shared.errors.read()
+    }
+
+    /// Tell `listener` what the session says on its errors, within its
+    /// saying, so it misses none however much is said at once: as `errors`
+    /// gives it, the first one taken told at once what is kept, until they
+    /// end. It must say nothing on them itself. How a registry hears the
+    /// errors of each session it holds.
+    pub(crate) fn tell_errors_to(&self, listener: Listener<SemiontError>) {
+        self.shared.errors.tell_to(listener);
     }
 
     /// Resolves when the session has done what it does at its start: read

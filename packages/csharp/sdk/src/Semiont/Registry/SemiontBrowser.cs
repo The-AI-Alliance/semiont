@@ -24,7 +24,10 @@ public sealed record BrowserState(IReadOnlyList<KnowledgeBase> Kbs, string? Acti
     SessionSignals? ActiveSignals, bool SessionActivating, IReadOnlyList<OpenResource> OpenResources,
     ResourceId? LastViewedResource, string? IdentityToken);
 
-/// <summary>The application's registered knowledge bases and its active session.</summary>
+/// <summary>The application's registered knowledge bases and its active session. Activating a knowledge base ends the
+/// session active before, its errors read to their end, before the factory is asked for the next. From the moment its
+/// disposal begins, every change to it, an activation among them, is refused at the call with
+/// <see cref="BusRequestError"/> bus.closed.</summary>
 public sealed class SemiontBrowser : IAsyncDisposable
 {
     private static readonly KbReadVerdict Unavailable = new(KbReadKind.NoVerdict);
@@ -82,9 +85,11 @@ public sealed class SemiontBrowser : IAsyncDisposable
     public EventBus Bus { get; } = new();
     public BrowserState State => Volatile.Read(ref state);
     public IAsyncEnumerable<BrowserState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
-    /// <summary>Each session that could not be opened, and each error a session says of its own, until the registry is
-    /// disposed. Of what is said before anyone reads it, the latest errorsKeptForFirstReaderCount
-    /// (protocol/specs/src/client/timing.json) are kept for the first reader, in the order said.</summary>
+    /// <summary>Each refusal of the session factory, and each error a session says of its own, until the registry is
+    /// disposed. A refusal that is one of the session's own errors is said as it is; any other is said as
+    /// session.construct-failed, with its message. Of what is said before anyone reads it, the latest
+    /// errorsKeptForFirstReaderCount (protocol/specs/src/client/timing.json) are kept for the first reader, in the order
+    /// said.</summary>
     public IAsyncEnumerable<SessionError> Errors(CancellationToken cancellation = default) => errors.Observe(cancellation);
 
     public void SetIdentityToken(string? token)
@@ -337,7 +342,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
             catch (SemiontError error)
             {
                 if (!token.IsCancellationRequested)
-                    errors.Publish(new SessionError(ProtocolFacts.SessionError("construct-failed"), $"Could not open {kb.Label}.", error));
+                    errors.Publish(error is SessionError own ? own : new SessionError(ProtocolFacts.SessionError("construct-failed"), error.Message, error));
                 return;
             }
             // Read as soon as the factory hands the session back, so this is the first reader of its errors and hears
@@ -627,7 +632,10 @@ public sealed class SemiontBrowser : IAsyncDisposable
         catch (Exception error) { lock (gate) taskFailure ??= error; }
     }
 
-    private void RequireOpen() => ObjectDisposedException.ThrowIf(closing, this);
+    private void RequireOpen()
+    {
+        if (closing) throw new BusRequestError(ProtocolFacts.BusError("closed"), "The knowledge-base registry is closed.");
+    }
     private void RequireKb(string id)
     {
         if (!state.Kbs.Any(kb => kb.Id == id)) throw new ArgumentException("No knowledge base is registered under " + id, nameof(id));

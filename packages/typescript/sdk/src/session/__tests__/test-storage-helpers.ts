@@ -96,18 +96,28 @@ export class TestStorage extends InMemorySessionStorage {
   }
 }
 
-/** A storage that refuses every write while `refusing` is set. */
+/** A storage that asks `refuses` of each write, by its key, before it makes it, and refuses the write when told to. */
 export class RefusingStorage extends TestStorage {
-  refusing = false;
+  refusals = 0;
+
+  constructor(private readonly refuses: (key: string) => boolean) {
+    super();
+  }
 
   override set(key: string, value: string): void {
-    if (this.refusing) throw new Error(`refused: ${key}`);
+    this.refuse(key);
     super.set(key, value);
   }
 
   override update(key: string, change: (stored: string | null) => string | null): void {
-    if (this.refusing) throw new Error(`refused: ${key}`);
+    this.refuse(key);
     super.update(key, change);
+  }
+
+  private refuse(key: string): void {
+    if (!this.refuses(key)) return;
+    this.refusals += 1;
+    throw new Error(`refused: ${key}`);
   }
 }
 

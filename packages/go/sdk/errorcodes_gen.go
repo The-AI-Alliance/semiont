@@ -21,7 +21,8 @@ const (
 	// does not list, which is read as none.
 	BusRequestErrorCodeRejected BusRequestErrorCode = "bus.rejected"
 	// The bus stopped before a reply came: its client was disposed, or its
-	// transport closed.
+	// transport closed. A registry of knowledge bases whose close has begun
+	// refuses an activation with it, at the call, before it asks for anything.
 	BusRequestErrorCodeClosed BusRequestErrorCode = "bus.closed"
 	// The peer says this resource does not exist in its knowledge base.
 	BusRequestErrorCodeNotFound BusRequestErrorCode = "bus.not-found"

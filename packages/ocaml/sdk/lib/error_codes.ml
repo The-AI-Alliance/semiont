@@ -36,3 +36,28 @@ module Session = struct
   let keep_failed = "session.keep-failed"
   let save_refused = "session.save-refused"
 end
+module Sign_in = struct
+  let no_issuer = "no-issuer"
+  let discovery = "discovery"
+  let no_pending = "no-pending"
+  let state = "state"
+  let denied = "denied"
+  let expired = "expired"
+  let aborted = "aborted"
+  let exchange = "exchange"
+end
+module Kb_identity = struct
+  let unreachable = "unreachable"
+  let not_reported = "not-reported"
+end
+module Span_refusal = struct
+  type t = Span_out_of_range | Exact_mismatch | Prefix_mismatch | Suffix_mismatch | Nothing_located | Exact_not_covered | Item_out_of_range
+  let to_string = function
+    | Span_out_of_range -> "span-out-of-range"
+    | Exact_mismatch -> "exact-mismatch"
+    | Prefix_mismatch -> "prefix-mismatch"
+    | Suffix_mismatch -> "suffix-mismatch"
+    | Nothing_located -> "nothing-located"
+    | Exact_not_covered -> "exact-not-covered"
+    | Item_out_of_range -> "item-out-of-range"
+end

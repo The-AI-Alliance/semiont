@@ -55,7 +55,7 @@ const routes = Object.entries(names).map(([name, id]) => {
   const { path, method } = operations.get(id);
   return `let ${name} = (${ocamlString(method.toUpperCase())}, ${ocamlString(path)})`;
 });
-const { busCodes, transportCodes, unclassified, busByWire, unrecognized, jobCodes, sessionCodes } = readErrorCodes(
+const { busCodes, transportCodes, unclassified, busByWire, unrecognized, jobCodes, sessionCodes, signInCodes, kbIdentityCodes, spanRefusalCodes } = readErrorCodes(
   resolve(specRoot, 'errors/codes.json'), resolve(specRoot, 'components/schemas/CommandError.json'),
   (message) => { throw new Error(`errors/codes.json: ${message}`); });
 const statusCode = transportCodes.flatMap(({ code, status, statusFrom }) =>
@@ -91,8 +91,18 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/http_facts.ml'),
   ].join('\n'), process.argv.includes('--check'));
 
 // Each vocabulary OCaml says a code of, a value per code named by its last segment (`bus.not-found` is
-// Bus_request.not_found).
-const vocabularies = [['Bus_request', busCodes], ['Transport', transportCodes], ['Job', jobCodes], ['Session', sessionCodes]];
+// Bus_request.not_found). A span refusal is raised as a constructor of Span_refusal.t, each named by its
+// code (`span-out-of-range` is Span_out_of_range), and said by its code.
+const vocabularies = [['Bus_request', busCodes], ['Transport', transportCodes], ['Job', jobCodes], ['Session', sessionCodes],
+  ['Sign_in', signInCodes], ['Kb_identity', kbIdentityCodes]];
+const spanRefusals = spanRefusalCodes.map(({ code }) => {
+  const constructor = code[0].toUpperCase() + code.slice(1).replaceAll('-', '_');
+  if (!/^[A-Z][a-z0-9_]*$/.test(constructor)) throw new Error(`errors/codes.json: ${code} names no OCaml constructor`);
+  return { code, constructor };
+});
+if (new Set(spanRefusals.map(({ constructor }) => constructor)).size !== spanRefusals.length) {
+  throw new Error('errors/codes.json: two span refusals name one OCaml constructor');
+}
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/error_codes.ml'),
   ['(* Generated from errors/codes.json. Do not edit. *)', '', '[@@@ocamlformat "disable"]', '',
     ...vocabularies.flatMap(([module, codes]) => {
@@ -104,7 +114,12 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/error_codes.ml'),
         named.add(name);
         return `  let ${name} = ${ocamlString(code)}`;
       }), 'end'];
-    }), ''].join('\n'), process.argv.includes('--check'));
+    }),
+    'module Span_refusal = struct',
+    `  type t = ${spanRefusals.map(({ constructor }) => constructor).join(' | ')}`,
+    '  let to_string = function',
+    ...spanRefusals.map(({ code, constructor }) => `    | ${constructor} -> ${ocamlString(code)}`),
+    'end', ''].join('\n'), process.argv.includes('--check'));
 
 const telemetrySource = 'sdk-telemetry/telemetry.json';
 const telemetry = readSpec(telemetrySource);
@@ -185,13 +200,17 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/registry_facts.ml'),
 
 const registryCases = JSON.parse(readFileSync(resolve(specRoot, 'session/registry-cases.json'), 'utf8'));
 const registryErrorsCases = JSON.parse(readFileSync(resolve(specRoot, 'session/registry-errors-cases.json'), 'utf8'));
+// Every section of the activation table, so a section the runner does not know fails it.
+const sections = ({ $comment, runBy, absent, notYetReached, ...data }) => data;
+const activationSections = sections(JSON.parse(readFileSync(resolve(specRoot, 'session/registry-activation-cases.json'), 'utf8')));
 const gatewayCases = JSON.parse(readFileSync(resolve(specRoot, 'session/gateway-url-cases.json'), 'utf8'));
 const sharedTiming = JSON.parse(readFileSync(resolve(specRoot, 'client/timing.json'), 'utf8'));
 const clockCases = JSON.parse(readFileSync(resolve(specRoot, 'client/clock-cases.json'), 'utf8'));
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/registry_cases.ml'),
-  '(* Generated from session/registry-cases.json session/registry-errors-cases.json session/gateway-url-cases.json and client/clock-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
+  '(* Generated from session/registry-cases.json session/registry-errors-cases.json session/registry-activation-cases.json session/gateway-url-cases.json and client/clock-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
   `let cases = ${ocamlString(JSON.stringify({ cases: registryCases.cases, openResourceOrder: registryCases.openResourceOrder }))}\n` +
   `let errors_cases = ${ocamlString(JSON.stringify({ cases: registryErrorsCases.cases, closing: registryErrorsCases.closing }))}\n` +
+  `let activation_cases = ${ocamlString(JSON.stringify(activationSections))}\n` +
   `let timing = ${ocamlString(JSON.stringify(Object.fromEntries(sharedTiming.timing.map(({ name, value }) => [name, value]))))}\n` +
   `let gateway_cases = ${ocamlString(JSON.stringify(gatewayCases.cases))}\n` +
   `let clock_cases = ${ocamlString(JSON.stringify(clockCases.cases))}\n`,

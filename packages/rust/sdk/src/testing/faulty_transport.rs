@@ -29,8 +29,8 @@ use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError, Transp
 use crate::event_bus::EventBus;
 use crate::locked;
 use crate::transport::{
-    BoxFuture, ConnectionState, Envelope, Events, FailureListener, FailureStream, Failures, Frame,
-    FrameHub, FrameRefusal, Frames, PendingReply, ReplyRouter, ResourceHold, StreamId, Transport,
+    BoxFuture, ConnectionState, Envelope, FailureListener, FailureStream, Frame, FrameHub,
+    FrameRefusal, Frames, PendingReply, ReplyRouter, ResourceHold, StreamId, Transport,
 };
 use crate::types::ResourceId;
 use serde_json::{Map, Value};
@@ -38,7 +38,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::watch;
 
 /// What the wire does to one request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -239,7 +239,7 @@ impl FaultyTransport {
         *locked(&self.inner.refuse) = Some(Box::new(refuse));
     }
 
-    /// Report a failure on the failure stream, as a transport does of a
+    /// Tell a failure to the transport's listeners, as a transport does of a
     /// request the gateway refused. One reported before anyone listens is
     /// kept for the first listener, as a wire transport keeps it.
     pub fn fail(&self, error: TransportError) {
@@ -477,13 +477,6 @@ impl Transport for FaultyTransport {
 
     fn state(&self) -> watch::Receiver<ConnectionState> {
         self.inner.state.subscribe()
-    }
-
-    fn failures(&self) -> Failures {
-        match locked(&self.inner.failures).as_ref() {
-            Some(failures) => failures.listen(),
-            None => Events::new(broadcast::channel(1).1),
-        }
     }
 
     fn tell_failures_to(&self, listener: FailureListener) {
