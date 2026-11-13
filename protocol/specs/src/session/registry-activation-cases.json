@@ -1,0 +1,61 @@
+{
+  "$comment": "AUTHORITY for what a registry of knowledge bases (client/surface.json's registry module) does when it activates one: when its factory refuses the session, once the registry's close has begun, and when another knowledge base's session is active. Every SDK runs every row against its own registry, over a factory of its runner's that counts the sessions it is asked for and builds a scripted session, and fails on a difference. A registry asks its factory for a session: the factory hands it a session, or refuses, and that refusal is the one way an activation fails. A session's readiness never fails: what its start meets is said on its own errors (protocol/specs/src/session/cases.json, `startup`). What a factory's refusal that is not one of the session's own errors is said as is protocol/specs/src/session/registry-factory-failure-cases.json. READING A ROW. `refused`: no session being active, the registry activates a registered knowledge base with a kept sign-in, over a factory that refuses with `refusal`, one of the session's own errors, by its code in errors/codes.json's session group and with its message. `registryErrors` is what is said on the registry's errors once the activation has returned, in order, each by its code and its message: one of the session's own errors is said as it is, its code and its message both. Then no session is active, and the knowledge base the registry has active is the one it activated, as the storage's active key names it. `closed`: a registry with a session active for one knowledge base activates another. `while` is when: `closed`, once its close has returned, its active session's client owing nothing; `closing`, while its close waits for its active session's client to write the save it owes (still waiting out its debounce as the close begins, as registry-errors-cases.json's `closing` reads it), to a storage that holds that write open, the activation begun from within that write or from another caller while it is held. From the moment its close begins a registry refuses an activation at the call, with `bus.closed` (errors/codes.json's busRequest group), before anything else: it asks its factory for no session, says nothing on its errors, and the storage's active key still names the first knowledge base. A second close does nothing. `switching`: a registry with a session active for one knowledge base, whose client owes a save, still waiting out its debounce, to a storage that `writes` it or `refuses` every write the client makes (`storage`), activates another, over a factory that builds its session (`next` is `built`) or refuses with one of the session's own errors (`next` is that error's code and message, as `refused` reads it). The registry ends the session that was active before it asks its factory for the next, and reads its errors to their end: the save its client owes is made once, by its closing flush, so a runner fails if its factory is asked for the next session before the storage was asked to write that save. `registryErrors` is the codes said on the registry's errors once the activation has returned, in order: everything the first session said, its closing flush's refusal among them, before anything of the next. `active` is whether a session is active then.",
+  "runBy": {
+    "typescript": ["packages/typescript/sdk/src/session/__tests__/registry-activation-cases.test.ts"],
+    "ocaml": ["packages/ocaml/sdk/test/registry_behavior.ml"]
+  },
+  "notYetReached": {
+    "rust": "a runner of its own for the three sections, in tests/browser.rs as the registry-errors runner is; a held write for `closing`, begun from within the storage's write on its paused runtime",
+    "python": "a runner of its own for the three sections; a held write for `closing`, begun from within the storage's write; its registry says the factory's own error as it is today",
+    "go": "a runner of its own for the three sections; `closed` refused with bus.closed, where its registry returns today",
+    "kotlin": "a runner of its own for the three sections; `closed` refused with bus.closed, where its registry returns today; the previous session's errors read to their end before the next is asked for, where its close does not wait for a write under way",
+    "swift": "a runner of its own for the three sections; a factory's own error said as it is, where its registry wraps it as construct-failed; the previous session waited for, where it is disposed and not awaited",
+    "csharp": "a runner of its own for the three sections; a factory's own error said as it is, where its registry wraps it; `closed` refused with bus.closed, where it throws ObjectDisposedException",
+    "haskell": "a runner of its own for the three sections; `closing` refused with bus.closed, where its registry returns while it disposes"
+  },
+  "refused": [
+    {
+      "why": "a factory's refusal that is one of the session's own errors is said on the registry's errors as it is: its code is not wrapped as construct-failed, and no session is active",
+      "refusal": { "own": "session.auth-failed", "message": "the stored sign-in could not be read" },
+      "registryErrors": [{ "code": "session.auth-failed", "message": "the stored sign-in could not be read" }]
+    },
+    {
+      "why": "a factory that could not construct the session says why, and the registry says its message as it is, with nothing put before it",
+      "refusal": { "own": "session.construct-failed", "message": "the knowledge base did not answer" },
+      "registryErrors": [{ "code": "session.construct-failed", "message": "the knowledge base did not answer" }]
+    }
+  ],
+  "closed": [
+    {
+      "why": "an activation begun once the registry has closed is refused at the call with bus.closed: no session is asked for, nothing is said, and the knowledge base active before is still the one stored",
+      "while": "closed"
+    },
+    {
+      "why": "an activation begun while the registry's close waits for its active session's closing flush is refused as one begun after it: the close has begun",
+      "while": "closing"
+    }
+  ],
+  "switching": [
+    {
+      "why": "the session that was active ends before its factory is asked for the next: the save its client owed is written first, and the next is active",
+      "storage": "writes",
+      "next": "built",
+      "registryErrors": [],
+      "active": true
+    },
+    {
+      "why": "what the session that was active says as it ends is said before anything of the next: its closing flush's refusal is read to the end of its errors, and the next is active",
+      "storage": "refuses",
+      "next": "built",
+      "registryErrors": ["session.save-refused"],
+      "active": true
+    },
+    {
+      "why": "a switch whose next session is refused leaves no session active: the one that was active has ended, and what it said as it ended comes before the refusal",
+      "storage": "refuses",
+      "next": { "own": "session.construct-failed", "message": "the next knowledge base did not answer" },
+      "registryErrors": ["session.save-refused", "session.construct-failed"],
+      "active": false
+    }
+  ]
+}

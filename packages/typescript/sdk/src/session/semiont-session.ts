@@ -86,6 +86,10 @@ export type UserInfo = components['schemas']['UserResponse'];
 const notRenewed = (failure: string | undefined): string =>
   failure ? `Token refresh failed: ${failure}` : 'Token refresh failed';
 
+/** Why a session failed, and why its kept sign-in could not be forgotten. */
+const notForgotten = (why: string, storage: string): string =>
+  `${why}; and the sign-in could not be forgotten: ${storage}`;
+
 /**
  * Whether a renewal failed because the issuer refused it: an answer
  * `RETRY_RULES.refresh` does not try again. No answer, and one it tries again
@@ -216,7 +220,14 @@ export class SemiontSession implements StateUnit {
    */
   readonly errors$: Observable<SemiontError>;
 
-  /** Resolves after the initial validation round-trip completes (success or failure). */
+  /**
+   * Resolves once the session's start is done: the token found stored is
+   * renewed when it has expired, and the gateway is asked who it is. What the
+   * start meets is said on `errors$`, and then the session is ready: a kept
+   * sign-in that cannot be forgotten is said with why it had to be, and what
+   * its storage said. It rejects only with what the host's own `onAuthFailed`
+   * throws.
+   */
   readonly ready: Promise<void>;
 
   readonly #heldToken$: BehaviorSubject<AccessToken | null>;
@@ -311,8 +322,13 @@ export class SemiontSession implements StateUnit {
       const { token, failure, refused } = await this.tryRefresh();
       if (!token) {
         if (failure === undefined || refused) {
-          // There was no session to end: the kept sign-in is forgotten, with what was kept for its person, and nothing is said.
-          this.kept.forget();
+          // There was no session to end: the kept sign-in is forgotten, with what was kept for its person, and nothing is said unless it could not be.
+          const unforgotten = this.forget();
+          if (unforgotten !== undefined) {
+            this.#said.say(
+              new SemiontSessionError('session.refresh-exhausted', notForgotten(notRenewed(failure), unforgotten), this.kb.id),
+            );
+          }
         } else {
           // The issuer did not refuse it: the stored session is kept, and renewed on the reconnect backoff or when a request is refused.
           this.renewAgainLater();
@@ -392,15 +408,28 @@ export class SemiontSession implements StateUnit {
   /**
    * The session is over: its kept sign-in is forgotten, with what was kept
    * for the person it named, and the person and the application are each
-   * told why. The one teardown, whichever way the session ended.
+   * told why, and why it could not be forgotten when it could not. The one
+   * teardown, whichever way the session ended.
    */
   private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();
     this.clearUnanswered();
     this.#heldToken$.next(null);
-    this.kept.forget();
+    const unforgotten = this.forget();
     this.onAuthFailed(told);
-    this.#said.say(new SemiontSessionError(code, why, this.kb.id));
+    this.#said.say(
+      new SemiontSessionError(code, unforgotten === undefined ? why : notForgotten(why, unforgotten), this.kb.id),
+    );
+  }
+
+  /** Forget the kept sign-in, with what was kept for its person: what its storage said, when it could not. */
+  private forget(): string | undefined {
+    try {
+      this.kept.forget();
+      return undefined;
+    } catch (failure) {
+      return failure instanceof Error ? failure.message : String(failure);
+    }
   }
 
   /** Hold `token`: the transport sends it from now on, and a renewal is handed it. */

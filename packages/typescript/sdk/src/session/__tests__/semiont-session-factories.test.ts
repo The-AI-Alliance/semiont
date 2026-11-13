@@ -28,7 +28,7 @@ import { SemiontSession } from '../semiont-session';
 import { MemorySignIn } from '../sign-in-kept';
 import { cacheKey, getStoredSession, kbGatewayUrl, keptIn, lastEventIdKey, personKey, setStoredSession } from '../storage';
 import { fakeGateway, refuses, renews } from './fake-gateway';
-import { TestStorage, UNREADABLE, UnreadableSignIn, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
+import { RefusingStorage, TestStorage, UNREADABLE, UnreadableSignIn, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
   id: 'kb-factory',
@@ -221,35 +221,6 @@ const gatewayOr = (issuer: () => Response) => async (input: string | URL | Reque
 class UnrecordableSignIn extends MemorySignIn {
   override recordPersonKey(): boolean {
     throw new Error('the person could not be recorded on the kept sign-in');
-  }
-}
-
-/** What a `RefusingStorage` says of each write it refuses. */
-const REFUSED = 'the storage is full';
-
-/** A storage that refuses each write under `key` while `refusing` is set, and counts the writes it refused. */
-class RefusingStorage extends TestStorage {
-  refusing = false;
-  refusals = 0;
-
-  constructor(private readonly key: string) {
-    super();
-  }
-
-  override set(key: string, value: string): void {
-    this.refuse(key);
-    super.set(key, value);
-  }
-
-  override update(key: string, change: (stored: string | null) => string | null): void {
-    this.refuse(key);
-    super.update(key, change);
-  }
-
-  private refuse(key: string): void {
-    if (!this.refusing || key !== this.key) return;
-    this.refusals += 1;
-    throw new Error(REFUSED);
   }
 }
 
@@ -582,7 +553,9 @@ describe('SemiontSession.fromKept', () => {
 
   test("over a storage, a write the storage refuses says one session.save-refused on the session's errors, with what the storage said, and the save stays owed: the closing makes it", async () => {
     const person = personKey(JO.did);
-    const refusing = new RefusingStorage(cacheKey(KB.id, person, 'resource'));
+    const resource = cacheKey(KB.id, person, 'resource');
+    let refuses = false;
+    const refusing = new RefusingStorage((key) => refuses && key === resource);
     const kept = new MemorySignIn({ ...testSession(freshJwt(), 'refresh-tok'), personKey: person });
     const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: renews, resourceName: 'kept' });
     const opened = await SemiontSession.fromKept({ kb: KB, kept, storage: refusing, fetch: gateway.fetch });
@@ -590,14 +563,14 @@ describe('SemiontSession.fromKept', () => {
     const words: string[] = [];
     opened.session.errors$.subscribe((error) => words.push(error.message));
     try {
-      refusing.refusing = true;
+      refuses = true;
       expect(await nameOf(opened.session, 'res-1')).toBe('kept');
       // Its save, past the debounce, is refused, and said as it is.
       await vi.waitFor(() => expect(refusing.refusals).toBe(1));
       expect(said).toEqual(['session.save-refused']);
-      expect(words[0]).toContain(REFUSED);
+      expect(words[0]).toContain(`refused: ${resource}`);
       // The storage takes writes again, and nothing has asked for one since.
-      refusing.refusing = false;
+      refuses = false;
     } finally {
       opened.dispose();
       gateway.close();
@@ -605,19 +578,21 @@ describe('SemiontSession.fromKept', () => {
 
     // The save was still owed, and the closing made it.
     expect(refusing.refusals).toBe(1);
-    expect(refusing.get(cacheKey(KB.id, person, 'resource'))).not.toBeNull();
+    expect(refusing.get(resource)).not.toBeNull();
     expect(said).toEqual(['session.save-refused', ENDED]);
   });
 
   test("over a storage, a closing write the storage still refuses says one more session.save-refused on the session's errors, and the stream then ends", async () => {
     const person = personKey(JO.did);
-    const refusing = new RefusingStorage(cacheKey(KB.id, person, 'resource'));
+    const resource = cacheKey(KB.id, person, 'resource');
+    let refuses = false;
+    const refusing = new RefusingStorage((key) => refuses && key === resource);
     const kept = new MemorySignIn({ ...testSession(freshJwt(), 'refresh-tok'), personKey: person });
     const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: renews, resourceName: 'kept' });
     const opened = await SemiontSession.fromKept({ kb: KB, kept, storage: refusing, fetch: gateway.fetch });
     const said = saidBy(opened.session);
     try {
-      refusing.refusing = true;
+      refuses = true;
       expect(await nameOf(opened.session, 'res-1')).toBe('kept');
       await vi.waitFor(() => expect(refusing.refusals).toBe(1));
       expect(said).toEqual(['session.save-refused']);
@@ -629,7 +604,7 @@ describe('SemiontSession.fromKept', () => {
 
     // What the closing could not write is lost.
     expect(refusing.refusals).toBe(2);
-    expect(refusing.get(cacheKey(KB.id, person, 'resource'))).toBeNull();
+    expect(refusing.get(resource)).toBeNull();
     expect(said).toEqual(['session.save-refused', 'session.save-refused', ENDED]);
   });
 

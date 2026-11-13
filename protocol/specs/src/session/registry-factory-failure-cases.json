@@ -1,0 +1,25 @@
+{
+  "$comment": "AUTHORITY for what a registry of knowledge bases (client/surface.json's registry module) says when the factory it asks for a session fails with something that is not one of the session's own errors: a failure of its transport, say, met as it builds the session. It says it on its errors as `session.construct-failed`, with the failure's message as it is and nothing put before it, and then no session is active, as protocol/specs/src/session/registry-activation-cases.json's `refused` reads it. An SDK whose factory's type admits only the session's own errors has no such failure to say. READING A ROW. No session being active, the registry activates a registered knowledge base with a kept sign-in, over a factory that fails with `failure`: a failure of its transport, by its code in errors/codes.json's transport group, with that message. `registryErrors` is what is said on the registry's errors once the activation has returned, in order, each by its code and its message.",
+  "runBy": {
+    "typescript": ["packages/typescript/sdk/src/session/__tests__/registry-activation-cases.test.ts"]
+  },
+  "absent": {
+    "rust": "its factory's type (src/session/factory.rs) admits only one of the session's own errors, so it cannot fail otherwise",
+    "ocaml": "its factory's type (lib/registry.mli) admits only one of the session's own errors, so it cannot fail otherwise"
+  },
+  "notYetReached": {
+    "python": "a runner beside its registry-activation runner; its registry says a transport failure as construct-failed with its message today",
+    "go": "a runner beside its registry-activation runner; its registry says a transport failure as construct-failed with its message today",
+    "kotlin": "a runner beside its registry-activation runner; its registry says a transport failure as construct-failed with its message today",
+    "swift": "a runner beside its registry-activation runner; the message said as it is, where its registry says String(describing:)",
+    "csharp": "a runner beside its registry-activation runner; the message said as it is, where its registry says \"Could not open {label}.\"",
+    "haskell": "a runner beside its registry-activation runner; the message said as it is, where its registry says a fixed message"
+  },
+  "cases": [
+    {
+      "why": "a factory that fails as its transport fails is said as one that could not construct the session, with the transport's message as it is",
+      "failure": { "transport": "unavailable", "message": "the gateway cannot be reached" },
+      "registryErrors": [{ "code": "session.construct-failed", "message": "the gateway cannot be reached" }]
+    }
+  ]
+}

@@ -1105,15 +1105,17 @@ describe('SemiontBrowser — a write the storage refuses', () => {
   const settled = () => new Promise((r) => setTimeout(r, 0));
 
   it('raises from the constructor when what it read cannot be kept', () => {
-    const refusing = new RefusingStorage();
+    let refuses = false;
+    const refusing = new RefusingStorage(() => refuses);
     refusing.set(STORAGE_KEY, JSON.stringify([KB_A]));
-    refusing.refusing = true;
+    refuses = true;
 
     expect(() => makeBrowser(refusing)).toThrow('refused');
   });
 
   it('raises from dispose what the checks of what is open could not write', async () => {
-    const refusing = new RefusingStorage();
+    let refuses = false;
+    const refusing = new RefusingStorage(() => refuses);
     seedStoredSession(refusing, KB_A.id, freshJwt(), 'r');
     refusing.set(STORAGE_KEY, JSON.stringify([KB_A]));
     refusing.set(ACTIVE_KEY, KB_A.id);
@@ -1127,7 +1129,7 @@ describe('SemiontBrowser — a write the storage refuses', () => {
 
     const browser = makeBrowser(refusing);
     await liveSession(browser);
-    refusing.refusing = true;
+    refuses = true;
     release();
     await settled();
 
