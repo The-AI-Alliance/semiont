@@ -760,8 +760,14 @@ async def pick_up_where_i_was(storage: SessionStorage, sessions: SessionFactory)
 ```
 
 - **One session is live at a time.** `set_active_kb` closes the active one's
-  session and brings up the next: its readers see no session, then the new
-  one. `session_activating` says a session is on its way. A session is built
+  session, its errors read to their end, and then brings up the next: its
+  readers see no session, then the new one. `session_activating` says a
+  session is on its way. A session's readiness never fails, so the factory's
+  refusal is the one way an activation fails: one of the session's own errors
+  is said on `browser.errors()` as it is, any other `SemiontError` as
+  `session.construct-failed` with its message, and no session is then active.
+  Once the registry's close has begun, `set_active_kb` raises
+  `BusRequestError` (`bus.closed`), before anything else. A session is built
   by the `SessionFactory` the registry is given;
   `semiont.http.session.HttpSessionFactory` builds one over a knowledge base's
   gateway, renewing its token at the issuer its stored sign-in names, and

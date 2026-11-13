@@ -20,7 +20,7 @@ from tokens import expired, jwt, token
 
 from semiont.errors import BusRequestError, SemiontError, SessionError, SignInError, TransportError
 from semiont.events import Broadcast, Events
-from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
+from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, SignInKept, Validate
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
 from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT, MAX_RECONNECT_MS, RECONNECT_MS
@@ -54,12 +54,47 @@ def held(access: str) -> HeldSignIn:
     return HeldSignIn(access=access, refresh="a-refresh-token", client_id="semiont-cli", token_endpoint="https://issuer.test/token")
 
 
+UNFORGETTABLE: Final = "the kept sign-in could not be forgotten"
+"""What forgetting an `Unforgettable` raises."""
+
+
+@final
+class Unforgettable(SignInKept):
+    """A sign-in kept in memory that cannot be forgotten, as a store whose delete fails: `forget` raises."""
+
+    def __init__(self, sign_in: HeldSignIn | None) -> None:
+        self._kept: Final = MemorySignIn(sign_in)
+
+    @override
+    async def held(self) -> HeldSignIn | None:
+        return await self._kept.held()
+
+    @override
+    async def keep(self, sign_in: HeldSignIn) -> None:
+        await self._kept.keep(sign_in)
+
+    @override
+    async def renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:
+        return await self._kept.renewed(read, access, refresh)
+
+    @override
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        return await self._kept.record_person_key(access, person_key)
+
+    @override
+    async def forget(self) -> None:
+        raise OSError(UNFORGETTABLE)
+
+
 @final
 class World:
     """A session's surroundings, and a record of what the session did to them."""
 
-    def __init__(self, *, kept: str | None = None, renewals: Sequence[Renewal] = (), validations: Sequence[Validation] = ()) -> None:
-        self.kept = MemorySignIn(None if kept is None else held(kept))
+    def __init__(
+        self, *, kept: str | None = None, renewals: Sequence[Renewal] = (), validations: Sequence[Validation] = (), forgets: bool = True
+    ) -> None:
+        sign_in = None if kept is None else held(kept)
+        self.kept: Final[SignInKept] = MemorySignIn(sign_in) if forgets else Unforgettable(sign_in)
         self.token = Variable[str | None](None)
         self.renewals = deque(renewals)
         """What `refresh` answers, in order; nothing once it is spent."""
@@ -572,6 +607,46 @@ def test_an_expired_token_the_issuer_will_not_renew_is_forgotten_and_the_session
     run(scenario(None))
     run(scenario(refused_by_the_issuer()))
     run(scenario(SignInError("exchange", "The issuer refused the token request (HTTP 200)", status=200)))
+
+
+# A session's readiness never fails: a kept sign-in that cannot be forgotten
+# is said once, with why it had to be and what its storage said, and the
+# session is then ready.
+
+
+def unforgotten(why: str) -> str:
+    """Why the session failed, then why its kept sign-in could not be forgotten."""
+    return f"{why}; and the sign-in could not be forgotten: {UNFORGETTABLE}"
+
+
+def test_an_expired_token_the_issuer_will_not_renew_and_that_cannot_be_forgotten_is_said_as_refresh_exhausted() -> None:
+    world = World(kept=expired(), renewals=[refused_by_the_issuer()], forgets=False)
+
+    async def scenario() -> None:
+        async with world.its_session() as session:
+            await soon(session.ready())
+            not_renewed = f"Token refresh failed: {refused_by_the_issuer().message}"
+            assert await world.said() == [("session.refresh-exhausted", unforgotten(not_renewed))]
+            # There was no session to end: nobody is told it ended.
+            assert world.told == []
+            assert session.token.value is None
+
+    run(scenario())
+
+
+def test_a_token_its_issuer_just_issued_the_gateway_refuses_that_cannot_be_forgotten_is_said_as_the_ending() -> None:
+    world = World(kept=token(3600, 0), renewals=[token(3600, 1)], validations=[unauthorized(), unauthorized()], forgets=False)
+
+    async def scenario() -> None:
+        async with world.its_session() as session:
+            await soon(session.ready())
+            assert world.renewed == 1
+            ending = "The gateway refused a token its issuer had just issued"
+            assert await world.said() == [("session.credential-refused", unforgotten(ending))]
+            assert world.told == ["refused"]
+            assert session.token.value is None
+
+    run(scenario())
 
 
 def test_an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a_request_is_refused() -> None:

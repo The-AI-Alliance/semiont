@@ -1,4 +1,4 @@
-"""Storages a test gives what a client keeps, beyond the one in memory: one that refuses writes."""
+"""Storages a test gives what a client keeps, beyond the one in memory: ones that refuse writes."""
 
 from collections.abc import Callable
 from typing import Final, final, override
@@ -28,6 +28,44 @@ class Refusing(SessionStorage):
     def set(self, key: str, value: str) -> None:
         if key == self._refused and (self._times is None or self.refusals < self._times):
             self.refusals += 1
+            raise OSError("the storage is full")
+        self._held.set(key, value)
+
+    @override
+    def delete(self, key: str) -> None:
+        self._held.delete(key)
+
+    @override
+    def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
+        after = change(self.get(key))
+        if after is None:
+            self.delete(key)
+        else:
+            self.set(key, after)
+
+    @override
+    def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
+        return None
+
+
+@final
+class Telling(SessionStorage):
+    """A storage in memory that tells `on_write` the key of each write before it makes it.
+
+    It refuses the write, as a full one would, when `on_write` says to.
+    """
+
+    def __init__(self, on_write: Callable[[str], bool]) -> None:
+        self._held: Final = MemoryStorage()
+        self._on_write: Final = on_write
+
+    @override
+    def get(self, key: str) -> str | None:
+        return self._held.get(key)
+
+    @override
+    def set(self, key: str, value: str) -> None:
+        if self._on_write(key):
             raise OSError("the storage is full")
         self._held.set(key, value)
 

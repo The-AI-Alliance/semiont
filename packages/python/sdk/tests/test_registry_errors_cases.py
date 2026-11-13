@@ -22,9 +22,20 @@ from typing import Final, Literal, final, override
 import pytest
 from aio import Heard, run, run_still, soon
 from gateway_server import GatewayServer
-from issuer import ALICE, TOKEN, trusting
+from issuer import TOKEN, trusting
 from pydantic import BaseModel, Field
-from spec import SPEC, JsonObject, read, text
+from registry_runners import (
+    ALICE_KEY,
+    KB_A,
+    UNREACHED_ISSUER,
+    active_session,
+    answering_entity_types,
+    holding_signed_in,
+    ready_owing,
+    registered,
+    unreached,
+)
+from spec import SPEC, read
 from storages import Refusing
 from tokens import token
 
@@ -33,23 +44,14 @@ from semiont.error_codes import SemiontSessionErrorCode, TransportErrorCode
 from semiont.errors import SessionError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.http.session import HttpSessionFactory
-from semiont.registry import (
-    SemiontBrowser,
-    SemiontBrowserConfig,
-    SessionFactory,
-    SessionFactoryOptions,
-    kept_in,
-    save_knowledge_bases,
-    store_session,
-)
+from semiont.registry import SemiontBrowser, SemiontBrowserConfig, SessionFactory, SessionFactoryOptions, kept_in
 from semiont.session import SemiontSession
 from semiont.session_signals import PermissionDenied
-from semiont.storage import MemoryStorage, SessionStorage
-from semiont.stored import StoredSession, cache_key, person_key
+from semiont.storage import MemoryStorage
+from semiont.stored import StoredSession, cache_key
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.timing import ERRORS_KEPT_FOR_FIRST_READER_COUNT
-from semiont.transport import Transport
-from semiont.types import HttpEndpoint, KbTarget, KnowledgeBase
+from semiont.types import KbTarget
 from semiont.watched import Variable, reached
 
 
@@ -84,45 +86,18 @@ class Table(BaseModel, frozen=True):
 STATED: Final = read(SPEC / "session/registry-errors-cases.json")
 TABLE: Final = Table.model_validate(STATED)
 
-KB: Final = "kb-a"
-ALICE_KEY: Final = person_key(text(ALICE["did"], "Alice's did"))
-"""The key of the person the scripted gateway names for every token: what the client keeps hers under."""
-
 
 def test_every_section_of_the_table_is_run_here() -> None:
     assert {section for section, rows in STATED.items() if isinstance(rows, list)} == {"cases", "closing"}
 
 
-def signed_in(token_endpoint: str) -> StoredSession:
-    """A stored sign-in whose token is good for an hour, naming nobody until a gateway names them."""
-    return StoredSession(access=token(3600, 1), refresh="refresh-1", client_id="semiont-browser", token_endpoint=token_endpoint)
-
-
-def holding_signed_in(storage: SessionStorage, kb: KnowledgeBase, token_endpoint: str) -> SessionStorage:
-    """`storage`, holding `kb` alone, signed in: the knowledge base a registry over it makes active."""
-    save_knowledge_bases(storage, [kb])
-    store_session(storage, kb.id, signed_in(token_endpoint))
-    return storage
-
-
-async def active_session(browser: SemiontBrowser) -> SemiontSession[Transport]:
-    session = await soon(reached(browser.active_session, lambda session: session is not None), within=10)
-    assert session is not None
-    return session
-
-
 # ── cases ───────────────────────────────────────────────────────────────
-
-
-def scripted_kb() -> KnowledgeBase:
-    endpoint = HttpEndpoint(kind="http", host="localhost", port=4000, protocol="http")
-    return KnowledgeBase(id=KB, label="KB A", did="did:web:example.org:kb-a", endpoint=endpoint)
 
 
 def utterance(said: Own | Failure) -> SessionError | TransportError:
     """What a case's session says: one of its own errors, or a failure of its transport with the case's code and message."""
     if isinstance(said, Own):
-        return SessionError(said.own, "the session's own error, as the case says", kb_id=KB)
+        return SessionError(said.own, "the session's own error, as the case says", kb_id=KB_A)
     return TransportError(said.transport, said.message)
 
 
@@ -209,7 +184,7 @@ def test_a_registry_reads_what_its_session_says_as_the_table_states(case: Case) 
         said = [utterance(each) for each in case.said]
         last = said[-1]
         factory = Scripted(said if case.while_ == "opening" else [])
-        storage = holding_signed_in(MemoryStorage(), scripted_kb(), "https://issuer.test/token")
+        storage = holding_signed_in(MemoryStorage(), [unreached(KB_A, "KB A")], UNREACHED_ISSUER)
         browser = SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=factory))
         # Heard from before the registry is held: everything it says is heard.
         heard = Heard(browser.errors())
@@ -259,13 +234,13 @@ async def speaking_once_read(browser: SemiontBrowser, factory: Scripted, said: S
 def test_the_first_reader_of_a_registrys_errors_is_given_the_latest_said_before_it_came_in_order_and_no_more() -> None:
     beyond = 3
     said = [
-        SessionError("session.save-refused", f"write {serial} refused", kb_id=KB)
+        SessionError("session.save-refused", f"write {serial} refused", kb_id=KB_A)
         for serial in range(ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond)
     ]
 
     async def scenario() -> None:
         factory = Scripted([])
-        storage = holding_signed_in(MemoryStorage(), scripted_kb(), "https://issuer.test/token")
+        storage = holding_signed_in(MemoryStorage(), [unreached(KB_A, "KB A")], UNREACHED_ISSUER)
         async with SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=factory)) as browser:
             await speaking_once_read(browser, factory, said)
             errors = browser.errors()
@@ -278,33 +253,16 @@ def test_the_first_reader_of_a_registrys_errors_is_given_the_latest_said_before_
 def test_a_registry_drops_what_it_kept_for_a_first_reader_as_it_closes_so_a_reader_who_comes_after_hears_nothing() -> None:
     async def scenario() -> None:
         factory = Scripted([])
-        storage = holding_signed_in(MemoryStorage(), scripted_kb(), "https://issuer.test/token")
+        storage = holding_signed_in(MemoryStorage(), [unreached(KB_A, "KB A")], UNREACHED_ISSUER)
         browser = SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=factory))
         async with browser:
-            await speaking_once_read(browser, factory, [SessionError("session.save-refused", "said before anyone read", kb_id=KB)])
+            await speaking_once_read(browser, factory, [SessionError("session.save-refused", "said before anyone read", kb_id=KB_A)])
         assert [error async for error in browser.errors()] == []
 
     run(scenario())
 
 
 # ── closing ─────────────────────────────────────────────────────────────
-
-
-def answering_entity_types(gateway: GatewayServer) -> None:
-    """Have the gateway answer a read of the entity types, which the client keeps."""
-
-    def answer(emit: JsonObject) -> None:
-        if emit["channel"] == "browse:entity-types-requested":
-            said: JsonObject = {"response": {"entityTypes": ["Person", "Place"]}}
-            gateway.send(None, {"channel": "browse:entity-types-result", "payload": said, "correlationId": emit["correlationId"]})
-
-    gateway.on_emit = answer
-
-
-def registered(gateway: GatewayServer) -> KnowledgeBase:
-    endpoint = gateway.target(KB).endpoint
-    assert isinstance(endpoint, HttpEndpoint)
-    return KnowledgeBase(id=KB, label="KB A", did="did:web:example.org:kb-a", endpoint=endpoint)
 
 
 async def every_code(errors: Events[SessionError]) -> list[SemiontSessionErrorCode]:
@@ -319,18 +277,11 @@ def test_a_registrys_close_reads_its_sessions_errors_to_their_end_as_the_table_s
             trusting(gateway)
             answering_entity_types(gateway)
             # Every write of what the client keeps of the entity types is refused; the registry's own writes are taken.
-            refusing = Refusing(cache_key(KB, ALICE_KEY, "entityTypes"), times=None)
-            storage = holding_signed_in(refusing, registered(gateway), f"{gateway.origin}{TOKEN}")
+            refusing = Refusing(cache_key(KB_A, ALICE_KEY, "entityTypes"), times=None)
+            storage = holding_signed_in(refusing, [registered(gateway, KB_A, "KB A")], f"{gateway.origin}{TOKEN}")
             browser = SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=HttpSessionFactory()))
             async with browser:
-                session = await active_session(browser)
-                # Ready once the gateway has named the person: what the client holds is kept for her from then on.
-                await soon(session.ready())
-                client = session.client
-                if case.owed:
-                    # The entity types the client now holds owe a save, whose debounce the still clock never ends.
-                    await soon(client.browse.entity_types().fresh())
-                assert client.persistence_settled is not case.owed
+                await ready_owing(await active_session(browser), a_save=case.owed)
                 from_close = browser.errors()
             assert await soon(every_code(from_close)) == case.registry_errors
 
