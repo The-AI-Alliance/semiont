@@ -313,7 +313,12 @@ let factory script (options : Registry.session_factory_options) =
   let id = (Records.Knowledge_base.of_model options.kb).id in
   match Option.bind (Hashtbl.find_opt script.builds id) Queue.take_opt with
   | Some build -> build options
-  | None -> Error ("unscripted session " ^ id)
+  | None ->
+      Error
+        {
+          Client.code = Error_codes.Session.construct_failed;
+          message = "unscripted session " ^ id;
+        }
 
 let queue_renewal script renewal = Queue.add renewal script.grants
 

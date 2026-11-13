@@ -64,7 +64,7 @@ type session_factory_options = {
 
 type session_factory =
   session_factory_options ->
-  (State_units.Session.t * connection_identity, string) result
+  (State_units.Session.t * connection_identity, Client.session_error) result
 
 type semiont_browser_config = {
   storage : storage;
@@ -85,13 +85,14 @@ type semiont_browser = {
   said : Client.session_error Kept_for_first_reader.t;
   mutable connected : connection option;
   mutable generation : unit ref;
-  mutable closed : bool;
+  closed : bool Atomic.t;
 }
 
 type activation_error =
   | Unavailable of string
   | Identity_conflict of string
   | Superseded
+  | Closed
 
 let knowledge_bases_key = Registry_facts.knowledge_bases_key
 let active_key = Registry_facts.active_key
@@ -228,7 +229,7 @@ let new_semiont_browser ?storage config =
     said = Kept_for_first_reader.make ();
     connected = None;
     generation = ref ();
-    closed = false;
+    closed = Atomic.make false;
   }
 
 let knowledge_bases browser = load_knowledge_bases browser.config.storage
@@ -271,12 +272,15 @@ let disconnect browser =
   browser.connected <- None;
   Option.iter finish connected
 
+(* Closed before the lock is taken: the lock is held across the closing flush,
+   and an activation begun from within it, or while it is under way, is refused
+   without waiting for it. *)
 let close browser =
-  locked browser (fun () ->
-      browser.closed <- true;
-      browser.generation <- ref ();
-      disconnect browser);
-  Kept_for_first_reader.close browser.said
+  if not (Atomic.exchange browser.closed true) then (
+    locked browser (fun () ->
+        browser.generation <- ref ();
+        disconnect browser);
+    Kept_for_first_reader.close browser.said)
 
 let id kb = (Records.Knowledge_base.of_model kb).id
 let did kb = (Records.Knowledge_base.of_model kb).did
@@ -383,35 +387,38 @@ let record_sign_in browser (signed : signed_in) =
           in
           Ok { kb; expected })
 
+(* A close begun before the activation is taken refuses it; one begun as the
+   previous session ends overtakes it, before the factory is asked. *)
 let activate browser key =
-  let begun =
+  let storage = browser.config.storage in
+  let take () =
     locked browser (fun () ->
-        if browser.closed then None
+        if Atomic.get browser.closed then None
         else
           let generation = ref () in
           browser.generation <- generation;
-          Some (generation, active_id browser))
+          storage.write active_key key;
+          disconnect browser;
+          Some generation)
   in
-  match begun with
-  | None -> Error Superseded
-  | Some (generation, before) -> (
+  match if Atomic.get browser.closed then None else take () with
+  | None -> Error Closed
+  | Some _ when Atomic.get browser.closed -> Error Superseded
+  | Some generation -> (
       match List.find_opt (fun kb -> id kb = key) (knowledge_bases browser) with
       | None -> Error (Unavailable "kb.not-found")
       | Some kb -> (
-          let storage = browser.config.storage in
           let signals = State_units.Session_signals.make () in
           match browser.config.factory { kb; storage; signals } with
-          | Error code ->
+          | exception failure ->
+              let backtrace = Printexc.get_raw_backtrace () in
               State_units.Session_signals.dispose signals;
-              if not (locked browser (fun () -> browser.closed)) then
-                Kept_for_first_reader.say browser.said
-                  {
-                    Client.code = Error_codes.Session.construct_failed;
-                    message =
-                      "Could not construct the knowledge base's session: "
-                      ^ code;
-                  };
-              Error (Unavailable code)
+              Printexc.raise_with_backtrace failure backtrace
+          | Error refusal ->
+              State_units.Session_signals.dispose signals;
+              if not (Atomic.get browser.closed) then
+                Kept_for_first_reader.say browser.said refusal;
+              Error (Unavailable refusal.Client.code)
           | Ok (session, identity) ->
               let connection = { session; signals } in
               read browser connection;
@@ -421,7 +428,7 @@ let activate browser key =
                     Error (Identity_conflict identity.did))
                   else if
                     browser.generation != generation
-                    || active_id browser <> before
+                    || active_id browser <> Some key
                     || not
                          (List.exists
                             (fun current ->
@@ -433,9 +440,7 @@ let activate browser key =
                     finish connection;
                     Error Superseded)
                   else (
-                    disconnect browser;
                     browser.connected <- Some connection;
-                    storage.write active_key key;
                     Ok session))))
 
 let session_status browser key =
@@ -467,7 +472,11 @@ let http_session_factory connect options =
           Fun.protect
             ~finally:(fun () -> State_units.Session.dispose session)
             (fun () -> Client.close client);
-          Error code)
+          Error
+            {
+              Client.code = Error_codes.Session.construct_failed;
+              message = "The knowledge base did not say who it is: " ^ code;
+            })
 
 let by_kb browser key =
   let storage = browser.config.storage in

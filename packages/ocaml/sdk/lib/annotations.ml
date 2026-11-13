@@ -84,17 +84,7 @@ type quoted_text = {
 
 type text_span = { start : int; end_ : int; quote : quoted_text }
 type spanned = Text of string | Pdf of [ `AnchoredText ] Models.t
-
-type span_refusal =
-  | Span_out_of_range
-  | Item_out_of_range
-  | Exact_mismatch
-  | Nothing_located
-  | Exact_not_covered
-  | Prefix_mismatch
-  | Suffix_mismatch
-
-type span_refused_error = { code : span_refusal }
+type span_refused_error = { code : Error_codes.Span_refusal.t }
 
 exception Span_refused of span_refused_error
 

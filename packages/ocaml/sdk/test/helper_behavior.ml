@@ -305,17 +305,8 @@ let builder row =
         (`Assoc (List.remove_assoc "created" fields))
   | Error _ -> Alcotest.fail "builder produced an invalid annotation"
   | exception A.Span_refused { code } ->
-      let code =
-        match code with
-        | A.Span_out_of_range -> "span-out-of-range"
-        | Item_out_of_range -> "item-out-of-range"
-        | Exact_mismatch -> "exact-mismatch"
-        | Nothing_located -> "nothing-located"
-        | Exact_not_covered -> "exact-not-covered"
-        | Prefix_mismatch -> "prefix-mismatch"
-        | Suffix_mismatch -> "suffix-mismatch"
-      in
-      check "refusal" (field "refused" row) (text code)
+      check "refusal" (field "refused" row)
+        (text (Error_codes.Span_refusal.to_string code))
 
 (* Shared Unicode anchors from annotations/reconcile-cases.json. *)
 let reconcile row =

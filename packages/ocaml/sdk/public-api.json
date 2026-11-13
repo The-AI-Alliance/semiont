@@ -113,8 +113,8 @@
     "lib/agent.ml": "ea862f715d110e68aaacfdc01efb1cc2a198cfc71d5606565c06a36a4308bfc5",
     "lib/agent.mli": "194b536a8f4dee477d1c4ec06dfe091ea256c417fa8a979e11dee640393895ee",
     "lib/annotation_id.ml": "5b737d261c35db2e649bc00f2ece7cda103e8c08d677be4483171ac9f8453951",
-    "lib/annotations.ml": "2050f1e9724d70ba4ebd0954b2c84eb44e539a5026b92562de4222e4cf1064ab",
-    "lib/annotations.mli": "e88dfe166745d06335cf7418a69984e190f399120a9c820c9846ff8a7dc9ebbc",
+    "lib/annotations.ml": "55a3d65dfa1fd4294fd4dd8aca28578e06e55a758d00a2cf5d0a302bb0eda849",
+    "lib/annotations.mli": "5a70e3bc3c0145e840a429daa6626264ca5cca323db7284b6b16db0a2a3b55d4",
     "lib/assertion_facts.ml": "b854fcbb9586444c86d24d387b8cd9eabf539b83af9b19307163617730968536",
     "lib/auth.ml": "95cbd3eef3820adfbff02c0ace52d195c7fd35022c2a2a7c6a49d7402880e4f2",
     "lib/beckon_state.ml": "3b37bcacd3c2fc058e2040672ffa1e5e5a456d2bb7e061559df3107cfe180b2b",
@@ -147,7 +147,7 @@
     "lib/encoding_facts.ml": "8d971c2160eea6fe4fbc60d553d2479917de25ffb9e4c7be3dac16dbba78a021",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
-    "lib/error_codes.ml": "b0b9579c9c916c33dd6dc3bb6cd28282b3bbbb37c064ce9fe72732d87fe7bb88",
+    "lib/error_codes.ml": "9390070862dff1bfda0f494894db51a10b835c3e15aa6599e4ebd9cb292c47dd",
     "lib/frame.ml": "6e0ba59a959758ccdc672cec1d8d802be2f882a5d1354ded4e5ab21398716d54",
     "lib/gather.ml": "c1b78c87f2e5c35a9636e61aa0ca9b1477a41341f38acda6ff396cb380b3d3b7",
     "lib/gather_state.ml": "a05e57b36c0b128cb30f94f70432582326b186f8cebb3e52de37de585f0f3954",
@@ -193,8 +193,8 @@
     "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
     "lib/redirect_sign_in.ml": "0d4bab713f5a86ddd705b15dca1aa01919702bfc5484469d104c9a1776d723fd",
     "lib/refusals.ml": "53b42a4d41b53e88968f5010a843038ffa0ddbcd842f390ce88acba818ad15d1",
-    "lib/registry.ml": "cf34c71c8302f23bd9102bb9d2fe54313d4ed82bc9b6034522467100fe6691c1",
-    "lib/registry.mli": "5915d907ef47d923bf1d41b658a14bf29e10fd3da590bcccba0514a0b7a9b81f",
+    "lib/registry.ml": "79623fc239f9ca75cc625f370a74b0c7deff7dca1d40807a11a3c88ba31a14b5",
+    "lib/registry.mli": "fb207e6af427661260b5093ce73462f77a1a8e5a571b8fdbe2e8d8947995ee56",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/resources.ml": "99f49caf9937bf6754e62b0011196873fdfbc1488ed90817a49fcd292d6a9fd4",
     "lib/resources.mli": "681c8d831db9af64fc28b7b91b6e913bf992f99529f2a3edb7f0d16121b10bf2",
@@ -241,7 +241,7 @@
     "lib/telemetry.ml": "d3e6ba70a0b5a00eb4733a8fc973c1c3b98ea5d07661da3297f2d71ee77da306",
     "lib/telemetry.mli": "6968385e5ecbd2db1b9003eb403766c066975b0ff116e9d81da367ec87b4137f",
     "lib/telemetry_facts.ml": "8b2c6d1ee7d75fc70b98cd0668d902fab6bf6463a302cbc8411cb6cc565cd484",
-    "lib/testing.ml": "a4f28fba70ffba2a0a0f8844e72367ab4fd06a5e3260bd6140a4ea47cba29049",
+    "lib/testing.ml": "bdc09f507ac3c868222707a6777308dd8907090cce87463d921f8f7c26c2455e",
     "lib/testing.mli": "237bd3501f8d626c1048c23e024e513f87203449d6e9ad3a98e9300aa7b3c73a",
     "lib/testing_facts.ml": "16282c5960b3a3953769beaca6d31f0cb7aef707b12d6eb68d610a87f77e60af",
     "lib/text_encoding.ml": "905bc2c16c4fc1416236a3e2751e5d61627d6dddf431941e36e8f233f5589dad",
@@ -12658,6 +12658,68 @@
     },
     {
       "kind": "module",
+      "path": "Semiont.Error_codes.Span_refusal",
+      "declaration": "module Span_refusal :\n  sig\n    type t =\n        Span_out_of_range\n      | Exact_mismatch\n      | Prefix_mismatch\n      | Suffix_mismatch\n      | Nothing_located\n      | Exact_not_covered\n      | Item_out_of_range\n    val to_string : t -> string\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Error_codes.Span_refusal.t",
+      "declaration": "type t =\n    Span_out_of_range\n  | Exact_mismatch\n  | Prefix_mismatch\n  | Suffix_mismatch\n  | Nothing_located\n  | Exact_not_covered\n  | Item_out_of_range",
+      "representation": "variant",
+      "constructors": [
+        "Span_out_of_range",
+        "Exact_mismatch",
+        "Prefix_mismatch",
+        "Suffix_mismatch",
+        "Nothing_located",
+        "Exact_not_covered",
+        "Item_out_of_range"
+      ],
+      "variants": [
+        {
+          "name": "Span_out_of_range",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Exact_mismatch",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Prefix_mismatch",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Suffix_mismatch",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Nothing_located",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Exact_not_covered",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Item_out_of_range",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Span_refusal.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "module",
       "path": "Semiont.Telemetry",
       "declaration": "module Telemetry = Semiont__.Telemetry",
       "alias": "Semiont__.Telemetry"
@@ -18058,7 +18120,7 @@
     {
       "kind": "type",
       "path": "Semiont.Registry.session_factory",
-      "declaration": "type session_factory =\n    session_factory_options ->\n    (Semiont__.State_units.Session.t * connection_identity, string) result",
+      "declaration": "type session_factory =\n    session_factory_options ->\n    (Semiont__.State_units.Session.t * connection_identity,\n     Semiont__.Client.session_error)\n    result",
       "representation": "abstract"
     },
     {
@@ -18082,12 +18144,13 @@
     {
       "kind": "type",
       "path": "Semiont.Registry.activation_error",
-      "declaration": "type activation_error =\n    Unavailable of string\n  | Identity_conflict of string\n  | Superseded",
+      "declaration": "type activation_error =\n    Unavailable of string\n  | Identity_conflict of string\n  | Superseded\n  | Closed",
       "representation": "variant",
       "constructors": [
         "Unavailable",
         "Identity_conflict",
-        "Superseded"
+        "Superseded",
+        "Closed"
       ],
       "variants": [
         {
@@ -18102,6 +18165,11 @@
         },
         {
           "name": "Superseded",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Closed",
           "fields": [],
           "unit": true
         }
@@ -18170,7 +18238,7 @@
     {
       "kind": "value",
       "path": "Semiont.Registry.http_session_factory",
-      "declaration": "val http_session_factory :\n  (session_factory_options ->\n   (Semiont__.State_units.Session.t, string) result) ->\n  session_factory"
+      "declaration": "val http_session_factory :\n  (session_factory_options ->\n   (Semiont__.State_units.Session.t, Semiont__.Client.session_error) result) ->\n  session_factory"
     },
     {
       "kind": "value",
@@ -19370,60 +19438,8 @@
     },
     {
       "kind": "type",
-      "path": "Semiont.Annotations.span_refusal",
-      "declaration": "type span_refusal =\n    Span_out_of_range\n  | Item_out_of_range\n  | Exact_mismatch\n  | Nothing_located\n  | Exact_not_covered\n  | Prefix_mismatch\n  | Suffix_mismatch",
-      "representation": "variant",
-      "constructors": [
-        "Span_out_of_range",
-        "Item_out_of_range",
-        "Exact_mismatch",
-        "Nothing_located",
-        "Exact_not_covered",
-        "Prefix_mismatch",
-        "Suffix_mismatch"
-      ],
-      "variants": [
-        {
-          "name": "Span_out_of_range",
-          "fields": [],
-          "unit": true
-        },
-        {
-          "name": "Item_out_of_range",
-          "fields": [],
-          "unit": true
-        },
-        {
-          "name": "Exact_mismatch",
-          "fields": [],
-          "unit": true
-        },
-        {
-          "name": "Nothing_located",
-          "fields": [],
-          "unit": true
-        },
-        {
-          "name": "Exact_not_covered",
-          "fields": [],
-          "unit": true
-        },
-        {
-          "name": "Prefix_mismatch",
-          "fields": [],
-          "unit": true
-        },
-        {
-          "name": "Suffix_mismatch",
-          "fields": [],
-          "unit": true
-        }
-      ]
-    },
-    {
-      "kind": "type",
       "path": "Semiont.Annotations.span_refused_error",
-      "declaration": "type span_refused_error = { code : span_refusal; }",
+      "declaration": "type span_refused_error = { code : Semiont__.Error_codes.Span_refusal.t; }",
       "representation": "record",
       "fields": [
         "code"
