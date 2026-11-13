@@ -55,7 +55,7 @@ const routes = Object.entries(names).map(([name, id]) => {
   const { path, method } = operations.get(id);
   return `let ${name} = (${ocamlString(method.toUpperCase())}, ${ocamlString(path)})`;
 });
-const { busCodes, transportCodes, unclassified, busByWire, unrecognized, jobCodes, sessionCodes } = readErrorCodes(
+const { busCodes, transportCodes, unclassified, busByWire, unrecognized, jobCodes, sessionCodes, signInCodes, kbIdentityCodes } = readErrorCodes(
   resolve(specRoot, 'errors/codes.json'), resolve(specRoot, 'components/schemas/CommandError.json'),
   (message) => { throw new Error(`errors/codes.json: ${message}`); });
 const statusCode = transportCodes.flatMap(({ code, status, statusFrom }) =>
@@ -92,7 +92,8 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/http_facts.ml'),
 
 // Each vocabulary OCaml says a code of, a value per code named by its last segment (`bus.not-found` is
 // Bus_request.not_found).
-const vocabularies = [['Bus_request', busCodes], ['Transport', transportCodes], ['Job', jobCodes], ['Session', sessionCodes]];
+const vocabularies = [['Bus_request', busCodes], ['Transport', transportCodes], ['Job', jobCodes], ['Session', sessionCodes],
+  ['Sign_in', signInCodes], ['Kb_identity', kbIdentityCodes]];
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/error_codes.ml'),
   ['(* Generated from errors/codes.json. Do not edit. *)', '', '[@@@ocamlformat "disable"]', '',
     ...vocabularies.flatMap(([module, codes]) => {

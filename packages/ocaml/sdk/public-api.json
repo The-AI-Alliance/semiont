@@ -147,7 +147,7 @@
     "lib/encoding_facts.ml": "8d971c2160eea6fe4fbc60d553d2479917de25ffb9e4c7be3dac16dbba78a021",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
-    "lib/error_codes.ml": "0b680c28b357a9de6f5ea485640ccab02619f7c8250d4a079b1105472cb189ee",
+    "lib/error_codes.ml": "b0b9579c9c916c33dd6dc3bb6cd28282b3bbbb37c064ce9fe72732d87fe7bb88",
     "lib/frame.ml": "6e0ba59a959758ccdc672cec1d8d802be2f882a5d1354ded4e5ab21398716d54",
     "lib/gather.ml": "c1b78c87f2e5c35a9636e61aa0ca9b1477a41341f38acda6ff396cb380b3d3b7",
     "lib/gather_state.ml": "a05e57b36c0b128cb30f94f70432582326b186f8cebb3e52de37de585f0f3954",
@@ -185,15 +185,15 @@
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/namespace_methods.ml": "dee5b5a4d62715a03959d611d5d917fd4ccdef1bfe1022eb99711f78a898f8f0",
-    "lib/oauth.ml": "3e1c7f5ea7465ff24379a2ae1c3b548834657a1643e146f77c18731054ff9bb2",
-    "lib/oauth.mli": "74dce2642014e9de8ed38f09367c76c97e83362763305eed04c0faddb951ba07",
+    "lib/oauth.ml": "af2b6335bd8f21694a5a7c73678d157f78c09193df22da664bc7df7a3aeeb828",
+    "lib/oauth.mli": "942e051d9dc35e8e6eaec0e51b8eaf1f579ed1b7e14f1420e60ee4284abdd9b3",
     "lib/oauth_facts.ml": "78b55403643d7f11e4d0d999f2747bcf84b3a407eeb24594f9e795675d60fcca",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
     "lib/records.ml": "d56e56f74df74fb4f2986104326215acb1df06efb4053b5af7aa6f6cf07aca7c",
     "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
     "lib/redirect_sign_in.ml": "0d4bab713f5a86ddd705b15dca1aa01919702bfc5484469d104c9a1776d723fd",
     "lib/refusals.ml": "53b42a4d41b53e88968f5010a843038ffa0ddbcd842f390ce88acba818ad15d1",
-    "lib/registry.ml": "8fd2da843127b215b285b6d35ea271bd1e1a61e2a9b0c485a9e56e090f4da38f",
+    "lib/registry.ml": "cf34c71c8302f23bd9102bb9d2fe54313d4ed82bc9b6034522467100fe6691c1",
     "lib/registry.mli": "5915d907ef47d923bf1d41b658a14bf29e10fd3da590bcccba0514a0b7a9b81f",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/resources.ml": "99f49caf9937bf6754e62b0011196873fdfbc1488ed90817a49fcd292d6a9fd4",
@@ -211,7 +211,7 @@
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
     "lib/semiont.ml": "5905c4650d1fd442f290b0364072740595dcdc781c75b114f9ad0f9f92110bf6",
     "lib/semiont.mli": "eb59d8db1ded093762eedb4d4b1c8cfb3574b218d75918ef62f3f1cce4a7c221",
-    "lib/service_token.ml": "5869384fb25f8c9f9ca54fe5beb5dfa5da4b7546dc87930d9eb66d3247322ed2",
+    "lib/service_token.ml": "126e0a09134c3fb6bc932a0e9615d466133abd81b17474588661a4b5e2bda5fb",
     "lib/service_token.mli": "0b0f3278aa4e36179de32dd07002737067901c3ac9d8c24a0b9888241979f8e8",
     "lib/session.ml": "9c113a57dca817eda4ef9e843ee120bf8aa489bd7c541d11cbb14ed0f85af0cf",
     "lib/session.mli": "de5dbaf4f50a8e948c17af22ce15078074b6e570440459429ffbeee93fbe0ba7",
@@ -12598,6 +12598,66 @@
     },
     {
       "kind": "module",
+      "path": "Semiont.Error_codes.Sign_in",
+      "declaration": "module Sign_in :\n  sig\n    val no_issuer : string\n    val discovery : string\n    val no_pending : string\n    val state : string\n    val denied : string\n    val expired : string\n    val aborted : string\n    val exchange : string\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.no_issuer",
+      "declaration": "val no_issuer : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.discovery",
+      "declaration": "val discovery : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.no_pending",
+      "declaration": "val no_pending : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.state",
+      "declaration": "val state : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.denied",
+      "declaration": "val denied : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.expired",
+      "declaration": "val expired : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.aborted",
+      "declaration": "val aborted : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Sign_in.exchange",
+      "declaration": "val exchange : string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Error_codes.Kb_identity",
+      "declaration": "module Kb_identity :\n  sig val unreachable : string val not_reported : string end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Kb_identity.unreachable",
+      "declaration": "val unreachable : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Error_codes.Kb_identity.not_reported",
+      "declaration": "val not_reported : string"
+    },
+    {
+      "kind": "module",
       "path": "Semiont.Telemetry",
       "declaration": "module Telemetry = Semiont__.Telemetry",
       "alias": "Semiont__.Telemetry"
@@ -15345,7 +15405,7 @@
     {
       "kind": "type",
       "path": "Semiont.OAuth.error",
-      "declaration": "type error = Invalid_response | Invalid_redirect | Rejected of string",
+      "declaration": "type error =\n    Invalid_response\n  | Invalid_redirect\n  | Rejected of { code : string; status : int option; }",
       "representation": "variant",
       "constructors": [
         "Invalid_response",
@@ -15365,7 +15425,10 @@
         },
         {
           "name": "Rejected",
-          "fields": [],
+          "fields": [
+            "code",
+            "status"
+          ],
           "unit": false
         }
       ]

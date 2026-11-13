@@ -36,3 +36,17 @@ module Session = struct
   let keep_failed = "session.keep-failed"
   let save_refused = "session.save-refused"
 end
+module Sign_in = struct
+  let no_issuer = "no-issuer"
+  let discovery = "discovery"
+  let no_pending = "no-pending"
+  let state = "state"
+  let denied = "denied"
+  let expired = "expired"
+  let aborted = "aborted"
+  let exchange = "exchange"
+end
+module Kb_identity = struct
+  let unreachable = "unreachable"
+  let not_reported = "not-reported"
+end

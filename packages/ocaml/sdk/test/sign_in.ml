@@ -45,8 +45,20 @@ let pkce () =
       = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE");
     (200, {|{"access_token":"access"}|})
   in
+  let module Code = Error_codes.Sign_in in
+  let refused code = Error (O.Rejected { code; status = None }) in
+  let finished callback = O.finish_redirect http issuer redirect ~callback in
+  assert (finished (callback "wrong") = refused Code.state);
   assert (
-    O.finish_redirect http issuer redirect ~callback:(callback "wrong")
+    finished (redirect_uri ^ "?error=access_denied&state=" ^ param "state")
+    = refused Code.denied);
+  assert (
+    finished (redirect_uri ^ "?error=server_error&state=" ^ param "state")
+    = refused Code.exchange);
+  assert (
+    finished (redirect_uri ^ "?state=" ^ param "state") = refused Code.exchange);
+  assert (
+    finished ("http://localhost:4001/callback?code=abc&state=" ^ param "state")
     = Error O.Invalid_redirect);
   assert (!calls = 0);
   assert (
@@ -144,7 +156,9 @@ let store () =
             assert (Store.find store ~key = None);
             assert (List.assoc "token" request.O.form = "refresh-for-revocation");
             (500, ""))
-        = Error (O.Rejected "oauth.revocation-failed"));
+        = Error
+            (O.Rejected
+               { code = Error_codes.Sign_in.exchange; status = Some 500 }));
       assert (Store.find store ~key = None);
       assert (
         Yojson.Safe.from_file path
@@ -271,6 +285,70 @@ let renewals () =
   in
   Yojson.Safe.from_string Sign_in_cases.renewals
   |> Yojson.Safe.Util.to_list |> List.iter run
+
+(* What each refusal of the issuer is said as: a discovery's as discovery, a
+   device poll's by what the issuer says of the code, and any grant's as
+   exchange, with the status the issuer answered. *)
+let refusals () =
+  let module Code = Error_codes.Sign_in in
+  let refused code status = Error (O.Rejected { code; status }) in
+  let answering status body _ = (status, body) in
+  assert (
+    O.discover ~issuer:issuer_url (answering 503 "unavailable")
+    = refused Code.discovery (Some 503));
+  assert (
+    O.discover ~issuer:issuer_url
+      (answering 200
+         (json
+            [
+              ("issuer", str "https://elsewhere.example");
+              ("authorization_endpoint", str (issuer_url ^ "/auth"));
+              ("token_endpoint", str endpoint);
+            ]))
+    = refused Code.discovery (Some 200));
+  assert (
+    O.discover ~issuer:"http://issuer.example" (fun _ -> assert false)
+    = refused Code.discovery None);
+  let issuer = issuer () in
+  let device =
+    get
+      (O.begin_device
+         (answering 200
+            {|{"device_code":"device","user_code":"USER","verification_uri":"https://issuer.example/verify","expires_in":30}|})
+         issuer)
+  in
+  let polled error =
+    O.poll_device (answering 400 (json [ ("error", str error) ])) issuer device
+  in
+  assert (
+    polled "authorization_pending" = refused "authorization_pending" (Some 400));
+  assert (polled "slow_down" = refused "slow_down" (Some 400));
+  assert (polled "access_denied" = refused Code.denied (Some 400));
+  assert (polled "expired_token" = refused Code.expired (Some 400));
+  assert (polled "invalid_grant" = refused Code.exchange (Some 400));
+  let renewed status body =
+    O.refresh_script (answering status body) ~token_endpoint:endpoint
+      ~refresh_token:"refresh"
+  in
+  let refused_renewal = renewed 400 {|{"error":"invalid_grant"}|} in
+  assert (refused_renewal = refused Code.exchange (Some 400));
+  assert (O.refresh_refused (Result.get_error refused_renewal));
+  let unavailable = renewed 503 "unavailable" in
+  assert (unavailable = refused Code.exchange (Some 503));
+  assert (not (O.refresh_refused (Result.get_error unavailable)));
+  assert (
+    O.begin_device
+      (fun _ -> assert false)
+      (get
+         (O.discover ~issuer:issuer_url
+            (answering 200
+               (json
+                  [
+                    ("issuer", str issuer_url);
+                    ("authorization_endpoint", str (issuer_url ^ "/auth"));
+                    ("token_endpoint", str endpoint);
+                  ]))))
+    = refused Code.discovery None)
 
 (* Shared rows from session/client-assertion-cases.json. *)
 let rsa () =
@@ -429,6 +507,8 @@ let () =
       ( "OAuth",
         [
           Alcotest.test_case "redirect state and PKCE" `Quick pkce;
+          Alcotest.test_case "what the issuer's refusals are said as" `Quick
+            refusals;
           Alcotest.test_case "RSA assertion and thumbprint" `Quick rsa;
           Alcotest.test_case "issuer revocation form" `Quick revoke;
           Alcotest.test_case "agent identity and renewal" `Quick agent;

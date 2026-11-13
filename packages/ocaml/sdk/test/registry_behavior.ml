@@ -588,28 +588,29 @@ let sign_in () =
     decode Models.kb_description
       (`Assoc [ ("name", text domain); ("domain", text domain) ])
   in
-  let sign port domain access =
-    Result.get_ok
-      (R.record_sign_in browser
-         {
-           endpoint = endpoint port;
-           description = description domain;
-           session =
-             {
-               access;
-               refresh = "refresh";
-               client_id = "script";
-               token_endpoint = "https://issuer.example/token";
-               revocation_endpoint = None;
-             };
-           kb_id = Some "kb-1";
-           expected_did = Some "did:web:one.example";
-           expected_name = None;
-         })
+  let record port domain access =
+    R.record_sign_in browser
+      {
+        endpoint = endpoint port;
+        description = description domain;
+        session =
+          {
+            access;
+            refresh = "refresh";
+            client_id = "script";
+            token_endpoint = "https://issuer.example/token";
+            revocation_endpoint = None;
+          };
+        kb_id = Some "kb-1";
+        expected_did = Some "did:web:one.example";
+        expected_name = None;
+      }
   in
+  let sign port domain access = Result.get_ok (record port domain access) in
   let id (outcome : R.sign_in_outcome) =
     (Records.Knowledge_base.of_model outcome.kb).id
   in
+  assert (record 4010 "" "unnamed" = Error Error_codes.Kb_identity.not_reported);
   assert (id (sign 4010 "one.example" "first") = "kb-1");
   assert (id (sign 4010 "one.example" "new") = "kb-1");
   assert (id (sign 4011 "one.example" "different-address") = "kb-2");
@@ -663,6 +664,9 @@ let redirect () =
       (Yojson.Safe.from_string {|{"name":"Actual","domain":"kb.example"}|})
   in
   let discovery = ref 0 and exchanges = ref 0 in
+  let issued =
+    ref (200, {|{"access_token":"access","refresh_token":"refresh"}|})
+  in
   let http (request : OAuth.request) =
     match request.meth with
     | "GET" ->
@@ -675,7 +679,7 @@ let redirect () =
         assert (request.url = "https://issuer.example/token");
         assert (List.assoc "code" request.form = "one");
         assert (List.assoc "code_verifier" request.form <> "");
-        (200, {|{"access_token":"access","refresh_token":"refresh"}|})
+        !issued
     | _ -> assert false
   in
   let origin = "http://localhost:4010/callback" in
@@ -700,8 +704,9 @@ let redirect () =
   let location = begin_ () in
   let state = Option.get (Uri.get_query_param location "state") in
   let callback = origin ^ "?code=one&state=" ^ state in
-  assert (complete (callback ^ "bad") = Error "oauth.invalid-redirect");
-  assert (complete callback = Error "oauth.invalid-redirect");
+  let module Code = Error_codes.Sign_in in
+  assert (complete (callback ^ "bad") = Error Code.state);
+  assert (complete callback = Error Code.no_pending);
   assert (!exchanges = 0);
   ignore (begin_ ());
   let outcome = Result.get_ok (complete callback) in
@@ -710,8 +715,34 @@ let redirect () =
   let kept = Option.get ((R.kept_in storage "kb-redirect").held ()) in
   assert (kept.access = "access" && kept.refresh = "refresh");
   assert (kept.revocation_endpoint = Some "https://issuer.example/revoke");
-  assert (complete callback = Error "oauth.invalid-redirect");
-  assert (!discovery = 2 && !exchanges = 1 && !takes = 4)
+  assert (complete callback = Error Code.no_pending);
+  (* Each sign-in below is begun afresh, and the callback or the issuer's
+     answer fails it. *)
+  let failed callback =
+    ignore (begin_ ());
+    complete callback
+  in
+  assert (
+    failed (origin ^ "?error=access_denied&state=" ^ state) = Error Code.denied);
+  assert (
+    failed (origin ^ "?error=server_error&state=" ^ state) = Error Code.exchange);
+  assert (failed (origin ^ "?state=" ^ state) = Error Code.exchange);
+  issued := (400, {|{"error":"invalid_grant"}|});
+  assert (failed callback = Error Code.exchange);
+  issued := (200, {|{"access_token":"access"}|});
+  assert (failed callback = Error Code.exchange);
+  issued := (200, "{}");
+  assert (failed callback = Error Code.exchange);
+  ignore (begin_ ());
+  let pending = Option.get (storage.read R.pending_authorization_key) in
+  storage.write R.pending_authorization_key
+    (match Yojson.Safe.from_string pending with
+    | `Assoc fields ->
+        Yojson.Safe.to_string
+          (`Assoc (("target", `Null) :: List.remove_assoc "target" fields))
+    | _ -> assert false);
+  assert (complete callback = Error Code.no_pending);
+  assert (!discovery = 9 && !exchanges = 4 && !takes = 11)
 
 let session_unit startup () =
   Eio_mock.Backend.run @@ fun () ->
@@ -1474,6 +1505,65 @@ let registry_errors_kept () =
     "a reader after the end hears only the end" true !told_end;
   Client.await_closed (State_units.Session.client session)
 
+(* What a knowledge base reached with a fresh sign-in says of itself: a refusal
+   that names no code it is known to name is its answer that it cannot say
+   what it is, any other failure is not having reached it, and a domain no did
+   can hold says nothing of who it is. *)
+let describe_connection () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let _, clock = mock_clock () in
+  let described answer =
+    let testing =
+      Testing.transport ~sw ~clock ~schedule:[] ~respond:(fun ~channel _ ->
+          if channel = "browse:kb-requested" then Some answer else None)
+    in
+    let session =
+      Session.start ~sw ~clock ~initial_token:(Some "token")
+        ~renew:(fun ~holding:_ -> Session.Refused)
+        ()
+    in
+    let serial = ref 0 in
+    let client =
+      Client.connect ~sw ~clock ~session ~client_id:"describe"
+        ~key:(fun () ->
+          incr serial;
+          "describe-" ^ string_of_int !serial)
+        ~call:(Testing.call testing) ~global:Bus_registry.bridged_channels
+        ~on_event:ignore ()
+    in
+    let identity = R.describe_connection client in
+    Client.close client;
+    Result.map (fun (identity : R.connection_identity) -> identity.did) identity
+  in
+  let refused code =
+    ( "browse:kb-failed",
+      `Assoc
+        (("message", text "no identity is declared")
+        :: Option.to_list (Option.map (fun code -> ("code", text code)) code))
+    )
+  in
+  let answered domain =
+    ( "browse:kb-result",
+      `Assoc
+        [
+          ("response", `Assoc [ ("name", text "KB"); ("domain", text domain) ]);
+        ] )
+  in
+  let module Code = Error_codes.Kb_identity in
+  let check = Alcotest.(check (result string string)) in
+  check "an answer names the knowledge base" (Ok "did:web:kb.example")
+    (described (answered "kb.example"));
+  check "a refusal that names no code" (Error Code.not_reported)
+    (described (refused None));
+  check "a refusal whose code is none of CommandError's"
+    (Error Code.not_reported)
+    (described (refused (Some "no-such-code")));
+  check "a refusal that names a code" (Error Code.unreachable)
+    (described (refused (Some "unauthorized")));
+  check "a domain no did can hold" (Error Code.not_reported)
+    (described (answered ""))
+
 let () =
   Alcotest.run "OCaml registry and discovery"
     [
@@ -1483,6 +1573,8 @@ let () =
           Alcotest.test_case "shared gateway origins" `Quick gateway_urls;
           Alcotest.test_case "verified sign-in" `Quick sign_in;
           Alcotest.test_case "durable redirect and replay" `Quick redirect;
+          Alcotest.test_case "what a knowledge base says of itself" `Quick
+            describe_connection;
           Alcotest.test_case "session unit and durable renewal" `Quick
             (session_unit `Accept);
           Alcotest.test_case "startup refuses once then confirms" `Quick

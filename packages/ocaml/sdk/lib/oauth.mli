@@ -3,7 +3,17 @@
 
 type request = { meth : string; url : string; form : (string * string) list }
 type http = request -> int * string
-type error = Invalid_response | Invalid_redirect | Rejected of string
+
+type error =
+  | Invalid_response
+  | Invalid_redirect
+  | Rejected of { code : string; status : int option }
+      (** A sign-in step that failed: [code] is its code in the signIn group of
+          protocol/specs/src/errors/codes.json, and [status] the issuer's answer
+          when there was one. A device poll the issuer has not yet answered says
+          the issuer's own [authorization_pending] or [slow_down], and a
+          disposed [Service_token] says session.closed. *)
+
 type script
 type browser
 type service
@@ -49,7 +59,7 @@ val begin_device : http -> issuer -> (device, error) result
 
 val poll_device : http -> issuer -> device -> (script tokens, error) result
 (** One poll. Wait at least [device.interval] seconds between polls and back off
-    on [Rejected "slow_down"]. *)
+    on [Rejected { code = "slow_down"; _ }]. *)
 
 val await_device :
   clock:Clock.t -> http -> issuer -> device -> (script tokens, error) result

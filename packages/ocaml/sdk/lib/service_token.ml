@@ -50,7 +50,11 @@ let acquire t refused =
       let now = Clock.monotonic_now t.clock in
       match t.cached with
       | _ when t.closed ->
-          Error { error = Oauth.Rejected "session.closed"; status = None }
+          Error
+            {
+              error = Oauth.Rejected { code = "session.closed"; status = None };
+              status = None;
+            }
       | Some (token, due)
         when Mtime.compare now due < 0 && Some token <> refused ->
           Ok token
