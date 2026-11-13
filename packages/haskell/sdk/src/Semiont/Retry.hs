@@ -8,10 +8,11 @@ module Semiont.Retry
   , RetryOptions(..), RetryConfigurationError(..), retryWithBackoff
   ) where
 
-import Control.Exception (Exception, SomeAsyncException, fromException, throwIO, toException, try)
+import Control.Exception (Exception, fromException, throwIO)
 import Control.Monad (unless, when)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Semiont.Internal.Exception (trySync)
 import Semiont.Internal.RetryPolicy (RetryRule(..), ruleName, retryable)
 import Semiont.Timing (RetryBudget(..))
 
@@ -41,13 +42,11 @@ retryWithBackoff options budget accepts retryAfter action = do
   run 1 (retryInitialDelayMs budget)
   where
     run made cap = do
-      outcome <- try action :: IO (Either failure value)
+      outcome <- trySync action
       case outcome of
         Right value -> pure value
-        Left failure -> do
-          case fromException (toException failure) :: Maybe SomeAsyncException of
-            Just _ -> throwIO failure
-            Nothing -> pure ()
+        Left problem -> do
+          failure <- maybe (throwIO problem) pure (fromException problem :: Maybe failure)
           if made >= retryAttempts budget || not (accepts failure) then throwIO failure else do
             draw <- retryRandom options
             unless (draw >= 0 && draw <= 1) (throwIO InvalidJitter)

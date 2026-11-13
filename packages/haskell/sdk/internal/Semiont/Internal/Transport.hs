@@ -12,7 +12,7 @@ module Semiont.Internal.Transport
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, asyncThreadId, cancel, waitCatch, waitCatchSTM)
 import Control.Concurrent.STM
-import Control.Exception (SomeAsyncException, SomeException, bracket, catch, finally, fromException, mask, mask_, onException, throwIO, try)
+import Control.Exception (SomeException, bracket, catch, finally, fromException, mask, mask_, onException, throwIO, try)
 import Control.Monad (forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (Object, Result(..), Value(..), fromJSON, toJSON)
@@ -28,6 +28,7 @@ import OpenTelemetry.Context.ThreadLocal (getContext)
 import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Delivery as Delivery
+import Semiont.Internal.Exception (trySync)
 import qualified Semiont.Internal.StateValue as State
 import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (validateProperty)
@@ -172,14 +173,11 @@ on transport@(Transport runtime) channel callback = mask $ \restore -> do
             Right (carried, rest) -> do
               callback (case carried of Arrived frame -> Right (busFramePayloadAdditionalProperties (busFramePayload (wireFrame frame))); FrameRejected refusal -> Left refusal)
               pump rest
-  let work = (atomically (takeTMVar start) >> frames transport channel (\values -> do
+  let work = trySync (atomically (takeTMVar start) >> frames transport channel (\values -> do
         atomically (putTMVar ready ())
         restore (pump values)))
-        `catch` callbackFailure
-      callbackFailure :: SomeException -> IO ()
-      callbackFailure exception = case fromException exception :: Maybe SomeAsyncException of
-        Just _ -> throwIO exception
-        Nothing -> atomically (Broadcast.publish (failures runtime) (TransportError Codes.TransportError "transport callback failed" Nothing Nothing))
+        >>= either (const callbackFailure) pure
+      callbackFailure = atomically (Broadcast.publish (failures runtime) (TransportError Codes.TransportError "transport callback failed" Nothing Nothing))
   worker <- tracedAsync (work `finally` atomically (modifyTVar' (listeners runtime) (Map.delete key)))
   accepted <- atomically $ do
     over <- readTVar (closing runtime)

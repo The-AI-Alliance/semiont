@@ -3,7 +3,7 @@ module SessionCases (jwt, sessionCases, sessionClockCases) where
 
 import Control.Concurrent.Async (async, poll, wait, withAsync, replicateConcurrently)
 import Control.Concurrent.STM
-import Control.Exception (bracket, finally, throwIO, try, IOException)
+import Control.Exception (bracket, finally, throwIO, try, IOException, SomeException)
 import Control.Monad (forM_, unless, void, when)
 import Data.Aeson (FromJSON, Result(..), Value(..), eitherDecodeStrict', encode, fromJSON, object, (.=))
 import qualified Data.Aeson.Key as Key
@@ -184,9 +184,72 @@ sessionCases root fixtures = do
   externalCases target person
   orderCases target
   keptForFirstReaderCases target person
-  putStrLn "PASS every shared session startup/refusal case, bounded renewal, reconnect recovery, disposal, the order errors are said in and what is kept for their first reader"
+  unforgottenCases target
+  closedWhileStartingCases target
+  putStrLn "PASS every shared session startup/refusal case, bounded renewal, reconnect recovery, disposal, the order errors are said in, what is kept for their first reader, a sign-in that cannot be forgotten and a session closed while it starts"
   where
     whenSignedIn text action = if text==("signed-in"::Text) then action else pure ()
+
+-- | A kept sign-in whose storage cannot forget it is said with why it had to
+-- be forgotten: at the start, when the issuer refuses to renew an expired
+-- token, as session.refresh-exhausted, where nothing would be said; and when
+-- the session ends, under its ending's own code, the host told how it ended.
+-- Each with what the storage said, and the session is ready.
+unforgottenCases :: KbTarget -> IO ()
+unforgottenCases target = do
+  let cannot = "; and the sign-in could not be forgotten: user error (the storage cannot delete the sign-in)"
+      saidAndTold access renew validate = do
+        time <- Time.newTime
+        withClient time $ \owned _ -> do
+          memory <- SignIn.newMemorySignIn
+          SignIn.keep memory (stored access)
+          told <- newTVarIO []
+          let kept = memory { SignIn.forget = ioError (userError "the storage cannot delete the sign-in") }
+              options = Session.SessionOptions "unforgotten" target kept Nothing (Just renew) validate
+                (\reason -> atomically (modifyTVar' told (<>[reason]))) (pure 1800000000)
+          bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
+            Session.ready session
+            said <- Session.errors session (\given -> Session.dispose session >> Stream.toList_ given)
+            (,) said <$> readTVarIO told
+  (atStart, toldAtStart) <- saidAndTold (jwt (-300) 0) (\_ -> throwIO (SignInError Code.SignInExchange "refused" (Just 400))) Nothing
+  require ("an expired sign-in the issuer would not renew, which could not be forgotten, was not said so: "++show atStart)
+    (atStart==[Left (SessionError Code.SessionRefreshExhausted ("The credential could not be renewed"<>cannot) (kbTargetId target))])
+  require "a sign-in forgotten at the start told the host a session ended" (null toldAtStart)
+  (atEnd, toldAtEnd) <- saidAndTold (jwt (-300) 0) (\_ -> pure (Just (jwt 3600 1)))
+    (Just (\_ _ -> throwIO (TransportError Code.TransportUnauthorized "refused" (Just 401) Nothing)))
+  require ("a session ended by the gateway's refusal of a newly issued token, whose sign-in could not be forgotten, was not said so: "++show atEnd)
+    (atEnd==[Left (SessionError Code.SessionCredentialRefused ("The gateway refused a newly issued credential"<>cannot) (kbTargetId target))])
+  require "a session whose sign-in could not be forgotten did not tell the host how it ended" (toldAtEnd==[SessionEndReasonRefused])
+
+-- | A session closed while its start is held, its renewal of the expired token it found stored waiting on the issuer,
+-- is ready: the close ends its start, with nothing wrong, nothing said and the host told nothing. A wait for it begun
+-- before the close returns, and so does one begun after.
+closedWhileStartingCases :: KbTarget -> IO ()
+closedWhileStartingCases target = do
+  time <- Time.newTime
+  withClient time $ \owned _ -> do
+    memory <- SignIn.newMemorySignIn
+    SignIn.keep memory (stored (jwt (-300) 0))
+    asked <- newEmptyTMVarIO
+    answer <- newEmptyTMVarIO
+    told <- newTVarIO []
+    let renew _ = atomically (putTMVar asked ()) >> atomically (readTMVar answer)
+        options = Session.SessionOptions "closed-while-starting" target memory Nothing (Just renew) Nothing
+          (\reason -> atomically (modifyTVar' told (<>[reason]))) (pure 1800000000)
+    session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
+    let readied = try (Session.ready session) :: IO (Either SomeException ())
+    atomically (readTMVar asked)
+    withAsync readied $ \waiting -> do
+      Time.settle
+      said <- Session.errors session (\given -> Session.dispose session >> Stream.toList_ given)
+      before <- wait waiting
+      after <- readied
+      -- The issuer answers once the close has ended the renewal that waited on it.
+      atomically (putTMVar answer (Just (jwt 3600 1)))
+      require ("a wait for a session closed while it was starting raised: "++show before) (either (const False) (const True) before)
+      require ("ready, once the session was closed while it was starting, raised: "++show after) (either (const False) (const True) after)
+      require ("a session closed while it was starting said something: "++show (map codeOf said)) (null said)
+      require "a session closed while it was starting told the host it ended" . null =<< readTVarIO told
 
 concurrentCases :: KbTarget -> UserResponse -> IO ()
 concurrentCases target person = do

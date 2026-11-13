@@ -5,7 +5,7 @@ module Semiont.Registry.Identity
   ( ConnectionIdentity(..), IdentityUnverifiableError(..), describeConnection, samePlace
   ) where
 
-import Control.Exception (Exception, SomeException, SomeAsyncException, bracket, fromException, throwIO, try)
+import Control.Exception (Exception, bracket, fromException, throwIO)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -18,6 +18,7 @@ import Semiont.Channels (channelName, operationChannels, Operation(BrowseKbReque
 import Semiont.Errors (BusRequestError(..))
 import Semiont.ErrorCodes (KbIdentityCode(..), BusRequestCode(BusRequestRejected))
 import qualified Semiont.Identity as Identity
+import Semiont.Internal.Exception (trySync)
 import Semiont.Types
 
 data IdentityUnverifiableError = IdentityUnverifiableError
@@ -40,13 +41,11 @@ describeConnection http target access = do
       options=http { Http.httpBaseUrl=base,Http.httpToken=pure (Just access),Http.httpRenewToken=const (pure Nothing)
         ,Http.httpGlobalChannels=Set.fromList [channelName result,channelName failure]
         ,Http.httpLoadPositions=pure Map.empty,Http.httpSavePosition= \_ _ -> pure () }
-  readBack <- try $ bracket (Client.fromHttp options Nothing) Client.dispose (Browse.kb . Client.browse)
+  readBack <- trySync $ bracket (Client.fromHttp options Nothing) Client.dispose (Browse.kb . Client.browse)
   description <- case readBack of
     Right value -> pure value
-    Left (problem::SomeException) -> case fromException problem :: Maybe SomeAsyncException of
-      Just _ -> throwIO problem
-      Nothing -> throwIO (IdentityUnverifiableError (case fromException problem of
-        Just refusal | busRequestErrorCode refusal==BusRequestRejected -> KbIdentityNotReported
-        _ -> KbIdentityUnreachable) "The knowledge base could not establish its identity with the issued credential")
+    Left problem -> throwIO (IdentityUnverifiableError (case fromException problem of
+      Just refusal | busRequestErrorCode refusal==BusRequestRejected -> KbIdentityNotReported
+      _ -> KbIdentityUnreachable) "The knowledge base could not establish its identity with the issued credential")
   did <- either (throwIO . IdentityUnverifiableError KbIdentityNotReported . Text.pack) pure (Identity.kbDid (kbDescriptionDomain description))
   pure (ConnectionIdentity description did)

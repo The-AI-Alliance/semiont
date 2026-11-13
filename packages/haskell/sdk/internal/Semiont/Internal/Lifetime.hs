@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.Internal.Lifetime (Lifetime, newLifetime, start, run, close, isClosed) where
+module Semiont.Internal.Lifetime (Lifetime, newLifetime, start, run, runUntilClosed, close, isClosed) where
 
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, AsyncCancelled(..), asyncThreadId, cancel, mapConcurrently_, race)
@@ -7,6 +7,7 @@ import Control.Concurrent.STM
 import Control.Exception (SomeException, finally, fromException, mask, throwIO, try)
 import Control.Monad (unless, void, when)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import OpenTelemetry.Context.ThreadLocal.Propagation (propagateContext, tracedAsync)
 import Semiont.ErrorCodes (BusRequestCode(BusRequestClosed))
@@ -42,8 +43,16 @@ start lifetime@(Lifetime _ counter children _ _) action = mask $ \restore -> do
       pure True
   if accepted then pure child else cancel child >> throwIO (closedError lifetime)
 
+-- | Runs action under the lifetime: refused at the call once it has closed,
+-- and refused when it closes under it.
 run :: Lifetime -> IO result -> IO result
-run lifetime@(Lifetime _ counter children _ _) action = mask $ \restore -> do
+run lifetime action = runUntilClosed lifetime action >>= maybe (throwIO (closedError lifetime)) pure
+
+-- | Runs action under the lifetime, refused at the call once it has closed.
+-- When the lifetime closes under it, it ends as one the close overtook, with
+-- Nothing: cancelled, or refused by the closed lifetime as it starts more.
+runUntilClosed :: Lifetime -> IO result -> IO (Maybe result)
+runUntilClosed lifetime@(Lifetime _ counter children _ _) action = mask $ \restore -> do
   caller <- myThreadId
   completed <- newEmptyTMVarIO
   inherited <- propagateContext (try action)
@@ -57,13 +66,14 @@ run lifetime@(Lifetime _ counter children _ _) action = mask $ \restore -> do
   let work = do
         result <- race inherited (atomically (isClosed lifetime >>= check))
         case result of
-          Right () -> throwIO (closedError lifetime)
-          Left (Right answer) -> pure answer
+          Right () -> pure Nothing
+          Left (Right answer) -> pure (Just answer)
           Left (Left problem) -> do
             over <- atomically (isClosed lifetime)
-            case fromException problem :: Maybe AsyncCancelled of
-              Just _ | over -> throwIO (closedError lifetime)
-              _ -> throwIO (problem :: SomeException)
+            if over && overtaken problem then pure Nothing else throwIO problem
+      overtaken :: SomeException -> Bool
+      overtaken problem = isJust (fromException problem :: Maybe AsyncCancelled)
+        || fromException problem == Just (closedError lifetime)
   restore work `finally` atomically (modifyTVar' children (Map.delete key) >> putTMVar completed ())
 
 close :: Lifetime -> IO ()

@@ -4,7 +4,7 @@ module Semiont.Internal.HttpActor (runActor) where
 import OpenTelemetry.Context.ThreadLocal (getContext)
 import Control.Concurrent.Async (Async, cancel, waitCatchSTM)
 import Control.Concurrent.STM
-import Control.Exception (SomeAsyncException, SomeException(..), catch, finally, fromException, onException, throwIO, try)
+import Control.Exception (SomeException(..), finally, onException, throwIO, try)
 import Control.Monad (forM_, unless, void, when)
 import Data.Aeson (Result(..), Value(..), fromJSON)
 import qualified Data.ByteString as Bytes
@@ -25,6 +25,7 @@ import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors
 import Semiont.Channels (scopedChannels)
 import Semiont.Http.Routes
+import Semiont.Internal.Exception (trySync)
 import Semiont.Internal.Http
 import qualified Semiont.Internal.Sse as SSE
 import qualified Semiont.Internal.StreamFrame as StreamFrame
@@ -49,12 +50,9 @@ stop (Connection worker _) = cancel worker
 runActor :: Http -> IO ()
 runActor http = do
   seen <- newTVarIO (Seq.empty :: Seq Text)
-  let reportFatal exception@(SomeException cause) = case fromException exception :: Maybe SomeAsyncException of
-        Just _ -> throwIO exception
-        Nothing -> Transport.reportError (input http) (TransportError Code.TransportError
-          ("HTTP stream owner failed (" <> Text.pack (show (typeOf cause)) <> ")") Nothing Nothing)
-  loop seen Nothing Nothing (Settings.reconnectMs (httpTiming (options http))) Nothing False
-    `catch` reportFatal
+  let reportFatal (SomeException cause) = Transport.reportError (input http) (TransportError Code.TransportError
+        ("HTTP stream owner failed (" <> Text.pack (show (typeOf cause)) <> ")") Nothing Nothing)
+  (trySync (loop seen Nothing Nothing (Settings.reconnectMs (httpTiming (options http))) Nothing False) >>= either reportFatal pure)
     `finally` Transport.dispose (transport http)
   where
     transition next = do

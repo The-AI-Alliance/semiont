@@ -8,7 +8,7 @@ module Semiont.Internal.Browse
 
 import Control.Concurrent.Async (mapConcurrently_)
 import Control.Concurrent.STM
-import Control.Exception (SomeException, SomeAsyncException, catch, fromException, throwIO)
+import Control.Exception (fromException)
 import Control.Monad (void)
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.ErrorCodes as Code
@@ -23,6 +23,7 @@ import Semiont.Channels
 import qualified Semiont.Content as Content
 import qualified Semiont.Internal.Cache as Cache
 import qualified Semiont.Internal.Coupled as Coupled
+import Semiont.Internal.Exception (trySync)
 import qualified Semiont.Internal.Persistence as Persistence
 import qualified Semiont.Internal.Generated.CachePersistence as Persisted
 import qualified Semiont.Annotations as Annotations
@@ -73,10 +74,7 @@ newBrowse bus signals carrier contents clock settings = do
     case find (\operation -> let (request,_,_) = operationChannels operation in channelName request == name) limitsOperations of
       Nothing -> ioError (userError "unknown derived inference-limits operation")
       Just operation ->
-        (inferenceLimitsResultResponseLimits . inferenceLimitsResultResponse <$> ask operation (InferenceLimitsRequest mempty))
-        `catch` (\(problem::SomeException) -> case fromException problem :: Maybe SomeAsyncException of
-          Just _ -> throwIO problem
-          Nothing -> pure [])) unscoped
+        either (const []) id <$> trySync (inferenceLimitsResultResponseLimits . inferenceLimitsResultResponse <$> ask operation (InferenceLimitsRequest mempty))) unscoped
   history <- Cache.newCache
     (\identity -> getEventsResponseEvents . browseEventsResultResponse <$> ask BrowseEventsRequestedOperation (BrowseEventsRequest Nothing identity Nothing Nothing mempty)) scoped
   life <- Lifetime.newLifetime "browse is disposed"
@@ -144,11 +142,9 @@ openResource :: BrowseNamespace -> ResourceId -> STM ()
 openResource namespace identity = Local.signal (local namespace) BrowseResourceOpen (BrowseResourceOpenEvent identity mempty) NoScope
 resourceViewed :: BrowseNamespace -> ResourceId -> IO ()
 resourceViewed namespace identity = void $ Lifetime.start (signalLifetime namespace) $
-  void (Bus.emit (wire namespace) BrowseResourceViewed (BrowseResourceViewedEvent identity mempty) NoScope Nothing)
-  `catch` (\(problem::SomeException) -> case fromException problem :: Maybe SomeAsyncException of
-    Just _ -> throwIO problem
-    Nothing -> LocalBus.reportFailure (carrier namespace) (fromMaybe
-      (TransportError Code.TransportError "resource-viewed report failed" Nothing Nothing) (fromException problem)))
+  trySync (Bus.emit (wire namespace) BrowseResourceViewed (BrowseResourceViewedEvent identity mempty) NoScope Nothing)
+  >>= either (\problem -> LocalBus.reportFailure (carrier namespace) (fromMaybe
+      (TransportError Code.TransportError "resource-viewed report failed" Nothing Nothing) (fromException problem))) (const (pure ()))
 
 -- | The persisted queries keep their values in @persistence@ from now on,
 -- each beginning with what it kept, and every save writes the places noted.

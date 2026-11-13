@@ -49,10 +49,16 @@ sign-in however that went, and says whether the issuer revoked it.
 `fromIssuedSession` persists an already issued grant and installs its rotating
 refresh callback. `SessionOptions` carries the knowledge base, typed kept grant, wall
 clock and host callbacks; provide `sessionValidate` to confirm a person with
-the supplied client and token. A service can omit that callback. `ready` waits for startup;
+the supplied client and token. A service can omit that callback. `ready` waits for startup:
+what startup meets is said on `errors`, a session closed before its startup is done is
+ready, and `ready` raises what the host's own callbacks raise and what reading the kept
+sign-in raises;
 `token`, `user` and `streamState` are read-only observations. Refusals that arrive
 together share one renewal. An issuer refusal forgets the grant; an outage
-keeps it and retries with reconnect backoff. What goes wrong, the session's
+keeps it and retries with reconnect backoff. A grant that cannot be forgotten is said
+with why it had to be: as `session.refresh-exhausted` when the issuer refused its
+renewal at the start, under the ending's own code when the session ends, each followed
+by `; and the sign-in could not be forgotten: ` and what its storage said. What goes wrong, the session's
 own errors and its transport's failures, is said once each on `errors`, one
 stream in the order met. A session is its transport's first reader when
 nobody has read that transport's failures before it is made, and then says
@@ -550,8 +556,18 @@ selection, sign-in, per-KB tabs and the last viewed resource. Give it a
 `SemiontBrowserConfig` with storage, a `SessionFactory`, HTTP options and an
 epoch-seconds wall reader. `newHttpSessionFactory` opens real HTTP sessions
 and opts their queries into per-KB durable storage. The browser closes the
-previous client before opening the next, joins stale activations, and raises
-identity-conflict notices when the address answers as a different KB. A
+previous session and its client before it asks the factory for the next,
+reading the session's `errors` to their end, joins stale activations, and raises
+identity-conflict notices when the address answers as a different KB. The
+factory's refusal is the one way an activation fails: a `SessionError` is said
+on the registry's `errors` as it is, a `TransportError`, `BusRequestError` or
+`SignInError` as `session.construct-failed` with its message, and no session is
+then active. Once `dispose` has begun, `setActiveKb` is refused with
+`BusRequestError` `bus.closed` before anything else. An activation taken
+before it began ends as an overtaken one does, and the call returns: `dispose`
+tells its call to the factory to stop, and a session the factory hands back
+once it has is closed at once, with nothing of it said.
+Called from within the factory, `dispose` returns there. A
 redirect sign-in proves the responding identity before adopting its grant.
 Use `beginSignIn` and `completeSignIn`; navigation remains the host's job.
 Removing an entry also removes its owned cache documents and replay bookmark.

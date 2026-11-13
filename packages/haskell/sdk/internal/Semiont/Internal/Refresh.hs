@@ -5,7 +5,7 @@ module Semiont.Internal.Refresh
   ) where
 
 import Control.Concurrent.STM
-import Control.Exception (SomeException, SomeAsyncException, bracket, fromException, mask, mask_, onException, finally, throwIO, toException, try)
+import Control.Exception (bracket, mask, mask_, onException, finally, toException)
 import Control.Monad (forM_, forever, unless, void, when)
 import Data.Aeson (FromJSON, Result(..), Value(..), fromJSON)
 import qualified Data.Aeson.Key as Key
@@ -20,6 +20,7 @@ import qualified Semiont.Bus as Bus
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors (BusRequestError(..), TransportError(..))
 import qualified Semiont.Internal.Cache as Cache
+import Semiont.Internal.Exception (trySync)
 import qualified Semiont.Internal.Generated.CacheRefresh as Fact
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.Required as Required
@@ -107,14 +108,12 @@ newRefresher local wire options settings controls = mask $ \restore -> do
   let begin = do
         void $ Lifetime.start life $ restore $ forever $ do
           (parent,action) <- atomically (readTQueue ready)
-          outcome <- try (withParent parent action)
+          outcome <- trySync (withParent parent action)
           case outcome of
             Right () -> pure ()
-            Left (problem :: SomeException) -> case fromException problem :: Maybe SomeAsyncException of
-              Just _ -> throwIO problem
-              Nothing -> do
-                over <- readTVarIO stopped
-                unless over (Transport.reportFailure wire (TransportError Code.TransportError "live-query refresh could not start its work" Nothing Nothing))
+            Left _ -> do
+              over <- readTVarIO stopped
+              unless over (Transport.reportFailure wire (TransportError Code.TransportError "live-query refresh could not start its work" Nothing Nothing))
         void $ Lifetime.start life $ restore $ State.watch (Transport.state wire) $ \states -> do
           let loop opened dropped values = do
                 item <- Stream.next values
