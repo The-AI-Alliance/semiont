@@ -307,6 +307,59 @@ public sealed class SessionTests
         Assert.False(said.IsCompleted, "the start said something");
     }
 
+    // A sign-in that cannot be forgotten is said with why it had to be (protocol/specs/src/session/cases.json, `startup`):
+    // at the start, where nothing is said of one forgotten, as session.refresh-exhausted, followed by what its storage said.
+    [Fact]
+    public async Task AStartsSignInThatCannotBeForgottenIsSaidAsRefreshExhaustedWithWhatItsStorageSaid()
+    {
+        var clock = new TestClock();
+        var stored = new StoredSession
+        {
+            Access = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() - 1 }),
+            Refresh = "refresh",
+            ClientId = SignInPolicy.ScriptClientId,
+            TokenEndpoint = "https://issuer.example/token",
+        };
+        var kept = new SignInUnforgettable(new MemorySignIn(stored));
+        var ended = new ConcurrentQueue<SessionEndReason>();
+        using var session = new KeptSession(kept, (_, _) => Task.FromResult<string?>(null), (_, _) => Task.FromResult(User()),
+            clock, new ZeroRandom(), ended.Enqueue);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        await session.ReadyAsync(deadline.Token);
+        Assert.True(await errors.MoveNextAsync(), "the sign-in that could not be forgotten was not said");
+        Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+        Assert.Equal("refresh-exhausted; and the sign-in could not be forgotten: " + kept.Failure.Message, errors.Current.Message);
+        Assert.Same(kept.Failure, errors.Current.InnerException);
+        Assert.Empty(ended);
+        Assert.Equal(stored, await kept.HeldAsync(deadline.Token));
+        await session.DisposeAsync();
+        Assert.False(await errors.MoveNextAsync(), "the start said more");
+    }
+
+    // And as the session ends: under its ending's code, followed by what its storage said.
+    [Fact]
+    public async Task ASessionWhoseSignInCannotBeForgottenSaysSoUnderItsEndingsCode()
+    {
+        var clock = new TestClock();
+        var kept = new SignInUnforgettable(Stored(clock));
+        var ended = new ConcurrentQueue<SessionEndReason>();
+        using var session = new KeptSession(kept, (_, _) => Task.FromResult<string?>(null), (_, _) => Task.FromResult(User()),
+            clock, new ZeroRandom(), ended.Enqueue);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        await session.ReadyAsync(deadline.Token);
+        Assert.Null(await session.RefreshAsync(session.State.Token, deadline.Token));
+        Assert.True(await errors.MoveNextAsync(), "the session's end was not said");
+        Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+        Assert.Equal("refresh-exhausted; and the sign-in could not be forgotten: " + kept.Failure.Message, errors.Current.Message);
+        Assert.Same(kept.Failure, errors.Current.InnerException);
+        Assert.Equal([SessionEndReason.Expired], ended.ToArray());
+        Assert.NotNull(await kept.HeldAsync(deadline.Token));
+        await session.DisposeAsync();
+        Assert.False(await errors.MoveNextAsync(), "the end said more");
+    }
+
     // A renewal that cannot read the sign-in it renews got no answer (protocol/specs/src/session/cases.json): at the start
     // the session says so as session.auth-failed, and on its errors stream; it keeps what is stored, and renews again on
     // the reconnect backoff, each renewal with no answer said as session.refresh-exhausted.
@@ -527,6 +580,20 @@ public sealed class SessionTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (!condition()) await Task.Delay(1, deadline.Token);
     }
+}
+
+/// <summary>A sign-in kept in memory whose keeper cannot forget it: every forget fails with <see cref="Failure"/>.</summary>
+internal sealed class SignInUnforgettable(MemorySignIn kept) : ISignInKept
+{
+    internal IOException Failure { get; } = new("The storage is full.");
+
+    public Task<StoredSession?> HeldAsync(CancellationToken cancellation = default) => kept.HeldAsync(cancellation);
+    public Task KeepAsync(StoredSession signIn, CancellationToken cancellation = default) => kept.KeepAsync(signIn, cancellation);
+    public Task<string?> RenewedAsync(StoredSession read, string access, string refresh, CancellationToken cancellation = default) =>
+        kept.RenewedAsync(read, access, refresh, cancellation);
+    public Task ForgetAsync(CancellationToken cancellation = default) => Task.FromException(Failure);
+    public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default) =>
+        kept.RecordPersonKeyAsync(access, personKey, cancellation);
 }
 
 /// <summary>A sign-in kept in memory whose keeper reads it <paramref name="reads"/> times, and fails every read after with
