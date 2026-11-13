@@ -443,13 +443,17 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
   saves meet is said before the session's errors end.
 - **`SemiontBrowser`** is what an application holds: the knowledge bases a
   person has registered, which one is active, the active one's session, and
-  what the person has open in each. One session is live at a time. It is the
-  one reader of each session's errors: it says the session's own on its
-  `errors`, and a refusal for lack of permission through the session's
-  signals. A refusal of the session's token is renewed by the transport that
-  met it, and the browser does nothing with it. A write its storage refuses
-  changes nothing: the method that wrote returns the storage's own error, and
-  `close` returns one made in the background.
+  what the person has open in each. One session is live at a time:
+  `set_active_kb` ends the one that was active, and hears what it says as it
+  ends, before its factory is asked for the next. The factory's refusal is
+  the one way an activation fails, and is said on `errors` as it is. Once
+  `close` has begun, `set_active_kb` is refused with `bus.closed`. It is the
+  one reader of each session's errors, told each as it is said: it says the
+  session's own on its `errors`, and a refusal for lack of permission through
+  the session's signals. A refusal of the session's token is renewed by the
+  transport that met it, and the browser does nothing with it. A write its
+  storage refuses changes nothing: the method that wrote returns the
+  storage's own error, and `close` returns one made in the background.
 - **`SessionSignals`** is what a host shows about a session: that it ended
   and why, that a request was refused for lack of permission, or that a
   different knowledge base is answering. A signal says what happened. The

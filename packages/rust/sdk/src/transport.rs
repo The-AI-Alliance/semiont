@@ -306,14 +306,12 @@ pub type FailureListener = Box<dyn Fn(&TransportError) + Send + Sync>;
 /// what is still kept is dropped with it.
 pub struct FailureStream {
     said: KeptForFirstReader<TransportError>,
-    listeners: Vec<FailureListener>,
 }
 
 impl Default for FailureStream {
     fn default() -> FailureStream {
         FailureStream {
             said: KeptForFirstReader::new(),
-            listeners: Vec::new(),
         }
     }
 }
@@ -326,18 +324,12 @@ impl FailureStream {
     /// Tell `listener` each failure reported from now on, as it is reported.
     /// Taken first, it is told at once what is kept.
     pub fn tell_to(&mut self, listener: FailureListener) {
-        for kept in self.said.take_kept() {
-            listener(&kept);
-        }
-        self.listeners.push(listener);
+        self.said.tell_to(listener);
     }
 
     /// Report `error` to each listener, and keep it for the first while none
     /// has been taken.
     pub fn report(&self, error: &TransportError) {
-        for listener in &self.listeners {
-            listener(error);
-        }
         self.said.say(error.clone());
     }
 }
