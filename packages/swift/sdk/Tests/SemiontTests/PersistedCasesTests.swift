@@ -1463,50 +1463,52 @@ private final class HoldingStorage: SessionStorage {
   let resourceKey = try joOnA.query("resource")
   let user = try JSONEncoder().encode(required(table, "whoAmI"))
   let asked = try ResourceId("res-1")
-  try await overGateway(.names, issuer: .refuses, user: user) { _, port, http in
-    let storage = HoldingStorage(key: resourceKey)
-    for key in joOnA.all {
-      let text = try #require(seeded[key], "\(key) is not seeded")
-      storage.set(key, text)
-    }
-    try storeSession(
-      storage, kbId: "kb-a",
-      session: signIn(
-        personKey: jo, expired: false, tokenEndpoint: "http://127.0.0.1:\(port)/token"))
-    let clock = TestClock()
-    let opened = try await HttpSessionFactory(httpClient: http, clock: clock).session(
-      SessionFactoryOptions(
-        kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
-    defer { opened.dispose() }
-    let session = opened.session
-    try await withinTestDeadline { await session.ready() }
-    #expect(session.user.value != nil, "the gateway named the person")
-    let observed = Observed(opened.client.browse.resource(asked))
-    let held = try await withinTestDeadline { try await observed.first() }
-    observed.stop()
-    #expect(held.name == "fresh")
-    // The save is due saveDebounceMs after the value, by a clock that has not moved.
-    let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
-    try await withinTestDeadline {
-      while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
-    }
-    // A session ending its sign-in no longer names who its token is, last before it forgets it.
-    storage.hold(until: { session.user.value == nil })
-    clock.advance(by: .milliseconds(Timings.saveDebounceMs))
-    try await withinTestDeadline {
-      while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
-    }
-    // The session's own forget, as it expires: the issuer will not renew the token it holds.
-    let token = session.token.value
-    _ = try await withinTestDeadline { try await session.refresh(token) }
-    try await withinTestDeadline {
-      while !storage.written { try await Task.sleep(for: .milliseconds(1)) }
-    }
-    #expect(!storage.neverBegan, "the session's forget did not begin while the save was written")
-    #expect(!storage.deletedWhileHeld, "the forget deleted while a save it deletes was in flight")
-    #expect(try storedSession(storage, kbId: "kb-a") == nil, "the sign-in is kept")
-    for key in joOnA.all {
-      #expect(storage.get(key) == nil, "\(key) holds what was written after the forget deleted")
+  try await OffPoolExecutor.run {
+    try await overGateway(.names, issuer: .refuses, user: user) { _, port, http in
+      let storage = HoldingStorage(key: resourceKey)
+      for key in joOnA.all {
+        let text = try #require(seeded[key], "\(key) is not seeded")
+        storage.set(key, text)
+      }
+      try storeSession(
+        storage, kbId: "kb-a",
+        session: signIn(
+          personKey: jo, expired: false, tokenEndpoint: "http://127.0.0.1:\(port)/token"))
+      let clock = TestClock()
+      let opened = try await HttpSessionFactory(httpClient: http, clock: clock).session(
+        SessionFactoryOptions(
+          kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals()))
+      defer { opened.dispose() }
+      let session = opened.session
+      try await withinTestDeadline { await session.ready() }
+      #expect(session.user.value != nil, "the gateway named the person")
+      let observed = Observed(opened.client.browse.resource(asked))
+      let held = try await withinTestDeadline { try await observed.first() }
+      observed.stop()
+      #expect(held.name == "fresh")
+      // The save is due saveDebounceMs after the value, by a clock that has not moved.
+      let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
+      try await withinTestDeadline {
+        while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
+      }
+      // A session ending its sign-in no longer names who its token is, last before it forgets it.
+      storage.hold(until: { session.user.value == nil })
+      clock.advance(by: .milliseconds(Timings.saveDebounceMs))
+      try await withinTestDeadline {
+        while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
+      }
+      // The session's own forget, as it expires: the issuer will not renew the token it holds.
+      let token = session.token.value
+      _ = try await withinTestDeadline { try await session.refresh(token) }
+      try await withinTestDeadline {
+        while !storage.written { try await Task.sleep(for: .milliseconds(1)) }
+      }
+      #expect(!storage.neverBegan, "the session's forget did not begin while the save was written")
+      #expect(!storage.deletedWhileHeld, "the forget deleted while a save it deletes was in flight")
+      #expect(try storedSession(storage, kbId: "kb-a") == nil, "the sign-in is kept")
+      for key in joOnA.all {
+        #expect(storage.get(key) == nil, "\(key) holds what was written after the forget deleted")
+      }
     }
   }
 }

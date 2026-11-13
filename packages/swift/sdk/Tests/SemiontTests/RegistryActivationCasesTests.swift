@@ -307,51 +307,53 @@ private final class UnreadableSignIns: SessionStorage {
     }
     let (steps, storage) = try owedOnKbA()
     let asked = closing ? [askedFor("kb-a"), wroteTheOwedSave] : [askedFor("kb-a")]
-    try await overARegistry(
-      storage: storage, kbIds: ["kb-a", "kb-b"], owingASave: closing,
-      factory: { built in
-        RecordingSessions(steps: steps) { options in try await built.session(options) }
-      },
-      run: { browser, _ in
-        let errors = browser.errors()
-        let said = Task { () async throws -> [String] in
-          var said: [String] = []
-          for try await error in errors { said.append(error.code) }
-          return said
-        }
-        var refusals: [(any Error)?] = []
-        if closing {
-          let fromWithin = Mutex<Task<(any Error)?, Never>?>(nil)
-          storage.holdTheOwedWrite {
-            fromWithin.withLock { $0 = Task { await refusal(ofActivating: "kb-b", by: browser) } }
+    try await OffPoolExecutor.run {
+      try await overARegistry(
+        storage: storage, kbIds: ["kb-a", "kb-b"], owingASave: closing,
+        factory: { built in
+          RecordingSessions(steps: steps) { options in try await built.session(options) }
+        },
+        run: { browser, _ in
+          let errors = browser.errors()
+          let said = Task { () async throws -> [String] in
+            var said: [String] = []
+            for try await error in errors { said.append(error.code) }
+            return said
           }
-          let whileClosing = Task { try await browser.close() }
-          try await withinTestDeadline {
-            while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
+          var refusals: [(any Error)?] = []
+          if closing {
+            let fromWithin = Mutex<Task<(any Error)?, Never>?>(nil)
+            storage.holdTheOwedWrite {
+              fromWithin.withLock { $0 = Task { await refusal(ofActivating: "kb-b", by: browser) } }
+            }
+            let whileClosing = Task { try await browser.close() }
+            try await withinTestDeadline {
+              while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
+            }
+            let fromAnother = await refusal(ofActivating: "kb-b", by: browser)
+            let begunWithin = try #require(
+              fromWithin.withLock { $0 }, "\(why): the owed write began no activation")
+            refusals = [try await withinTestDeadline { await begunWithin.value }, fromAnother]
+            #expect(storage.holding, "\(why): the owed write went on before both were refused")
+            storage.letGo()
+            try await withinTestDeadline { try await whileClosing.value }
+          } else {
+            try await browser.close()
+            refusals = [await refusal(ofActivating: "kb-b", by: browser)]
           }
-          let fromAnother = await refusal(ofActivating: "kb-b", by: browser)
-          let begunWithin = try #require(
-            fromWithin.withLock { $0 }, "\(why): the owed write began no activation")
-          refusals = [try await withinTestDeadline { await begunWithin.value }, fromAnother]
-          #expect(storage.holding, "\(why): the owed write went on before both were refused")
-          storage.letGo()
-          try await withinTestDeadline { try await whileClosing.value }
-        } else {
+          for refused in refusals {
+            #expect(
+              (refused as? BusRequestError)?.reason == .busClosed,
+              "\(why): refused with \(String(describing: refused))")
+          }
+          #expect(steps.all == asked, "\(why)")
+          #expect(try await withinTestDeadline { try await said.value } == [], "\(why)")
+          #expect(storage.get(activeKey) == "kb-a", "\(why): the storage's active key")
+          // A second close does nothing.
           try await browser.close()
-          refusals = [await refusal(ofActivating: "kb-b", by: browser)]
-        }
-        for refused in refusals {
-          #expect(
-            (refused as? BusRequestError)?.reason == .busClosed,
-            "\(why): refused with \(String(describing: refused))")
-        }
-        #expect(steps.all == asked, "\(why)")
-        #expect(try await withinTestDeadline { try await said.value } == [], "\(why)")
-        #expect(storage.get(activeKey) == "kb-a", "\(why): the storage's active key")
-        // A second close does nothing.
-        try await browser.close()
-        #expect(steps.all == asked, "\(why): the second close")
-      })
+          #expect(steps.all == asked, "\(why): the second close")
+        })
+    }
   }
 }
 
@@ -414,34 +416,36 @@ private final class UnreadableSignIns: SessionStorage {
 // too: the save that session's closing flush could not make is said before its errors end.
 @Test func aRegistrysCloseDuringASwitchSaysTheSaveTheSessionItLetGoOfCouldNotMake() async throws {
   let (steps, storage) = try owedOnKbA()
-  try await overARegistry(
-    storage: storage, kbIds: ["kb-a", "kb-b"], owingASave: true,
-    factory: { built in
-      RecordingSessions(steps: steps) { options in try await built.session(options) }
-    },
-    run: { browser, _ in
-      let errors = browser.errors()
-      let said = Task { () async throws -> [String] in
-        var said: [String] = []
-        for try await error in errors { said.append(error.code) }
-        return said
-      }
-      storage.refuse()
-      storage.holdTheOwedWrite {}
-      let switching = Task { try await browser.setActiveKb("kb-b") }
-      try await withinTestDeadline {
-        while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
-      }
-      let closing = Task { try await browser.close() }
-      // Its close has begun once what it shows has ended.
-      try await withinTestDeadline { for await _ in browser.knowledgeBases {} }
-      #expect(storage.holding, "the owed write went on before the close began")
-      storage.letGo()
-      try await withinTestDeadline { try await closing.value }
-      _ = await switching.result
-      #expect(try await withinTestDeadline { try await said.value } == ["session.save-refused"])
-      #expect(steps.all == [askedFor("kb-a"), wroteTheOwedSave])
-    })
+  try await OffPoolExecutor.run {
+    try await overARegistry(
+      storage: storage, kbIds: ["kb-a", "kb-b"], owingASave: true,
+      factory: { built in
+        RecordingSessions(steps: steps) { options in try await built.session(options) }
+      },
+      run: { browser, _ in
+        let errors = browser.errors()
+        let said = Task { () async throws -> [String] in
+          var said: [String] = []
+          for try await error in errors { said.append(error.code) }
+          return said
+        }
+        storage.refuse()
+        storage.holdTheOwedWrite {}
+        let switching = Task { try await browser.setActiveKb("kb-b") }
+        try await withinTestDeadline {
+          while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
+        }
+        let closing = Task { try await browser.close() }
+        // Its close has begun once what it shows has ended.
+        try await withinTestDeadline { for await _ in browser.knowledgeBases {} }
+        #expect(storage.holding, "the owed write went on before the close began")
+        storage.letGo()
+        try await withinTestDeadline { try await closing.value }
+        _ = await switching.result
+        #expect(try await withinTestDeadline { try await said.value } == ["session.save-refused"])
+        #expect(steps.all == [askedFor("kb-a"), wroteTheOwedSave])
+      })
+  }
 }
 
 // ── closing ─────────────────────────────────────────────────────────────
@@ -450,19 +454,21 @@ private final class UnreadableSignIns: SessionStorage {
 // once.
 @Test func aRegistrysSecondCloseReturnsAtOnceWhileItsFirstIsHeld() async throws {
   let (_, storage) = try owedOnKbA()
-  try await overARegistry(
-    storage: storage, kbIds: ["kb-a"], owingASave: true, factory: { $0 },
-    run: { browser, _ in
-      storage.holdTheOwedWrite {}
-      let first = Task { try await browser.close() }
-      try await withinTestDeadline {
-        while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
-      }
-      try await withinTestDeadline { try await browser.close() }
-      #expect(storage.holding, "the second close waited for the owed write")
-      storage.letGo()
-      try await withinTestDeadline { try await first.value }
-    })
+  try await OffPoolExecutor.run {
+    try await overARegistry(
+      storage: storage, kbIds: ["kb-a"], owingASave: true, factory: { $0 },
+      run: { browser, _ in
+        storage.holdTheOwedWrite {}
+        let first = Task { try await browser.close() }
+        try await withinTestDeadline {
+          while !storage.holding { try await Task.sleep(for: .milliseconds(1)) }
+        }
+        try await withinTestDeadline { try await browser.close() }
+        #expect(storage.holding, "the second close waited for the owed write")
+        storage.letGo()
+        try await withinTestDeadline { try await first.value }
+      })
+  }
 }
 
 // A registry's close raises what its own work failed with, and that is said nowhere: here, the
