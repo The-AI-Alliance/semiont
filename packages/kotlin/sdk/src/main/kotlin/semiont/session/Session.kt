@@ -59,6 +59,12 @@ private fun notRenewed(failure: Exception?): String = when (failure) {
     else -> "Token refresh failed: $failure"
 }
 
+/** Why a session failed, and why its kept sign-in could not be forgotten: what its storage said, in its own words, as `notRenewed` says a renewal's failure. */
+private fun notForgotten(why: String, unforgotten: Exception): String = when (unforgotten) {
+    is SemiontError -> "$why; and the sign-in could not be forgotten: ${unforgotten.message}"
+    else -> "$why; and the sign-in could not be forgotten: $unforgotten"
+}
+
 /**
  * Whether a renewal failed because the issuer refused it: an answer the `refresh` rule does not try again. No answer,
  * one it tries again until the budget is spent, and a sign-in that could not be read to renew with are no refusal.
@@ -85,7 +91,10 @@ private fun now(): Double = System.currentTimeMillis() / 1000.0
  * renews again, and so does the session on its own, on the reconnect backoff,
  * its jitter drawn from `random`. Every renewal (`renew`) is handed the token
  * it renews. What went wrong the session says once, on its errors; it takes
- * no callback for it.
+ * no callback for it. A kept sign-in that cannot be forgotten is said with why
+ * it had to be: as `session.refresh-exhausted` when the issuer refused its
+ * renewal at the start, and under its ending's code when the session ends,
+ * each with what its storage said.
  */
 public class SemiontSession internal constructor(
     /** The knowledge base the session is with: where it is reached, and `id`, the key its credentials are kept under. */
@@ -235,7 +244,7 @@ public class SemiontSession internal constructor(
                 // Only a token the session still holds ends it: one replaced meanwhile is no longer the session's to be refused.
                 val renewedRefused = refusal is TransportError && refusal.reason == TransportErrorCode.Unauthorized
                 if (renewedRefused && !closing && tokens.value == renewed) {
-                    signedOut(SessionEndReason.REFUSED, SessionError(SessionErrorCode.CredentialRefused, JUST_ISSUED_AND_REFUSED, kb.id))
+                    signedOut(SessionEndReason.REFUSED, SessionErrorCode.CredentialRefused, JUST_ISSUED_AND_REFUSED)
                 }
             }
             if (closing) null else tokens.value
@@ -336,23 +345,36 @@ public class SemiontSession internal constructor(
      */
     private suspend fun unrenewed(failure: Exception?) {
         holdNone()
-        val notRenewed = SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id)
         if (failure != null && !refused(failure)) {
             unanswered.value = true
-            say(notRenewed)
+            say(SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id))
         } else {
-            signedOut(SessionEndReason.EXPIRED, notRenewed)
+            signedOut(SessionEndReason.EXPIRED, SessionErrorCode.RefreshExhausted, notRenewed(failure))
         }
     }
 
-    /** The session is over: its credential is forgotten, its host is told why, and so are its errors. The one teardown, whichever way it ended. */
-    private suspend fun signedOut(told: SessionEndReason, error: SessionError) {
+    /**
+     * The session is over: its credential is forgotten, its host is told why,
+     * and so are its errors, under `code`, and why it could not be forgotten
+     * when it could not. The one teardown, whichever way it ended.
+     */
+    private suspend fun signedOut(told: SessionEndReason, code: SessionErrorCode, why: String) {
         unanswered.value = false
         holdNone()
         users.set(null)
-        kept.forget()
+        val unforgotten = forget()
         onAuthFailed?.invoke(told)
-        say(error)
+        say(SessionError(code, if (unforgotten == null) why else notForgotten(why, unforgotten), kb.id))
+    }
+
+    /** Forget the kept sign-in: what its storage failed with, when it could not be forgotten; null when it was. */
+    private suspend fun forget(): Exception? = try {
+        kept.forget()
+        null
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (unforgotten: Exception) {
+        unforgotten
     }
 
     /**
@@ -367,8 +389,8 @@ public class SemiontSession internal constructor(
             val (renewed, failure) = tryRefresh(token)
             if (renewed == null) {
                 if (failure == null || refused(failure)) {
-                    // There was no session to end: the sign-in is forgotten, and nothing is said.
-                    kept.forget()
+                    // There was no session to end: the sign-in is forgotten, and nothing is said unless it could not be.
+                    forget()?.let { unforgotten -> say(SessionError(SessionErrorCode.RefreshExhausted, notForgotten(notRenewed(failure), unforgotten), kb.id)) }
                 } else {
                     // The issuer did not refuse it: the sign-in is kept, and renewed on the reconnect backoff or when a request is refused.
                     unanswered.value = true
@@ -395,7 +417,7 @@ public class SemiontSession internal constructor(
             }
             if (closing) return
             if (justIssued) {
-                signedOut(SessionEndReason.REFUSED, SessionError(SessionErrorCode.CredentialRefused, JUST_ISSUED_AND_REFUSED, kb.id))
+                signedOut(SessionEndReason.REFUSED, SessionErrorCode.CredentialRefused, JUST_ISSUED_AND_REFUSED)
                 return
             }
             // Seen, and renewed, under the lock a refusal is answered under: a renewal `refresh` makes meanwhile is seen here,

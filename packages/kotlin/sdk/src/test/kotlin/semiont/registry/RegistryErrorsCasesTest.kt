@@ -20,11 +20,13 @@ import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
+import semiont.http.Realm
 import semiont.http.tokenFor
 import semiont.session.OpenedSession
 import semiont.session.PermissionDenied
 import semiont.session.SemiontSession
 import semiont.session.SessionSignals
+import semiont.storage.MemoryStorage
 import semiont.testing.FaultyTransport
 import semiont.testing.TestClient
 import semiont.types.KbTarget
@@ -165,17 +167,30 @@ class RegistryErrorsCasesTest {
         }
     }
 
-    /** The registry closes while its active session's client does or does not owe a save to a storage that refuses every write, and its errors, read to their end, hold what the case says. */
+    /**
+     * The registry closes while its active session's client, a session over
+     * HTTP whose client keeps what it holds, does or does not owe a save, still
+     * waiting out its debounce, to a storage that refuses every write of that
+     * client, and its errors, read to their end, hold what the case says.
+     */
     @TestFactory
     fun whatARegistrysCloseReadsIsTheTables(): List<DynamicTest> = table.getValue("closing").jsonArray.map { it.jsonObject }.map { case ->
         DynamicTest.dynamicTest(case.text("why")) {
             runBlocking {
-                val world = World().with(kbOfA())
-                SemiontBrowser(SemiontBrowserConfig(world.storage, RefusedAsItCloses(world.factory.sessions, case.getValue("owed").jsonPrimitive.boolean))).use { browser ->
-                    live(browser)
-                    val errors = browser.errors()
-                    browser.close()
-                    assertEquals(case.texts("registryErrors"), soon { errors.toList() }.map { it.code })
+                Realm().use { realm ->
+                    val caches = SteppedCaches(CopyOnWriteArrayList(), MemoryStorage())
+                    SemiontBrowser(SemiontBrowserConfig(registeredAt(realm), KeepingSessions(keptNamingAlice(realm), caches))).use { browser ->
+                        val errors = browser.errors()
+                        val session = live(browser)
+                        if (case.getValue("owed").jsonPrimitive.boolean) {
+                            owingItsSave(session)
+                        } else {
+                            eventually("the client owes nothing") { session.client.persistenceSettled }
+                        }
+                        caches.refuses = true
+                        browser.close()
+                        assertEquals(case.texts("registryErrors"), soon { errors.toList() }.map { it.code })
+                    }
                 }
             }
         }

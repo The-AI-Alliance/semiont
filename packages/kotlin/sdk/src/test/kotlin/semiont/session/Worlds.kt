@@ -49,6 +49,9 @@ internal fun token(lifetime: Long, n: Int): String {
 
 internal fun expired(): String = token(-3600, 99)
 
+/** What a storage that cannot forget a sign-in says. */
+internal const val UNFORGETTABLE = "the sign-in cannot be forgotten"
+
 internal val alice: UserResponse = wireJson.decodeFromString(
     UserResponse.serializer(),
     """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}""",
@@ -76,11 +79,20 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
     @Volatile
     var unreadable = false
 
-    /** The sign-in as the session holds it: `kept`, read only while it is not `unreadable`. */
+    /** Whether the session's forgetting of its sign-in fails, as a store's that cannot be written does. What is kept stays kept. */
+    @Volatile
+    var unforgettable = false
+
+    /** The sign-in as the session holds it: `kept`, read only while it is not `unreadable`, and forgotten only while it is not `unforgettable`. */
     private val held: SignInKept = object : SignInKept by this@SessionWorld.kept {
         override suspend fun held(): HeldSignIn? {
             if (unreadable) throw IOException("the sign-in cannot be read")
             return this@SessionWorld.kept.held()
+        }
+
+        override suspend fun forget() {
+            if (unforgettable) throw IOException(UNFORGETTABLE)
+            this@SessionWorld.kept.forget()
         }
     }
     val token = MutableStateFlow<String?>(null)

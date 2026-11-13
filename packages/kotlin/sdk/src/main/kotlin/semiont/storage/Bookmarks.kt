@@ -28,8 +28,9 @@ import semiont.types.wireJson
  * and no longer, and the flush closing makes writes only the places
  * remembered by then: none, if a kept cache was fetching or a refetch was
  * owed, since closing drops them; a save owed does not hold them back, since
- * that flush is the save. A write the storage refused that is owed still
- * holds them back until closing makes it, and they ride it. A place
+ * that flush is the save. A write the storage refused and not made since
+ * holds them back until closing makes it, and they ride it; one closing makes
+ * that the storage refuses holds them back for good. A place
  * remembered after the reading is of an event
  * whose refetch closing drops, and is not kept. Only a PersistedEventId is a
  * place, and none other is remembered: a pair kept under the key that is not a
@@ -123,9 +124,9 @@ public class CoupledBookmarks(private val beneath: SessionStorage, private val k
     /**
      * Whether a place may be written now: until the places are coupled to a
      * client, always; then while the client is settled, or once it has begun
-     * to close, while no write the storage refused is owed (closing makes
-     * those, and the places ride the write that lands). Called holding
-     * `pending`.
+     * to close, while every write the storage refused has been made since
+     * (closing makes those, and the places ride the write that lands). Called
+     * holding `pending`.
      */
     private fun mayWrite(): Boolean {
         val client = coupled ?: return true

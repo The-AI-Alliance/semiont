@@ -95,7 +95,7 @@ public class SemiontClient @JvmOverloads constructor(
         // What is owed a refetch is read before the caches: a refetch a closing window starts is owed until its fetch is in flight.
         get() = !refresher.owesARefetch && live.persistenceSettled && !owesARefusedWrite
 
-    /** Whether a write the storage refused is owed still (`writes`). */
+    /** Whether a write the storage refused has not been made since (`writes`). */
     internal val owesARefusedWrite: Boolean get() = writes?.owesARefusedWrite == true
 
     /** Keep what the client's queries hold in `persistence` from now on: what a client made keeping nothing is given once the person it is for is known. */
@@ -136,12 +136,14 @@ public class SemiontClient @JvmOverloads constructor(
 
     /**
      * End the client: its live queries end, so every collector of one does,
-     * each making the save it owes, and the writes the storage refused that are
-     * owed still are made: its closing flush. Then its own bus ends, so every
-     * reader of it does, and then the work it began. Closing twice is closing
-     * once.
+     * each making the save it owes, and then each write the storage refused
+     * before the close began, and not made since, is made once more: its
+     * closing flush, which makes each write once. One the storage refuses is
+     * said, and lost with the client. Then its own bus ends, so every reader
+     * of it does, and then the work it began. Closing twice is closing once.
      */
     override fun close() {
+        writes?.beginClosing()
         // Read once, before anything is closed, in one step with the places closing may write: closing drops a fetch in
         // flight and a refetch owed, so either holds them back; a save owed does not, since closing's flush is the save. The
         // refetch is read first, as `persistenceSettled` reads it.
@@ -165,10 +167,13 @@ public class SemiontClient @JvmOverloads constructor(
  * only while its sign-in names the person they are for.
  */
 internal interface KeptWrites {
-    /** Whether a write the storage refused is owed still: until a write of its key is made, or the closing flush makes it. */
+    /** Whether a write the storage refused has not been made since: until a write of its key is made, which the closing flush may be. */
     val owesARefusedWrite: Boolean
 
-    /** Make each write the storage refused that is owed still, in turn: the last of the client's closing flush. */
+    /** The client begins to close, in its turn among the writes: from then on, a write the storage refuses is said, and lost with the client. */
+    fun beginClosing()
+
+    /** Make each write the storage refused before the client began to close, and has not been made since, in turn: the last of the client's closing flush. */
     fun writeRefused()
 
     /** Wait until every write begun so far has been made or refused. */

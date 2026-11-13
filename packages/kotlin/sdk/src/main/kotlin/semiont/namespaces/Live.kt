@@ -68,20 +68,23 @@ internal class Live(private val links: Links, private val content: ContentTransp
     /** The resource each annotation that was asked for is of: an annotation is kept by its own id, and a request for it names its resource too. */
     val annotationOf = ConcurrentHashMap<AnnotationId, ResourceId>()
 
+    /** A cache of the client's, asking `ask`: its fetches run in the client's scope, and its saves wait out the client's save debounce. */
+    private fun <K : Any, V : Any> cacheOf(ask: suspend (K) -> V): Cache<K, V> = Cache(ask, links.scope, saveDebounceMs = links.timing.saveDebounceMs)
+
     // Each query's cache by the query's name (client/refresh.json), apart from `limits`, which `engines` shows beside it.
-    override val resource = Cache(::resourceOf, links.scope)
-    val resources = Cache(::resourcesOf, links.scope)
-    override val annotations = Cache(content::getAnnotations, links.scope)
-    override val annotation = Cache(::annotationOf, links.scope)
-    override val entityTypes = Cache({ _: String -> links.request(Operations.BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest).response.entityTypes }, links.scope)
-    override val tagSchemas = Cache({ _: String -> links.request(Operations.BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest).response.tagSchemas }, links.scope)
-    val engines = Cache({ _: String -> links.request(Operations.BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest).response.engines }, links.scope)
+    override val resource = cacheOf(::resourceOf)
+    val resources = cacheOf(::resourcesOf)
+    override val annotations = cacheOf(content::getAnnotations)
+    override val annotation = cacheOf(::annotationOf)
+    override val entityTypes = cacheOf { _: String -> links.request(Operations.BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest).response.entityTypes }
+    override val tagSchemas = cacheOf { _: String -> links.request(Operations.BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest).response.tagSchemas }
+    val engines = cacheOf { _: String -> links.request(Operations.BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest).response.engines }
 
     /** Each key holder's report of its engines' limits, by the operation that asks it. */
-    val limits = Cache(::limitsOf, links.scope)
-    val events = Cache(::eventsOf, links.scope)
-    val referencedBy = Cache(::referencedByOf, links.scope)
-    val matchedResources = Cache(::searchOf, links.scope)
+    val limits = cacheOf(::limitsOf)
+    val events = cacheOf(::eventsOf)
+    val referencedBy = cacheOf(::referencedByOf)
+    val matchedResources = cacheOf(::searchOf)
 
     private val caches: List<Cache<*, *>> = listOf(resource, resources, annotations, annotation, entityTypes, tagSchemas, engines, limits, events, referencedBy, matchedResources)
 

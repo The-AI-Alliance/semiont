@@ -40,6 +40,7 @@ import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
 import semiont.testing.TestClient
 import semiont.types.UserResponse
+import java.io.IOException
 import kotlin.random.Random
 
 /** A gateway that holds its answer about one token until it is released, and then refuses it; of any other token it says `ofOthers`. */
@@ -160,6 +161,24 @@ class SessionTest {
                 // There was no session to end: nothing is said.
                 assertEquals(emptyList<SessionEndReason>() to emptyList<Any>(), world.told to world.errors)
             }
+        }
+    }
+
+    @Test
+    fun anExpiredTokenTheIssuerRefusedWhoseSignInCannotBeForgottenIsSaidWithWhyItHadToBe() = runTest {
+        val world = SessionWorld(kept = expired(), renewals = listOf(refusedByTheIssuer()))
+        world.unforgettable = true
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            assertNull(session.token.value)
+            assertTrue(world.isKept())
+            // There was no session to end, so nobody is told one ended: what is said is why the sign-in is kept still.
+            assertEquals(emptyList<SessionEndReason>(), world.told)
+            assertEquals(
+                listOf("session.refresh-exhausted" to "Token refresh failed: ${refusedByTheIssuer().message}; and the sign-in could not be forgotten: ${IOException(UNFORGETTABLE)}"),
+                world.said(),
+            )
         }
     }
 
@@ -373,6 +392,23 @@ class SessionTest {
             assertFalse(world.isKept())
             assertEquals(listOf(SessionEndReason.EXPIRED), world.told)
             assertEquals(listOf("session.refresh-exhausted" to "Token refresh failed: ${refusedByTheIssuer().message}"), world.said())
+        }
+    }
+
+    @Test
+    fun aSessionThatEndsAndCannotForgetItsSignInSaysWhyUnderItsEndingsCode() = runTest {
+        val world = SessionWorld(kept = token(3600, 1), renewals = listOf(refusedByTheIssuer()))
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            world.unforgettable = true
+            assertNull(session.refresh(session.token.value))
+            assertTrue(world.isKept())
+            assertEquals(listOf(SessionEndReason.EXPIRED), world.told)
+            assertEquals(
+                listOf("session.refresh-exhausted" to "Token refresh failed: ${refusedByTheIssuer().message}; and the sign-in could not be forgotten: ${IOException(UNFORGETTABLE)}"),
+                world.said(),
+            )
         }
     }
 

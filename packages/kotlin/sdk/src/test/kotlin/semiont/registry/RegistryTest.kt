@@ -16,9 +16,12 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.Timings
+import semiont.errors.BusRequestError
+import semiont.errors.BusRequestErrorCode
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.errors.TransportError
@@ -31,6 +34,8 @@ import semiont.types.KbRead
 import semiont.types.KnowledgeBase
 import semiont.types.NewKnowledgeBase
 import java.util.Collections
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
 
 /**
  * The registry of knowledge bases an application holds: the list, the active
@@ -348,6 +353,19 @@ class RegistryTest {
     }
 
     // How it ends.
+
+    @Test
+    fun anActivationJavaAsksForOnceTheRegistryHasClosedIsRefusedAtTheCall() = runBlocking {
+        val world = World().with(kbOfA(), kbOfB())
+        val browser = world.browser()
+        live(browser)
+        browser.close()
+        val refused = assertThrows(ExecutionException::class.java) { browser.setActiveKbFuture(KB_B).get(10, TimeUnit.SECONDS) }
+        assertEquals(BusRequestErrorCode.Closed, (refused.cause as? BusRequestError)?.reason, "refused with ${refused.cause}")
+        // No session was asked for.
+        assertEquals(1 to 0, world.factory.sessions.transports(KB_A).size to world.factory.sessions.transports(KB_B).size)
+        assertEquals(KB_A, world.storage.get(ACTIVE_KEY))
+    }
 
     @Test
     fun closingFromWithinTheRegistrysOwnWorkEndsItWithoutWaitingForItself() = runBlocking {
