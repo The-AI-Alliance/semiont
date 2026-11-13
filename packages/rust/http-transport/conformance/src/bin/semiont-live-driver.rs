@@ -18,8 +18,8 @@ use semiont::storage::InMemorySessionStorage;
 use semiont::transport::ConnectionState;
 use semiont::types::{AnnotationId, GenerationJobParams, MarkJobParams, ResourceId};
 use semiont_conformance_drivers::{
-    Arguments, Driver, Ended, Running, count, failed, failure, identifier, locked, object, say,
-    serve, text,
+    Arguments, Driver, Ended, Running, count, failed, identifier, locked, object, say,
+    say_failures, serve, text,
 };
 use semiont_http_transport::client::client;
 use semiont_http_transport::transport::{HttpTransportConfig, Timing};
@@ -249,17 +249,7 @@ impl Live {
                 }
             }
         });
-        let mut failures = client.transport().failures();
-        reporters.spawn(async move {
-            while let Some(reported) = failures.next().await {
-                match reported {
-                    Ok(error) => say(json!({
-                        "error": failure(error.code.as_str(), error.status, error.message)
-                    })),
-                    Err(lagged) => eprintln!("the error stream: {lagged}"),
-                }
-            }
-        });
+        say_failures(client.transport().as_ref());
         drop(reporters);
 
         *locked(&self.open) = Some(Open {

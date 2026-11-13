@@ -570,7 +570,7 @@ and the same case tables. What differs is how each language says "later".
 | `StreamObservable<T>` | `Running<T>` | `.await` for the final value, `.next()` for each report. It is consumed by value, so one operation is never started twice. |
 | `UploadObservable` | `Upload` | `.await` for the resource created; as a stream, its progress; dropped, cancelled. |
 | `CacheObservable<T>` | `Cached<T>` | `.watch()` for its state, `.fresh().await?` for one read. Neither is awaited itself. |
-| a method returning `void` | a plain `fn` | A signal. One that fails is said on the transport's failure stream. |
+| a method returning `void` | a plain `fn` | A signal. One that fails is told to the transport's failure listeners (`Transport::tell_failures_to`). |
 | `client.yield`, `client.match` | `client.yield_`, `client.match_` | `yield` and `match` are Rust's own words. |
 | RxJS operators | `futures::StreamExt`, `tokio-stream` | The crate brings no operator library. |
 | `@semiont/sdk/testing` | `semiont::testing`, behind the `testing` feature | |

@@ -21,7 +21,7 @@ use semiont::testing::{
     TestSessionOptions, create_test_client, create_test_session,
 };
 use semiont::timing::ERRORS_KEPT_FOR_FIRST_READER_COUNT;
-use semiont::transport::{ConnectionState, Content, Events, Failures, Transport};
+use semiont::transport::{ConnectionState, Content, Events, Transport};
 use semiont::types::{
     AnchoredTextAnswer, GatherResourceRequestOptions, HttpEndpoint, HttpEndpointProtocol,
     KbEndpoint, KbTarget, KnowledgeBase, ResourceId, UserResponse,
@@ -600,32 +600,14 @@ fn nth_failure(n: usize) -> TransportError {
     TransportError::of_status(format!("failure {n}"), 503, None)
 }
 
-/// Each failure `failures` reports, to its end.
-async fn failures_to_the_end(mut failures: Failures) -> Vec<TransportError> {
-    let mut heard = Vec::new();
-    while let Some(failure) = failures.next().await {
-        heard.push(failure.expect("no failure was missed"));
-    }
-    heard
-}
-
-#[tokio::test]
-async fn a_faulty_transport_keeps_the_latest_failures_for_its_first_reader() {
-    let transport = FaultyTransport::new(&[], vec![]);
-    let beyond = 5;
-    let before = ERRORS_KEPT_FOR_FIRST_READER_COUNT + beyond;
-    let failed: Vec<TransportError> = (0..=before).map(nth_failure).collect();
-    for failure in &failed[..before] {
-        transport.fail(failure.clone());
-    }
-
-    let first = transport.failures();
-    let later = transport.failures();
-    transport.fail(failed[before].clone());
-    transport.close().await;
-
-    assert_eq!(failures_to_the_end(first).await, failed[beyond..]);
-    assert_eq!(failures_to_the_end(later).await, failed[before..]);
+/// Each failure `transport` tells a listener taken now, as it is told.
+fn failures_told(transport: &FaultyTransport) -> Arc<Mutex<Vec<TransportError>>> {
+    let told = Arc::new(Mutex::new(Vec::new()));
+    let telling = told.clone();
+    transport.tell_failures_to(Box::new(move |failure: &TransportError| {
+        telling.lock().expect("what was told").push(failure.clone());
+    }));
+    told
 }
 
 #[tokio::test]
@@ -638,30 +620,34 @@ async fn a_faulty_transports_first_listener_is_told_at_once_the_latest_failures_
         transport.fail(failure.clone());
     }
 
-    let told = Arc::new(Mutex::new(Vec::new()));
-    let telling = told.clone();
-    transport.tell_failures_to(Box::new(move |failure: &TransportError| {
-        telling.lock().expect("what was told").push(failure.clone());
-    }));
-    assert_eq!(*told.lock().expect("what was told"), failed[beyond..before]);
+    let first = failures_told(&transport);
+    assert_eq!(
+        *first.lock().expect("what was told"),
+        failed[beyond..before]
+    );
 
-    // A reader taken after it hears only what follows.
-    let later = transport.failures();
+    // A listener taken after it is told only what follows.
+    let later = failures_told(&transport);
     transport.fail(failed[before].clone());
     transport.close().await;
+    // A closed transport tells nothing more.
+    transport.fail(nth_failure(before + 1));
 
-    assert_eq!(*told.lock().expect("what was told"), failed[beyond..]);
-    assert_eq!(failures_to_the_end(later).await, failed[before..]);
+    assert_eq!(*first.lock().expect("what was told"), failed[beyond..]);
+    assert_eq!(*later.lock().expect("what was told"), failed[before..]);
 }
 
 #[tokio::test]
-async fn a_first_reader_who_comes_after_a_faulty_transport_closes_hears_nothing() {
+async fn a_first_listener_taken_after_a_faulty_transport_closes_is_told_nothing() {
     let transport = FaultyTransport::new(&[], vec![]);
     transport.fail(nth_failure(0));
     transport.close().await;
 
+    let told = failures_told(&transport);
+    transport.fail(nth_failure(1));
+
     assert_eq!(
-        failures_to_the_end(transport.failures()).await,
+        *told.lock().expect("what was told"),
         Vec::<TransportError>::new()
     );
 }

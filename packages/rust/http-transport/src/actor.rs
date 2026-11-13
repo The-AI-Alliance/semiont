@@ -883,6 +883,7 @@ mod tests {
     use semiont::event_bus::EventBus;
     use semiont::transport::{FrameRefusalReason, Lagged};
     use serde_json::json;
+    use std::sync::Mutex;
 
     #[test]
     fn the_ids_remembered_are_the_last_ones_delivered() {
@@ -1052,10 +1053,14 @@ mod tests {
             let shared = shared();
             let own = Arc::new(EventBus::new());
             locked(&shared.bridges).push(own.clone());
-            let mut failures = locked(&shared.failures)
-                .as_ref()
+            let failures = Arc::new(Mutex::new(Vec::new()));
+            let telling = failures.clone();
+            locked(&shared.failures)
+                .as_mut()
                 .expect("the error stream is open")
-                .listen();
+                .tell_to(Box::new(move |failure| {
+                    locked(&telling).push(failure.clone())
+                }));
             let line = match case["data"].as_str() {
                 Some(data) => data.to_owned(),
                 None => frame.to_string(),
@@ -1101,7 +1106,7 @@ mod tests {
                     "{why}"
                 );
                 assert!(
-                    failures.next().now_or_never().is_none(),
+                    locked(&failures).is_empty(),
                     "{why}: told to the failure report"
                 );
                 continue;
@@ -1203,14 +1208,14 @@ mod tests {
                         "{why}"
                     );
                     assert!(
-                        failures.next().now_or_never().is_none(),
+                        locked(&failures).is_empty(),
                         "{why}: told to the failure report as well"
                     );
                 }
                 Some("failure-report") => {
                     assert!(carried.is_empty(), "{why}: delivered {carried:?}");
                     assert!(heard.is_empty(), "{why}: a typed read heard {heard:?}");
-                    let Some(Some(Ok(report))) = failures.next().now_or_never() else {
+                    let Some(report) = locked(&failures).first().cloned() else {
                         panic!("{why}: the failure report was not told");
                     };
                     assert_eq!(
