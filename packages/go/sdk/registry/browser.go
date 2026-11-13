@@ -7,10 +7,13 @@
 // CompleteSignIn).
 //
 // One session is live at a time, the active knowledge base's. Making another
-// active closes it first: its readers see no session, then the new one.
-// Activations do not overlap, and one that was overtaken while it waited does
-// nothing. SessionActivating is true while one is under way, which is what
-// tells "a session is coming" from "there is none".
+// active closes it first, its errors read to their end, before the next is
+// asked for: its readers see no session, then the new one. The factory's
+// refusal is the one way an activation fails, and a session's readiness
+// never does. Activations do not overlap, and one that was overtaken while it
+// waited does nothing. Once Close has begun, an activation is refused.
+// SessionActivating is true while one is under way, which is what tells "a
+// session is coming" from "there is none".
 //
 // Look up by address, verify by did. A sign-in lands on the entry, among those
 // at the address, whose did is the one the knowledge base reported, or on a
@@ -153,8 +156,8 @@ type SemiontBrowser struct {
 	lastViewedByKb map[string]api.ResourceId
 	// activations is how many are under way or waiting their turn.
 	activations int
-	// liveEnd ends the live session and its client; nil while there is none.
-	liveEnd func()
+	// live is how the live session is ended; nil while there is none.
+	live *ended
 
 	// turn lets one activation run at a time: whoever holds its one slot. A
 	// channel, so one waiting its turn is blocked as a channel's reader is,
@@ -373,7 +376,21 @@ func (b *SemiontBrowser) KbSessionStatus(kbID string) KbSessionStatus {
 
 // SetActiveKb makes a knowledge base the active one, or none for "". It
 // returns once its session is up, or once it is known there will be none.
-func (b *SemiontBrowser) SetActiveKb(id string) error { return b.setActiveKb(id) }
+// The session that was active is ended first, its errors read to their end,
+// before the factory is asked for the next. A factory's refusal that is one
+// of the session's own errors (a *semiont.SessionError) is said on Errors as
+// it is; any other as session.construct-failed, with its message. Then no
+// session is active, and id is still the active one. Once Close has begun,
+// it is refused with a *semiont.BusRequestError of code bus.closed, before
+// anything else: no session is asked for, nothing is said, and the active
+// knowledge base is unchanged. One begun before then ends as one overtaken
+// does.
+func (b *SemiontBrowser) SetActiveKb(id string) error {
+	if b.closed.Load() {
+		return &semiont.BusRequestError{Code: semiont.BusRequestErrorCodeClosed, Message: "The knowledge-base registry is closed"}
+	}
+	return b.setActiveKb(id)
+}
 
 // SignIn keeps a new sign-in for a registered knowledge base in place of the
 // one stored, and brings its session up on it. A session it already had is
@@ -576,8 +593,9 @@ func (b *SemiontBrowser) ReadActiveKb(ctx context.Context) (KbReadVerdict, error
 // by the end of the context it was given, and is not waited for: a session the
 // factory hands back afterwards is ended at once. So Close called from within
 // the factory returns too. Called from within the storage, in a write the
-// registry is making, it does not return: it waits for that write. Closing
-// twice is closing once.
+// registry is making, it does not return: it waits for that write. From the
+// moment it begins, SetActiveKb is refused (bus.closed). Closing twice is
+// closing once.
 func (b *SemiontBrowser) Close() error {
 	b.mu.Lock()
 	closing := !b.closed.Swap(true)
@@ -724,20 +742,23 @@ func (b *SemiontBrowser) failed(err *semiont.SessionError) { b.failures.Report(e
 
 // ── The active session ──────────────────────────────────────────────────
 
-// ended is a live session, and what a host shows about it, taken out of the
-// registry to be closed.
+// ended is a session the registry was handed, and what a host shows about
+// it, to be closed.
 type ended struct {
-	end     func()
+	end func()
+	// read is closed once the registry has read the session's errors to
+	// their end.
+	read    <-chan struct{}
 	signals *semiont.SessionSignals
 }
 
 // close ends the session as its factory's end does, the client it was built
-// with first, then what a host was shown of it.
+// with first, waits until its errors are read to their end, and then ends
+// what a host was shown of it.
 func (e *ended) close() {
 	e.end()
-	if e.signals != nil {
-		e.signals.Close()
-	}
+	<-e.read
+	e.signals.Close()
 }
 
 // takeSession takes the live session out: its readers see none, and what is
@@ -748,8 +769,8 @@ func (b *SemiontBrowser) takeSession() *ended {
 		b.mu.Unlock()
 		return nil
 	}
-	taken := &ended{end: b.liveEnd, signals: b.activeSignals.Value()}
-	b.liveEnd = nil
+	taken := b.live
+	b.live = nil
 	b.activeSession.Set(nil)
 	b.activeSignals.Set(nil)
 	b.mu.Unlock()
@@ -762,15 +783,15 @@ func (b *SemiontBrowser) takeSession() *ended {
 // find is said through the signals. A session is put once, so what is open is
 // checked once per session. One that came up as the registry closed is closed
 // instead.
-func (b *SemiontBrowser) putSession(session *semiont.Session, end func(), signals *semiont.SessionSignals) {
+func (b *SemiontBrowser) putSession(session *semiont.Session, live *ended) {
 	b.mu.Lock()
 	if b.closed.Load() {
 		b.mu.Unlock()
-		(&ended{end: end, signals: signals}).close()
+		live.close()
 		return
 	}
-	b.liveEnd = end
-	b.activeSignals.Set(signals)
+	b.live = live
+	b.activeSignals.Set(live.signals)
 	b.activeSession.Set(session)
 	b.mu.Unlock()
 	b.project()
@@ -833,7 +854,7 @@ func (b *SemiontBrowser) activate(id string) {
 	if !ok {
 		return
 	}
-	session, end, err := handed.session, handed.end, handed.err
+	session, err := handed.session, handed.err
 	if err != nil {
 		signals.Close()
 		if !b.closed.Load() {
@@ -841,16 +862,19 @@ func (b *SemiontBrowser) activate(id string) {
 		}
 		return
 	}
+	read := make(chan struct{})
 	b.spawn(func() error {
+		defer close(read)
 		b.route(session, signals)
 		return nil
 	})
+	live := &ended{end: handed.end, read: read, signals: signals}
 	_ = session.Ready(b.alive)
 	if b.closed.Load() || b.activeKbID.Value() != id {
-		(&ended{end: end, signals: signals}).close()
+		live.close()
 		return
 	}
-	b.putSession(session, end, signals)
+	b.putSession(session, live)
 }
 
 // built is what the factory handed back for a session.
@@ -886,8 +910,9 @@ func (b *SemiontBrowser) build(options SessionFactoryOptions) (handed built, ok 
 	}
 }
 
-// constructFailed is a factory's refusal as the failure a registry says: the
-// factory's own when it is one.
+// constructFailed is a factory's refusal as the failure a registry says: one
+// of the session's own errors as it is, and any other as
+// session.construct-failed, with its message as it is.
 func constructFailed(err error, kbID string) *semiont.SessionError {
 	var refused *semiont.SessionError
 	if errors.As(err, &refused) {

@@ -765,8 +765,13 @@ one's session, and what the person has open in each. It keeps all of it in a
 made again over the same storage picks up where the last one was.
 
 - **One session is live at a time.** `SetActiveKb` closes the active one's
-  session and brings up the next: its readers see no session, then the new
-  one. `SessionActivating` says a session is on its way. A session is built by
+  session, its errors read to their end, and then brings up the next: its
+  readers see no session, then the new one. `SessionActivating` says a
+  session is on its way. The factory's refusal is the one way an activation
+  fails: one of the session's own `*SessionError`s is said on `Errors` as it
+  is, anything else as `session.construct-failed` with its message, and no
+  session is then active. Once `Close` has begun, `SetActiveKb` is refused
+  with a `*BusRequestError` of code `bus.closed`. A session is built by
   the `SessionFactory` the registry is given; `HttpSessionFactory` builds one
   over a knowledge base's gateway, renewing its token at the issuer its stored
   sign-in names, and keeping its caches in the registry's storage.
