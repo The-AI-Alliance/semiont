@@ -52,7 +52,7 @@ func readFirstResource(
     try await signInDevice(kb: kb, kept: kept, httpClient: http, onCode: showCode)
     let opened = try await sessionFromKept(kb: kb, kept: kept, httpClient: http)
     defer { opened.dispose() }
-    try await opened.session.ready()
+    await opened.session.ready()
     descriptor = try await opened.client.browse.resource(resource).fresh()
   } catch {
     try? await http.shutdown()
@@ -164,10 +164,12 @@ launcher’s directory from values the application supplies; it reads no environ
 
 `sessionFromKept` returns an `OpenedSession`, which owns the session and its HTTP
 transport. Dispose that owner before shutting down the HTTP client. The session asks the
-gateway who its token is unless it is opened with `validate: false`. Its `ready()` raises
-startup task failures; `errors()` is its one stream of what went wrong: its own
-`SessionError`s (a sign-in it could not check, renew, read or record, a write its storage
-refused) and its transport’s failures, each said once, in the order they were met. A session
+gateway who its token is unless it is opened with `validate: false`. Its `ready()` returns once
+its start is done, and never fails: what the start meets is said on `errors()`, its one stream
+of what went wrong: its own `SessionError`s (a sign-in it could not check, renew, read, record
+or forget, a write its storage refused) and its transport’s failures, each said once, in the
+order they were met. A sign-in it could not forget is said with why it had to be, and what its
+storage said. A session
 listens to its client’s transport, whatever the transport, from when it is made, and says each
 failure as the transport tells it; taken first, its listener is told what the transport kept,
 which is said ahead of everything the session says. Of what it
@@ -235,9 +237,24 @@ and activate it. Launcher discovery can read a document supplied by the app
 or a document over HTTP. The discovery stream reports absent launchers,
 managed knowledge bases, and changes by address.
 
+The registry asks its `SessionFactory` for each session it activates, and the
+factory's refusal is the one way an activation fails: one of the session's own
+`SessionError`s is said on the registry's `errors()` as it is, and any other
+failure as `session.construct-failed`, with what that failure says. No session
+is then active, and `activeKbId` still names the knowledge base asked for.
+Before it asks for the next session, the registry closes the one that was
+active, its client first, and reads that session's errors to their end, so what
+its closing flush meets is said before anything of the next. From the moment
+`close()` begins, an activation is refused at the call with a
+`BusRequestError` of `bus.closed`. `close()` reads the errors of every session
+the registry let go of to their end before it ends its own `errors()`, and
+raises only what its own work failed with, never what it said there. A second
+`close()` returns at once.
+
 The registry is the one reader of each session's `errors()`, from the first
 thing the session said. It says each of the session's own `SessionError`s on
-its own `errors()`. A refusal for lack of permission is said through the
+its own `errors()`, an `Events<SessionError>`: the registry says nothing there
+but `SessionError`s. A refusal for lack of permission is said through the
 session's `SessionSignals.permissionDenied`, with the refusal's message. A
 refusal for want of a valid token is renewed by the transport that met it, and
 the registry does nothing with it. A `SessionFactory` reads none of them, so a

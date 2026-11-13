@@ -13,7 +13,7 @@ func readFirstResource(
     try await signInDevice(kb: kb, kept: kept, httpClient: http, onCode: showCode)
     let opened = try await sessionFromKept(kb: kb, kept: kept, httpClient: http)
     defer { opened.dispose() }
-    try await opened.session.ready()
+    await opened.session.ready()
     descriptor = try await opened.client.browse.resource(resource).fresh()
   } catch {
     try? await http.shutdown()

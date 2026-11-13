@@ -53,7 +53,7 @@ import Testing
   let session = test.opened.session
   let transport = test.transport
   defer { test.opened.dispose() }
-  try await session.ready()
+  await session.ready()
   session.dispose()
   session.dispose()
   #expect(try await StateReading(session.token).ended())

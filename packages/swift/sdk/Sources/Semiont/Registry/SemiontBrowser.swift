@@ -89,7 +89,7 @@ public actor SemiontBrowser {
   public nonisolated let identityToken = Watched<String?>(nil)
   public nonisolated let bus = EventBus()
 
-  private nonisolated let failures = Broadcast<any Error>(keepingForFirst: true)
+  private nonisolated let failures = Broadcast<SessionError>(keepingForFirst: true)
   nonisolated let clock: any Clock<Duration>
   nonisolated let random: RandomSource
   private let factory: any SessionFactory
@@ -97,12 +97,19 @@ public actor SemiontBrowser {
   private var abandonable: Set<UUID> = []
   private var activation: UUID?
   private var sessionWatch: UUID?
-  private var firstFailure: (any Error)?
+  /// The first failure of the work it ran, which its close raises; nothing it said is one.
+  private var taskFailure: (any Error)?
   /// The task reading each session's errors, by the session's id, while it reads them.
   private var readers: [String: UUID] = [:]
-  /// Its errors' end, once it is closing: after its live session has closed, and that session's
-  /// errors have been read to their end.
-  private var errorsEnd: Task<Void, Never>?
+  /// The end of every session it has let go of, after those it let go of before: each with its
+  /// client closed and its errors read to their end, so what its closing flush met is said by then.
+  /// Neither an activation nor its close goes on until then; a renewal of a sign-in under way is
+  /// not waited for.
+  private var sessionsEnded: Task<Void, Never>?
+  /// The end of every activation it has given up, after those it gave up before: each once it has
+  /// let go of what it built. An activation asks for no session until then; its close does not wait
+  /// for it.
+  private var activationsGivenUp: Task<Void, Never>?
   private var errorsEnded = false
   private var closed = false
   private var started = false
@@ -140,10 +147,11 @@ public actor SemiontBrowser {
     activate()
   }
 
-  /// What went wrong: each of its sessions' own errors, and its own. The first listener is given
-  /// first the latest `Timings.errorsKeptForFirstReaderCount` said before it listened; one who
-  /// comes after they have ended, nothing.
-  public nonisolated func errors() -> Events<any Error> { failures.listen() }
+  /// What went wrong: each of its sessions' own errors, and each refusal of a session by its
+  /// factory. What its own work fails with is not said on them: its close raises that. The first
+  /// listener is given first the latest `Timings.errorsKeptForFirstReaderCount` said before it
+  /// listened; one who comes after they have ended, nothing.
+  public nonisolated func errors() -> Events<SessionError> { failures.listen() }
   public nonisolated func setIdentityToken(_ value: String?) { identityToken.set(value) }
 
   private func requireOpen() throws {
@@ -211,12 +219,12 @@ public actor SemiontBrowser {
           activate()
         }
       }
-    } catch { record(error) }
+    } catch { failedAtWork(error) }
   }
 
-  private func record(_ error: any Error) {
-    if firstFailure == nil { firstFailure = error }
-    failures.yield(error)
+  /// Keeps `error`, what its own work failed with, for its close to raise, when it is the first.
+  private func failedAtWork(_ error: any Error) {
+    if taskFailure == nil { taskFailure = error }
   }
 
   private func writeActive(_ id: String?) throws {
@@ -377,15 +385,23 @@ public actor SemiontBrowser {
     return outcome
   }
 
-  /// Closes the active knowledge base's session, and gives it.
+  /// Closes the active knowledge base's session, and gives it; and gives up the activation under
+  /// way. The session joins its ``sessionsEnded``, and the activation its ``activationsGivenUp``.
   @discardableResult
   private func deactivate() -> OpenedSession? {
-    if let activation { tasks[activation]?.cancel() }
+    if let activation, let givenUp = tasks[activation] {
+      givenUp.cancel()
+      let before = activationsGivenUp
+      activationsGivenUp = spawn {
+        await before?.value
+        await givenUp.value
+      }
+    }
     if let sessionWatch { tasks[sessionWatch]?.cancel() }
     sessionWatch = nil
     activation = nil
     let closing = activeSession.value
-    closing?.dispose()
+    if let closing { letGo(closing) }
     activeSignals.value?.dispose()
     activeSession.set(nil)
     activeSignals.set(nil)
@@ -404,7 +420,7 @@ public actor SemiontBrowser {
     do {
       guard try storedSession(storage, kbId: id) != nil else { return }
     } catch {
-      record(error)
+      failedAtWork(error)
       return
     }
 
@@ -412,11 +428,19 @@ public actor SemiontBrowser {
     let signals = SessionSignals()
     let options = SessionFactoryOptions(kb: kb, storage: storage, signals: signals)
     let factory = factory
+    let givenUp = activationsGivenUp
     let idOfTask = registryTask(abandonOnClose: true) { [weak self] in
+      await givenUp?.value
+      let ended = await self?.sessionsEnded
+      await ended?.value
+      guard !Task.isCancelled else {
+        signals.dispose()
+        return
+      }
       do {
         let opened = try await factory.session(options)
         await self?.read(opened.session, signals: signals)
-        if !Task.isCancelled { _ = try? await opened.session.ready() }
+        if !Task.isCancelled { await opened.session.ready() }
         if let self {
           await self.install(opened, signals: signals)
         } else {
@@ -454,21 +478,40 @@ public actor SemiontBrowser {
     }
   }
 
-  /// Says `error`, which a session met, on the registry's errors until they end.
+  /// Says `error` on the registry's errors until they end.
   private func said(_ error: SessionError) {
     guard !errorsEnded else { return }
-    record(error)
+    failures.yield(error)
   }
 
+  /// Says what its factory refused the session of `id` with: one of the session's own errors as it
+  /// is, and any other failure as `session.construct-failed`, with what that failure says.
   private func activationFailed(_ error: any Error, id: String) {
     guard !closed, activation == RegistryTask.id else { return }
     sessionActivating.set(false)
-    record(SessionError(.sessionConstructFailed, String(describing: error), kbId: id))
+    if let own = error as? SessionError {
+      said(own)
+    } else {
+      said(SessionError(.sessionConstructFailed, String(describing: error), kbId: id))
+    }
+  }
+
+  /// Closes `opened`, its client first, and joins its end to ``sessionsEnded``: once its client
+  /// has closed and its errors have been read to their end.
+  private func letGo(_ opened: OpenedSession) {
+    let reader = readers[opened.session.id].flatMap { tasks[$0] }
+    opened.dispose()
+    let before = sessionsEnded
+    sessionsEnded = spawn {
+      await before?.value
+      await opened.client.closed()
+      await reader?.value
+    }
   }
 
   private func install(_ opened: OpenedSession, signals: SessionSignals) async {
     guard !closed, !Task.isCancelled, activation == RegistryTask.id else {
-      opened.dispose()
+      letGo(opened)
       signals.dispose()
       return
     }
@@ -490,7 +533,7 @@ public actor SemiontBrowser {
         try await checkResources(opened)
       }
     } catch {
-      if !Task.isCancelled { record(error) }
+      if !Task.isCancelled { failedAtWork(error) }
     }
   }
 
@@ -643,32 +686,31 @@ public actor SemiontBrowser {
     for id in readers.values { tasks[id]?.cancel() }
   }
 
-  /// Ends its live session, its client first, and reads that session's errors to their end before
-  /// it ends its own: what the client's closing flush meets is said on them. Every other session's
-  /// errors are read until then.
+  /// Ends its live session, its client first, and waits for every session it has let go of, that
+  /// one among them, to end before it ends its errors: each once its client has closed and its
+  /// errors have been read to their end, so what each closing flush meets is said on them. An
+  /// activation under way is given up and not waited for: a session its factory hands back
+  /// afterwards is ended at once. It raises the first failure of the work it ran, and nothing it
+  /// said. Closing twice is closing once: the second returns at once.
   public func close() async throws {
-    if !closed {
-      closed = true
-      let reading = Set(readers.values)
-      for (id, task) in tasks where id != RegistryTask.id && !reading.contains(id) { task.cancel() }
-      let live = activeSession.value
-      live?.dispose()
-      activeSignals.value?.dispose()
-      finishShown()
-      let reader = live.flatMap { readers[$0.session.id] }.flatMap { tasks[$0] }
-      errorsEnd = spawn { [weak self] in
-        await live?.closed()
-        await reader?.value
-        await self?.endErrors()
-      }
-    }
+    guard !closed else { return }
+    closed = true
+    let reading = Set(readers.values)
+    for (id, task) in tasks where id != RegistryTask.id && !reading.contains(id) { task.cancel() }
+    let live = activeSession.value
+    if let live { letGo(live) }
+    activeSignals.value?.dispose()
+    finishShown()
+    let ended = sessionsEnded
     if RegistryTask.id == nil {
       for (id, task) in tasks where !abandonable.contains(id) && !readers.values.contains(id) {
         await task.value
       }
     }
-    await errorsEnd?.value
-    if let firstFailure { throw firstFailure }
+    await ended?.value
+    await live?.closed()
+    endErrors()
+    if let taskFailure { throw taskFailure }
   }
 }
 
