@@ -14,7 +14,7 @@ if [[ "$IMAGES_ONLY" == true ]]; then
   if ! curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then
     fail "No Verdaccio at $REGISTRY — make images-only builds against the registry a previous run left running."
     echo ""
-    echo -e "  Run a full build first:  ${BOLD}make local-build${RESET}"
+    echo -e "  Run a full build first:  ${BOLD}make local${RESET}"
     echo ""
     exit 1
   fi
@@ -22,7 +22,7 @@ if [[ "$IMAGES_ONLY" == true ]]; then
   if [[ "${REUSED_COUNT:-0}" -eq 0 ]]; then
     fail "Verdaccio at $REGISTRY is up but holds no packages — an image build would have nothing to install."
     echo ""
-    echo -e "  Run a full build first:  ${BOLD}make local-build${RESET}"
+    echo -e "  Run a full build first:  ${BOLD}make local${RESET}"
     echo ""
     exit 1
   fi

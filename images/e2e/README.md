@@ -20,7 +20,7 @@ make smoke        # all three in one run
 ```
 
 `make stack-up` builds what it needs first: the `:local` images, as
-`make local-build PACKAGE_NAMES=typescript` does, when the build finds them or the
+`make local PACKAGE_NAMES=typescript` does, when the build finds them or the
 TypeScript packages they install older than the checkout, and the launcher when it is
 older than its Go source. It then runs `semiont init` in a new directory and
 `semiont start`, and checks health, the realm the start created and the Browser's origin.
@@ -266,7 +266,7 @@ that exactly matches the current branch's source:
 ```sh
 # 1. Build all @semiont/* packages, publish to local Verdaccio,
 #    build the semiont-browser image.
-make local-build
+make local
 
 # 2. From the KB project (typically ../semiont-template-kb), bring up
 #    the full stack from the :local images just built: name them in
@@ -302,7 +302,7 @@ for inspecting cross-service traces while debugging an e2e failure
   `launchctl setenv OLLAMA_HOST 0.0.0.0` (and quit/relaunch), or use
   `semiont start --config anthropic` to skip Ollama entirely.
 - **Code changes require rebuilding the `:local` images.** `make stack-up` does it
-  for you. On a stack you started yourself, rerun `make local-build`, then restart
+  for you. On a stack you started yourself, rerun `make local`, then restart
   the stack with `semiont start`, its documents naming the `:local` images. Without the
   rebuild + restart, you'll run yesterday's images with today's source.
 - **SPA tracing is not wired.** Gateway / worker / smelter
@@ -310,5 +310,5 @@ for inspecting cross-service traces while debugging an e2e failure
   therefore start at `bus.dispatch:*` (server-side EMIT receive)
   rather than the SPA's `bus.emit:*`. Enabling SPA tracing
   would need `VITE_OTEL_OTLP_ENDPOINT` threaded
-  through `make local-build` into the vite build container, plus
+  through `make local` into the vite build container, plus
   `COLLECTOR_OTLP_HTTP_CORS_ALLOWED_ORIGINS=*` on the Jaeger sidecar.

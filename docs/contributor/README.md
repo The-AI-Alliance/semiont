@@ -12,7 +12,7 @@ The root [Makefile](../../Makefile) is the public command menu for this monorepo
 
 ```sh
 make help
-make local-build
+make local
 make packages PACKAGE_NAMES=typescript
 make check-generated
 ```
@@ -22,7 +22,7 @@ language tools in containers. The helpers own build ordering, caching and cleanu
 operation per invocation; Make's parallel scheduler does not orchestrate the build.
 
 The host needs GNU Make 3.81 or newer, Bash, Git, curl and a container runtime
-(Apple `container`, Docker or Podman). `make local-build` builds local images and the host
+(Apple `container`, Docker or Podman). `make local` builds local images and the host
 launcher; [Local Development](LOCAL-DEVELOPMENT.md) explains how to run a stack on them.
 Use `make generate` to update generated code intentionally, and `make check-generated` to
 check committed output without repairing it.

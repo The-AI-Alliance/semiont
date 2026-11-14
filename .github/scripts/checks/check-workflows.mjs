@@ -420,9 +420,9 @@ function changedAreas(jobs) {
   const smokeWorkflow = yaml.load(readFileSync(join(ROOT, SMOKE), 'utf8'));
   const smokePaths = smokeWorkflow.on?.pull_request?.paths ?? [];
   const buildRun = (smokeWorkflow.jobs?.boot?.steps ?? []).map((step) => step.run ?? '')
-    .find((run) => /\bmake local-build\b/.test(run));
+    .find((run) => /\bmake local(?:\s|$)/.test(run));
   if (!buildRun || !buildRun.includes('PACKAGE_NAMES=typescript') || !buildRun.includes('FANOUT=0') || !buildRun.includes('LAYER_CACHE=')) {
-    failures.push(`${SMOKE}: local images must use make local-build with TypeScript selection, fan-out disabled and the Rust layer cache`);
+    failures.push(`${SMOKE}: local images must use make local with TypeScript selection, fan-out disabled and the Rust layer cache`);
   }
   for (const input of ['Makefile', 'images/scripts/**', 'packages/codegen/**']) {
     if (!smokePaths.includes(input)) failures.push(`${SMOKE}: Make's local build input ${input} is absent from pull_request paths`);

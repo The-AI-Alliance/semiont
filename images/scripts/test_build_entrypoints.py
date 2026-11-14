@@ -102,7 +102,7 @@ if args and args[0]=='exec' and 'python3' in args:
         ]
 
     def test_help_and_dry_run_are_side_effect_free(self):
-        for arguments in [("help",), ("-n", "local-build")]:
+        for arguments in [("help",), ("-n", "local")]:
             result = self.run_make(*arguments)
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.log.exists())

@@ -12,7 +12,7 @@ From the repository root:
 ```
 
 A published image tag can stand for `local`. `up local` first builds the `:local` images,
-as `make local-build PACKAGE_NAMES=typescript` does, when the build finds them older than
+as `make local PACKAGE_NAMES=typescript` does, when the build finds them older than
 the checkout. `up` starts a fresh knowledge base with the checkout's launcher, checks
 health, identity and Browser origins, and leaves it running. `e2e` makes a knowledge base
 and user of its own beside it and runs the default end-to-end tier against them, or the

@@ -126,7 +126,7 @@ jobs:
         # they are not copied into the runner's podman as well. The npm
         # packages are the ones an image installs; the other languages'
         # packages are built and tested by ci.yml's jobs.
-        run: make local-build PACKAGE_NAMES=typescript FANOUT=0 LAYER_CACHE="$RUNNER_TEMP/rust-image-layers"
+        run: make local PACKAGE_NAMES=typescript FANOUT=0 LAYER_CACHE="$RUNNER_TEMP/rust-image-layers"
 
       - uses: actions/setup-node@v7
         if: env.IMAGES != 'local'

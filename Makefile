@@ -40,20 +40,20 @@ ifneq ($(word 2,$(MAKECMDGOALS)),)
 $(error Run one public operation per invocation)
 endif
 
-.PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-macos-app desktop-macos-dmg desktop-linux stack-up e2e stack-down smoke clean
+.PHONY: help local packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-macos-app desktop-macos-dmg desktop-linux stack-up e2e stack-down smoke clean
 help:
 	@awk -v groups=$(call quote,$(BUILD_ROOT)/packages/codegen/groups.txt) -f $(call quote,$(BUILD_ROOT)/images/scripts/make-help.awk) $(call quote,$(BUILD_ROOT)/Makefile) $(call quote,$(BUILD_ROOT)/Makefile)
 
 ##@ Build
-## local-build: Packages, local images and the host launcher
+## local: Packages, local images and the host launcher
 ## packages: Packages only
 ## images-only: Images, from an existing local registry
 ## launcher: The host launcher only
 ## plan: What would build, building nothing
 ##@ Publish
 ## npm-publish-local: Built npm packages, to a fresh local Verdaccio
-local-build packages images-only launcher plan npm-publish-local:
-	@bash $(call quote,$(BUILD_ROOT)/images/scripts/build-session.sh) $@ $(build_arguments)
+local packages images-only launcher plan npm-publish-local:
+	@bash $(call quote,$(BUILD_ROOT)/images/scripts/build-session.sh) $(if $(filter local,$@),local-build,$@) $(build_arguments)
 
 ##@ Desktop installers
 ## desktop: For this OS

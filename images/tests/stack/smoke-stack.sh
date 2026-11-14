@@ -17,7 +17,7 @@
 # builds from; DOWN stops what UP started with the launcher that is there. The IMAGES are the tag `up` is given,
 # written into the stack's documents init made. So a launcher change is
 # testable against the images people actually run, publishing nothing. UP of
-# `local` first builds what make local-build PACKAGE_NAMES=typescript builds when
+# `local` first builds what make local PACKAGE_NAMES=typescript builds when
 # the build finds the images, or the npm packages the Browser's installs, older
 # than this checkout (images/scripts/build-session.sh stale).
 #
@@ -70,7 +70,7 @@
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
-# debugging it. stack-smoke.yml runs `run` after make local-build, or, given a
+# debugging it. stack-smoke.yml runs `run` after make local, or, given a
 # published tag, on its own.
 #
 # Requires: a responding container runtime (CONTAINER_RUNTIME selects one), git, curl, nc.

@@ -2919,7 +2919,7 @@ jobs:
         run: |
           /usr/bin/make --version | sed -n 1p | grep 'GNU Make 3.81'
           /usr/bin/make help
-          /usr/bin/make -n local-build
+          /usr/bin/make -n local
 
       - name: Setup Java
         uses: actions/setup-java@v6.2.0

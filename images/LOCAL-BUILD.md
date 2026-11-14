@@ -7,11 +7,11 @@ Language compilers and package managers run in containers; Make does not replace
 
 ```sh
 make help
-make local-build
+make local
 make plan PACKAGE_NAMES=rust IMAGE_NAMES=worker
 ```
 
-`make local-build` checks generated code and lockfiles, builds changed packages, publishes
+`make local` checks generated code and lockfiles, builds changed packages, publishes
 npm packages to fresh local Verdaccio when an image needs them, builds and verifies images,
 copies them to other responsive runtimes, and builds the host launcher. It does not start a KB.
 Images are tagged `ghcr.io/the-ai-alliance/semiont-<name>:local` and are never pushed.
@@ -19,7 +19,7 @@ Images are tagged `ghcr.io/the-ai-alliance/semiont-<name>:local` and are never p
 ## Select work
 
 ```sh
-make local-build PACKAGE_NAMES=typescript IMAGE_NAMES=browser
+make local PACKAGE_NAMES=typescript IMAGE_NAMES=browser
 make packages PACKAGE_NAMES=rust
 make packages PACKAGE_NAMES=typescript
 make packages PACKAGE_NAMES=typescript/sdk
@@ -128,7 +128,7 @@ Linux packaging works from Linux or macOS; macOS cross-packaging with Apple Cont
 Rosetta on Apple Silicon. An ARM Linux host needs its runtime to support amd64 emulation.
 The desktop helper uses the selected available runtime, builds its
 workspace dependencies, and writes installers to `apps/desktop/release/`. The macOS app is assembled in the Node container; the host uses `hdiutil` to create its DMG. No host Node runtime is used. Unsupported host OSes fail.
-Desktop is not part of `local-build`.
+Desktop is not part of `local`.
 
 ## Clean
 
@@ -140,7 +140,7 @@ make clean
 output, npm staging, the Browser's build, `apps/launcher/dist` and the desktop's `.build` and
 `release`. [Its roster](scripts/clean.sh) is tested to cover the output each package's build
 leaves, as [package signatures](scripts/package-signatures.py) declare it, so the next
-`local-build` or `packages` builds every package whose output is gone. It keeps installs
+`local` or `packages` builds every package whose output is gone. It keeps installs
 (`node_modules`, `.venv`), generated sources, the caches under `~/.cache/semiont` and the
 runtime's images; `FORCE=1` rebuilds images. It needs no container runtime, and it refuses,
 removing nothing, when a path it would remove holds a file git tracks or is not ignored.
@@ -167,12 +167,12 @@ they name `SMOKE_TAG`'s images for every knowledge base on the machine. The smok
 `CONTAINER_RUNTIME` selection and readiness check as the build.
 Apple `container` runs Playwright through the existing localhost bridge; Docker and Podman
 use host networking. With `SMOKE_TAG=local`, `stack-up` and `smoke` first build what
-`make local-build PACKAGE_NAMES=typescript` builds when the build finds an image, or an npm
+`make local PACKAGE_NAMES=typescript` builds when the build finds an image, or an npm
 package the Browser's image installs, older than the checkout; the same signatures `make plan`
 reads decide it. A published tag's images are pulled. `stack-up`, `e2e` and `smoke` build the
 checkout's launcher, as `make launcher` does, when it is missing or older than its Go source;
 `stack-down` stops the stack with the launcher that is there.
-Stack Smoke CI calls `make local-build` with TypeScript selection, fan-out disabled and a
+Stack Smoke CI calls `make local` with TypeScript selection, fan-out disabled and a
 Docker layer cache. Existing native CI build and release publication commands remain direct.
 
 `make help` prints the Makefile's own `##` lines, each beside the target or variable it

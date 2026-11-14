@@ -1,6 +1,6 @@
 # Local development
 
-Local development is built around **[`make local-build`](../../Makefile)**. It builds your working tree into the real service images, and the launcher runs those. What you test is what ships.
+Local development is built around **[`make local`](../../Makefile)**. It builds your working tree into the real service images, and the launcher runs those. What you test is what ships.
 
 ## What you need
 
@@ -19,7 +19,7 @@ assembly performed in the Node container.
 
 ```bash
 # 1. In the repository: build the packages, all eight images, the launcher, and the Python SDK
-make local-build
+make local
 
 # 2. In the knowledge base: run the stack on what you built. Name the :local
 #    images in .semiont/stack/*.yaml (ghcr.io/the-ai-alliance/semiont-gateway:local,
@@ -57,7 +57,7 @@ Two things make the stack use your build:
 ### Rebuilding one thing
 
 ```bash
-make local-build PACKAGE_NAMES=typescript/react-ui IMAGE_NAMES=browser   # one package, then one image
+make local PACKAGE_NAMES=typescript/react-ui IMAGE_NAMES=browser   # one package, then one image
 make packages  PACKAGE_NAMES=rust                 # the Rust crates, nothing else
 make images-only  IMAGE_NAMES=librarian                # one image, from the working tree
 make help                                          # every option
@@ -104,7 +104,7 @@ In the Browser's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for 
 
 ## Related
 
-- [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md): `make local-build` and the build and publish scripts
+- [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md): `make local` and the build and publish scripts
 - [Testing](TESTING.md): the suites and how to run them
 - [The service catalog](../operator/services/OVERVIEW.md): what is running, and on which ports
 - [Running knowledge bases on your computer](../operator/LOCAL-SEMIONT.md): the launcher from an operator's side
