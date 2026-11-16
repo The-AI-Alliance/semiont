@@ -5,6 +5,6 @@
 # rustup's default to it; packages/rust/scripts/rust-toolchain.sh reads it for both. So the version is written here and nowhere else, and
 # lint:rust-toolchain refuses a second copy.
 [toolchain]
-channel = "1.99.1"
+channel = "1.100.0"
 components = ["rustfmt", "clippy"]
 profile = "minimal"
