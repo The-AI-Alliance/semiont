@@ -1,3 +1,5 @@
+> This repository is frozen at its state as of August 26, 2026. Later commits, all authored by Adam Pingel, remain in its history. Development continues at github.com/xynolog under Apache-2.0.
+
 # Semiont
 
 **Semiont is an open, source-grounded semantic knowledge platform for building and maintaining trusted AI knowledge bases and context layers. It gives humans and AI agents a shared workspace and architecture to annotate, connect, enrich, and govern domain knowledge for accurate applications, agents, and workflows.**
