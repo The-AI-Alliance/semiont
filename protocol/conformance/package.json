@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.10.0",
-    "@opentelemetry/otlp-transformer": "^0.300.0",
+    "@opentelemetry/otlp-transformer": "^0.301.1",
     "@opentelemetry/resources": "^3.0.0",
     "@opentelemetry/sdk-metrics": "^3.0.0",
     "@opentelemetry/sdk-trace": "^3.0.0",
