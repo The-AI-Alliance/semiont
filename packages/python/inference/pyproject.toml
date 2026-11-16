@@ -43,7 +43,7 @@ anthropic = ["anthropic>=2.1,<3"]
 openai = ["openai>=3.28,<4"]
 # Google's library, from the version the Google driver was written against:
 # what the driver leans on in it, and switches off in it, is listed in google.py.
-google = ["google-genai>=2.33,<3"]
+google = ["google-genai>=2.33,<4"]
 # Together's library, from the version the Together driver was written against:
 # what the driver leans on in it, and switches off in it, is listed in together.py.
 together = ["together>=2.40,<3"]
