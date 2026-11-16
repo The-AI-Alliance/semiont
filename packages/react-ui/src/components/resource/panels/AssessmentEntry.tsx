@@ -1,0 +1,122 @@
+'use client';
+
+import type { Ref } from 'react';
+import type { Annotation } from '@semiont/core';
+import { getAnnotationExactText } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
+import { renderAgentLabel } from './agent-label';
+
+// W3C Annotation TextualBody type
+interface TextualBody {
+  type: 'TextualBody';
+  value: string;
+  format?: string;
+  language?: string;
+}
+
+interface AssessmentEntryProps {
+  /** Session for interaction routing (browse.click etc.); the panel threads it. */
+  session: SemiontSession | null;
+  assessment: Annotation;
+  isFocused: boolean;
+  isHovered?: boolean;
+  ref?: Ref<HTMLDivElement>;
+}
+
+function formatRelativeTime(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return 'just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+
+  return date.toLocaleDateString();
+}
+
+function isTextualBody(body: unknown): body is TextualBody {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'type' in body &&
+    body.type === 'TextualBody' &&
+    'value' in body &&
+    typeof body.value === 'string'
+  );
+}
+
+function getAssessmentText(annotation: Annotation): string | null {
+  if (!annotation.body) return null;
+
+  // Handle TextualBody directly
+  if (isTextualBody(annotation.body)) {
+    return annotation.body.value || null;
+  }
+
+  // Handle array of bodies
+  if (Array.isArray(annotation.body) && annotation.body.length > 0) {
+    const textBody = annotation.body.find(isTextualBody);
+    return textBody?.value || null;
+  }
+
+  return null;
+}
+
+export function AssessmentEntry({
+  session,
+  assessment,
+  isFocused,
+  isHovered = false,
+  ref,
+}: AssessmentEntryProps) {
+  const hoverProps = useHoverEmitter(session, assessment.id);
+
+  const selectedText = getAnnotationExactText(assessment);
+  const assessmentText = getAssessmentText(assessment);
+
+  return (
+    <div
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
+      data-type="assessment"
+      data-focused={isFocused ? 'true' : 'false'}
+      onClick={() => {
+        session?.client.browse.click(assessment.id);
+      }}
+      {...hoverProps}
+    >
+      {/* Selected text quote */}
+      {selectedText && (
+        <div className="semiont-annotation-entry__quote" data-type="assessment">
+          "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
+        </div>
+      )}
+
+      {/* Assessment body */}
+      {assessmentText && (
+        <div className="semiont-annotation-entry__body" data-type="assessment">
+          {assessmentText}
+        </div>
+      )}
+
+      {/* Metadata */}
+      <div className="semiont-annotation-entry__metadata">
+        By {typeof assessment.creator === 'string' ? assessment.creator : assessment.creator?.name || 'Unknown'} • {formatRelativeTime(assessment.created || new Date().toISOString())}
+      </div>
+      {assessment.generator && (
+        <div className="semiont-annotation-entry__metadata">
+          Via {Array.isArray(assessment.generator)
+            ? assessment.generator.map(renderAgentLabel).join(', ')
+            : renderAgentLabel(assessment.generator)}
+        </div>
+      )}
+    </div>
+  );
+}

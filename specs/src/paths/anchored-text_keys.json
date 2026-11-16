@@ -1,0 +1,47 @@
+{
+  "get": {
+    "summary": "List the keys under which anchored text is currently stored",
+    "description": "The anchored-text store's would-hit keys — the reconcile planner's bulk existence read (PERSIST-ANCHORS P0). The Smelter diffs this against the catalog to find resources whose derived coordinate map was lost (a transient store, a failed publish) and plans re-derivation; one request per reconcile, keys only, because each map is ~32 KB per scanned page and only presence is being asked.\n\nKeys are resource ids today; after PERSIST-ANCHORS P1 they are content checksums. Only entries a read would actually serve are listed — stale-stamped or unreadable entries are excluded, exactly as a read would exclude them.\n\nAgents only: this is projection-maintenance planning data, same trust boundary as publishing a map.",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Every key under which anchored text would currently be served.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "keys"
+              ],
+              "properties": {
+                "keys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Caller is not an agent",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

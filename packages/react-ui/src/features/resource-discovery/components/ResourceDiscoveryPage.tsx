@@ -1,0 +1,326 @@
+/**
+ * ResourceDiscoveryPage Component
+ *
+ * Pure React component for resource discovery and search.
+ * All dependencies passed as props - no Next.js hooks!
+ */
+
+import React, { useCallback, useRef } from 'react';
+import { getResourceId } from '@semiont/core';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
+import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
+import { Toolbar } from '../../../components/Toolbar';
+import { ResourceCard } from './ResourceCard';
+
+import type { ResourceDescriptor } from '@semiont/core';
+
+export interface ResourceDiscoveryPageProps {
+  // Data props
+  recentDocuments: ResourceDescriptor[];
+  searchDocuments: ResourceDescriptor[];
+  entityTypes: string[];
+  isLoadingRecent: boolean;
+  /**
+   * The recent-resources load failed terminally (B15). Without it, "loading"
+   * derived from an absent value never resolves and this route freezes.
+   * See .plans/PANEL-FAILURE-STATES.md
+   */
+  recentError?: Error | null;
+  onRetryRecent?: () => void;
+  isSearching: boolean;
+  /**
+   * How the current search answer was produced — `'lexical'` (title/metadata
+   * matching) or `'semantic'` (the vector fallback that runs only when lexical
+   * matching returned nothing). Undefined before the first answer, and on the
+   * no-query view where `recent` renders and no label describes it.
+   *
+   * Optional so hosts that never wire it — including external consumers —
+   * render exactly as before (SEMANTIC-FALLBACK P3b).
+   */
+  searchMatchKind?: 'lexical' | 'semantic';
+
+  // Controlled search state
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+
+  // Controlled entity-type filter — owned by the state unit so filtering
+  // pushes to the backend rather than running as a post-fetch array filter.
+  selectedEntityType: string;
+  onSelectedEntityTypeChange: (entityType: string) => void;
+
+  // UI state props
+  theme: 'light' | 'dark';
+  activePanel: string | null;
+
+  // Navigation props
+  onNavigateToResource: (resourceId: string) => void;
+  onNavigateToCompose: () => void;
+
+  // Translation props
+  translations: {
+    title: string;
+    subtitle: string;
+    searchPlaceholder: string;
+    searchButton: string;
+    searching: string;
+    semanticFallbackNotice: string;
+    filterByEntityType: string;
+    all: string;
+    recentResources: string;
+    searchResults: (count: number) => string;
+    documentsTaggedWith: (entityType: string) => string;
+    noResultsFound: (query: string) => string;
+    noResourcesAvailable: string;
+    composeFirstResource: string;
+    archived: string;
+    created: string;
+    loadingKnowledgeBase: string;
+    recentFailed: string;
+    retry: string;
+  };
+
+  // Component dependencies
+  ToolbarPanels: React.ComponentType<any>;
+}
+
+export function ResourceDiscoveryPage({
+  recentDocuments,
+  searchDocuments,
+  entityTypes,
+  isLoadingRecent,
+  recentError = null,
+  onRetryRecent,
+  isSearching,
+  searchMatchKind,
+  searchQuery,
+  onSearchQueryChange,
+  selectedEntityType,
+  onSelectedEntityTypeChange,
+  theme,
+  activePanel,
+  onNavigateToResource,
+  onNavigateToCompose,
+  translations: t,
+  ToolbarPanels,
+}: ResourceDiscoveryPageProps) {
+  const hasSearchQuery = searchQuery.trim() !== '';
+
+  // When searching, render search results; otherwise render recent.
+  // Both already arrive entity-type-filtered from the backend — no post-filter here.
+  const filteredResources = hasSearchQuery ? searchDocuments : recentDocuments;
+
+  // Roving tabindex for entity type filters
+  const entityFilterRoving = useRovingTabIndex<HTMLDivElement>(
+    entityTypes.length + 1, // +1 for "All" button
+    { orientation: 'horizontal' }
+  );
+
+  // Roving tabindex for document grid
+  const documentGridRoving = useRovingTabIndex<HTMLDivElement>(
+    filteredResources.length,
+    { orientation: 'grid', cols: 2 } // 2 columns on medium+ screens
+  );
+
+  // Store navigation callback in ref to avoid re-creating openResource
+  const onNavigateToResourceRef = useRef(onNavigateToResource);
+  onNavigateToResourceRef.current = onNavigateToResource;
+
+  // Memoized callbacks
+  const handleEntityTypeFilter = useCallback((entityType: string) => {
+    onSelectedEntityTypeChange(entityType);
+  }, [onSelectedEntityTypeChange]);
+
+  const openResource = useCallback((resource: ResourceDescriptor) => {
+    const resourceId = getResourceId(resource);
+    if (resourceId) {
+      onNavigateToResourceRef.current(resourceId);
+    }
+  }, []);
+
+  // A terminally failed load is not still loading — check it first.
+  if (recentError) {
+    return (
+      <div className="semiont-page__loading">
+        <p className="semiont-page__loading-text">{t.recentFailed}</p>
+        {onRetryRecent && (
+          <button type="button" onClick={onRetryRecent} className="semiont-button" data-variant="secondary">
+            {t.retry}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Loading state
+  if (isLoadingRecent) {
+    return (
+      <div className="semiont-page__loading">
+        <p className="semiont-page__loading-text">{t.loadingKnowledgeBase}</p>
+      </div>
+    );
+  }
+
+  const showNoResultsWarning = hasSearchQuery && searchDocuments.length === 0 && !isSearching;
+
+  return (
+    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
+      {/* Main Content Area */}
+      <div className="semiont-page__content">
+        {/* Page Header */}
+        <div className="semiont-page__header">
+          <h1 className="semiont-page__title">{t.title}</h1>
+          <p className="semiont-page__subtitle">
+            {t.subtitle}
+          </p>
+        </div>
+
+        {/* Search and Filter Section */}
+        <div className="semiont-card">
+          {/* Search Bar */}
+          <div className="semiont-card__search-form">
+            <div className="semiont-card__search-wrapper">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => onSearchQueryChange(e.target.value)}
+                placeholder={t.searchPlaceholder}
+                className="semiont-card__search-input"
+                aria-label={t.searchPlaceholder}
+              />
+              {isSearching && (
+                <span className="semiont-card__search-status" aria-live="polite">
+                  {t.searching}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Entity Type Filters */}
+          {entityTypes.length > 0 && (
+            <div className="semiont-card__filters">
+              <h3 className="semiont-card__filters-label">
+                {t.filterByEntityType}
+              </h3>
+              <div
+                ref={entityFilterRoving.containerRef}
+                onKeyDown={entityFilterRoving.handleKeyDown}
+                className="semiont-card__filter-buttons"
+                role="group"
+                aria-label="Entity type filters"
+              >
+                <button
+                  onClick={() => handleEntityTypeFilter('')}
+                  tabIndex={0}
+                  aria-pressed={selectedEntityType === ''}
+                  className="semiont-card__filter-button"
+                  data-active={selectedEntityType === ''}
+                >
+                  {t.all}
+                </button>
+                {entityTypes.map((type: string) => (
+                  <button
+                    key={type}
+                    onClick={() => handleEntityTypeFilter(type)}
+                    tabIndex={-1}
+                    aria-pressed={selectedEntityType === type}
+                    className="semiont-card__filter-button"
+                    data-active={selectedEntityType === type}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Documents Grid */}
+          <div className="semiont-card__documents">
+            <h3 className="semiont-card__documents-label">
+              {hasSearchQuery && searchDocuments.length > 0
+                ? t.searchResults(searchDocuments.length)
+                : selectedEntityType
+                  ? t.documentsTaggedWith(selectedEntityType)
+                  : t.recentResources
+              }
+            </h3>
+
+            {/* Decision 3: label it, minimally. Someone who searches "kitten"
+                and gets documents about cats otherwise has no way to know why,
+                and an unexplained answer is a worse trust outcome than the
+                empty page this replaced. Only ever appears where the
+                alternative was that empty page (S5), so it never competes with
+                a better answer. `aria-live` because the results it explains
+                arrive without any control being activated. */}
+            {hasSearchQuery && searchMatchKind === 'semantic' && searchDocuments.length > 0 && (
+              <p
+                className="semiont-card__documents-note"
+                data-testid="semiont-semantic-match-notice"
+                aria-live="polite"
+              >
+                {t.semanticFallbackNotice}
+              </p>
+            )}
+
+            {showNoResultsWarning && (
+              <div className="semiont-card__warning">
+                <p className="semiont-card__warning-text">
+                  {t.noResultsFound(searchQuery)}
+                </p>
+              </div>
+            )}
+
+            {filteredResources.length > 0 ? (
+              <div
+                ref={documentGridRoving.containerRef}
+                onKeyDown={documentGridRoving.handleKeyDown}
+                className="semiont-card-grid"
+                role="group"
+                aria-label="Document grid"
+              >
+                {filteredResources.map((resource: ResourceDescriptor, index: number) => (
+                  <ResourceCard
+                    key={getResourceId(resource)}
+                    resource={resource}
+                    onOpen={openResource}
+                    tabIndex={index === 0 ? 0 : -1}
+                    archivedLabel={t.archived}
+                    createdLabel={t.created}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="semiont-card__empty">
+                <p className="semiont-card__empty-text">
+                  {t.noResourcesAvailable}
+                </p>
+                {!hasSearchQuery && (
+                  <button
+                    onClick={onNavigateToCompose}
+                    className="semiont-card__empty-button"
+                  >
+                    {t.composeFirstResource}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Sidebar - Panels and Toolbar */}
+      <div className="semiont-page__sidebar">
+        {/* Panels Container */}
+        <ToolbarPanels
+          activePanel={activePanel}
+          theme={theme}
+        />
+
+        {/* Toolbar - Always visible on the right */}
+        <Toolbar
+          context="simple"
+          activePanel={activePanel}
+        />
+      </div>
+    </div>
+  );
+}

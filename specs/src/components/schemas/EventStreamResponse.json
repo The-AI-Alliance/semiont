@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "event": {
+      "type": "string"
+    },
+    "data": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "event",
+    "data"
+  ]
+}

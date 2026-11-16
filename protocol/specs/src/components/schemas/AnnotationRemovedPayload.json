@@ -1,8 +1,0 @@
-{
-  "type": "object",
-  "description": "Payload for mark:removed domain event",
-  "properties": {
-    "annotationId": { "$ref": "./AnnotationId.json" }
-  },
-  "required": ["annotationId"]
-}

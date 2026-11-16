@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "description": "An annotation's graph presence. The node IS the annotation, so the full W3C object is required \u2014 selectors and body included, which is what lets a client place context annotations without a second fetch. Citations ride here too: an inbound reference is its linking annotation, anchored by an `annotation-of` edge to the resource it lives on and a `cites` edge to the focal resource.",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The AnnotationId \u2014 the same value as annotation.id"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "annotation"
+      ]
+    },
+    "label": {
+      "type": "string",
+      "description": "The annotation's motivation, as a display label"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity types carried by the annotation"
+    },
+    "annotation": {
+      "$ref": "./Annotation.json"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "label",
+    "annotation"
+  ]
+}

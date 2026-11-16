@@ -1,0 +1,323 @@
+/**
+ * Detection Widget Component Styles
+ *
+ * Shared styles for AI-powered detection sections across all motivation panels.
+ * Each panel (highlight, comment, assessment, tag, reference) uses data-type
+ * attribute for motivation-specific theming.
+ */
+
+/* ============================================
+   Base Detection Widget Container
+   ============================================ */
+
+.semiont-assist-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: var(--semiont-bg-secondary);
+  border-radius: 0.5rem;
+  border: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-assist-widget {
+  background-color: var(--semiont-color-gray-800);
+  border-color: var(--semiont-color-gray-700);
+}
+
+/* ============================================
+   Labels and Descriptive Text
+   ============================================ */
+
+.semiont-assist-widget__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-gray-700);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-assist-widget__label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-assist-widget__count {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-assist-widget__count {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-assist-widget__no-types {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-500);
+  font-style: italic;
+}
+
+[data-theme="dark"] .semiont-assist-widget__no-types {
+  color: var(--semiont-color-gray-400);
+}
+
+/* ============================================
+   Entity Types / Chips Section (References)
+   ============================================ */
+
+.semiont-assist-widget__entity-types {
+  margin-bottom: 1rem;
+}
+
+.semiont-assist-widget__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ============================================
+   Checkbox Group (References)
+   ============================================ */
+
+.semiont-assist-widget__checkbox-group {
+  margin-bottom: 1rem;
+}
+
+.semiont-assist-widget__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-700);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .semiont-assist-widget__checkbox-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-assist-widget__checkbox {
+  border-radius: 0.25rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  color: var(--semiont-color-blue-600);
+}
+
+[data-theme="dark"] .semiont-assist-widget__checkbox {
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-assist-widget__checkbox:focus {
+  outline: 2px solid var(--semiont-color-blue-500);
+  outline-offset: 2px;
+}
+
+.semiont-assist-widget__checkbox-hint {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  margin-top: 0.25rem;
+  margin-left: 1.5rem;
+}
+
+[data-theme="dark"] .semiont-assist-widget__checkbox-hint {
+  color: var(--semiont-color-gray-400);
+}
+
+/* ============================================
+   Detection Log (Completed Results)
+   ============================================ */
+
+/* ============================================
+   Detection Progress Display
+   ============================================ */
+
+/* ── Assist progress: TWO containers, not five ──────────────────────────────
+   The widget was `.semiont-assist-widget` > `.semiont-annotation-progress` >
+   `__params` > `__message`, each with its own border, padding and tint — four
+   nested boxes around one sentence of status. The outer `.semiont-assist-widget`
+   (above) already provides the card; this provides the status region inside it.
+   ASSIST-PROGRESS-CONSOLIDATION P3. */
+.semiont-assist-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  position: relative;
+}
+
+.semiont-assist-progress__status {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-right: 1.5rem; /* room for the single control */
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-assist-progress__icon {
+  flex: none;
+}
+
+/* The subject and the parameters are context for the status, not peers of it. */
+.semiont-assist-progress__subject,
+.semiont-assist-progress__params {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-assist-progress__subject,
+[data-theme="dark"] .semiont-assist-progress__params {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-assist-progress__subject {
+  font-variant-numeric: tabular-nums;
+}
+
+/* D8: the finished run's artifact, offered as a link. */
+/* The finished run's artifact — the ended frame's primary affordance
+   (GENERATION-ARRIVAL P1, D3's fallback): a button-shaped invitation to open
+   what was made, not an underlined footnote beside the bar. */
+.semiont-assist-progress__outcome {
+  align-self: stretch;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-primary-300);
+  border-radius: 0.5rem;
+  background: var(--semiont-color-primary-50);
+  cursor: pointer;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-color-primary-700);
+  text-align: left;
+}
+
+.semiont-assist-progress__outcome:hover {
+  border-color: var(--semiont-color-primary-400);
+  background: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-800);
+}
+
+[data-theme="dark"] .semiont-assist-progress__outcome {
+  border-color: var(--semiont-color-primary-700);
+  background: var(--semiont-color-primary-900);
+  color: var(--semiont-color-primary-300);
+}
+
+[data-theme="dark"] .semiont-assist-progress__outcome:hover {
+  border-color: var(--semiont-color-primary-600);
+  background: var(--semiont-color-primary-800);
+  color: var(--semiont-color-primary-200);
+}
+
+.semiont-assist-progress__params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.semiont-assist-progress__param-label {
+  font-weight: var(--semiont-font-medium);
+}
+
+/* One control, top-right, quiet until hovered. */
+.semiont-assist-progress__control {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0.125rem 0.25rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-assist-progress__control:hover {
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-assist-progress__control {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-assist-widget[data-type="highlight"] {
+  border-color: var(--semiont-color-yellow-300);
+}
+
+[data-theme="dark"] .semiont-assist-widget[data-type="highlight"] {
+  border-color: var(--semiont-color-yellow-600);
+}
+
+/* Comment */
+.semiont-assist-widget[data-type="comment"] {
+  border-color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-assist-widget[data-type="comment"] {
+  border-color: var(--semiont-color-gray-600);
+}
+
+/* Assessment */
+.semiont-assist-widget[data-type="assessment"] {
+  border-color: var(--semiont-color-purple-300);
+}
+
+[data-theme="dark"] .semiont-assist-widget[data-type="assessment"] {
+  border-color: var(--semiont-color-purple-600);
+}
+
+/* Tag */
+.semiont-assist-widget[data-type="tag"] {
+  border-color: var(--semiont-color-orange-300);
+}
+
+[data-theme="dark"] .semiont-assist-widget[data-type="tag"] {
+  border-color: var(--semiont-color-orange-600);
+}
+
+/* Reference */
+.semiont-assist-widget[data-type="reference"] {
+  border-color: var(--semiont-color-blue-300);
+}
+
+[data-theme="dark"] .semiont-assist-widget[data-type="reference"] {
+  border-color: var(--semiont-color-blue-600);
+}
+
+/* ============================================
+   Detection Progress Message - Motivation Colors
+   ============================================ */
+
+/* Highlight - Yellow */
+
+/*
+ * The progress bar. `AssistProgress` is its only consumer in the whole
+ * package, so it lives here rather than in `styles/core/` — it was defined in
+ * three files while nothing else rendered it (CLEAN-PROGRESS D4). If a second
+ * consumer ever appears, promoting these rules to core is a move, not a copy.
+ *
+ * The track is NOT `--semiont-bg-secondary`: that is exactly
+ * `.semiont-assist-widget`'s own background, so the track went invisible inside
+ * the card and the fill floated with nothing to measure it against (spotted in
+ * live testing, 2026-08-12).
+ */
+.semiont-progress-bar {
+  width: 100%;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--semiont-radius-full);
+  background-color: var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-progress-bar {
+  background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-progress-bar__fill {
+  height: 100%;
+  background-color: var(--semiont-color-primary-500);
+  transition: width 0.3s ease;
+}
+
+[data-theme="dark"] .semiont-progress-bar__fill {
+  background-color: var(--semiont-color-primary-400);
+}

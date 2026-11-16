@@ -1,0 +1,140 @@
+/**
+ * Entity Tags Feature Styles
+ *
+ * Styles for the entity tags management page
+ */
+
+/* Header section */
+.semiont-entity-tags__header {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.semiont-entity-tags__icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  background-color: rgba(59, 130, 246, 0.1);
+  margin-right: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-entity-tags__icon-box {
+  background-color: rgba(30, 58, 138, 0.2);
+}
+
+.semiont-entity-tags__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--semiont-color-blue-600);
+}
+
+[data-theme="dark"] .semiont-entity-tags__icon {
+  color: var(--semiont-color-blue-400);
+}
+
+.semiont-entity-tags__content {
+  flex: 1;
+}
+
+.semiont-entity-tags__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-entity-tags__title {
+  color: var(--semiont-color-white);
+}
+
+.semiont-entity-tags__description {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-entity-tags__description {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Tags section */
+.semiont-entity-tags__tags-section {
+  margin-bottom: 1.5rem;
+}
+
+/* Tags now use centralized styles from components/tags.css
+   Entity tags use: .semiont-tag.semiont-tag--info.semiont-tag--rounded-md */
+
+/* Input group */
+.semiont-entity-tags__input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-entity-tags__input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: 0.375rem;
+  background-color: var(--semiont-color-white);
+  color: var(--semiont-color-gray-900);
+  font-size: 0.875rem;
+}
+
+.semiont-entity-tags__input::placeholder {
+  color: var(--semiont-color-gray-500);
+}
+
+.semiont-entity-tags__input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--semiont-color-blue-500);
+  border-color: var(--semiont-color-blue-500);
+}
+
+[data-theme="dark"] .semiont-entity-tags__input {
+  border-color: var(--semiont-color-gray-600);
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-entity-tags__input::placeholder {
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-entity-tags__input:focus {
+  border-color: var(--semiont-color-blue-400);
+}
+
+/* Error message */
+.semiont-entity-tags__error {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  color: var(--semiont-color-red-600);
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .semiont-entity-tags__error {
+  color: var(--semiont-color-red-400);
+}
+
+.semiont-entity-tags__error-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.25rem;
+}
+
+/* Icon utilities */
+.semiont-icon--small {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.semiont-icon--inline {
+  display: inline-block;
+  margin-right: 0.25rem;
+}

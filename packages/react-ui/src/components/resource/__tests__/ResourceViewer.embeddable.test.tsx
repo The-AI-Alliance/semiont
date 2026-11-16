@@ -1,0 +1,146 @@
+/**
+ * EMBEDDABLE-RESOURCE-VIEWER — keystone acceptance spec.
+ *
+ * The consumer's (my-chat) actual requirement: render + interact with a resource
+ * fed ONLY a `SemiontSession`, with NO SemiontProvider / TranslationProvider /
+ * cache context mounted. This is the definition of done for provider-free
+ * rendering — the "an external host can import the pieces" half of the plan's
+ * dual acceptance test.
+ *
+ * GREEN as of step 1c: the browse-mode subtree (ResourceViewer → BrowseView →
+ * AnnotateToolbar) renders provider-free from a bare session. The annotate-mode
+ * subtree is covered by AnnotateView.embeddable.test.tsx.
+ */
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, act, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import type { SemiontSession } from '@semiont/sdk';
+import type { Annotation, ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
+import { annotationId } from '@semiont/core';
+import { createTestSemiontWrapper } from '../../../test-utils';
+import { ResourceViewer } from '../ResourceViewer';
+
+// Minimal bring-your-own-session double: just the surface ResourceViewer + its
+// subtree touch — `client.browse` / `client.mark` and generic-channel `subscribe`.
+function fakeSession(): SemiontSession {
+  const client = {
+    baseUrl: 'http://localhost:4000',
+    browse: { invalidateAnnotationList: vi.fn(), click: vi.fn() },
+    mark: { delete: vi.fn() },
+  };
+  return {
+    client,
+    subscribe: () => () => {},
+  } as unknown as SemiontSession;
+}
+
+const resource: SemiontResource & { content: string } = {
+  '@context': 'https://www.w3.org/ns/activitystreams',
+  '@id': 'res-1' as ResourceId,
+  name: 'Doc',
+  created: '2024-01-01T00:00:00Z',
+  entityTypes: [],
+  archived: false,
+  representations: [{ mediaType: 'text/plain', byteSize: 10 }],
+  content: 'Embeddable content.',
+};
+
+const annotations = { highlights: [], references: [], assessments: [], comments: [], tags: [] };
+
+/**
+ * A highlight the viewer has actually loaded. Required since TOUR-CLICK D2: the
+ * click handler resolves the annotation by id and derives the motivation from
+ * it, so a click for an id absent from this collection is a no-op. Before that,
+ * the wire carried the motivation and the viewer never looked — which is why
+ * the anchorRect test below used to pass against an empty collection.
+ */
+const loadedHighlight: Annotation = {
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: annotationId('ann-1'),
+  motivation: 'highlighting',
+  target: { source: 'res-1', selector: { type: 'TextPositionSelector', start: 0, end: 10 } },
+};
+
+const annotationsWithHighlight = { ...annotations, highlights: [loadedHighlight] };
+
+describe('ResourceViewer — embeddable (bring-your-own-session, no providers)', () => {
+  // GREEN: the whole browse-mode subtree (ResourceViewer → BrowseView →
+  // AnnotateToolbar) renders provider-free from a bare session.
+  it('renders content fed only a session, with NO providers mounted', () => {
+    render(
+      <ResourceViewer
+        session={fakeSession()}
+        resource={resource}
+        annotations={annotations}
+        onOpenResource={vi.fn()}
+        onOpenPanel={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Embeddable content.')).toBeInTheDocument();
+  });
+
+  // A1 anchor thread: the viewer is a pass-through for view geometry — an
+  // anchorRect arriving on browse:click reaches the host's onOpenPanel
+  // untouched (detail routing, the default click action).
+  it('forwards the browse:click anchorRect into onOpenPanel', async () => {
+    const { session, eventBus } = createTestSemiontWrapper();
+    const onOpenPanel = vi.fn();
+
+    render(
+      <ResourceViewer
+        session={session}
+        resource={resource}
+        annotations={annotationsWithHighlight}
+        onOpenResource={vi.fn()}
+        onOpenPanel={onOpenPanel}
+      />,
+    );
+
+    const anchorRect = {
+      x: 5, y: 6, width: 7, height: 8,
+      top: 6, right: 12, bottom: 14, left: 5,
+    };
+    act(() => {
+      eventBus.get('browse:click').next({
+        annotationId: 'ann-1',
+        anchorRect,
+      });
+    });
+
+    await waitFor(() => {
+      expect(onOpenPanel).toHaveBeenCalledWith(expect.objectContaining({
+        panel: 'annotations',
+        scrollToAnnotationId: 'ann-1',
+        // Derived from the annotation the id names, never carried on the wire.
+        motivation: 'highlighting',
+        anchorRect: expect.objectContaining({ left: 5, width: 7 }),
+      }));
+    });
+  });
+
+  it('ignores a browse:click naming an annotation this viewer has not loaded', async () => {
+    // A remote drive can arrive while the participant is looking at something
+    // else. Resolving the annotation FIRST makes that a no-op by construction,
+    // which is why the channel carries no resourceId guard (TOUR-CLICK D3).
+    const { session, eventBus } = createTestSemiontWrapper();
+    const onOpenPanel = vi.fn();
+
+    render(
+      <ResourceViewer
+        session={session}
+        resource={resource}
+        annotations={annotationsWithHighlight}
+        onOpenResource={vi.fn()}
+        onOpenPanel={onOpenPanel}
+      />,
+    );
+
+    act(() => {
+      eventBus.get('browse:click').next({ annotationId: 'ann-not-here' });
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onOpenPanel).not.toHaveBeenCalled();
+  });
+});

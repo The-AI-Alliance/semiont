@@ -1,0 +1,36 @@
+{
+  "post": {
+    "summary": "Accept Terms",
+    "description": "Mark terms as accepted for the current user",
+    "tags": [
+      "Users"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Terms accepted successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AcceptTermsResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

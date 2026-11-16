@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Standard envelope for cookie consent endpoints. On success `success: true` and `consent` carries the current preferences; on error `success: false` and `error` carries a human-readable message.",
+  "properties": {
+    "success": { "type": "boolean" },
+    "consent": { "$ref": "./CookieConsent.json" },
+    "error": { "type": "string" }
+  },
+  "required": ["success"]
+}

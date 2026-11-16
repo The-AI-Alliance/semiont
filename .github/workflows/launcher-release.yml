@@ -3,15 +3,14 @@ name: Launcher Release
 # Builds and publishes the Go launcher (apps/launcher) when a vX.Y.Z release
 # tag lands — the same one-knob versioning as the service images. Publishes
 # GitHub Release archives + the Homebrew tap, with SBOMs and provenance
-# attestation.
+# attestation (GO-LAUNCHER.md P4).
 #
 # Requires the TAP_GITHUB_TOKEN secret: a token with write access to
 # The-AI-Alliance/homebrew-semiont, used by goreleaser to push the formula.
 
-# Dispatched by release.yml once the tag lands. A `push: tags` trigger cannot be
-# used here: release.yml pushes the tag with GITHUB_TOKEN, and GitHub does not
-# raise workflow-triggering events for GITHUB_TOKEN-authored pushes.
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -30,13 +29,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A release builds from modules it downloads, never from a cache
-      # another run saved.
       - name: Setup Go
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: apps/launcher/go.mod
-          cache: false
 
       - name: Install syft (SBOM generation)
         uses: anchore/sbom-action/download-syft@v0
@@ -50,14 +46,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          # The release's commit carries a tag for the Go SDK beside its own,
-          # and goreleaser otherwise takes the first of the commit's tags in
-          # its sort order. The ref this run is dispatched at is the release.
-          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4.2.2
         with:
-          subject-path: |
-            apps/launcher/dist/*.tar.gz
-            apps/launcher/dist/*.zip
+          subject-path: apps/launcher/dist/*.tar.gz

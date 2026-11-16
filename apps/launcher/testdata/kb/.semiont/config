@@ -1,0 +1,12 @@
+[project]
+name = "Test Knowledge Base"
+version = "0.1.0"
+
+[git]
+sync = true
+
+[site]
+domain = "example.github.io:test-kb"
+siteName = "Test Knowledge Base"
+adminEmail = ""
+oauthAllowedDomains = ["example.com"]

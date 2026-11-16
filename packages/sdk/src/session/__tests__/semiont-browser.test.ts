@@ -1,0 +1,824 @@
+/**
+ * SemiontBrowser — unit tests for the registry, D2 setActiveKb contract,
+ * and open-resources CRUD. Mocks SemiontClient so no HTTP/SSE is needed.
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { firstValueFrom, filter, skip, take } from 'rxjs';
+
+const mockGetMe = vi.fn();
+const mockDispose = vi.fn();
+const mockRefreshToken = vi.fn();
+
+vi.mock('../../client', async () => {
+  const actual = await vi.importActual<typeof import('../../client')>('../../client');
+  const { Subject } = await import('rxjs');
+  class MockSemiontApiClient {
+    auth = { me: mockGetMe, refresh: mockRefreshToken };
+    dispose = mockDispose;
+    actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
+    eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
+    // Mirrors the `ITransport` errors$ contract enough for the
+    // SemiontBrowser → signals routing tests to push test errors through.
+    transport = (() => {
+      const errorsSubject = new Subject();
+      return { errorsSubject, errors$: errorsSubject.asObservable() };
+    })();
+  }
+  return {
+    ...actual,
+    SemiontClient: MockSemiontApiClient,
+  };
+});
+
+import { SemiontBrowser } from '../semiont-browser';
+import { createHttpSessionFactory } from '../http-session-factory';
+import { getBrowser } from '../registry';
+import { __resetForTests } from '../testing';
+import { storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
+import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
+
+const KB_A = {
+  id: 'kb-a',
+  label: 'KB A',
+  email: 'a@example.com',
+  did: 'did:web:example.github.io:kb-a',
+  endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
+};
+const KB_B = {
+  id: 'kb-b',
+  label: 'KB B',
+  email: 'b@example.com',
+  did: 'did:web:example.github.io:kb-b',
+  endpoint: { kind: 'http' as const, host: 'example.com', port: 443, protocol: 'https' as const },
+};
+
+function freshJwt(expSecondsFromNow = 3600): string {
+  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }));
+  return `${header}.${payload}.sig`;
+}
+
+let storage: TestStorage;
+
+// Test-local helper: every test in this file exercises HTTP-backed sessions,
+// so we wire the HTTP `SessionFactory` once and let test bodies stay terse.
+const makeBrowser = (s: TestStorage = storage) =>
+  new SemiontBrowser({ storage: s, sessionFactory: createHttpSessionFactory() });
+
+beforeEach(() => {
+  storage = new TestStorage();
+  mockGetMe.mockReset();
+  mockDispose.mockReset();
+  mockRefreshToken.mockReset();
+  mockGetMe.mockResolvedValue({ id: 'u', email: 'x@y.z', name: 'X', isAdmin: false, isModerator: false });
+});
+
+afterEach(async () => {
+  await __resetForTests();
+});
+
+describe('SemiontBrowser — registry singleton', () => {
+  it('getBrowser() returns the same instance across calls', () => {
+    const a = getBrowser({ storage, sessionFactory: createHttpSessionFactory() });
+    const b = getBrowser({ storage, sessionFactory: createHttpSessionFactory() });
+    expect(a).toBe(b);
+  });
+
+  it('__resetForTests clears the singleton so a subsequent getBrowser() returns a new instance', async () => {
+    const a = getBrowser({ storage, sessionFactory: createHttpSessionFactory() });
+    await __resetForTests();
+    const b = getBrowser({ storage: new TestStorage(), sessionFactory: createHttpSessionFactory() });
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('SemiontBrowser — identity token (D1)', () => {
+  it('setIdentityToken updates identityToken$', async () => {
+    const browser = makeBrowser();
+    expect(browser.identityToken$.getValue()).toBeNull();
+
+    browser.setIdentityToken('nextauth-token');
+    expect(browser.identityToken$.getValue()).toBe('nextauth-token');
+
+    browser.setIdentityToken(null);
+    expect(browser.identityToken$.getValue()).toBeNull();
+
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — KB list', () => {
+  it('addKb persists to storage and activates the new KB', async () => {
+    const browser = makeBrowser();
+    const kb = browser.addKb(
+      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
+      freshJwt(),
+      'refresh',
+    );
+
+    expect(kb.id).toBeDefined();
+    expect(browser.kbs$.getValue().map((k) => k.id)).toContain(kb.id);
+    expect(browser.activeKbId$.getValue()).toBe(kb.id);
+
+    await browser.dispose();
+  });
+
+  it("round-trips a KB's did through registration and storage (identity survives a reload)", async () => {
+    // The did is what a client joins discovered KBs to connected ones on
+    // (.plans/KB-IDENTITY-VS-ADDRESS.md). It is captured once at auth time
+    // from the KB's own /api/status, so if registration or the storage
+    // round-trip dropped it the join would silently never match — the
+    // failure mode this whole plan exists to end. Pinned here because
+    // `isKnowledgeBase` validates required fields only: a future rewrite
+    // that normalizes entries could quietly strip optional identity.
+    const DID = 'did:web:the-ai-alliance.github.io:semiont-caselaw-kb';
+    const browser = makeBrowser();
+    const kb = browser.addKb(
+      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint, did: DID },
+      freshJwt(),
+      'refresh',
+    );
+
+    expect(kb.did).toBe(DID);
+    expect(browser.kbs$.getValue().find((k) => k.id === kb.id)?.did).toBe(DID);
+
+    // …and survives the persist/rehydrate cycle a page reload performs.
+    const persisted = JSON.parse(storage.get(STORAGE_KEY) ?? '[]') as Array<{ id: string; did?: string }>;
+    expect(persisted.find((k) => k.id === kb.id)?.did).toBe(DID);
+
+    await browser.dispose();
+
+    const reloaded = makeBrowser(); // same storage — a fresh page load
+    expect(reloaded.kbs$.getValue().find((k) => k.id === kb.id)?.did).toBe(DID);
+    await reloaded.dispose();
+  });
+
+  it('drops a stored KB that predates the did requirement, rather than loading one without identity', async () => {
+    // Decision 8 made `did` required; entries persisted before it have none.
+    // Loading them would satisfy the type only by lying — the identity join
+    // would compare against `undefined` and silently never match. Per the
+    // storage stance (no back-compat layer) they drop and the user re-adds:
+    // a one-time list clear, in exchange for every loaded KB actually having
+    // the identity its type promises.
+    storage.set(STORAGE_KEY, JSON.stringify([
+      { id: 'legacy', label: 'Pre-did KB', email: 'a@example.com', endpoint: KB_A.endpoint },
+      { id: 'current', label: 'KB A', email: 'a@example.com', endpoint: KB_A.endpoint, did: 'did:web:example.github.io:kb-a' },
+    ]));
+
+    const browser = makeBrowser();
+    const ids = browser.kbs$.getValue().map((k) => k.id);
+
+    expect(ids).toEqual(['current']);
+    await browser.dispose();
+  });
+
+  it('removeKb clears the KB and, if active, activates a fallback (or null)', async () => {
+    const browser = makeBrowser();
+    const a = browser.addKb(
+      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
+      freshJwt(),
+      'r',
+    );
+    const b = browser.addKb(
+      { label: KB_B.label, email: KB_B.email, did: KB_B.did, endpoint: KB_B.endpoint },
+      freshJwt(),
+      'r',
+    );
+    expect(browser.activeKbId$.getValue()).toBe(b.id);
+
+    browser.removeKb(b.id);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(browser.kbs$.getValue().map((k) => k.id)).not.toContain(b.id);
+    expect(browser.activeKbId$.getValue()).toBe(a.id);
+
+    await browser.dispose();
+  });
+
+  it('updateKb edits the record in kbs$', async () => {
+    const browser = makeBrowser();
+    const kb = browser.addKb(
+      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
+      freshJwt(),
+      'r',
+    );
+    browser.updateKb(kb.id, { label: 'New Label' });
+    const updated = browser.kbs$.getValue().find((k) => k.id === kb.id);
+    expect(updated?.label).toBe('New Label');
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
+  it('emits null on activeSession$ BEFORE the new session is constructed', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    const emissions: Array<string | null> = [];
+    const sub = browser.activeSession$.subscribe((s) => {
+      emissions.push(s?.kb.id ?? null);
+    });
+
+    await browser.setActiveKb(KB_B.id);
+    sub.unsubscribe();
+
+    const nullIdx = emissions.indexOf(null);
+    const bIdx = emissions.lastIndexOf(KB_B.id);
+    expect(nullIdx).toBeGreaterThanOrEqual(0);
+    expect(bIdx).toBeGreaterThan(nullIdx);
+
+    await browser.dispose();
+  });
+
+  it('disposes the prior session before activating the next', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    const disposeCountBefore = mockDispose.mock.calls.length;
+    await browser.setActiveKb(KB_B.id);
+    expect(mockDispose.mock.calls.length).toBeGreaterThan(disposeCountBefore);
+
+    await browser.dispose();
+  });
+
+  it('setActiveKb(null) disposes the prior session and emits null', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    expect(browser.activeSession$.getValue()).not.toBeNull();
+
+    await browser.setActiveKb(null);
+    expect(browser.activeSession$.getValue()).toBeNull();
+
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — open resources (KB-scoped)', () => {
+  // Tabs are per-KB state; the visible list is a projection of the ACTIVE,
+  // CONNECTED KB (gate: activeSession$ non-null). Storage is the durable
+  // per-KB record; removeKb reaps it; the legacy flat key is ignored.
+
+  /** KB_A + KB_B registered with stored sessions; KB_A active and live. */
+  async function makeConnectedBrowser() {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+    return browser;
+  }
+
+  const liveSession = (browser: SemiontBrowser) =>
+    firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+
+  it('addOpenResource, removeOpenResource, updateName, reorder — on the active KB', async () => {
+    const browser = await makeConnectedBrowser();
+
+    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource('r2', 'Two', 'text/markdown', 'file://two.md');
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1', 'r2']);
+
+    browser.addOpenResource('r1', 'One v2', 'text/plain');
+    const r1 = browser.openResources$.getValue().find((r) => r.id === 'r1');
+    expect(r1?.name).toBe('One v2');
+    expect(r1?.mediaType).toBe('text/plain');
+
+    browser.updateOpenResourceName('r2', 'Two v2');
+    expect(browser.openResources$.getValue().find((r) => r.id === 'r2')?.name).toBe('Two v2');
+
+    browser.reorderOpenResources(0, 1);
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r2', 'r1']);
+
+    browser.removeOpenResource('r1');
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r2']);
+
+    await browser.dispose();
+  });
+
+  it('assigns a unique order after removals (no collision with surviving tabs)', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource('r2', 'Two');
+    browser.addOpenResource('r3', 'Three');
+    browser.removeOpenResource('r2'); // surviving orders: 0, 2
+
+    browser.addOpenResource('r4', 'Four'); // length-based order would collide at 2
+
+    const list = browser.openResources$.getValue();
+    const orders = list.map((r) => r.order);
+    expect(new Set(orders).size).toBe(orders.length);
+    expect(list.map((r) => r.id)).toEqual(['r1', 'r3', 'r4']);
+
+    await browser.dispose();
+  });
+
+  it('reorderOpenResources ignores out-of-range indices', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+    const before = browser.openResources$.getValue();
+    browser.reorderOpenResources(0, 5);
+    expect(browser.openResources$.getValue()).toEqual(before);
+    await browser.dispose();
+  });
+
+  it('is inert with no live session: nothing visible, nothing persisted', async () => {
+    const browser = makeBrowser();
+    browser.addOpenResource('r1', 'One');
+    expect(browser.openResources$.getValue()).toEqual([]);
+    expect(storage.get(OPEN_RESOURCES_BY_KB_KEY)).toBeNull();
+    await browser.dispose();
+  });
+
+  it('switching KBs switches the visible list; each KB keeps its own', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+
+    await browser.setActiveKb(KB_B.id);
+    await liveSession(browser);
+    expect(browser.openResources$.getValue()).toEqual([]);
+    browser.addOpenResource('r2', 'Two');
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r2']);
+
+    await browser.setActiveKb(KB_A.id);
+    await liveSession(browser);
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1']);
+
+    await browser.dispose();
+  });
+
+  it('signOut hides the tabs; storage retains them; signIn restores', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+
+    await browser.signOut(KB_A.id);
+    expect(browser.openResources$.getValue()).toEqual([]);
+    const stored = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, Array<{ id: string }>>;
+    expect(stored[KB_A.id]!.map((r) => r.id)).toEqual(['r1']);
+
+    await browser.signIn(KB_A.id, freshJwt(), 'r');
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1']);
+
+    await browser.dispose();
+  });
+
+  it('removeKb reaps the stored tabs for that KB', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+
+    browser.removeKb(KB_A.id);
+    const stored = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY) ?? '{}') as Record<string, unknown>;
+    expect(stored[KB_A.id]).toBeUndefined();
+
+    await browser.dispose();
+  });
+
+  it('cross-tab writes to the per-KB key update the projection', async () => {
+    const browser = await makeConnectedBrowser();
+    const payload = JSON.stringify({ [KB_A.id]: [{ id: 'rX', name: 'X', openedAt: 1, order: 0 }] });
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, payload);
+    storage.dispatch(OPEN_RESOURCES_BY_KB_KEY, payload);
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['rX']);
+    await browser.dispose();
+  });
+
+  it('ignores the legacy flat openDocuments key entirely', async () => {
+    storage.set('openDocuments', JSON.stringify([{ id: 'old', name: 'Old', openedAt: 1 }]));
+    const browser = await makeConnectedBrowser();
+    expect(browser.openResources$.getValue()).toEqual([]);
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — last viewed resource (KB-scoped)', () => {
+  // "Which resource was I last looking at" is per-KB state, exactly like the
+  // tabs it sits beside. Held globally it sends the /know landing redirect
+  // into the PREVIOUS KB's resource after a switch — a guaranteed 404.
+  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+
+  async function makeConnectedBrowser() {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+    return browser;
+  }
+
+  const liveSession = (browser: SemiontBrowser) =>
+    firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+
+  it('records against the active KB and never leaks across a switch', async () => {
+    const browser = await makeConnectedBrowser();
+
+    browser.setLastViewedResource('res-in-a');
+    expect(browser.lastViewedResource$.getValue()).toBe('res-in-a');
+
+    await browser.setActiveKb(KB_B.id);
+    await liveSession(browser);
+    // KB_B has never been viewed — it must NOT inherit KB_A's resource.
+    expect(browser.lastViewedResource$.getValue()).toBeNull();
+
+    browser.setLastViewedResource('res-in-b');
+    expect(browser.lastViewedResource$.getValue()).toBe('res-in-b');
+
+    await browser.setActiveKb(KB_A.id);
+    await liveSession(browser);
+    expect(browser.lastViewedResource$.getValue()).toBe('res-in-a');
+
+    await browser.dispose();
+  });
+
+  it('persists per KB under the dedicated key', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.setLastViewedResource('res-in-a');
+
+    const stored = JSON.parse(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY)!) as Record<string, string>;
+    expect(stored[KB_A.id]).toBe('res-in-a');
+    expect(stored[KB_B.id]).toBeUndefined();
+
+    await browser.dispose();
+  });
+
+  it('is null while no KB is connected, and does not record', async () => {
+    const browser = await makeConnectedBrowser();
+    await browser.signOut(KB_A.id);
+
+    expect(browser.lastViewedResource$.getValue()).toBeNull();
+    browser.setLastViewedResource('res-while-signed-out');
+    expect(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY)).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('removeKb reaps the stored last-viewed resource for that KB', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.setLastViewedResource('res-in-a');
+
+    browser.removeKb(KB_A.id);
+    const stored = JSON.parse(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY) ?? '{}') as Record<string, unknown>;
+    expect(stored[KB_A.id]).toBeUndefined();
+
+    await browser.dispose();
+  });
+
+  it('cross-tab writes to the per-KB key update the projection', async () => {
+    const browser = await makeConnectedBrowser();
+    const payload = JSON.stringify({ [KB_A.id]: 'res-from-other-tab' });
+    storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, payload);
+    storage.dispatch(LAST_VIEWED_RESOURCE_BY_KB_KEY, payload);
+
+    expect(browser.lastViewedResource$.getValue()).toBe('res-from-other-tab');
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — signOut', () => {
+  it('clears stored tokens and emits null on activeSession$', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    await browser.signOut(KB_A.id);
+    expect(browser.activeSession$.getValue()).toBeNull();
+    expect(storage.get(storageKey(KB_A.id))).toBeNull();
+
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — getKbSessionStatus', () => {
+  it('returns signed-out when no session is stored', () => {
+    const browser = makeBrowser();
+    expect(browser.getKbSessionStatus('unknown-kb')).toBe('signed-out');
+  });
+
+  it('returns authenticated for an unexpired stored JWT', () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    const browser = makeBrowser();
+    expect(browser.getKbSessionStatus(KB_A.id)).toBe('authenticated');
+  });
+
+  it('returns expired for an expired stored JWT', () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'r');
+    const browser = makeBrowser();
+    expect(browser.getKbSessionStatus(KB_A.id)).toBe('expired');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Auth callbacks: SemiontBrowser owns the refresh-token + user-validate
+// logic and passes them to each SemiontSession it constructs. These
+// callbacks were previously in a separate `refresh.ts` module; they
+// moved here as `performRefresh` / `performValidate` during the
+// WORKER-SESSIONS refactor. The tests below exercise the inlined
+// logic directly by triggering session construction with a stored
+// token (activates `performValidate`) or an expired stored token
+// (activates `performRefresh`).
+// ──────────────────────────────────────────────────────────────────────
+
+describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
+  it('calls refreshToken on a throwaway client when the stored token is expired', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'old-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    mockRefreshToken.mockResolvedValueOnce({ access_token: freshJwt(), token_type: 'Bearer' });
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    // The throwaway client is disposed afterward.
+    expect(mockDispose).toHaveBeenCalled();
+
+    await browser.dispose();
+  });
+
+  it('persists the new access token to storage on successful refresh', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'old-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    const newJwt = freshJwt();
+    mockRefreshToken.mockResolvedValueOnce({ access_token: newJwt, token_type: 'Bearer' });
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    const stored = JSON.parse(storage.get(storageKey(KB_A.id))!);
+    expect(stored.access).toBe(newJwt);
+    // Refresh token MUST be preserved (we don't rotate refresh tokens on access-token refresh).
+    expect(stored.refresh).toBe('old-refresh');
+
+    await browser.dispose();
+  });
+
+  it('returns null when refreshToken throws, and clears the stored session', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'bad-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    mockRefreshToken.mockRejectedValueOnce(new Error('refresh endpoint down'));
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    // Refresh failure → session-expired path: storage cleared.
+    expect(storage.get(storageKey(KB_A.id))).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('dedupes concurrent refresh calls for the same KB (single network round-trip)', async () => {
+    // Two simultaneous `session.refresh()` calls should converge on a
+    // single underlying performRefresh call via the in-flight Map.
+    // We construct one session, then fire refresh twice concurrently
+    // and assert the refreshToken endpoint was hit only once.
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    mockRefreshToken.mockClear();
+
+    // Hold the refresh call open so both session.refresh() calls see
+    // an in-flight entry in the Map.
+    let resolveRefresh!: (value: { access_token: string; token_type: string }) => void;
+    mockRefreshToken.mockImplementationOnce(
+      () => new Promise((r) => { resolveRefresh = r; }),
+    );
+
+    const r1 = session!.refresh();
+    const r2 = session!.refresh();
+    resolveRefresh({ access_token: freshJwt(), token_type: 'Bearer' });
+    await Promise.all([r1, r2]);
+
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — performValidate (inlined getMe flow)', () => {
+  it('invokes getMe on a throwaway client at session startup when token is valid', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    expect(mockGetMe).toHaveBeenCalled();
+
+    await browser.dispose();
+  });
+
+  it('populates session.user$ with the getMe response', async () => {
+    const testUser = { id: 'abc', email: 'a@b.c', name: 'Alice', isAdmin: false, isModerator: false };
+    mockGetMe.mockResolvedValue(testUser);
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    expect(session?.user$.getValue()).toMatchObject({ name: 'Alice' });
+
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
+  it('emits a non-null SessionSignals when activeSession$ is non-null', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    expect(browser.activeSession$.getValue()).not.toBeNull();
+    expect(browser.activeSignals$.getValue()).not.toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('exposes modal-signal observables on the signals instance', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+
+    signals.notifyPermissionDenied('nope');
+    expect(signals.permissionDeniedAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.permissionDeniedMessage$.getValue()).toBe('nope');
+
+    await browser.dispose();
+  });
+
+  it('emits null on activeSignals$ when the session is torn down via setActiveKb', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    expect(browser.activeSignals$.getValue()).not.toBeNull();
+
+    await browser.setActiveKb(null);
+    expect(browser.activeSession$.getValue()).toBeNull();
+    expect(browser.activeSignals$.getValue()).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('emits null on activeSignals$ when the session is torn down via signOut', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    await browser.signOut(KB_A.id);
+    expect(browser.activeSignals$.getValue()).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('constructs fresh signals when signIn re-activates a previously-active KB', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const firstSignals = browser.activeSignals$.getValue();
+    expect(firstSignals).not.toBeNull();
+
+    // signIn for the already-active KB tears down and reconstructs so
+    // the new token is picked up from storage.
+    await browser.signIn(KB_A.id, freshJwt(), 'new-refresh');
+    const secondSignals = browser.activeSignals$.getValue();
+    expect(secondSignals).not.toBeNull();
+    expect(secondSignals).not.toBe(firstSignals);
+
+    await browser.dispose();
+  });
+
+  it('fires session-expired signal via the session onAuthFailed callback on refresh failure', async () => {
+    // Fresh stored token (no initial refresh), but subsequent refresh fails.
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'bad-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    mockRefreshToken.mockRejectedValue(new Error('down'));
+
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+
+    // Manually trigger session.refresh() to simulate a proactive-refresh miss.
+    await session!.refresh();
+    expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
+
+    await browser.dispose();
+  });
+
+  it('routes 401 from transport.errors$ to signals.sessionExpiredAt$', async () => {
+    const { APIError } = await import('@semiont/http-transport');
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+
+    // Push directly through the transport's errors Subject — this is the
+    // same path HttpTransport hits in its `beforeError` ky hook.
+    const subj = (session!.client.transport as any).errorsSubject;
+    subj.next(new APIError('token expired', 401, 'Unauthorized'));
+
+    expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.sessionExpiredMessage$.getValue()).toBe('token expired');
+    await browser.dispose();
+  });
+
+  it('routes 403 from transport.errors$ to signals.permissionDeniedAt$', async () => {
+    const { APIError } = await import('@semiont/http-transport');
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+
+    const subj = (session!.client.transport as any).errorsSubject;
+    subj.next(new APIError('not allowed', 403, 'Forbidden'));
+
+    expect(signals.permissionDeniedAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.permissionDeniedMessage$.getValue()).toBe('not allowed');
+    await browser.dispose();
+  });
+
+  it('does not fire either signal for non-401/403 transport errors', async () => {
+    const { APIError } = await import('@semiont/http-transport');
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+
+    const subj = (session!.client.transport as any).errorsSubject;
+    subj.next(new APIError('boom', 500, 'Internal Server Error'));
+    subj.next(new APIError('not found', 404, 'Not Found'));
+
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+    await browser.dispose();
+  });
+
+  it('completes activeSignals$ on browser dispose', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    let completed = false;
+    browser.activeSignals$.subscribe({ complete: () => { completed = true; } });
+
+    await browser.dispose();
+    expect(completed).toBe(true);
+  });
+});

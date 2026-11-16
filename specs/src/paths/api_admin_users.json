@@ -1,0 +1,46 @@
+{
+  "get": {
+    "summary": "List All Users",
+    "description": "Get a list of all users (admin only)",
+    "tags": [
+      "Admin"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "List of users",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AdminUsersListResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Forbidden - Admin access required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

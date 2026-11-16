@@ -1,12 +1,11 @@
-# goreleaser config for the semiont launcher.
+# goreleaser config for the semiont launcher (GO-LAUNCHER.md P4).
 #
-# Channels, deliberately minimal: GitHub Release archives (darwin/linux/
-# windows × arm64/amd64, static) + a Homebrew tap under The-AI-Alliance, with
-# SBOMs. Provenance attestation happens in the workflow via actions/attest-
-# build-provenance (no signing entity involved — the project has no legal
-# entity to sign anything). deb/rpm are demand-driven later channels off this
-# same config. Windows gets a zip holding semiont.exe; under WSL2 it runs the
-# Linux build.
+# Channels, deliberately minimal: GitHub Release archives (darwin/linux ×
+# arm64/amd64, static) + a Homebrew tap under The-AI-Alliance, with SBOMs.
+# Provenance attestation happens in the workflow via actions/attest-build-
+# provenance (no signing entity involved — constraint 3 holds). deb/rpm are
+# demand-driven later channels off this same config. Windows = WSL2 = the
+# Linux build; no native Windows target.
 version: 2
 
 project_name: semiont-launcher
@@ -20,23 +19,19 @@ builds:
     goos:
       - darwin
       - linux
-      - windows
     goarch:
       - amd64
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildVersion={{.Version}}
-      - -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildCommit={{.ShortCommit}}
-      - -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildDate={{.Date}}
+      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildVersion={{.Version}}
+      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildCommit={{.ShortCommit}}
+      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildDate={{.Date}}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
   - id: default
     formats: [tar.gz]
-    format_overrides:
-      - goos: windows
-        formats: [zip]
     name_template: "semiont_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
@@ -57,18 +52,6 @@ brews:
     license: Apache-2.0
     test: |
       system "#{bin}/semiont", "version"
-    # Printed after install and by `brew info semiont`. Every command named
-    # here must exist (TestBrewCaveatNamesOnlyRealCommands).
-    caveats: |
-      Next:
-        semiont init        make a new knowledge base here, or clone one
-        semiont start       run its stack
-        semiont settings    where secrets come from and where they are kept,
-                            the container runtime, and the rest
-      A knowledge base's secrets are kept in plain files by default, which are
-      not secure: for development only. To keep every new knowledge base's
-      secrets in 1Password:
-        semiont settings secret-store --default op://<vault>
 
 release:
   # The launcher rides the monorepo's existing vX.Y.Z release tags — one

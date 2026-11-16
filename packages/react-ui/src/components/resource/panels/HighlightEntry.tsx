@@ -1,0 +1,78 @@
+'use client';
+
+import type { Ref } from 'react';
+import type { Annotation } from '@semiont/core';
+import { getAnnotationExactText } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
+import { renderAgentLabel } from './agent-label';
+
+interface HighlightEntryProps {
+  /** Session for interaction routing (browse.click etc.); the panel threads it. */
+  session: SemiontSession | null;
+  highlight: Annotation;
+  isFocused: boolean;
+  isHovered?: boolean;
+  ref?: Ref<HTMLDivElement>;
+}
+
+function formatRelativeTime(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return 'just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+
+  return date.toLocaleDateString();
+}
+
+export function HighlightEntry({
+  session,
+  highlight,
+  isFocused,
+  isHovered = false,
+  ref,
+}: HighlightEntryProps) {
+  const hoverProps = useHoverEmitter(session, highlight.id);
+
+  const selectedText = getAnnotationExactText(highlight);
+
+  return (
+    <div
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
+      data-type="highlight"
+      data-focused={isFocused ? 'true' : 'false'}
+      onClick={() => {
+        session?.client.browse.click(highlight.id);
+      }}
+      {...hoverProps}
+    >
+      {/* Highlighted text */}
+      {selectedText && (
+        <div className="semiont-annotation-entry__quote" data-type="highlight">
+          "{selectedText.substring(0, 200)}{selectedText.length > 200 ? '...' : ''}"
+        </div>
+      )}
+
+      {/* Metadata */}
+      <div className="semiont-annotation-entry__metadata">
+        By {typeof highlight.creator === 'string' ? highlight.creator : highlight.creator?.name || 'Unknown'} • {formatRelativeTime(highlight.created || new Date().toISOString())}
+      </div>
+      {highlight.generator && (
+        <div className="semiont-annotation-entry__metadata">
+          Via {Array.isArray(highlight.generator)
+            ? highlight.generator.map(renderAgentLabel).join(', ')
+            : renderAgentLabel(highlight.generator)}
+        </div>
+      )}
+    </div>
+  );
+}

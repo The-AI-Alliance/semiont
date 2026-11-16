@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "description": "Result of a completed reference-annotation job.",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "reference-annotation"
+      ],
+      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+    },
+    "totalFound": {
+      "type": "integer",
+      "description": "Total entities found"
+    },
+    "totalEmitted": {
+      "type": "integer",
+      "description": "Total annotations emitted"
+    },
+    "errors": {
+      "type": "integer",
+      "description": "Number of errors encountered"
+    }
+  },
+  "required": [
+    "kind",
+    "totalFound",
+    "totalEmitted",
+    "errors"
+  ]
+}

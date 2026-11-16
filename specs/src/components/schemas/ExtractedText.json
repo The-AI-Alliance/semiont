@@ -1,0 +1,77 @@
+{
+  "description": "A successful extraction: the anchored text plus its provenance (WIRE-UNION-DISCRIMINANTS P5c named this member; PERSIST-ANCHORS D1 made it the stored record).",
+  "allOf": [
+    {
+      "$ref": "./AnchoredText.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "extracted"
+          ],
+          "description": "Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `method`)."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "text-passthrough",
+            "pdf-text-layer",
+            "table",
+            "form",
+            "ocr"
+          ],
+          "description": "How the text was extracted."
+        },
+        "pdfClass": {
+          "type": "string",
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G"
+          ],
+          "description": "PDF classification, when the source was a PDF."
+        },
+        "ocrConfidence": {
+          "type": "object",
+          "description": "How well the engine read the pixels, when any of this text came from OCR.",
+          "properties": {
+            "mean": {
+              "type": "number",
+              "description": "Mean per-word confidence, 0-100."
+            },
+            "lowConfidenceWords": {
+              "type": "integer",
+              "description": "Words the engine was unsure of."
+            },
+            "totalWords": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "mean",
+            "lowConfidenceWords",
+            "totalWords"
+          ]
+        },
+        "unreadPages": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "1-indexed pages this extraction could not read — present only for partially covered documents (class C)."
+        }
+      },
+      "required": [
+        "kind",
+        "method"
+      ]
+    }
+  ]
+}

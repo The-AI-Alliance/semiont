@@ -1,0 +1,648 @@
+/**
+ * LLM Context Tests
+ *
+ * Tests the LLM context building orchestration:
+ * - Resource context retrieval (main + related)
+ * - Annotation inclusion
+ * - Graph representation building
+ * - Content loading (main + related)
+ * - Summary generation
+ * - Reference suggestions
+ * - Options handling (depth, maxResources, includeContent, includeSummary)
+ * - Error handling (resource not found)
+ */
+
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
+import { LLMContext } from '../llm-context';
+import { ResourceOperations } from '../resource-operations';
+import { AnnotationOperations } from '../annotation-operations';
+import { resourceId, annotationId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
+import type { GraphServiceConfig, GatheredContext } from '@semiont/core';
+import { createEventStore, type EventStore } from '@semiont/event-sourcing';
+import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
+import type { KnowledgeBase } from '../knowledge-base';
+import { createSmeltProgress } from '../smelt-progress';
+import { Stower } from '../stower';
+import { createTestProject } from './helpers/test-project';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
+
+// getResourceContext returns a unified GatheredContext with focus.kind:'resource' (CONTEXT-UNIFICATION P3).
+function resFocus(ctx: GatheredContext) {
+  if (ctx.focus.kind !== 'resource') throw new Error('expected resource focus');
+  return ctx.focus;
+}
+
+// Mock @semiont/inference to avoid external API calls
+let mockClient: any;
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  const client = new MockInferenceClient(['[]']);
+  return {
+    getInferenceClient: vi.fn().mockResolvedValue(client),
+    MockInferenceClient
+  };
+});
+
+let fileCounter = 0;
+
+describe('LLM Context', () => {
+  let teardown: () => Promise<void>;
+  let eventStore: EventStore;
+  let eventBus: EventBus;
+  let stower: Stower;
+  let graphConfig: GraphServiceConfig;
+  let kb: KnowledgeBase;
+  let testResourceId: string;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: SupportedMediaType; language?: string },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language },
+      uid,
+      eventBus,
+    );
+  }
+
+  beforeAll(async () => {
+    // Initialize mock client
+    const { MockInferenceClient } = await import('@semiont/inference');
+    mockClient = new MockInferenceClient([
+      'Test summary of the resource',
+      JSON.stringify(['Reference 1', 'Reference 2'])
+    ]);
+
+    graphConfig = { type: 'memory' } as GraphServiceConfig;
+
+    const { project, teardown: td } = await createTestProject('llm-context');
+    teardown = td;
+
+    // Initialize EventBus and stores
+    eventBus = new EventBus();
+    eventStore = createEventStore(project, eventBus, mockLogger);
+
+    // Create KnowledgeBase - share event store's view storage to avoid separate instances
+    const { getGraphDatabase } = await import('@semiont/graph');
+    const graphDb = await getGraphDatabase(graphConfig);
+    kb = { anchoredText: memoryAnchoredTextStore(),
+      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any, eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
+
+    // Start Stower
+    stower = new Stower(kb, eventBus, project, mockLogger);
+    await stower.initialize();
+
+    // Create a test resource
+    const content = Buffer.from('This is test content for LLM context building.', 'utf-8');
+    const resId = await create(
+      {
+        name: 'LLM Context Test Resource',
+        content,
+        format: 'text/plain',
+      },
+      userId('user-1'),
+    );
+
+    testResourceId = resId;
+
+    // Populate graph database (required by GraphContext)
+    // Construct a minimal ResourceDescriptor since createResource now returns only ResourceId
+    await kb.graph.createResource({
+      '@context': 'https://www.w3.org/ns/anno.jsonld',
+      '@id': resId,
+      name: 'LLM Context Test Resource',
+      archived: false,
+      entityTypes: [],
+      representations: { mediaType: 'text/plain', rel: 'original', checksum: '', byteSize: content.length },
+    });
+  });
+
+  afterAll(async () => {
+    await stower.stop();
+    eventBus.destroy();
+    await teardown();
+  });
+
+  describe('resource context retrieval', () => {
+    it('should retrieve main resource metadata', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).resource).toBeDefined();
+      expect(resFocus(result).resource.name).toBe('LLM Context Test Resource');
+    });
+
+    it('should throw if resource not found', async () => {
+      await expect(
+        LLMContext.getResourceContext(
+          resourceId('non-existent-resource'),
+          { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+          kb,
+          mockClient,
+          15_000,
+          mockLogger
+        )
+      ).rejects.toThrow('Resource not found');
+    });
+
+    it('should return empty related resources when none exist', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      const related = result.graph.nodes.filter((n) => n.type === 'resource' && n.id !== testResourceId);
+      expect(related).toEqual([]);
+    });
+  });
+
+  describe('annotation inclusion', () => {
+    it('should include annotations in context', async () => {
+      // Create an annotation on the resource and await Stower persistence.
+      // mark:create-ok is emitted by annotation-assembly in response to
+      // mark:added; this test emits mark:create directly, so we await the
+      // persisted mark:added domain event instead.
+      const created$ = firstValueFrom(eventBus.get('mark:added').pipe(take(1)));
+      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
+      await AnnotationOperations.createAnnotation(
+        {
+          motivation: 'highlighting',
+          target: {
+            source: testResourceId,
+            selector: [{
+              type: 'TextPositionSelector',
+              start: 0,
+              end: 4
+            }]
+          },
+          body: {
+            type: 'TextualBody',
+            value: 'Test annotation',
+            format: 'text/plain',
+          },
+        },
+        userId('user-1'),
+        creator,
+        eventBus,
+        kb);
+      await created$;
+
+      // The unified context sources annotations from the graph projection; this test's kb wires no
+      // Weaver, so add the annotation to the graph store directly.
+      await kb.graph.createAnnotation({
+        id: annotationId('llm-graph-ann'),
+        motivation: 'highlighting',
+        target: { source: testResourceId, selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
+        creator,
+      });
+
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      const annotationNodes = result.graph.nodes.filter((n) => n.type === 'annotation');
+      expect(annotationNodes.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('graph representation', () => {
+    it('should include graph representation', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(result.graph).toBeDefined();
+      expect(result.graph.nodes).toBeDefined();
+      expect(Array.isArray(result.graph.nodes)).toBe(true);
+      expect(result.graph.edges).toBeDefined();
+      expect(Array.isArray(result.graph.edges)).toBe(true);
+    });
+
+    it('should include main resource in graph nodes', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      const mainResourceNode = result.graph.nodes.find(n => n.id === testResourceId);
+      expect(mainResourceNode).toBeDefined();
+    });
+  });
+
+  describe('content loading', () => {
+    it('should include main resource content when includeContent is true', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).content?.main).toBeDefined();
+      expect(resFocus(result).content?.main).toContain('This is test content');
+    });
+
+    it('should not include main resource content when includeContent is false', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).content?.main).toBeUndefined();
+    });
+
+    it('should include related resources content when includeContent is true', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).content?.related).toBeDefined();
+      expect(typeof resFocus(result).content?.related).toBe('object');
+    });
+
+    it('should not include related resources content when includeContent is false', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).content?.related).toBeUndefined();
+    });
+  });
+
+  describe('summary generation', () => {
+    it('should generate summary when includeSummary is true and content available', async () => {
+      mockClient.setResponses(['Generated summary text']);
+
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: true },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).summary).toBeDefined();
+      expect(typeof resFocus(result).summary).toBe('string');
+    });
+
+    it('should not generate summary when includeSummary is false', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).summary).toBeUndefined();
+    });
+
+    it('should not generate summary when content not available', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: true },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).summary).toBeUndefined();
+    });
+  });
+
+  describe('reference suggestions', () => {
+    it('should generate reference suggestions when content available', async () => {
+      mockClient.setResponses([
+        'Summary',
+        JSON.stringify(['Ref 1', 'Ref 2', 'Ref 3'])
+      ]);
+
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).suggestedReferences).toBeDefined();
+      expect(Array.isArray(resFocus(result).suggestedReferences)).toBe(true);
+    });
+
+    it('should not generate reference suggestions when content not available', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).suggestedReferences).toBeUndefined();
+    });
+  });
+
+  describe('options handling', () => {
+    it('should cap related-resource content by maxResources (a view concern, Q2=C)', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 5, includeContent: true, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      // The graph is the full neighborhood; maxResources caps the related-resource *content*
+      // (at most maxResources - 1 peers).
+      const related = resFocus(result).content?.related ?? {};
+      expect(Object.keys(related).length).toBeLessThanOrEqual(4);
+    });
+
+    it('should work with minimal options', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 1, includeContent: false, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).resource).toBeDefined();
+      expect(result.graph).toBeDefined();
+      expect(result.graph.nodes.length).toBeGreaterThan(0);
+    });
+
+    it('should work with maximal options', async () => {
+      mockClient.setResponses([
+        'Summary text',
+        JSON.stringify(['Ref A', 'Ref B'])
+      ]);
+
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 2, maxResources: 50, includeContent: true, includeSummary: true },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).resource).toBeDefined();
+      expect(resFocus(result).content?.main).toBeDefined();
+      expect(resFocus(result).content?.related).toBeDefined();
+      expect(resFocus(result).summary).toBeDefined();
+      expect(resFocus(result).suggestedReferences).toBeDefined();
+      expect(result.graph).toBeDefined();
+      expect(result.graph.nodes.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('integration', () => {
+    it('should build complete context with all components', async () => {
+      mockClient.setResponses([
+        'Comprehensive summary of the test resource',
+        JSON.stringify(['Related Reference 1', 'Related Reference 2'])
+      ]);
+
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 20, includeContent: true, includeSummary: true },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      // Verify all major components are present
+      expect(resFocus(result).resource).toBeDefined();
+      expect(resFocus(result).resource.name).toBe('LLM Context Test Resource');
+      expect(resFocus(result).content?.main).toBeDefined();
+      expect(result.graph.nodes.some((n) => n.type === 'resource')).toBe(true);
+      expect(resFocus(result).content?.related).toBeDefined();
+      expect(result.graph.nodes.some((n) => n.type === 'annotation')).toBe(true);
+      expect(result.graph).toBeDefined();
+      expect(result.graph.nodes).toBeDefined();
+      expect(result.graph.edges).toBeDefined();
+      expect(resFocus(result).summary).toBeDefined();
+      expect(resFocus(result).suggestedReferences).toBeDefined();
+    });
+  });
+
+  describe('semantic context (EXCLUDE-VECTORS Phase 2b)', () => {
+    // The fake vector store returns this pool from searchByResource, applying
+    // the excludeEntityTypes filter itself (the real store's job — already
+    // tested in @semiont/vectors). Here we verify getResourceContext forwards
+    // the filter, maps results, and records the exclusion as provenance.
+    const pool = [
+      { id: 'r-answer#0', score: 0.9, resourceId: 'r-answer', text: 'a prior answer', entityTypes: ['Answer'] },
+      { id: 'r-question#0', score: 0.8, resourceId: 'r-question', text: 'a prior question', entityTypes: ['Question'] },
+    ];
+    const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
+
+    // Views for the pool's sources — resourceName resolves through them (P3/D9),
+    // and a source with no view is dropped, never id-labeled.
+    const POOL_VIEWS: Record<string, any> = {
+      'r-answer': { resource: { '@id': 'r-answer', name: 'A Prior Answer' } },
+      'r-question': { resource: { '@id': 'r-question', name: 'A Prior Question' } },
+    };
+
+    function kbWithVectors(capture?: (opts: any) => void, extraPool: any[] = []): KnowledgeBase {
+      return {
+        ...kb,
+        views: { get: async (id: any) => POOL_VIEWS[String(id)] ?? kb.views.get(id) } as any,
+        vectors: {
+          searchByResource: vi.fn(async (_rid: any, opts: any) => {
+            capture?.(opts);
+            const exclude = new Set<string>(opts.filter?.excludeEntityTypes ?? []);
+            return [...pool, ...extraPool].filter((p) => !p.entityTypes.some((t: string) => exclude.has(t)));
+          }),
+        } as any,
+      };
+    }
+
+    it('populates semanticContext from searchByResource, each match named via its view (P3/D9)', async () => {
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient, 15_000, mockLogger);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceName).sort()).toEqual(['A Prior Answer', 'A Prior Question']);
+    });
+
+    it('drops a match whose source resource has no view — no nameless cards (P3/D9)', async () => {
+      const ghost = { id: 'r-ghost#0', score: 0.95, resourceId: 'r-ghost', text: 'from a vanished resource', entityTypes: [] };
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(undefined, [ghost]), mockClient, 15_000, mockLogger);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
+    });
+
+    it('omits excluded-entity-type resources and records the exclusion', async () => {
+      let seen: any;
+      const ctx = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { ...baseOpts, excludeEntityTypes: ['Question'] },
+        kbWithVectors((o) => { seen = o; }),
+        mockClient,
+        15_000,
+        mockLogger,
+      );
+      expect(seen.filter.excludeEntityTypes).toEqual(['Question']);             // filter forwarded
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId)).toEqual(['r-answer']); // Question omitted
+      expect(ctx.semanticContext?.excludedEntityTypes).toEqual(['Question']);   // provenance recorded
+    });
+
+    it('records no excludedEntityTypes when no exclusion is applied', async () => {
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient, 15_000, mockLogger);
+      expect(ctx.semanticContext?.excludedEntityTypes).toBeUndefined();
+    });
+
+    it('leaves semanticContext absent when no vector store is configured', async () => {
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kb, mockClient, 15_000, mockLogger);
+      expect(ctx.semanticContext).toBeUndefined();
+    });
+  });
+
+  describe('semanticContext read-your-writes barrier (SMELTER-INDEX-SYNC P2)', () => {
+    const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
+    // The settle bound is explicit test policy (D5: config-owned, threaded as
+    // a plain argument). Small and REAL — these paths never wait it out
+    // (event-driven settle / skip / probe), and a regression fails fast
+    // instead of hanging a production-scale bound.
+    const SETTLE_MS = 1_000;
+    const hit = [{ id: 'r-sim#0', score: 0.9, resourceId: 'r-sim', text: 'similar text', entityTypes: [] }];
+    // The focal resource's content generation — what the barrier waits on (D2).
+    const TEST_CHECKSUM = calculateChecksum('This is test content for LLM context building.');
+
+    // A vector store that has no focal vectors until the "Smelter" applies,
+    // plus a real SmeltProgress fold on a test-driven bus: the delayed-Smelter
+    // harness ("projection-lag grace" pattern).
+    function lagKb(progressBus: EventBus, state: { indexed: boolean }): { lagged: KnowledgeBase; searches: () => number } {
+      const searchByResource = vi.fn(async () => (state.indexed ? hit : []));
+      const lagged: KnowledgeBase = {
+        ...kb,
+        smeltProgress: createSmeltProgress(progressBus),
+        // The hit's source must resolve to a named view (P3/D9) or the match drops.
+        views: { get: async (id: any) => (String(id) === 'r-sim' ? { resource: { '@id': 'r-sim', name: 'Similar Doc' } } : kb.views.get(id)) } as any,
+        vectors: { searchByResource } as unknown as KnowledgeBase['vectors'],
+      };
+      return { lagged, searches: () => searchByResource.mock.calls.length };
+    }
+
+    it('populates semanticContext once the Smelter settles — event-driven, within the barrier', async () => {
+      const progressBus = new EventBus();
+      const state = { indexed: false };
+      const { lagged } = lagKb(progressBus, state);
+
+      const pending = LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, SETTLE_MS, mockLogger);
+      setTimeout(() => {
+        state.indexed = true;
+        progressBus.get('smelt:settled').next({ resourceId: testResourceId, contentChecksum: TEST_CHECKSUM, outcome: 'indexed' });
+      }, 50);
+
+      const ctx = await pending;
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId)).toEqual(['r-sim']);
+    });
+
+    it('resolves immediately for skipped resources — no timeout tax, no re-search', async () => {
+      const progressBus = new EventBus();
+      const state = { indexed: false };
+      const { lagged, searches } = lagKb(progressBus, state);
+      progressBus.get('smelt:settled').next({ resourceId: testResourceId, contentChecksum: TEST_CHECKSUM, outcome: 'skipped' });
+
+      const started = Date.now();
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, SETTLE_MS, mockLogger);
+      expect(ctx.semanticContext).toBeUndefined();
+      expect(Date.now() - started).toBeLessThan(2000);
+      expect(searches()).toBe(1);
+    });
+
+    it('degrades on timeout: semanticContext absent + exactly one breadcrumb', async () => {
+      const progressBus = new EventBus(); // never settles
+      const state = { indexed: false };
+      const { lagged, searches } = lagKb(progressBus, state);
+      const degradeLogger: Logger = {
+        debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => degradeLogger),
+      };
+
+      // Real timers, tiny real bound: the settle timeout is explicit test
+      // policy now (D5 — config-owned, threaded as a plain argument), so no
+      // fake-clock choreography exists to fight scheduling weather. This
+      // retires the coverage-fragile advancement loop for good (main CI run
+      // 29622765997 — see the SMELTER-INDEX-SYNC log).
+      const ctx = await LLMContext.getResourceContext(
+        resourceId(testResourceId), baseOpts, lagged, mockClient, 250, degradeLogger,
+      );
+
+      expect(ctx.semanticContext).toBeUndefined();
+      const breadcrumbs = (degradeLogger.warn as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([message]) => String(message).includes('[gather DEGRADED]'));
+      expect(breadcrumbs).toHaveLength(1);
+      expect(searches()).toBe(1);
+    });
+
+    it('probes before waiting — already-indexed resources never touch the barrier', async () => {
+      const progressBus = new EventBus(); // never signaled: a cold fold
+      const state = { indexed: true };
+      const { lagged, searches } = lagKb(progressBus, state);
+
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, SETTLE_MS, mockLogger);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId)).toEqual(['r-sim']);
+      expect(searches()).toBe(1);
+    });
+  });
+});

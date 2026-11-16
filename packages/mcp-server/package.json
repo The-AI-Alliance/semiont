@@ -1,0 +1,30 @@
+{
+  "name": "@semiont/mcp-server",
+  "version": "0.5.29",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "description": "MCP server for Semiont API",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "npm run typecheck && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@semiont/http-transport": "*",
+    "@semiont/sdk": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "tsx": "^4.23.12",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

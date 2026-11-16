@@ -5,19 +5,70 @@ holding your documents, configuration, and startup scripts — not from the
 [semiont monorepo](https://github.com/The-AI-Alliance/semiont), which is the
 platform source (it publishes the npm packages and the container images).
 
-Every KB repo shares the same shape under `.semiont/`: its project file
-(`config.yaml`), the documents describing its stack (`stack/`, one Inference
-document per way of serving its models), and the event log. The stack is run
-by the host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
+Every KB repo shares the same shape: configuration, the event log, compose
+files, and inference presets under `.semiont/`. The stack is run by the
+host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
 (a single static binary), which *pulls* the published, attested
-`ghcr.io/the-ai-alliance/semiont-*` images the documents name and mounts into
-each one the configuration it writes from them — KB repos build no images of
-their own (see [Container Images](operator/administration/IMAGES.md)).
+`ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at
+runtime — KB repos build no images of their own (see
+[Container Images](system/administration/IMAGES.md)). One command starts the
+whole stack, including the Semiont browser at http://localhost:3000:
 
-On this page: the [demo knowledge bases](#demo-kbs), which arrive with content, and
-[how to run one](#running-one); the [community](#community) ones;
-[starting from scratch](#starting-from-scratch); and running any of them
-[in a GitHub Codespace](#in-a-github-codespace).
+```bash
+brew install the-ai-alliance/semiont/semiont   # once
+semiont start
+semiont useradd --email admin@example.com --admin   # prompts for the password
+```
+
+`semiont logs` follows the stack, `semiont status` health-checks it, and
+`semiont stop` tears it down — except the browser, which is the machine-level
+viewer of every KB rather than a stack member: every start ensures it, stop
+leaves it running, and `semiont stop --service frontend` is the explicit
+off-switch. Its Knowledge Bases panel discovers launcher-managed stacks
+automatically.
+
+**Or run it on GitHub's machine instead of yours.** The same launcher places
+a KB stack in a **GitHub Codespace** — one command creates (or resumes) the
+codespace, waits for the stack to answer, forwards the KB to your machine,
+and prints the admin credentials generated inside it:
+
+```bash
+semiont start --runtime codespace --repo The-AI-Alliance/semiont-template-kb
+semiont start --service frontend    # the browser runs locally
+```
+
+Only the KB is forwarded, each stack on its own local port, so one local
+browser works several cloud KBs at once via its Knowledge Bases panel.
+`semiont status` shows the fleet; `semiont stop --repo <owner/name>` halts
+billing (state persists) and `--delete` destroys the codespace. Prerequisites
+(the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret) are in each
+KB's README; the raw `gh` recipe is kept there too as the no-launcher path.
+
+See [Local Semiont](system/LOCAL-SEMIONT.md) for the full local-run guide
+(inference configs, running from source with `SEMIONT_VERSION=local`, ports,
+troubleshooting pointers).
+
+## Starting from scratch
+
+**`semiont init`** births a new KB in place — no clone required. It stamps
+the permanent did:web identity at birth (from `--domain` or your git
+origin), synthesizes a validated semiontconfig from `--inference` /
+`--model` / `--embedding` choices (or copies the template's configs with
+`--from-template`), and refuses rather than writing a config that cannot
+start:
+
+```bash
+semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
+```
+
+Or clone the empty template:
+
+| Template | Description | Clone |
+|---|---|---|
+| **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** | Empty template — start here for a new project | `git clone https://github.com/The-AI-Alliance/semiont-template-kb.git` |
+
+The template is the canonical source of the shared `.semiont/` scaffolding —
+the demo KBs below are forks of it, kept in sync.
 
 ## Demo KBs
 
@@ -36,39 +87,6 @@ corpus-generic and work on any corpus dropped into the same directory layout.
 | **[semiont-newsroom-kb](https://github.com/The-AI-Alliance/semiont-newsroom-kb)** | Synthetic investigative-journalism documents — interview transcripts, FOIA responses, public statements | `git clone https://github.com/The-AI-Alliance/semiont-newsroom-kb.git` |
 | **[semiont-household-kb](https://github.com/The-AI-Alliance/semiont-household-kb)** | Synthetic home-property records — service receipts, contractor emails, manuals, mortgage / insurance, HOA notices | `git clone https://github.com/The-AI-Alliance/semiont-household-kb.git` |
 
-### Running one
-
-Install the launcher first: steps 0 to 2 of the [Quick Start](builder/QUICK-START.md),
-which also say where an Anthropic key goes. Then clone a knowledge base and start it.
-One command starts the whole stack, including the Semiont browser at http://localhost:3000:
-
-```bash
-brew install the-ai-alliance/semiont/semiont   # once
-git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
-cd semiont-gutenberg-kb
-semiont start
-semiont useradd --email admin@example.com   # prompts for the password
-```
-
-A demo knowledge base arrives with its identity and its stack's documents already
-set, so there is no `semiont init` to run, and with content, so there is nothing to
-ingest before you read and annotate. A plain `semiont start` runs its local Ollama
-Inference document, which needs no key. `semiont start --config anthropic` runs on
-your Anthropic key instead.
-
-A new stack has no users, which is what `useradd` is for. Then open the browser,
-pick the knowledge base in its Knowledge Bases panel and sign in: steps 5 and 6
-of the Quick Start.
-
-`semiont logs` follows the stack, `semiont status` health-checks it, and
-`semiont stop` tears it down, the Browser with it. The Browser is the viewer of
-every KB rather than a member of one stack: every start ensures it, and
-`semiont stop --service browser` stops it alone. Its Knowledge Bases panel
-discovers launcher-managed stacks automatically.
-
-See [Running knowledge bases on your computer](operator/LOCAL-SEMIONT.md) for the full local guide:
-choosing a config, the ports, and where things are kept.
-
 ## Community
 
 | Knowledge Base | Domain | Clone |
@@ -78,65 +96,3 @@ choosing a config, the ports, and where things are kept.
 Built a knowledge base others could learn from? Open a
 [discussion](https://github.com/The-AI-Alliance/semiont/discussions) to get
 it listed here.
-
-## Starting from scratch
-
-**`semiont init`** births a new KB in place — no clone required. It writes
-the permanent did:web identity into `.semiont/config.yaml` at birth (from
-`--domain` or your git origin), writes the stack's documents into
-`.semiont/stack/` from `--inference` / `--model` / `--embedding` choices (or
-copies the template's with `--from-template`), and refuses rather than
-writing documents that cannot start:
-
-```bash
-semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
-```
-
-Or clone the empty template:
-
-| Template | Description | Clone |
-|---|---|---|
-| **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** | Empty template — start here for a new project | `git clone https://github.com/The-AI-Alliance/semiont-template-kb.git` |
-
-The template is the canonical source of the shared `.semiont/` scaffolding —
-the demo KBs above are forks of it, kept in sync.
-
-## In a GitHub Codespace
-
-Run a knowledge base on GitHub's machine instead of yours. The same launcher places
-a KB stack in a **GitHub Codespace**. One command does several things:
-- creates the codespace, or resumes it;
-- waits for the stack, which the codespace's own launcher runs;
-- forwards the KB and its sign-in service (Keycloak) to local ports;
-- starts the browser on this machine, when it has a container runtime.
-
-```bash
-semiont start --runtime codespace --repo The-AI-Alliance/semiont-template-kb
-```
-
-Each codespace KB gets its own pair of local ports: the KB on 4000 (or the
-lowest free port above it), and Keycloak on 8080 (or the lowest free port
-above it, which the launcher moves the codespace's Keycloak to match). So one
-local browser works — and signs in to — several cloud KBs at once via its
-Knowledge Bases panel. The summary names the codespace and both ports;
-`semiont status` and `gh codespace list` show it too.
-
-**A new codespace KB has no users.** Create the first account the way the
-start summary says; it prompts for the password, and the account is made by
-the launcher inside the codespace:
-
-```bash
-semiont useradd --repo The-AI-Alliance/semiont-template-kb --email you@example.com
-```
-
-Then sign in from the browser: the first sign-in asks for your name.
-
-`semiont stop --repo <owner/name>` stops the codespace and both forwards.
-Compute stops billing; storage bills until GitHub deletes the codespace 30
-days after it stopped. `--delete` destroys it now. Every `--repo` command
-finds the repo's codespace even when this machine has no record of it — a
-codespace whose setup failed during `start` included — so
-`semiont stop --repo <owner/name> --delete` is always the way to remove one.
-Prerequisites (the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret)
-are in each KB's README; the raw `gh` recipe is kept there too as the
-no-launcher path.

@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "Search results payload emitted on match:search-results SSE channel.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "referenceId": {
+      "type": "string"
+    },
+    "response": {
+      "type": "array",
+      "description": "The scored candidates, best first.",
+      "items": {
+        "$ref": "ScoredResource.json"
+      }
+    }
+  },
+  "required": [
+    "correlationId",
+    "referenceId",
+    "response"
+  ]
+}

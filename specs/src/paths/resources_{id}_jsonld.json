@@ -1,0 +1,50 @@
+{
+  "get": {
+    "summary": "Get a resource's JSON-LD description",
+    "description": "The dereferenceable linked-data description of the resource: its descriptor plus all annotations and inbound entity references, assembled via the bus gateway. This is the target of the `Link: rel=\"describedby\"` header that GET /resources/{id} sends with every content response.\n\nLive data — annotations and references change — so responses carry `Cache-Control: no-cache`, in contrast to the immutable content at GET /resources/{id}.",
+    "tags": ["Resources"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The resource's JSON-LD description",
+        "content": {
+          "application/ld+json": {
+            "schema": {
+              "$ref": "../components/schemas/GetResourceResponse.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "504": {
+        "description": "Request timed out (bus gateway)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

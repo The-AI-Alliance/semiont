@@ -1,7 +1,8 @@
 // semiont — host-installed launcher for a local Semiont stack.
 //
 // Drives the container runtime CLI (Apple `container`, docker, or podman)
-// directly via subprocesses.
+// directly via subprocesses; see .plans/GO-LAUNCHER.md in the monorepo for
+// the design and the fleet forensics this port preserves.
 package main
 
 import (
@@ -9,8 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/packages/go/launcher"
-	"github.com/The-AI-Alliance/semiont/packages/go/launcher/verbs"
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 )
 
 func usage(w *os.File) {
@@ -19,51 +19,26 @@ func usage(w *os.File) {
 Local Semiont stack launcher — drives your container runtime
 (Apple container, Docker, or Podman) directly.
 
-Stack lifecycle:
+Commands:
   init      Birth a new KB here: permanent identity, git repo, registration
   start     Start the local Semiont stack
+  useradd   Create or update a user in the running stack
+  login     Authenticate against a running stack (token stored, never the password)
+  logout    End the stored session (server best-effort, local token forgotten)
+  yield     Upload files from the KB root as resources (needs login)
+  browse    Read the KB: resources, annotations, entity types (needs login)
+  gather    Assemble LLM context for a resource or annotation (needs login)
+  mark      Annotate a resource; --delete removes an annotation (needs login)
+  bind      Resolve a linking annotation to its target resource (needs login)
+  match     Find resources an annotation could bind to (needs login)
+  beckon    Draw attention to a resource or annotation (needs login)
+  frame     Add entity types to the KB's schema vocabulary (needs login)
+  listen    Follow the KB's live event stream (needs login)
+  secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
   stop      Stop the stack across all installed runtimes
-  clean     Remove a root's persistent stack state (databases, event log, secrets)
-  roots     List every knowledge base this machine knows
-  forget    Drop a root from the registry listing (deletes no files)
-
-Identity & auth:
-  useradd   Create or update a user in the running stack
-  login     Sign in through the knowledge base's issuer (device grant; tokens stored, never a password)
-  logout    End the stored session (server best-effort, local token forgotten)
-  identity  Reconcile a running realm's service-account clients (identity sync);
-            admit or remove another's worker by its key (identity grant, revoke)
-  worker    The public key the shared worker signs in with (worker key);
-            the knowledge bases it serves (worker kb add, remove, list)
-
-Settings:
-  settings  Every setting the launcher keeps: the runtime, where secrets come
-            from and where they are kept, each knowledge base's config
-
-Desktop:
-  control   Serve the launcher's control API on stdin and stdout, for Desktop
-
-Knowledge base (need login):
-  browse    Read the KB: resources, annotations, entity types, tag schemas
-  bind      Resolve a linking annotation to its target resource
-  yield     Upload files from the KB root as resources, or have the stack
-            generate one (--delegate)
-  mark      Annotate a resource, or have the stack do it (--delegate);
-            --delete removes an annotation
-  frame     Add entity types to the KB's schema vocabulary
-  gather    Assemble LLM context for a resource or annotation
-  match     Search the KB: resources by text, or what an annotation could bind to
-  beckon    Draw attention to a resource or annotation
-  listen    Follow the KB's live event stream
-  mcp       Serve the signed-in KBs to an AI application over MCP (stdio)
-
-Data:
-  export    Write a KB's durable state to a .tar.gz (no stack needed)
-  import    Restore a KB from an export archive into a new root
-
-Info:
+  clean     Remove a root's persistent stack state (PostgreSQL/Qdrant/Neo4j)
   about     What Semiont is, project links, and detected runtimes
   version   Print the launcher version
 
@@ -84,7 +59,7 @@ func main() {
 	case "init":
 		code = launcher.Init(rest)
 	case "start":
-		code = launcher.Start(launcher.NewUI(false), rest)
+		code = launcher.Start(rest)
 	case "useradd":
 		code = launcher.Useradd(rest)
 	case "login":
@@ -92,62 +67,43 @@ func main() {
 	case "logout":
 		code = launcher.Logout(rest)
 	case "yield":
-		code = verbs.Yield(rest)
+		code = launcher.Yield(rest)
 	case "browse":
-		code = verbs.Browse(rest)
+		code = launcher.Browse(rest)
 	case "gather":
-		code = verbs.Gather(rest)
+		code = launcher.Gather(rest)
 	case "mark":
-		code = verbs.Mark(rest)
+		code = launcher.Mark(rest)
 	case "bind":
-		code = verbs.Bind(rest)
+		code = launcher.Bind(rest)
 	case "match":
-		code = verbs.Match(rest)
+		code = launcher.Match(rest)
 	case "beckon":
-		code = verbs.Beckon(rest)
+		code = launcher.Beckon(rest)
 	case "frame":
-		code = verbs.Frame(rest)
+		code = launcher.Frame(rest)
 	case "listen":
-		code = verbs.Listen(rest)
-	case "mcp":
-		code = verbs.MCP(rest)
-	case "settings":
-		code = launcher.Settings(rest)
-	case "identity":
-		code = launcher.Identity(rest)
-	case "worker":
-		code = launcher.Worker(rest)
-	case launcher.IssuerProxyVerb:
-		// The process a `network lan` start leaves running; never a person's.
-		code = launcher.IssuerProxy(rest)
+		code = launcher.Listen(rest)
+	case "secret":
+		code = launcher.Secret(rest)
 	case "status":
 		code = launcher.Status(rest)
 	case "logs":
 		code = launcher.Logs(rest)
 	case "stop":
-		code = launcher.Stop(launcher.NewUI(false), rest)
+		code = launcher.Stop(rest)
 	case "clean":
 		code = launcher.Clean(rest)
-	case "roots":
-		code = launcher.Roots(rest)
-	case "forget":
-		code = launcher.Forget(rest)
-	case "export":
-		code = launcher.Export(rest)
-	case "import":
-		code = launcher.Import(rest)
 	case "about":
 		code = launcher.About(rest)
-	case "control":
-		code = launcher.Control(rest)
 	case "version", "--version":
 		code = launcher.Version(rest)
 	case "--help", "-h", "help":
 		usage(os.Stdout)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", cmd)
-		// A leading flag means the subcommand was left out: the launcher needs
-		// it first. Say where the flags go.
+		// The old KB scripts took flags directly; the launcher needs the
+		// subcommand first. Catch that muscle memory with a pointed hint.
 		if strings.HasPrefix(cmd, "-") {
 			fmt.Fprintf(os.Stderr, "Flags go after a subcommand — did you mean:  semiont start %s\n", strings.Join(os.Args[1:], " "))
 		}

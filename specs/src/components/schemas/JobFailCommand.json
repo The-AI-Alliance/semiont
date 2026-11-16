@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "description": "Command to mark a job as failed",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation."
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "resourceId",
+    "jobId",
+    "jobType",
+    "error"
+  ]
+}

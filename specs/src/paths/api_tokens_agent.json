@@ -1,0 +1,86 @@
+{
+  "post": {
+    "summary": "Software-Agent Token Exchange",
+    "description": "Exchange the shared secret plus an inference (provider, model) pair for a bearer JWT issued for that agent identity. Used by worker processes that emit on behalf of one or more software peers.\n\nThe issued JWT carries the agent's DID (shape `did:web:<host>:agents:<provider>:<model>`); the bus stamps that DID onto `_userId` so events the agent emits attribute to the agent rather than to a generic worker pool.",
+    "tags": ["Authentication"],
+    "security": [],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "secret": {
+                "type": "string",
+                "description": "The shared secret (SEMIONT_WORKER_SECRET)"
+              },
+              "provider": {
+                "type": "string",
+                "description": "Inference provider (e.g. ollama, anthropic)"
+              },
+              "model": {
+                "type": "string",
+                "description": "Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)"
+              }
+            },
+            "required": ["secret", "provider", "model"]
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Token issued",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "description": "Bearer JWT for subsequent authenticated requests"
+                },
+                "did": {
+                  "type": "string",
+                  "description": "DID of the software-agent identity the token is acting as"
+                }
+              },
+              "required": ["token", "did"]
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "Missing or invalid request fields",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Invalid agent secret",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "503": {
+        "description": "Agent authentication not configured",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

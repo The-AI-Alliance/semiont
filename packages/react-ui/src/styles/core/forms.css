@@ -1,0 +1,292 @@
+/**
+ * Form Component Styles
+ *
+ * Reusable form field styles using BEM methodology
+ */
+
+/* Form container */
+.semiont-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.semiont-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Form field */
+.semiont-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Labels */
+.semiont-form__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-form__label {
+  color: var(--semiont-text-primary);
+}
+
+/* Note: Form control styles (.semiont-input, .semiont-textarea, .semiont-select, .semiont-checkbox)
+   are now defined in dedicated core files:
+   - core/inputs.css
+   - core/textareas.css
+   - core/selects.css
+   - core/checkboxes.css */
+
+/* Error messages */
+.semiont-form__error {
+  color: var(--semiont-color-red-600);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-form__error {
+  color: var(--semiont-color-red-400);
+}
+
+/* Checkbox and radio - wrapper fields */
+.semiont-form__checkbox-field,
+.semiont-form__radio-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Inline-flex with a gap so the control never touches its text — the gap on
+   the FIELD wrapper only helps when the input is a sibling; several forms
+   nest the input inside the label, where only this reaches. */
+.semiont-form__checkbox-label,
+.semiont-form__radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--semiont-text-primary);
+}
+
+/* Form actions */
+.semiont-form__actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.semiont-form__actions--right {
+  justify-content: flex-end;
+}
+
+.semiont-form__actions--center {
+  justify-content: center;
+}
+
+.semiont-form__actions--between {
+  justify-content: space-between;
+}
+
+/* Help text */
+.semiont-form__help {
+  font-size: 0.875rem;
+  color: var(--semiont-text-secondary);
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-form__help {
+  color: var(--semiont-text-secondary);
+}
+
+/* A help sentence scoped to a whole inline row rather than one column —
+   full width under the row, so its height never stretches the row's flex
+   siblings. Right-aligned: the row's `--end` column is what it describes,
+   and the sentence should end beneath that cell. */
+.semiont-form__help--row {
+  margin-top: 0.5rem;
+  text-align: right;
+}
+
+/* Fieldset and legend */
+.semiont-form__fieldset {
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-form__fieldset {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-form__legend {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+  padding: 0 0.5rem;
+}
+
+/* Note: Disabled states for form controls are defined in their respective core files */
+
+/* Panel form elements */
+.semiont-panel-label {
+  display: block;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-panel-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-panel-hint {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-color-gray-500);
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-panel-hint {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-panel-divider {
+  border-top: 1px solid var(--semiont-color-gray-200);
+  padding-top: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-panel-divider {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+/* Language selector dropdown */
+.semiont-language-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+  font-size: var(--semiont-text-sm);
+  border: 1px solid var(--semiont-color-gray-300);
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+}
+
+.semiont-language-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--semiont-color-primary-500);
+  border-color: transparent;
+}
+
+.semiont-language-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .semiont-language-select {
+  border-color: var(--semiont-color-gray-600);
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-language-select option {
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-color-gray-100);
+}
+/* ============================================
+   Assist Section Form Fields (single-dash BEM variant)
+   Used in AssistSection component
+   ============================================ */
+
+.semiont-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.semiont-form-field__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.semiont-form-field__label {
+  display: block;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-form-field__label--with-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.semiont-form-field__info {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  font-weight: var(--semiont-font-medium);
+}
+
+.semiont-form-field__char-count {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  text-align: right;
+}
+
+/* Note: Basic form controls (.semiont-textarea, .semiont-select, .semiont-checkbox)
+   are now defined in /styles/core/ as they are fundamental UI elements.
+   See: core/textareas.css, core/selects.css, core/checkboxes.css */
+
+
+/* Inline row — lays out multiple fields side by side */
+.semiont-form__inline-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+/* Inline field variant — participates in an inline row */
+.semiont-form__field--inline {
+  flex-shrink: 0;
+}
+
+/* Grow modifier — field takes remaining space */
+/* A slider column: flexible, but a 0-to-1 range gains nothing past ~26rem —
+   uncapped it stretches into a band and drags the row's other columns apart. */
+.semiont-form__field--slider {
+  flex: 1;
+  min-width: 0;
+  max-width: 26rem;
+}
+
+/* Pushed to the row's end — pairs with a right-aligned `__help--row`
+   footnote below, so the sentence ends under the cell it describes instead
+   of floating at the far left with a void to its right. */
+.semiont-form__field--end {
+  margin-left: auto;
+}
+
+/* Narrow modifier — fixed compact width for short numeric inputs */
+/* Sized by content with a floor, not a fixed box: a fixed 5.5rem wrapped
+   labels like "Max resources" onto two lines, which stretched that column
+   and knocked the row's inputs out of alignment. */
+.semiont-form__field--narrow {
+  width: auto;
+  min-width: 5.5rem;
+  flex-shrink: 0;
+}
+
+.semiont-form__field--inline > .semiont-form__label {
+  white-space: nowrap;
+}

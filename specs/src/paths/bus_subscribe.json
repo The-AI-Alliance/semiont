@@ -1,0 +1,52 @@
+{
+  "post": {
+    "summary": "Subscribe to the Semiont event bus (SSE)",
+    "description": "Opens a long-lived Server-Sent Events stream over which the bus delivers events matching the requested subscription matrix. The JSON body names unscoped `global` channels plus any number of `scoped` entries — one per resource scope — so a single connection can hold live subscriptions to many resources at once (MULTI-RESOURCE-SCOPE).\n\nEach SSE frame has `event: bus-event`, a JSON-encoded `data` of the form `{ channel, payload, scope? }` (scoped events carry their originating scope), and an `id` (a persisted event id `p-<scope>-<seq>` for domain events; an ephemeral `e-*` id for job-lifecycle / correlated-reply channels).\n\nResumption is per scope: pass each scope's last-received persisted id as `lastEventId` on its scoped entry — the server replays that scope's missed persisted events and emits a scoped `bus:resume-gap` synthetic event when the gap cannot be covered.",
+    "tags": ["Bus"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/BusSubscribeRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "SSE stream opened",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "$ref": "../components/schemas/EventStreamResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "Malformed body, no channels requested, duplicate scopes, malformed scoped entry, or scope count above the per-connection cap",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

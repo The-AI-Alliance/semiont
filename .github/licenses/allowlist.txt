@@ -1,10 +1,8 @@
 # Permissive SPDX license allowlist for the published service images.
 #
-# The license-policy gates check the SPDX license of every package an image
-# installs from npm or from PyPI (.github/scripts/check-licenses.mjs, over an
-# image's SBOM) and of every crate
-# a Rust service binary links (images/scripts/check-image-crates.mjs) against this
-# list, and fail if anything is unlisted. Approved (permissive) licenses pass silently;
+# The license-policy gate (.github/scripts/check-licenses.mjs) checks every
+# bundled npm dependency's SPDX license against this list and fails the publish
+# if anything is unlisted. Approved (permissive) licenses pass silently;
 # copyleft / unknown / unusual licenses trip CI and get a human review — at
 # which point either the dependency is dropped or, if the license is genuinely
 # permissive, its SPDX ID is added here with a note.
@@ -12,8 +10,9 @@
 # One SPDX license ID per line. Blank lines and #-comments are ignored. A
 # trailing `*` is a prefix wildcard (e.g. `Foo-*`). Matching is case-insensitive.
 #
-# Seeded 2026-07-15 from the union of the Node images' dependency trees
-# (`license-checker` over the npm packages they install): MIT, Apache-2.0,
+# Seeded 2026-07-15 from the actual union of the images' dependency trees
+# (`license-checker` over @semiont/backend + @semiont/jobs +
+# @semiont/make-meaning + neo4j-driver + @qdrant/js-client-rest): MIT, Apache-2.0,
 # ISC, BSD-3-Clause, BSD-2-Clause, 0BSD, Unlicense, Python-2.0, and one
 # (MIT OR CC0-1.0) dual. All permissive; no copyleft present.
 
@@ -29,40 +28,13 @@ Python-2.0
 CC0-1.0
 BlueOak-1.0.0
 
-# Present from when images shipped npm, so
+# Present because the backend image ships npm (for `npx prisma` at runtime), so
 # npm's own bundled tree is redistributed too. Both are permissive: Artistic-2.0
 # is npm's own OSI-approved license; CC-BY-3.0 is the SPDX data package
 # spdx-exceptions (attribution only). Added 2026-07-15.
 Artistic-2.0
 CC-BY-3.0
 
-# The Rust gateway's crates (images/scripts/check-image-crates.mjs holds every
-# crate a Rust binary links to this list). Three licenses are new with it, all permissive:
-# Unicode-3.0 — the Unicode data licence, on the icu_* crates behind URL
-# parsing; Zlib — foldhash, the hasher the standard maps default to;
-# CDLA-Permissive-2.0 — the Mozilla root-certificate data in webpki-roots.
-# Added 2026-09-27.
-Unicode-3.0
-Zlib
-CDLA-Permissive-2.0
-
-# The worker image's Python packages (check-licenses.mjs reads the PyPI packages
-# of an image's SBOM as it reads the npm ones). One license is new with them,
-# and permissive: PSF-2.0 — the Python Software Foundation License, on
-# typing_extensions, which pydantic and the model providers' libraries require.
-# Added 2026-10-10.
-PSF-2.0
-
 # Deliberately NOT wildcarded to `BSD-*`: BSD-4-Clause carries the advertising
 # clause and should trip a review rather than pass silently. Add BSD-2/3-Clause
 # explicitly above instead.
-
-# Allowed on one package and on no other: a line `<SPDX-id> for <package-name>`.
-# The license is not otherwise on this list, so another package that has it is
-# still refused.
-#
-# certifi: Mozilla's root certificates as a Python package. httpx, which the
-# Python SDK requires, requires it, so every Python image carries it. It is
-# MPL-2.0, a file-level copyleft, on data the images carry unmodified. MPL-2.0
-# is not allowed generally. Added 2026-10-10.
-MPL-2.0 for certifi

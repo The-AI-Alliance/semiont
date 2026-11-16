@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Command to claim a pending job (atomic CAS: pending → running)",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    }
+  },
+  "required": ["correlationId", "jobId"]
+}

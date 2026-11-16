@@ -1,0 +1,457 @@
+'use client';
+
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { useTranslations } from '../../contexts/TranslationContext';
+import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
+import type { AnnotateMediaRenderers } from './annotate-renderers';
+import { BrowseView, type ReferenceHover } from './BrowseView';
+import type { BrowseMediaRenderers } from './browse-renderers';
+import { PopupContainer } from '../annotation-popups/SharedPopupElements';
+import { JsonLdView } from '../annotation-popups/JsonLdView';
+import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, EventMap, AnchorRect } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
+import { ANNOTATORS } from '../../lib/annotation-registry';
+import type { AnnotationsCollection } from '../../types/annotation-props';
+
+/**
+ * ResourceViewer - Display and interact with resource content and annotations
+ *
+ * Real-time updates arrive through the sdk, not through this component:
+ * the client's BrowseNamespace invalidates the right resource's annotation
+ * list on mark:added/mark:removed (payload-keyed) and patches
+ * mark:body-updated in place, so the live queries feeding `annotations`
+ * refresh on their own. The viewer subscribes only to `browse:click`
+ * (annotation-click routing).
+ *
+ * Bring-your-own-session: the `session` (SemiontSession) and the host's
+ * navigation / panel callbacks come in as props — no SemiontProvider required.
+ * Every event it subscribes to is session-scoped and reaches it via
+ * `session.subscribe`. Translations fall back to built-in English when no
+ * TranslationProvider is mounted; caching flows through `session.client.browse.*`.
+ *
+ * Event flow:
+ *   make-meaning → EventLog → SSE → EventBus → sdk cache invalidation → live queries
+ */
+interface Props {
+  resource: SemiontResource & { content: string };
+  annotations: AnnotationsCollection;
+  /** Session for the shown resource — its client mutates/invalidates, its bus feeds annotation events. */
+  session: SemiontSession | null;
+  /** Host-owned navigation: a resolved reference was followed. Omit for a view with no follow behavior. */
+  onOpenResource?: (resourceId: string) => void;
+  /** Host-owned panel control (annotation clicks open a panel). Omit for hosts without side panels. */
+  onOpenPanel?: (event: EventMap['panel:open']) => void;
+  /** A content link in the rendered content was clicked — the viewer preventDefaults and delegates; it never navigates on its own. */
+  onLinkClick?: (link: { href: string; event: React.MouseEvent }) => void;
+  /** A resolved reference span is hovered (after dwell + referent descriptor resolve); `null` on leave. Host renders its own preview. */
+  onReferenceHover?: (hover: ReferenceHover | null) => void;
+  /** Inline display variant: auto-height, no inner scroll, no pane chrome (browse path). Default: fill-the-pane. */
+  inline?: boolean;
+  /** Recently-created annotation ids to sparkle (threaded to the browse/annotate subtree). */
+  sparkleAnnotationIds?: Set<string>;
+  generatingReferenceId?: string | null;
+  showLineNumbers?: boolean;
+  hoverDelayMs?: number;
+  hoveredAnnotationId?: string | null;
+  /**
+   * Toolbar preferences as controlled props (TOOLBAR-PREFS-AS-PROPS). Supply a value
+   * to own that pref: the instance renders it and reports intents via the callback —
+   * it never self-mutates, never persists, never listens to other instances. Omit for
+   * a plain uncontrolled default (false / 'detail' / 'linking' / 'rectangle').
+   * Hosts wanting the shared+persisted Browser UX compose `useToolbarPrefs()`.
+   */
+  annotateMode?: boolean;
+  onAnnotateModeChange?: (mode: boolean) => void;
+  clickAction?: ClickAction;
+  onClickActionChange?: (action: ClickAction) => void;
+  selectionMotivation?: SelectionMotivation | null;
+  onSelectionMotivationChange?: (motivation: SelectionMotivation | null) => void;
+  shape?: ShapeType;
+  onShapeChange?: (shape: ShapeType) => void;
+  /**
+   * Render the built-in AnnotateToolbar (default true — today's behavior,
+   * byte-identical). `false` → no bar at any internal site (browse + every
+   * annotate render mode), while every seam stays live: annotate-mode selection
+   * capture, image/pdf drawing, `mark.request` emission, and the controlled
+   * props. Tier-2 hosts compose their own controls from the controlled props;
+   * this makes that opt-out a contract instead of a CSS override.
+   */
+  showToolbar?: boolean;
+  /**
+   * Override the read-only / annotating media renderers respectively; each is
+   * merged over its defaults by the view below.
+   *
+   * Two flat props rather than one nested object: the registries are
+   * separately typed (`MediaRendererProps` vs `AnnotateMediaRendererProps`)
+   * and nesting them would imply an interchangeability that does not exist.
+   *
+   * Forwarding them is what makes the registries reachable at all for a host
+   * that imports `ResourceViewer` — the documented entry point. Before this,
+   * reaching `BrowseView`'s `renderers` meant dropping to `BrowseView`
+   * directly and reimplementing the browse/annotate switching this component
+   * exists to provide. See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+   */
+  browseRenderers?: BrowseMediaRenderers;
+  annotateRenderers?: AnnotateMediaRenderers;
+}
+
+/**
+ * Deletion calls `session.client.mark.delete(...)` directly (no bus emit);
+ * panel opening invokes the host's `onOpenPanel` callback — the host owns
+ * the panel and any `panel:open` emission.
+ *
+ * @subscribes browse:click - An annotation was clicked — locally, or driven over
+ *   the wire by another participant. Payload: { annotationId: string, anchorRect? };
+ *   the motivation is derived from the annotation the id names, and an id this
+ *   viewer has not loaded is a no-op.
+ */
+export function ResourceViewer({
+  resource,
+  annotations,
+  session,
+  onOpenResource,
+  onOpenPanel,
+  onLinkClick,
+  onReferenceHover,
+  inline = false,
+  sparkleAnnotationIds,
+  generatingReferenceId,
+  showLineNumbers = false,
+  hoverDelayMs,
+  hoveredAnnotationId: hoveredAnnotationIdProp,
+  annotateMode: annotateModeProp,
+  onAnnotateModeChange,
+  clickAction: clickActionProp,
+  onClickActionChange,
+  selectionMotivation: selectionMotivationProp,
+  onSelectionMotivationChange,
+  shape: shapeProp,
+  onShapeChange,
+  showToolbar = true,
+  browseRenderers,
+  annotateRenderers,
+}: Props) {
+  const t = useTranslations('ResourceViewer');
+  const documentViewerRef = useRef<HTMLDivElement>(null);
+
+  const { highlights, references, assessments, comments, tags } = annotations;
+
+  // Extract resource URI once at the top - required for all annotation operations
+  // Resources have @id (canonical URI), not id
+  if (!resource['@id']) {
+    throw new Error('Resource has no @id');
+  }
+  const rUri = resource['@id'];
+
+  // Same primary-representation semantics as the page and the worker — one helper.
+  const mimeType = getPrimaryMediaType(resource) || 'text/plain';
+
+  // Toolbar preferences (TOOLBAR-PREFS-AS-PROPS): controlled (prop supplied) or a
+  // plain uncontrolled default. Preferences are state, not events — no localStorage
+  // and no preference bus channels here; hosts wanting the shared+persisted Browser
+  // UX compose useToolbarPrefs() (the policy layer) and pass the values down.
+  const [internalAnnotateMode, setInternalAnnotateMode] = useState(false);
+  const annotateMode = annotateModeProp ?? internalAnnotateMode;
+  const changeAnnotateMode = useCallback((mode: boolean) => {
+    if (annotateModeProp === undefined) setInternalAnnotateMode(mode);
+    onAnnotateModeChange?.(mode);
+  }, [annotateModeProp, onAnnotateModeChange]);
+
+  // Determine active view based on annotate mode
+  const activeView = annotateMode ? 'annotate' : 'browse';
+
+  // NOTE deliberately NO mark:* invalidation here (MULTI-RESOURCE-SCOPE
+  // Step 5). The sdk's BrowseNamespace already invalidates the RIGHT
+  // resource's annotation list on mark:added/mark:removed (payload-keyed,
+  // once per event) and patches mark:body-updated in place. A viewer-side
+  // handler on these session-wide channels was pure duplication — and with
+  // N viewers on one session (the embeddable resource-per-chat-message
+  // pattern), an O(N) refetch amplification on every mark event.
+
+  // Remaining toolbar preferences — same controlled/uncontrolled split as mode.
+  const [internalSelectionMotivation, setInternalSelectionMotivation] = useState<SelectionMotivation | null>('linking');
+  const selectedMotivation = selectionMotivationProp !== undefined ? selectionMotivationProp : internalSelectionMotivation;
+  const changeSelectionMotivation = useCallback((motivation: SelectionMotivation | null) => {
+    if (selectionMotivationProp === undefined) setInternalSelectionMotivation(motivation);
+    onSelectionMotivationChange?.(motivation);
+  }, [selectionMotivationProp, onSelectionMotivationChange]);
+
+  const [internalClickAction, setInternalClickAction] = useState<ClickAction>('detail');
+  const selectedClick = clickActionProp ?? internalClickAction;
+  const changeClickAction = useCallback((action: ClickAction) => {
+    if (clickActionProp === undefined) setInternalClickAction(action);
+    onClickActionChange?.(action);
+  }, [clickActionProp, onClickActionChange]);
+
+  const [internalShape, setInternalShape] = useState<ShapeType>('rectangle');
+  const selectedShape = shapeProp ?? internalShape;
+  const changeShape = useCallback((shape: ShapeType) => {
+    if (shapeProp === undefined) setInternalShape(shape);
+    onShapeChange?.(shape);
+  }, [shapeProp, onShapeChange]);
+
+  // JSON-LD view state
+  const [showJsonLdView, setShowJsonLdView] = useState(false);
+  const [jsonLdAnnotation, setJsonLdAnnotation] = useState<Annotation | null>(null);
+
+  // Delete confirmation state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    annotation: Annotation;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // Internal UI state for hover
+  // Use prop value when provided (controlled by parent), otherwise null
+  const hoveredAnnotationId = hoveredAnnotationIdProp ?? null;
+
+  // Calculate centered position for JSON-LD modal
+  const getJsonLdModalPosition = () => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+
+    const popupWidth = 800;
+    const popupHeight = 700;
+
+    return {
+      x: Math.max(0, (window.innerWidth - popupWidth) / 2),
+      y: Math.max(0, (window.innerHeight - popupHeight) / 2),
+    };
+  };
+
+  // Handle deleting annotations
+  const handleDeleteAnnotation = useCallback((id: AnnotationId) => {
+    session?.client.mark.delete(rUri, id);
+  }, [session, rUri]);
+
+  // Handle annotation clicks - memoized
+  const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
+    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
+
+    // If annotation has a side panel, only open it when Detail mode is active
+    // For delete/jsonld/follow modes, let those handlers below process it
+    // Side-panel annotations in detail mode are routed to the host's panel by
+    // handleAnnotationClickEvent before this is ever called; here only the
+    // toolbar click modes (delete / jsonld / follow) fall through.
+    if (metadata?.hasSidePanel && selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
+      return;
+    }
+
+    // Check if this is a highlight, assessment, comment, reference, or tag
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation) || isTag(annotation);
+
+    // Handle follow mode - navigate to resolved references only (works in both Browse and Annotate modes)
+    if (selectedClick === 'follow' && isReference(annotation)) {
+      const bodySource = getBodySource(annotation.body);
+      if (bodySource) {
+        // bodySource is already a bare resource ID — the host owns navigation
+        onOpenResource?.(bodySource);
+      }
+      return;
+    }
+
+    // Handle JSON-LD mode for all annotation types (works in both Browse and Annotate modes)
+    if (selectedClick === 'jsonld' && isSimpleAnnotation) {
+      setJsonLdAnnotation(annotation);
+      setShowJsonLdView(true);
+      return;
+    }
+
+    // Only handle annotation clicks in annotate mode with toolbar modes
+    if (!annotateMode) return;
+
+    // Handle delete mode for all annotation types
+    if (selectedClick === 'deleting' && isSimpleAnnotation) {
+      // Show confirmation dialog
+      const position = event
+        ? { x: event.clientX, y: event.clientY + 10 }
+        : { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 75 };
+
+      setDeleteConfirmation({ annotation, position });
+      return;
+    }
+  }, [annotateMode, selectedClick, onOpenResource]);
+
+  // Annotation click coordinator - handles panel opening and scrolling
+  const handleAnnotationClickEvent = useCallback(({ annotationId, anchorRect }: {
+    annotationId: string;
+    anchorRect?: AnchorRect;
+  }) => {
+    // Resolve the annotation FIRST. The id is the whole address, and the
+    // motivation is derived from the annotation it names rather than carried
+    // beside it (TOUR-CLICK D2) — one fact, one encoding. Resolving first also
+    // means a click naming an annotation this viewer has not loaded (a remote
+    // drive that arrived while the participant was elsewhere) finds nothing
+    // and does nothing, which is why the channel needs no resourceId guard.
+    const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+    const annotation = allAnnotations.find(a => a.id === annotationId);
+    if (!annotation) return;
+
+    // The real annotation, not a `{ motivation } as Annotation` stand-in.
+    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
+
+    // No side panel, or a click mode other than detail: this is a plain
+    // annotation click, not a panel-opening one.
+    if (!metadata?.hasSidePanel || selectedClick !== 'detail') {
+      handleAnnotationClick(annotation);
+      return;
+    }
+
+    // All annotations open the unified annotations panel — the host owns the panel.
+    // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel.
+    // View geometry passes through untouched: the emitter owned it, the host anchors with it.
+    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
+  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
+
+  // Single subscription call per file (see scripts/compliance/audit-hooks-ordering.ts).
+  useSessionEventSubscriptions(session, {
+    // Annotation clicks
+    'browse:click': handleAnnotationClickEvent,
+  });
+
+  // Prepare props for child components (memoized to prevent unnecessary re-renders of BrowseView/AnnotateView)
+  const annotationsCollection = useMemo(
+    () => ({ highlights, references, assessments, comments, tags }),
+    [highlights, references, assessments, comments, tags]
+  );
+
+  // No scrollToAnnotationId: panel-entry scrolling is the host's loop (page →
+  // UnifiedAnnotationsPanel → onScrollCompleted); in-content scrolling stays a
+  // host-facing capability on AnnotateView/CodeMirrorRenderer, unfed here.
+  const uiState = {
+    selectedMotivation,
+    selectedClick,
+    selectedShape,
+    hoveredAnnotationId,
+  };
+
+  // Define getTargetResourceName callback OUTSIDE the conditional
+  // IMPORTANT: This must be defined before the return statement to avoid hook ordering violations
+  const getTargetResourceName = useCallback((resourceId: string) => {
+    const referencedResource = references.find((a: Annotation) => getBodySource(a.body) === resourceId);
+    return referencedResource ? getExactText(getTargetSelector(referencedResource.target)) : undefined;
+  }, [references]);
+
+  return (
+    <div ref={documentViewerRef} className={`semiont-resource-viewer${inline ? ' semiont-resource-viewer--inline' : ''}`}>
+      {/* Content */}
+      {activeView === 'annotate' ? (
+        <AnnotateView
+          content={resource.content}
+          mimeType={mimeType}
+          resourceUri={resource['@id']}
+          annotations={annotationsCollection}
+          uiState={uiState}
+          onUIStateChange={(updates) => {
+            if ('selectedMotivation' in updates) changeSelectionMotivation(updates.selectedMotivation ?? null);
+            if ('selectedClick' in updates) changeClickAction(updates.selectedClick!);
+            if ('selectedShape' in updates) changeShape(updates.selectedShape!);
+          }}
+          enableWidgets={true}
+          getTargetResourceName={getTargetResourceName}
+          {...(generatingReferenceId !== undefined && { generatingReferenceId })}
+          showLineNumbers={showLineNumbers}
+          hoverDelayMs={hoverDelayMs}
+          annotateMode={annotateMode}
+          onModeChange={changeAnnotateMode}
+          showToolbar={showToolbar}
+          session={session}
+          sparkleAnnotationIds={sparkleAnnotationIds}
+          {...(annotateRenderers && { renderers: annotateRenderers })}
+        />
+      ) : (
+        <BrowseView
+          content={resource.content}
+          mimeType={mimeType}
+          resourceUri={resource['@id']}
+          annotations={annotationsCollection}
+          selectedClick={selectedClick}
+          hoverDelayMs={hoverDelayMs}
+          annotateMode={annotateMode}
+          onModeChange={changeAnnotateMode}
+          onClickActionChange={changeClickAction}
+          showToolbar={showToolbar}
+          session={session}
+          sparkleAnnotationIds={sparkleAnnotationIds}
+          onLinkClick={onLinkClick}
+          onReferenceHover={onReferenceHover}
+          inline={inline}
+          {...(browseRenderers && { renderers: browseRenderers })}
+        />
+      )}
+
+      {/* JSON-LD View Modal */}
+      {jsonLdAnnotation && (
+        <PopupContainer
+          isOpen={showJsonLdView}
+          onClose={() => setShowJsonLdView(false)}
+          position={getJsonLdModalPosition()}
+          wide={true}
+        >
+          <JsonLdView
+            annotation={jsonLdAnnotation}
+            onBack={() => {
+              setShowJsonLdView(false);
+              setJsonLdAnnotation(null);
+            }}
+          />
+        </PopupContainer>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation && (() => {
+        const annotation = deleteConfirmation.annotation;
+        const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
+        const targetSelector = getTargetSelector(annotation.target);
+        const selectedText = getExactText(targetSelector);
+        const motivationEmoji = metadata?.iconEmoji || '📝';
+
+        return (
+          <PopupContainer
+            isOpen={!!deleteConfirmation}
+            onClose={() => setDeleteConfirmation(null)}
+            position={deleteConfirmation.position}
+          >
+            <div className="semiont-delete-confirmation">
+              <div className="semiont-delete-confirmation__header">
+                <span className="semiont-delete-confirmation__icon">{motivationEmoji}</span>
+                <h3 className="semiont-delete-confirmation__title">
+                  {t('deleteConfirmationTitle')}
+                </h3>
+              </div>
+
+              {selectedText && (
+                <div className="semiont-delete-confirmation__quote">
+                  <p className="semiont-delete-confirmation__text">
+                    "{selectedText.length > 100 ? selectedText.substring(0, 100) + '...' : selectedText}"
+                  </p>
+                </div>
+              )}
+
+              <p className="semiont-delete-confirmation__message">
+                {t('deleteConfirmationMessage')}
+              </p>
+              <div className="semiont-delete-confirmation__actions">
+              <button
+                onClick={() => setDeleteConfirmation(null)}
+                className="semiont-button semiont-button--secondary"
+              >
+                {t('deleteConfirmationCancel')}
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteAnnotation(deleteConfirmation.annotation.id);
+                  setDeleteConfirmation(null);
+                }}
+                className="semiont-button semiont-button--danger"
+              >
+                {t('deleteConfirmationDelete')}
+              </button>
+            </div>
+          </div>
+        </PopupContainer>
+        );
+      })()}
+    </div>
+  );
+}

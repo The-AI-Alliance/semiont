@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "description": "Emitted when an annotation is hovered over for beckoning",
+  "properties": {
+    "annotationId": {
+      "type": "string",
+      "nullable": true
+    }
+  },
+  "required": ["annotationId"]
+}

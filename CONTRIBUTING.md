@@ -4,42 +4,43 @@ Thank you for your interest in contributing to Semiont! This document provides g
 
 ## 🎯 Most Valuable Contributions
 
-**We especially welcome contributions that make Semiont run well in more places.** A stack is a set of container images, brought up by the [`semiont` launcher](apps/launcher/README.md):
+**We especially welcome contributions that expand platform support!** Semiont currently supports:
 
-- **Locally**, against Apple Container, Docker or Podman, on macOS, Linux and Windows
-- **In GitHub Codespaces**, where the codespace's own launcher runs the stack
-- **On a platform of your own**, where you schedule the images yourself: Kubernetes, OpenShift, a cloud's container service, or machines on your own premises
+- **AWS** - Production deployment on Amazon Web Services
+- **POSIX** - Local development on Linux/macOS
+- **Container** - Apple Container/Docker/Podman containerized environments
+- **External** - Integration with external services
+- **Mock** - Testing platform
 
-**High-value contributions here:**
+**High-value platform contributions:**
 
-- **The launcher** (Go, `apps/launcher/`): how stacks are started, configured and inspected
-- **A worked deployment for a platform**: manifests, a chart or a playbook that satisfies [what the platform must provide](docs/operator/administration/DEPLOYMENT.md#your-own-platform)
-- **A driver** for a graph, a vector store, an inference provider or an embedding provider the code does not have yet, written against [its interface](docs/operator/administration/DEPLOYMENT.md#adapting-a-stack)
+- Your favorite platform
 
-There is no per-platform plug-in to write. See [Deployment Targets](#-deployment-targets).
+See [Platform Development Guide](#adding-new-platform-support) for implementation details.
 
-**Alternative Browser implementations:**
+**Alternative frontend implementations:**
 
-We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](images/browser/README.md) and its [desktop build](apps/desktop/README.md) are shipped. Open to contribution:
+We also welcome contributions that bring Semiont to new user interfaces and integration points:
 
 - **Mobile apps** (iOS, Android, React Native)
 - **Browser extensions** (Chrome, Firefox, Safari)
+- **Desktop applications** (Electron, Tauri)
 - **IDE integrations** (VS Code, IntelliJ)
 
-Each is a client of a knowledge base, built on the SDK. Start at [docs/builder](docs/builder/README.md), which covers the TypeScript, Rust, Python, Go and Kotlin SDKs and the embeddable React components.
+See [apps/frontend/docs/FUTURE.md](apps/frontend/docs/FUTURE.md) for architectural guidance on building alternative frontends that share the core API client and authentication infrastructure.
 
 ## 📋 Table of Contents
 
-- [Code of Conduct](#-code-of-conduct)
-- [Getting Started](#-getting-started)
-- [How to Contribute](#-how-to-contribute)
-- [Development Workflow](#-development-workflow)
-- [Deployment Targets](#-deployment-targets)
-- [Pull Request Process](#-pull-request-process)
-- [Commit Guidelines](#-commit-guidelines)
-- [Testing Requirements](#-testing-requirements)
-- [Documentation](#-documentation)
-- [Community](#-community)
+- [Code of Conduct](#code-of-conduct)
+- [Getting Started](#getting-started)
+- [How to Contribute](#how-to-contribute)
+- [Development Workflow](#development-workflow)
+- [Adding New Platform Support](#adding-new-platform-support)
+- [Pull Request Process](#pull-request-process)
+- [Commit Guidelines](#commit-guidelines)
+- [Testing Requirements](#testing-requirements)
+- [Documentation](#documentation)
+- [Community](#community)
 
 ## 📜 Code of Conduct
 
@@ -51,10 +52,10 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 
 ### Prerequisites
 
+- Node.js 18+ with npm
 - Git
-- A container runtime: Apple Container, Docker or Podman
-
-That is enough: [`make local-build`](make local-build) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](packages/rust/rust-toolchain.toml) and each `go.mod` name, for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/), and for the Kotlin SDK the JDK its [`.java-version`](packages/kotlin/sdk/.java-version) names (its wrapper, `./gradlew`, fetches Gradle).
+- Apple Container, Docker, or Podman (for container development)
+- TypeScript knowledge
 
 ### Initial Setup
 
@@ -64,34 +65,28 @@ That is enough: [`make local-build`](make local-build) builds every package, eve
    git clone https://github.com/YOUR_USERNAME/semiont.git
    cd semiont
    ```
-3. **Get a knowledge base to develop against**, in a separate directory:
+3. **Install dependencies**:
    ```bash
-   git clone https://github.com/The-AI-Alliance/semiont-template-kb.git
+   npm install
    ```
-4. **Build your tree and run a stack on it**. Name the `:local` images in the knowledge base's
-   `.semiont/stack/*.yaml` (`ghcr.io/the-ai-alliance/semiont-gateway:local`, and so on for each
-   service), and the Browser's and the worker's in their own documents:
+4. **Set up a knowledge base to develop against** (in a separate directory):
    ```bash
-   make local-build
-   cd ../semiont-template-kb
-   perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings browser --path)"
-   perl -pi -e 's#(semiont-worker):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings worker --path)"
-   ../semiont/apps/launcher/dist/semiont start
+   brew install the-ai-alliance/semiont/semiont
+   semiont init --name "dev-project"
+   semiont start
    ```
-5. **Run the tests** for the part you are changing:
+5. **Run tests** to verify setup:
    ```bash
-   npm ci --include=optional
-   npm run build:packages
-   npm test --workspace=@semiont/sdk
+   npm test
    ```
 
-[docs/contributor](docs/contributor/README.md) has the orientation: where the code lives, [local development](docs/contributor/LOCAL-DEVELOPMENT.md), [testing](docs/contributor/TESTING.md), [dependencies](docs/contributor/DEPENDENCIES.md) and [releasing](docs/contributor/RELEASE.md).
+See [docs/development/LOCAL-DEVELOPMENT.md](docs/development/LOCAL-DEVELOPMENT.md) for complete setup instructions.
 
 ## 🤝 How to Contribute
 
 ### Ways to Contribute
 
-1. **Make Semiont run well in more places** (see [Most Valuable Contributions](#-most-valuable-contributions))
+1. **Add platform support** (highest priority - see below)
 2. **Fix bugs** - Check [Issues](https://github.com/The-AI-Alliance/semiont/issues)
 3. **Improve documentation** - Clarify, expand, or fix docs
 4. **Write tests** - Increase coverage
@@ -110,8 +105,6 @@ That is enough: [`make local-build`](make local-build) builds every package, eve
 - Search existing issues to avoid duplicates
 - Create an issue describing the problem
 - Reference the issue in your PR
-
-An issue's labels say what it is (`kind:bug`, `kind:enhancement`) and what it is about: a verb (`verb:mark`), an image (`image:smelter`) or an app (`app:launcher`), an SDK (`sdk:python`), a kind of stack document (`stack:inference`), a part of the spec (`spec:protocol`), a kind of content (`media:pdf`) or a test suite (`tests:e2e`). [`.github/labels.yml`](.github/labels.yml) is every label there is, with what each means; a new one is added there, and the [Labels](.github/workflows/labels.yml) workflow makes it when the change is merged. A pull request's `app:`, `image:`, `sdk:`, `tests:` and `spec:` labels are added from the files it changes, by the [Path Labels](.github/workflows/path-labels.yml) workflow; the others are its author's to choose.
 
 ## 🛠 Development Workflow
 
@@ -135,9 +128,9 @@ git remote add upstream https://github.com/The-AI-Alliance/semiont.git
 Create a feature branch in your fork:
 
 ```bash
-git checkout -b feature/openshift-manifests
+git checkout -b feature/gcp-platform
 # or
-git checkout -b fix/stream-reconnect
+git checkout -b fix/database-migration-bug
 # or
 git checkout -b docs/improve-api-reference
 ```
@@ -148,6 +141,7 @@ git checkout -b docs/improve-api-reference
 - `docs/` - Documentation changes
 - `test/` - Test improvements
 - `refactor/` - Code refactoring
+- `platform/` - New platform implementations
 
 ### 3. Make Changes
 
@@ -162,33 +156,25 @@ git checkout -b docs/improve-api-reference
 # Run all tests
 npm test
 
-# Run one workspace's tests
-npm test -w semiont-browser
-
-# The gateway (Rust): its own checks, then the conformance suite
-(cd packages/rust && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway)
-(cd protocol/conformance && npm run test:gateway)
-
-# The dispatcher, black-box, behind that gateway (needs cargo build --release -p semiont-dispatcher)
-(cd protocol/conformance && npm run test:dispatcher)
-
-# The SDKs, black-box, as clients of that gateway (needs cargo build --release -p semiont-conformance-drivers and npm run build:packages)
-(cd protocol/conformance && npm run test:sdk)
+# Run specific service tests
+npm run test:backend
+npm run test:frontend
 
 # Type check
 npm run typecheck
-```
 
-CI also runs the `lint:*` gates and the compliance audits; [Testing](docs/contributor/TESTING.md#continuous-integration) lists every job.
+# Lint
+npm run lint
+```
 
 ### 5. Commit Changes
 
 Write clear, descriptive commit messages:
 
 ```bash
-git commit -m "Add OpenShift manifests for the service images"
-git commit -m "Fix stream reconnect after a gateway restart"
-git commit -m "Clarify the sign-in flow in the SDK guide"
+git commit -m "Add GCP deployment support"
+git commit -m "Fix database connection timeout in backend"
+git commit -m "Clarify authentication flow in API docs"
 ```
 
 ### 6. Sync with Upstream
@@ -204,7 +190,7 @@ git rebase upstream/main
 
 ```bash
 # Push to your fork
-git push origin feature/openshift-manifests
+git push origin feature/gcp-platform
 ```
 
 Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on GitHub.
@@ -213,15 +199,16 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 
 ## 🌍 Deployment Targets
 
-Semiont ships as container images (listed once, in
-[the service catalog](docs/operator/services/OVERVIEW.md)) plus the
-infrastructure a stack needs. There is no per-platform plugin system.
+Semiont ships as container images (`semiont-backend`, `semiont-frontend`, `semiont-worker`,
+`semiont-smelter`, `semiont-weaver`) plus the infrastructure containers a stack needs. There is no
+per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
+removed.
 
-Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md), on a laptop or in a
-GitHub Codespace. Running the images on a platform of your own (Kubernetes, OpenShift, a cloud's
-container service, machines on your own premises) needs no code here: see
-[Deploying Semiont](docs/operator/administration/DEPLOYMENT.md) for the three ways to run a stack and
-what a platform must provide.
+Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md) or by
+`docker compose` against a KB's `.semiont/compose/backend.yml`. Running the images on another
+container platform (ECS Fargate, Kubernetes, Nomad) needs no code here — see
+[Running Semiont on AWS](docs/system/platforms/AWS.md) for the integration checklist and
+[Deployment](docs/system/administration/DEPLOYMENT.md) for the supported paths.
 
 If you want to improve how stacks are launched, the launcher (Go, `apps/launcher/`) is the place.
 
@@ -240,6 +227,7 @@ If you want to improve how stacks are launched, the launcher (Go, `apps/launcher
    ```bash
    npm test
    npm run typecheck
+   npm run lint
    npm run build
    ```
 
@@ -252,18 +240,44 @@ If you want to improve how stacks are launched, the launcher (Go, `apps/launcher
 - ✅ All tests pass
 - ✅ TypeScript compiles without errors
 - ✅ Code follows existing style
+- ✅ Commits follow Conventional Commits format
 - ✅ PR description clearly explains changes
 - ✅ References related issues (e.g., "Fixes #123")
 
 ### PR Template
 
-GitHub fills a new pull request with [the template](.github/pull_request_template.md). Complete the parts that apply to your change.
+When creating a PR, include:
+
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Platform support
+- [ ] Documentation
+- [ ] Refactoring
+
+## Related Issues
+Fixes #123
+
+## Testing
+- [ ] Added tests for new functionality
+- [ ] All tests pass locally
+- [ ] Tested on [platform/environment]
+
+## Documentation
+- [ ] Updated relevant documentation
+- [ ] Added code comments where needed
+```
 
 ### Review Process
 
 1. Maintainers will review within 3-5 business days
 2. Address review feedback
-3. Once approved, maintainers add the PR to the merge queue, which squash-merges it when CI passes on it together with `main` and the PRs queued ahead; a PR never needs updating from `main`
+3. Once approved, maintainers will merge
+4. PRs are typically **squash merged** to keep history clean
 
 ## 📝 Commit Guidelines
 
@@ -272,11 +286,11 @@ Write clear, descriptive commit messages that explain what changed and why:
 **Good commit messages:**
 
 ```bash
-Add OpenShift manifests for the service images
-Fix stream reconnect after a gateway restart
-Update the SDK guide with sign-in examples
-Add conformance cases for expired tokens
-Extract the shared retry rule into one function
+Add GCP Cloud Run platform support
+Fix database connection timeout on slow networks
+Update API documentation with authentication examples
+Add JWT validation tests for expired tokens
+Extract common deployment logic to reduce duplication
 ```
 
 **Tips:**
@@ -291,8 +305,8 @@ All contributions should include appropriate tests. We have comprehensive testin
 
 ### Testing Documentation
 
-- **[System Testing Guide](docs/contributor/TESTING.md)** - How every suite is configured and run, the SDK's test doubles, end-to-end, CI
-- **[Gateway Testing Guide](images/gateway/docs/TESTING.md)** - The black-box conformance suite and what each check covers
+- **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, frontend testing
+- **[Backend Testing Guide](apps/backend/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
 
 ### Quick Start
 
@@ -303,10 +317,8 @@ npm test
 
 **Run service-specific tests:**
 ```bash
-cd images/browser && npm test                 # Browser suite
-cd protocol/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` in packages/rust, and nats-server)
-cd protocol/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
-cd protocol/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
+cd apps/backend && npm test     # Backend tests (Jest)
+cd apps/frontend && npm test    # Frontend tests (Vitest)
 ```
 
 ### Test Requirements for PRs
@@ -333,17 +345,11 @@ Update docs when you:
 
 ### Documentation Locations
 
-`docs/` is organized by reader ([docs/README.md](docs/README.md)):
-
-- **`docs/analyst/`**: working in a knowledge base, in the Browser
-- **`docs/builder/`**: building on the SDKs
-- **`docs/operator/`**: running a stack
-- **`docs/contributor/`**: changing Semiont itself
-- **`docs/architecture/`** and **`protocol/contract/`**: how Semiont works, and what its parts agree on
-
-How one app or package is built inside stays with it: `apps/<app>/docs/`, `images/<image>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
-
-Code in the docs is typechecked by CI, so an example has to compile ([`docs/checks/doc-snippets`](docs/checks/doc-snippets/)).
+- **System-wide**: `docs/` - Architecture, deployment, testing
+- **Backend**: `apps/backend/docs/` - Backend-specific guides
+- **Frontend**: `apps/frontend/docs/` - Frontend-specific guides
+- **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
+- **Platforms**: `docs/system/platforms/` - Platform-specific deployment
 
 ### Documentation Style
 
@@ -379,6 +385,7 @@ Code in the docs is typechecked by CI, so an example has to compile ([`docs/chec
 Contributors are recognized in:
 
 - Release notes
+- CONTRIBUTORS.md file (when we create one)
 - GitHub contributor graphs
 
 ## 📄 License

@@ -1,0 +1,570 @@
+/**
+ * Verb Namespace Interfaces
+ *
+ * These interfaces define the public API of `@semiont/sdk`, organized by
+ * the 7 domain flows (Browse, Mark, Bind, Gather, Match, Yield, Beckon)
+ * plus infrastructure namespaces (Job, Auth, Admin).
+ *
+ * Each namespace maps 1:1 to a flow. Each flow maps to a clear actor on
+ * the backend. The frontend calls `client.mark.annotation()` and the
+ * client handles HTTP, auth, SSE, and caching internally.
+ *
+ * Return type conventions:
+ * - Browse live queries → `CacheObservable<T>` (bus-driven, cached;
+ *   subscribe yields `T | undefined`, await yields `T` after first load)
+ * - Browse one-shot reads → `Promise<T>` (fetch once, no cache)
+ * - Commands (mark, bind, yield.resource) → `Promise<T>` (atomic ops)
+ * - Long-running ops (gather, match, yield.fromContext, mark.assist)
+ *   → `StreamObservable<T>` (progress + result; subscribe yields every
+ *   emit, await yields the last one)
+ * - Ephemeral signals, local (beckon.hover/sparkle, browse.click, …) → `void`
+ * - Wire drives at other participants (beckon.attention/click/openResource/
+ *   sparkleAll) → `Promise<number>`: the /bus/emit subscriber count
+ *   (`-1` = unknown) — information, not an ack (X5's third shape)
+ *
+ * `StreamObservable` and `CacheObservable` are `Observable` subclasses
+ * that also implement `PromiseLike<T>` — `await client.X.Y(...)` works
+ * directly without `lastValueFrom`/`firstValueFrom` wrappers.
+ * `.pipe(...)` returns a plain `Observable<T>` (the thenable subclass
+ * does not propagate through pipe — by design).
+ */
+
+import type { Observable } from 'rxjs';
+import type { StreamObservable, CacheObservable, UploadObservable } from '../awaitable';
+import type { components, EventMap, paths } from '@semiont/core';
+import type {
+  ResourceId,
+  AnnotationId,
+  BackendDownload,
+  BodyOperation,
+  GraphConnection,
+  JobId,
+  Motivation,
+  AnchorRect,
+  GatheredContext,
+  ProgressEvent,
+  TagSchema,
+  CollaboratorEntry,
+  UserDID,
+} from '@semiont/core';
+
+// ── OpenAPI schema type aliases ─────────────────────────────────────────────
+
+import type { Annotation } from '@semiont/core';
+import type { ExtractionOutcome } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
+type StoredEventResponse = components['schemas']['StoredEventResponse'];
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
+type GatherProgress = components['schemas']['GatherProgress'];
+type MatchSearchResult = components['schemas']['MatchSearchResult'];
+type JobProgress = components['schemas']['JobProgress'];
+type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
+type SupportedMediaType = components['schemas']['SupportedMediaType'];
+type JobStatusResponse = components['schemas']['JobStatusResponse'];
+type AuthResponse = components['schemas']['AuthResponse'];
+type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
+type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
+type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
+
+// ── Response type helpers (extract JSON body from OpenAPI path types) ────────
+
+export type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
+  ? R
+  : T extends { responses: { 201: { content: { 'application/json': infer R } } } }
+    ? R
+    : T extends { responses: { 202: { content: { 'application/json': infer R } } } }
+      ? R
+      : never;
+
+export type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+
+// ── Domain-specific input types ─────────────────────────────────────────────
+
+/** Input for creating an annotation via mark.annotation() */
+export type CreateAnnotationInput = components['schemas']['CreateAnnotationRequest'];
+
+/** Input for creating a resource via yield.resource() */
+export interface CreateResourceInput {
+  name: string;
+  file: File | Buffer;
+  format: string;
+  entityTypes?: string[];
+  language?: string;
+  sourceAnnotationId?: string;
+  sourceResourceId?: string;
+  storageUri: string;
+  /** Prompt that drove AI generation (for AI-generated resources). */
+  generationPrompt?: string;
+  /** Agent(s) that generated the content (for AI-generated resources). */
+  generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
+  isDraft?: boolean;
+}
+
+/** Options for yield.fromContext() — the grounding context is positional, not a field. */
+export interface GenerationOptions {
+  title: string;
+  storageUri: string;
+  prompt?: string;
+  /** Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource (so `browse.resources({ entityType: ... })` queries can find it). */
+  entityTypes?: string[];
+  /** Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). */
+  language?: string;
+  /** Source-resource locale — language of the resource the annotation lives on, used in the prompt so the LLM understands embedded source-context snippets. BCP-47. */
+  sourceLanguage?: string;
+  temperature?: number;
+  maxTokens?: number;
+  /**
+   * Per-call override for the generation stall guard's deadline
+   * (FLOW-LIFECYCLE-CONVERGENCE D1a). CLIENT-only: stripped before the wire.
+   * When unset, the deadline derives from `maxTokens` — see
+   * `deriveStallDeadlineMs`. On firing, the SDK cancels the job
+   * (`job:cancel-requested`) and errors with `GenerationStallError`.
+   */
+  stallDeadlineMs?: number;
+  /**
+   * Media type of the generated resource (the role's output format). Defaults to
+   * `text/markdown` at the worker, which validates it against its supported output
+   * set and **fails the job** for anything it can't write — not a silent fallback.
+   */
+  outputMediaType?: SupportedMediaType;
+  /**
+   * What the model is asked to produce — the prompt's framing verb. Canonical
+   * values are the worker's tested framings; any other string is used VERBATIM
+   * as the lead instruction (+ a worker-side warn) — an open escape hatch, not
+   * a silent fallback. Unset ⇒ `'resource'` (article framing). `prompt` composes
+   * with it as the refining instruction (task = what, prompt = how).
+   */
+  task?: 'resource' | 'answer' | 'summary' | (string & {});
+  /**
+   * How the output is internally segmented — shape for text-bearing media,
+   * subordinate to `outputMediaType`. Canonical: `prose` (flowing paragraphs),
+   * `sections` (titled `## Section`s + `# Title`), `chat` (speaker-labeled
+   * turns). Any other string becomes a freeform "organize as: …" directive
+   * (+ worker-side warn). **Unset ⇒ NO structure directive at all** — the task
+   * framing and the model determine shape; length (`maxTokens`) never does.
+   */
+  structure?: 'prose' | 'sections' | 'chat' | (string & {});
+  /**
+   * Ask the generator to ground claims in the supplied `context` as it
+   * writes. Citations do NOT appear as links in the content: the model emits
+   * inline `[[<id>]]` tokens, which the worker resolves into
+   * `SpecificResource` **linking annotations on the generated resource**
+   * (anchored to the claim span) and strips before storage — stored content
+   * stays clean prose. Only ids actually present in `context` resolve;
+   * unknown ids are dropped with a worker-side warn, never a minted link
+   * (hallucination guard). Composes with `task: 'answer'` for grounded Q&A;
+   * complements — never replaces — the post-hoc `mark.assist('linking')`
+   * pass. Leave unset for content where literal `[[…]]` text is legitimate:
+   * the worker parses tokens only when this is set.
+   */
+  cite?: boolean;
+}
+
+/** Options for mark.assist() */
+export interface MarkAssistOptions {
+  entityTypes?: string[];
+  includeDescriptiveReferences?: boolean;
+  instructions?: string;
+  density?: number;
+  tone?: string;
+  /** Annotation body locale — language the LLM should write generated body text in (comment text, assessment text, tag/reference body language stamp). BCP-47. */
+  language?: string;
+  /** Source-resource locale — language of the content being analyzed, used in the prompt so the LLM analyzes non-English source correctly. BCP-47. */
+  sourceLanguage?: string;
+  schemaId?: string;
+  categories?: string[];
+}
+
+/** Options for yield.createFromToken() */
+export type CreateFromTokenOptions = { token: string; name: string; content: string; archiveOriginal?: boolean };
+
+/** Referenced-by entry from browse.referencedBy() */
+export type ReferencedByEntry = components['schemas']['GetReferencedByResponse']['referencedBy'][number];
+
+/** Annotation history from browse.annotationHistory() */
+export type AnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
+
+/** User object from auth/admin responses */
+export type User = AuthResponse['user'];
+
+// ── Progress types for long-running Observable operations ───────────────────
+
+/**
+ * Progress emitted by gather.annotation() Observable.
+ * Emits GatherProgress during assembly, then GatherAnnotationComplete on finish.
+ */
+export type GatherAnnotationProgress = GatherProgress | GatherAnnotationComplete;
+
+/**
+ * Progress emitted by match.search() Observable.
+ * Emits the final MatchSearchResult (no intermediate progress events currently).
+ */
+export type MatchSearchProgress = MatchSearchResult;
+
+/**
+ * Progress payload emitted by mark.assist() and yield.fromContext()
+ * Observables. Each progress emission carries a JobProgress snapshot
+ * (unified job lifecycle).
+ */
+export type MarkAssistProgress = JobProgress;
+
+/**
+ * Discriminated event yielded by the `mark.assist()` Observable. Progress
+ * events stream while the worker runs; the final value before the
+ * Observable completes is a `complete` event carrying the `JobCompleteCommand`
+ * payload (with `result`, `jobId`, `jobType`, etc.). The Observable errors
+ * on `job:fail`.
+ */
+export type MarkAssistEvent =
+  | { kind: 'progress'; data: MarkAssistProgress }
+  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
+
+/**
+ * Discriminated event yielded by the `yield.fromContext()` Observable.
+ * Same shape and semantics as `MarkAssistEvent`.
+ */
+export type YieldGenerationEvent =
+  | { kind: 'progress'; data: JobProgress }
+  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
+
+// ── Namespace interfaces ────────────────────────────────────────────────────
+
+/**
+ * Browse — reads from materialized views
+ *
+ * Live queries return Observables that emit initial state and re-emit
+ * on bus gateway updates. One-shot reads return Promises.
+ *
+ * Backend actor: Browser (context classes)
+ * Event prefix: browse:*
+ */
+
+/**
+ * What `browse.resources()` emits: the full list-reply envelope, not just the
+ * page of descriptors. `matchKind` labels how the answer was produced —
+ * `'lexical'` (title/metadata matching) or `'semantic'` (the empty-lexical
+ * vector fallback) — and it arrives WITH the resources it describes as one
+ * value, so a consumer can never pair the label with a different query's
+ * list (SEMANTIC-FALLBACK S10).
+ */
+export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+  resources: ResourceDescriptor[];
+};
+
+export interface BrowseNamespace {
+  // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
+  resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
+  resources(filters?: { limit?: number; archived?: boolean; search?: string; entityType?: string }): CacheObservable<ResourceList>;
+  annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;
+  annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
+  entityTypes(): CacheObservable<string[]>;
+  tagSchemas(): CacheObservable<TagSchema[]>;
+  /**
+   * The KB's collaborator directory — declared software agents (with
+   * `servesJobTypes` capabilities) plus, when Persons land, its members.
+   * KB-wide singleton; cached for the client lifetime, refreshed on
+   * `bus:resume-gap`.
+   */
+  agents(): CacheObservable<CollaboratorEntry[]>;
+  referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
+  events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]>;
+
+  // One-shot reads (Promise — no caching, no live update)
+  resourceContent(resourceId: ResourceId): Promise<string>;
+  resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
+  /** The resource's coordinate map, or null when none has been derived. */
+  resourceAnchoredText(resourceId: ResourceId): Promise<ExtractionOutcome | null>;
+  resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
+  resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
+  resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;
+  annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse>;
+  connections(resourceId: ResourceId): Promise<GraphConnection[]>;
+  backlinks(resourceId: ResourceId): Promise<Annotation[]>;
+  resourcesByName(query: string, limit?: number): Promise<ResourceDescriptor[]>;
+  files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
+
+  // UI signals — THIS viewer's own local fan-out, never the wire. The
+  // cross-namespace pair is the rule: `browse.X()` does it for me,
+  // `beckon.X()` does it for everyone else. (`resourceViewed` is the one
+  // exception and goes to the wire — it is a REPORT, not a drive.)
+  click(annotationId: AnnotationId, anchorRect?: AnchorRect): void;
+  openResource(resourceId: ResourceId): void;
+  resourceViewed(resourceId: ResourceId): void;
+}
+
+/**
+ * Frame — schema-layer flow (the eighth flow).
+ *
+ * Frame operates on the KB's conceptual vocabulary — what *kinds* of
+ * things exist (entity types) and, in the future, what taxonomies are
+ * recognized (tag schemas), what relations are typed (predicate types),
+ * and how schemas are imported (ontology I/O). The other seven flows
+ * (yield, mark, match, bind, gather, browse, beckon) operate on
+ * content; Frame operates on the schema layer that content is expressed
+ * in.
+ *
+ * MVP scope is small: entity-type vocabulary writes only. Live reads of
+ * the entity-type vocabulary stay on Browse (`browse.entityTypes()` is
+ * a `CacheObservable<string[]>` consumed by 8+ call sites). Frame owns
+ * writes; Browse owns reads — the same asymmetry that already holds for
+ * resources and annotations.
+ *
+ * Backend actor: Stower
+ * Event prefix: frame:*
+ */
+export interface FrameNamespace {
+  /** Add a single entity type to the KB's vocabulary. Idempotent — adding an existing type is a no-op. */
+  addEntityType(type: string): Promise<void>;
+
+  /** Add multiple entity types in one call. Convenience over a loop of `addEntityType`. */
+  addEntityTypes(types: string[]): Promise<void>;
+
+  /**
+   * Register a tag schema with the KB's runtime registry.
+   *
+   * Most-recent registration of a given `schema.id` wins; identical
+   * re-registrations are silent, differing content overwrites the
+   * existing entry and logs a warning. KBs typically call this at
+   * session/skill startup so the schema is available for `mark.assist`
+   * with motivation `tagging` and surfaces in `browse.tagSchemas()`.
+   */
+  addTagSchema(schema: TagSchema): Promise<void>;
+}
+
+/**
+ * Mark — annotation CRUD, AI assist, resource lifecycle
+ *
+ * Commands return Promises that resolve on HTTP acceptance (202).
+ * Results appear on browse Observables via bus gateway.
+ * assist() returns an Observable for long-running progress.
+ *
+ * Backend actor: Stower
+ * Event prefix: mark:*
+ */
+export interface MarkNamespace {
+  // Annotation CRUD. `input.target.source` carries the resource id; the
+  // namespace derives it for the bus payload, so callers don't pass it twice.
+  annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
+  delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void>;
+
+  // Resource metadata
+  archive(resourceId: ResourceId): Promise<void>;
+  unarchive(resourceId: ResourceId): Promise<void>;
+
+  /**
+   * Replace a resource's own entity-type classification. A **diff/replace**
+   * operation: pass the resource's current types as `current` and the desired
+   * full set as `updated`. The backend folds the difference into
+   * `resource.entityTypes`, so the change surfaces in
+   * `browse.resources({ entityType })` and `getResourceEntityTypes`. Awaitable +
+   * rejects on failure, like `delete`/`archive`.
+   */
+  updateEntityTypes(resourceId: ResourceId, current: string[], updated: string[]): Promise<void>;
+
+  // AI-assisted annotation (long-running; emits progress, completes with the final event)
+  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent>;
+
+  // UI signals (fire-and-forget bus emits, local-bus fan-out)
+  /** Request a new mark on `source` — the id routes the event to the state unit bound to that resource. */
+  request(
+    source: ResourceId,
+    selector: components['schemas']['MarkRequestedEvent']['selector'],
+    motivation: Motivation,
+  ): void;
+
+  /** Fire-and-forget variant of `assist` — mark-state-unit orchestrates the call and its progress Observable. */
+  requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void;
+
+  /** Submit the currently pending annotation with its selector and optional body. */
+  submit(input: components['schemas']['MarkSubmitEvent']): void;
+
+  /** Cancel the currently pending annotation (if any). */
+  cancelPending(): void;
+
+  /** Dismiss the in-progress AI-assist widget. */
+  dismissProgress(): void;
+}
+
+/**
+ * Bind — reference linking
+ *
+ * The simplest namespace. One method. The result (updated annotation
+ * with resolved reference) arrives on browse.annotations() via the
+ * enriched mark:body-updated event.
+ *
+ * Backend actor: Stower (via mark:update-body)
+ * Event prefix: mark:body-updated (shares mark event pipeline)
+ */
+export interface BindNamespace {
+  body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void>;
+
+  /** UI signal: a reference-binding flow is requested for an annotation. */
+  initiate(input: EventMap['bind:initiate']): void;
+
+  /** UI signal: a bind body update failed at an awaiting caller with no toast surface; useOutcomeToasts surfaces it. */
+  reportBodyError(input: EventMap['bind:body-error']): void;
+}
+
+/**
+ * Gather — context assembly
+ *
+ * Long-running (LLM calls + graph traversal). Returns Observables
+ * that emit progress then the gathered context.
+ *
+ * Backend actor: Gatherer
+ * Event prefix: gather:*
+ */
+export interface GatherNamespace {
+  annotation(
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
+    options?: { contextWindow?: number },
+  ): StreamObservable<GatherAnnotationProgress>;
+
+  resource(
+    resourceId: ResourceId,
+    options?: {
+      depth?: number;
+      maxResources?: number;
+      includeContent?: boolean;
+      includeSummary?: boolean;
+      /** Entity types to exclude from the semantic recall built into the context
+       *  (e.g. ['Question'] so prior questions never ground answer generation). */
+      excludeEntityTypes?: string[];
+    },
+  ): Promise<GatheredContext>;
+}
+
+/**
+ * Match — search and ranking
+ *
+ * Long-running (semantic search, optional LLM scoring). Returns
+ * Observable with progress then results.
+ *
+ * Backend actor: Matcher
+ * Event prefix: match:*
+ */
+export interface MatchNamespace {
+  search(
+    resourceId: ResourceId,
+    referenceId: AnnotationId,
+    context: GatheredContext,
+    options?: { limit?: number; useSemanticScoring?: boolean },
+  ): StreamObservable<MatchSearchProgress>;
+
+  /** Fire-and-forget variant: match-state-unit orchestrates the call and its result Observable. */
+  requestSearch(input: components['schemas']['MatchSearchRequest']): void;
+}
+
+/**
+ * Yield — resource creation
+ *
+ * resource() is synchronous file upload (Promise).
+ * fromContext() is long-running LLM generation (Observable).
+ *
+ * Backend actor: Stower + generation worker
+ * Event prefix: yield:*
+ */
+export interface YieldNamespace {
+  // File upload. Returns an `UploadObservable` — subscribers see the full
+  // `UploadProgress` lifecycle (started → finished); awaiting resolves to
+  // `{ resourceId }` directly (the awaited shape is unchanged from before
+  // Phase 18 — `await client.yield.resource(...)` keeps working as-is).
+  resource(data: CreateResourceInput): UploadObservable;
+
+  // Grounded generation (long-running, LLM-based — yields progress, then a
+  // final complete event). The context IS the argument: its `focus.kind`
+  // decides the shape — annotation focus auto-binds the new resource to the
+  // reference; resource focus mints a source→derived provenance annotation.
+  // The job's ids are DERIVED from the focus (single source of truth); a
+  // context without a usable focus throws synchronously.
+  fromContext(
+    context: GatheredContext,
+    options: GenerationOptions,
+  ): StreamObservable<YieldGenerationEvent>;
+
+  // Clone
+  cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }>;
+  fromToken(token: string): Promise<ResourceDescriptor>;
+  createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }>;
+
+  /** UI signal: user invoked the clone action from the resource-info panel. */
+  clone(): void;
+}
+
+/**
+ * Beckon — attention coordination
+ *
+ * Fire-and-forget. Ephemeral presence signal delivered via the
+ * attention-stream to other participants.
+ *
+ * Backend actor: (frontend relay via attention-stream)
+ * Event prefix: beckon:*
+ */
+export interface BeckonNamespace {
+  // Wire drives — beckon OTHER participants (guided-tour moves). Each
+  // resolves with the subscriber count (`-1` = unknown; ITransport.emit).
+  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number>;
+  click(annotationId: AnnotationId): Promise<number>;
+  openResource(resourceId: ResourceId): Promise<number>;
+  sparkleAll(annotationId: AnnotationId): Promise<number>;
+  // Local signals — this viewer's own fan-out; never the wire.
+  hover(annotationId: AnnotationId | null): void;
+  sparkle(annotationId: AnnotationId): void;
+}
+
+/**
+ * Job — worker lifecycle
+ */
+export interface JobNamespace {
+  /** Live stream of `job:queued` events from the bus. */
+  readonly queued$: Observable<EventMap['job:queued']>;
+  /** Live stream of `job:report-progress` events from the bus. */
+  readonly progress$: Observable<EventMap['job:report-progress']>;
+  /** Live stream of `job:complete` events from the bus. */
+  readonly complete$: Observable<EventMap['job:complete']>;
+  /** Live stream of `job:fail` events from the bus. */
+  readonly fail$: Observable<EventMap['job:fail']>;
+
+  status(jobId: JobId): Promise<JobStatusResponse>;
+  pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
+  cancelByType(jobType: 'annotation' | 'generation'): Promise<number>;
+
+  /** UI signal: cancel all active jobs of a given type (e.g. "annotation"). */
+  cancelRequest(jobType: 'annotation' | 'generation'): void;
+}
+
+/**
+ * Auth — authentication
+ */
+export interface AuthNamespace {
+  password(email: string, password: string): Promise<AuthResponse>;
+  google(credential: string): Promise<AuthResponse>;
+  refresh(token: string): Promise<TokenRefreshResponse>;
+  logout(): Promise<void>;
+  me(): Promise<User>;
+  acceptTerms(): Promise<void>;
+  mediaToken(resourceId: ResourceId): Promise<{ token: string }>;
+}
+
+/**
+ * Admin — administration
+ */
+export interface AdminNamespace {
+  users(): Promise<User[]>;
+  userStats(): Promise<AdminUserStatsResponse>;
+  updateUser(userId: UserDID, data: RequestContent<paths['/api/admin/users/{id}']['patch']>): Promise<User>;
+  oauthConfig(): Promise<OAuthConfigResponse>;
+  healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>>;
+  status(): Promise<ResponseContent<paths['/api/status']['get']>>;
+  backup(): Promise<BackendDownload>;
+  /**
+   * Restore from a backup archive. Returns a `StreamObservable` that
+   * emits each `ProgressEvent` as the operation runs (`'started'`,
+   * `'parsing'`, `'importing'`, ..., `'complete'`). Subscribers see
+   * every step; awaiters get the final event via the PromiseLike sugar.
+   */
+  restore(file: File): StreamObservable<ProgressEvent>;
+  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
+  importKnowledgeBase(file: File): StreamObservable<ProgressEvent>;
+}

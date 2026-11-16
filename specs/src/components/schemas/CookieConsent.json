@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "User's cookie consent preferences. `necessary` is always true — necessary cookies cannot be disabled. Timestamps and version are stamped server-side.",
+  "properties": {
+    "necessary": { "type": "boolean", "enum": [true] },
+    "analytics": { "type": "boolean" },
+    "marketing": { "type": "boolean" },
+    "preferences": { "type": "boolean" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version": { "type": "string" }
+  },
+  "required": ["necessary", "analytics", "marketing", "preferences", "timestamp", "version"]
+}

@@ -1,8 +1,0 @@
-{
-  "type": "string",
-  "description": "What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.",
-  "enum": [
-    "mark",
-    "yield"
-  ]
-}

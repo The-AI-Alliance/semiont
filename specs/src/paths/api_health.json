@@ -1,0 +1,21 @@
+{
+  "get": {
+    "summary": "Health Check",
+    "description": "Check if the API is operational and database is connected",
+    "tags": [
+      "System"
+    ],
+    "responses": {
+      "200": {
+        "description": "Health status of the API",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/HealthResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

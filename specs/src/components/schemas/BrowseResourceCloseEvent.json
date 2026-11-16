@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Emitted when a resource is closed in the browse panel",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": ["resourceId"]
+}

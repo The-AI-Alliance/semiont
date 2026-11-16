@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Request to check the status of a job",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "correlationId",
+    "jobId"
+  ]
+}

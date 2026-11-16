@@ -1,0 +1,27 @@
+Semiont
+Copyright 2025-2026 The AI Alliance
+
+This product is licensed under the Apache License, Version 2.0.
+
+This product includes software developed by The AI Alliance
+(https://thealliance.ai/).
+
+This container image includes the following third-party components:
+
+  Alpine Linux - MIT License
+  Node.js - MIT License
+  curl - MIT/X derivate license
+
+  npm dependencies (installed at build time from https://registry.npmjs.org):
+    React - MIT License (Meta Platforms, Inc.)
+    CodeMirror - MIT License
+    TanStack Query - MIT License
+    i18next - MIT License
+    RxJS - Apache-2.0 License
+    ky - MIT License
+
+All npm dependency licenses are available in their respective
+node_modules/<package>/LICENSE files within the image.
+
+For the complete list of dependencies and their licenses, run:
+  npx license-checker --start /app --production --summary

@@ -1,0 +1,25 @@
+{
+  "description": "An organization — the Organization branch of Agent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "@type": {
+      "type": "string",
+      "const": "Organization"
+    },
+    "@id": {
+      "type": "string",
+      "format": "uri"
+    },
+    "name": {
+      "type": "string"
+    },
+    "homepage": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "@type",
+    "name"
+  ]
+}

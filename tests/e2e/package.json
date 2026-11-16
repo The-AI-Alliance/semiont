@@ -1,0 +1,24 @@
+{
+  "name": "@semiont/tests-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end smoke tests. Runs against a locally-running backend and frontend; see README.md.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run typecheck",
+    "test": "playwright test --grep-invert @slow",
+    "pretest:slow": "npm run typecheck",
+    "test:slow": "playwright test --grep @slow",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "show-report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@semiont/core": "file:../../packages/core",
+    "@semiont/sdk": "file:../../packages/sdk",
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.2"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "type": "object",
+  "description": "Knowledge graph gathered for an LLM context \u2014 a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "./GraphResourceNode.json"
+          },
+          {
+            "$ref": "./GraphAnnotationNode.json"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "resource": "./GraphResourceNode.json",
+            "annotation": "./GraphAnnotationNode.json"
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "Edge kind: `annotation-of` (an annotation \u2192 the resource it lives on), `cites` (a citing linking annotation \u2192 the focal resource), or a peer connection's own relationshipType (free-form; `link` when unnamed)"
+          },
+          "bidirectional": {
+            "type": "boolean",
+            "description": "Whether the connection goes both ways"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "type"
+        ]
+      }
+    }
+  },
+  "required": [
+    "nodes",
+    "edges"
+  ]
+}

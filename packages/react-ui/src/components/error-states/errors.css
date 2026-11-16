@@ -1,0 +1,24 @@
+/**
+ * Error Patterns
+ *
+ * Styles for error states and error messages
+ */
+
+/* Error States */
+.semiont-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 0;
+  gap: 1rem;
+}
+
+.semiont-error-message {
+  color: var(--semiont-color-error);
+  font-size: var(--semiont-text-base);
+}
+
+[data-theme="dark"] .semiont-error-message {
+  color: var(--semiont-color-error-light);
+}

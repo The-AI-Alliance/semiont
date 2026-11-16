@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "description": "A resource's presence in the gathered knowledge graph.",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The resource's ResourceId"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "resource"
+      ]
+    },
+    "label": {
+      "type": "string",
+      "description": "The resource's display name \u2014 its raw id when the resource's view was missing at build time"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity types on the resource"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "label"
+  ]
+}

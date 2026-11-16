@@ -1,0 +1,278 @@
+/**
+ * createJobClaimAdapter — unit tests.
+ *
+ * The adapter takes a shared bus and attaches job-claim behaviour.
+ * We fake the bus with a minimal object that exposes the three
+ * methods the adapter uses (`on$`, `emit`, `addChannels`) and drive
+ * events through RxJS subjects. No HTTP or SSE involved.
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { BehaviorSubject, Subject, firstValueFrom, skip, take } from 'rxjs';
+import { createJobClaimAdapter } from '../job-claim-adapter';
+import type { WorkerBus } from '@semiont/sdk';
+import type { ConnectionState } from '@semiont/core';
+
+function fakeBus() {
+  const channels = new Set<string>();
+  const streams = new Map<string, Subject<any>>();
+  const emits: Array<{ channel: string; payload: any }> = [];
+
+  const getStream = (channel: string): Subject<any> => {
+    let s = streams.get(channel);
+    if (!s) {
+      s = new Subject();
+      streams.set(channel, s);
+    }
+    return s;
+  };
+
+  const bus: WorkerBus = {
+    addChannels: vi.fn((cs: readonly string[]) => {
+      cs.forEach((c) => channels.add(c));
+    }),
+    on$: vi.fn((channel: string) => getStream(channel).asObservable()),
+    // In-process fixture: replies are pushed synchronously onto the streams
+    // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
+    state$: new BehaviorSubject<ConnectionState>('open'),
+    emit: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+      emits.push({ channel, payload });
+      return -1;
+    }),
+  };
+
+  return {
+    bus,
+    channels,
+    pushEvent: (channel: string, payload: any) => getStream(channel).next(payload),
+    emits,
+  };
+}
+
+describe('createJobClaimAdapter', () => {
+  let h: ReturnType<typeof fakeBus>;
+
+  beforeEach(() => {
+    h = fakeBus();
+  });
+
+  it('ignores job:queued events of the wrong type', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'other', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(h.emits).toEqual([]);
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+
+    adapter.dispose();
+  });
+
+  it('adds job:queued to the shared actor on start()', () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    expect(h.channels.has('job:queued')).toBe(true);
+    expect(h.bus.addChannels).toHaveBeenCalledWith(['job:queued']);
+
+    adapter.dispose();
+  });
+
+  it('claims matching jobs and emits job:claim with a correlationId', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'generation', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(h.emits).toHaveLength(1);
+    const { channel, payload } = h.emits[0]!;
+    expect(channel).toBe('job:claim');
+    expect(payload.jobId).toBe('j1');
+    expect(typeof payload.correlationId).toBe('string');
+
+    // Simulate successful claim response.
+    h.pushEvent('job:claimed', {
+      correlationId: payload.correlationId,
+      response: { params: { foo: 'bar' }, metadata: { userId: 'u1' } },
+    });
+
+    const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+    expect(active).toMatchObject({ jobId: 'j1', userId: 'u1', params: { foo: 'bar' } });
+
+    adapter.dispose();
+  });
+
+  it('returns isProcessing$ to false when claim fails', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'j2', jobType: 'generation', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+
+    const corrId = h.emits[0]!.payload.correlationId;
+    h.pushEvent('job:claim-failed', { correlationId: corrId });
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+
+    adapter.dispose();
+  });
+
+  it('completeJob increments jobsCompleted$ and clears activeJob$', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'j3', jobType: 'generation', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+    h.pushEvent('job:claimed', {
+      correlationId: h.emits[0]!.payload.correlationId,
+      response: { params: {}, metadata: { userId: 'u' } },
+    });
+    await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+
+    adapter.completeJob();
+
+    expect(await firstValueFrom(adapter.activeJob$)).toBeNull();
+    expect(await firstValueFrom(adapter.jobsCompleted$)).toBe(1);
+
+    adapter.dispose();
+  });
+
+  it('failJob emits on errors$ and clears activeJob$', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    const errorPromise = firstValueFrom(adapter.errors$);
+
+    adapter.failJob('j5', 'kaboom');
+    const err = await errorPromise;
+    expect(err).toEqual({ jobId: 'j5', error: 'kaboom' });
+
+    adapter.dispose();
+  });
+
+  it('start() is idempotent', () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+    adapter.start();
+    expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
+
+    adapter.dispose();
+  });
+
+  it('dispose completes all observables', () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+
+    const flags = { active: false, proc: false, done: false, errs: false };
+    adapter.activeJob$.subscribe({ complete: () => { flags.active = true; } });
+    adapter.isProcessing$.subscribe({ complete: () => { flags.proc = true; } });
+    adapter.jobsCompleted$.subscribe({ complete: () => { flags.done = true; } });
+    adapter.errors$.subscribe({ complete: () => { flags.errs = true; } });
+
+    adapter.dispose();
+    expect(flags).toEqual({ active: true, proc: true, done: true, errs: true });
+  });
+
+  // ── Vitals (WORKER-LIVENESS.md P1) ─────────────────────────────────
+  // The adapter is the only component that sees every announcement,
+  // claim, and finish — its snapshot is what /health and the stall
+  // watchdog read.
+
+  describe('vitals', () => {
+    it('starts empty', () => {
+      const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+
+      expect(adapter.vitals()).toEqual({
+        lastQueuedEventAt: null,
+        lastClaimAt: null,
+        lastFinishedAt: null,
+        lastActivityAt: null,
+        activeJob: null,
+        jobsCompleted: 0,
+      });
+
+      adapter.dispose();
+    });
+
+    it('records the claim → activity → completion cycle', async () => {
+      const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+      adapter.start();
+
+      h.pushEvent('job:queued', { jobId: 'jv1', jobType: 'generation', resourceId: 'r1' });
+      await new Promise((r) => setTimeout(r, 0));
+      h.pushEvent('job:claimed', {
+        correlationId: h.emits[0]!.payload.correlationId,
+        response: { params: {}, metadata: { userId: 'u' } },
+      });
+      await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+
+      const claimed = adapter.vitals();
+      expect(claimed.lastQueuedEventAt).not.toBeNull();
+      expect(claimed.lastClaimAt).not.toBeNull();
+      expect(claimed.lastActivityAt).not.toBeNull();
+      expect(claimed.activeJob).toMatchObject({ jobId: 'jv1', type: 'generation' });
+      expect(typeof claimed.activeJob!.since).toBe('string');
+      expect(claimed.lastFinishedAt).toBeNull();
+
+      adapter.completeJob();
+
+      const done = adapter.vitals();
+      expect(done.activeJob).toBeNull();
+      expect(done.jobsCompleted).toBe(1);
+      expect(done.lastFinishedAt).not.toBeNull();
+
+      adapter.dispose();
+    });
+
+    it('bumps lastQueuedEventAt even for announcements it ignores (transport liveness)', async () => {
+      const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
+      adapter.start();
+
+      h.pushEvent('job:queued', { jobId: 'jx', jobType: 'other-type', resourceId: 'r1' });
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(adapter.vitals().lastQueuedEventAt).not.toBeNull();
+      expect(h.emits).toEqual([]); // still filtered — no claim attempted
+
+      adapter.dispose();
+    });
+
+    it('touchActivity() stamps lastActivityAt without touching the rest', () => {
+      const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+
+      adapter.touchActivity();
+
+      const v = adapter.vitals();
+      expect(v.lastActivityAt).not.toBeNull();
+      expect(v.lastClaimAt).toBeNull();
+      expect(v.activeJob).toBeNull();
+
+      adapter.dispose();
+    });
+
+    it('failJob stamps lastFinishedAt and clears activeJob without counting a completion', async () => {
+      const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+      adapter.start();
+
+      h.pushEvent('job:queued', { jobId: 'jv2', jobType: 'generation', resourceId: 'r1' });
+      await new Promise((r) => setTimeout(r, 0));
+      h.pushEvent('job:claimed', {
+        correlationId: h.emits[0]!.payload.correlationId,
+        response: { params: {}, metadata: { userId: 'u' } },
+      });
+      await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+      adapter.errors$.subscribe(() => {});
+
+      adapter.failJob('jv2', 'kaboom');
+
+      const v = adapter.vitals();
+      expect(v.activeJob).toBeNull();
+      expect(v.lastFinishedAt).not.toBeNull();
+      expect(v.jobsCompleted).toBe(0);
+
+      adapter.dispose();
+    });
+  });
+});

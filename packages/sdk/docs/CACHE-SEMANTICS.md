@@ -1,0 +1,669 @@
+# Cache Semantics
+
+## The emission vocabulary
+
+Live queries emit **`CacheState<T>`**:
+
+```ts
+type CacheState<T> =
+  | { status: 'pending' }              // no value yet; a fetch may be in flight
+  | { status: 'ready';  value: T }     // a stored value (incl. stale-while-revalidate, B7)
+  | { status: 'failed'; error: Error } // terminal failure of a value-less key (B15)
+```
+
+Three rules carry most of the contract (all landed 2026-07-29):
+
+1. **`failed` is an EMISSION, not an RxJS error.** The stream never errors
+   and never terminates on failure, so one subscription can live through
+   `pending → failed`, and a NEW subscription runs the recovery chain (the
+   per-subscribe decision clears the failure marker — see B15).
+2. **One-shot reads are `.fresh()`** — the thenable is dead. `await
+   client.browse.x(...)` does not compile; the network round trip is always
+   spelled explicitly.
+3. **Accessors are lazy**: calling a live-query method is pure — safe
+   from render — and the fetch decision runs on first subscribe.
+
+Ergonomics: `isReady` / `readyValue` from `@semiont/sdk` unwrap states in
+pipes and handlers.
+
+This is the **three-outcome contract** — the name source comments and
+tests use for it: a live query has exactly these three observable
+outcomes, all visible in the type (a two-state consumer does not
+compile), none of them terminal for the stream — and the would-be
+fourth outcome, `pending` forever, is a liveness violation the property
+suites test for.
+
+This document specifies the behavior of the read-through cache in
+`BrowseNamespace` (and the `createCache` primitive in
+`@semiont/sdk`). It is the behavioral contract that implementation must
+satisfy and that tests must verify.
+
+## Why write this down
+
+The cache is implemented by hand because `@semiont/sdk` is
+framework-agnostic (React, CLI, MCP, worker all consume it), and no
+off-the-shelf library fits the RxJS + StateUnit idiom without
+wrapping. Every bug in the hand-rolled cache so far has been a race
+the published libraries already document how to handle. Writing the
+expected behavior down so we can test against it — and so future
+implementations of the same behavior have a stable target — is the
+cheapest way to end the bug cycle.
+
+Known cases that motivated this:
+
+- `invalidate*` that deleted the cached value before refetching, causing
+  downstream consumers that watched "is-loaded" to flip to loading —
+  which in turn unmounted components whose effects held the very
+  subscriptions whose reconnect triggered the invalidation. A 124×
+  refetch storm per navigation, surfaced as test 04 in
+  [tests/e2e/](../../../tests/e2e/).
+- `fetching*` guards that were never cleared after a connection-lost
+  refetch, leaving the cache empty forever ("Loading resource…" that
+  never resolves). Fixed in commit 845c6b24.
+- Entity-types lost across a benign (mount-churn) reconnect because
+  the same guard+invalidate pattern misfired.
+
+## Vocabulary
+
+| Term | Meaning |
+|---|---|
+| **Key** | A value identifying one logical cache entry. For `resource(id)` the key is `id`; for `resources(filters)` the key is `JSON.stringify(filters)`; for `entityTypes()` the key is the empty tuple. Keys are per-cache, not global. |
+| **Entry** | The current value (or absence) associated with a key. |
+| **Observer** | A caller who holds the `Observable<CacheState<V>>` returned from a live-query method (e.g. `browse.resource(id)`). Observers receive the current state and every subsequent change. |
+| **Fetch** | An async operation (via `busRequest`) that produces a value to store. |
+| **In-flight** | A fetch whose promise has not settled. Each key may have at most one in-flight fetch at a time. |
+| **Invalidate** | A caller-initiated signal that the cache entry is out of date and must be refetched. |
+| **SWR** | Stale-while-revalidate. The entry continues to be served to observers while the refetch is in flight. When the refetch returns, observers see the new value (or keep seeing the stale one if the refetch failed). |
+
+## Entry lifecycle
+
+Each key independently passes through these states:
+
+```
+  (never observed)
+        │
+        │  first call to a live-query method
+        ▼
+    ┌────────┐    fetch rejects      ┌─────────┐
+    │ empty  │─────────────────────▶│ empty   │
+    │(fetching)│◀──┐                │ (idle)  │   (retried by next
+    └────────┘   │                  └─────────┘    observer or invalidate)
+        │         │
+        │ fetch   │
+        │resolves │
+        ▼         │
+    ┌──────────┐ │
+    │  fresh   │─┘ (invalidate — keep value, refetch in background)
+    └──────────┘
+        │
+        │  invalidate + fetch succeeds
+        ▼
+    ┌──────────┐
+    │  fresh′  │  (new value replaces old)
+    └──────────┘
+```
+
+Consequences:
+
+1. **No "stale" or "invalidated" state**. There is no state in which
+   the cache has a value AND announces that value as out of date.
+   Either we have a value (`fresh`) or we don't (`empty`). Invalidate
+   means "schedule a refetch without erasing the current value."
+2. **Two orthogonal facts**: "is there a value?" and "is a fetch in
+   flight?" Observers get the first as `pending` vs `ready` states. The
+   second is the private `fetching*` guard and is not exposed.
+3. **Empty is terminal only until an observer or invalidate acts.**
+   Each act gets one bounded retry (B14); after that the key goes idle
+   until the next act. There is no standing retry loop.
+
+## Two consumption paths
+
+The cache has two read paths with different freshness semantics, and B1–B16
+below describe the **`observe` / subscribe** path (the stale-while-revalidate
+live view). The second path:
+
+- **`fetch(key)` — one-shot, always fresh.** Forces a fetch (bypassing the
+  memo), updates the store so subscribers see it too, and resolves with the
+  value — *rejecting* on failure. Concurrent calls for the same key dedup-join
+  one in-flight fetch. This backs `CacheObservable.fresh()`
+  (`browse.X(id).fresh()`), so a `read → write → read` in one process reflects
+  the write rather than serving the memo (#847). A failed `fetch` still leaves
+  the store untouched for subscribers (B6); only the `fetch` caller sees the
+  rejection.
+
+## Core behaviors
+
+Each behavior is numbered for cross-reference from tests and code. They govern
+the `observe` / subscribe path.
+
+### B1 — First observation triggers a fetch
+
+The first SUBSCRIBE to a live-query observable for a key that is `empty`
+and not `fetching` MUST trigger exactly one fetch (the accessor call
+itself is pure; the fetch decision runs per subscribe). The observable
+MUST emit `{ status: 'pending' }` until the fetch resolves, then the
+`ready` value.
+
+### B2 — Subsequent observations reuse the cached value
+
+Additional live-query calls for a key that is `fresh` MUST NOT
+trigger a fetch. They MUST return an observable that emits the
+current value synchronously (via the `distinctUntilChanged` chain
+over the store Subject).
+
+### B3 — Concurrent first observations deduplicate
+
+If multiple observers call the live-query method for the same
+`empty` key while a fetch is in flight, only one fetch is issued.
+All observers MUST see the same resolved value.
+
+### B4 — Observers share one observable per key
+
+Successive live-query calls for the same key MUST return the same
+`Observable` instance, so that subscribers compose predictably and
+share upstream work. (Implementation: the `*Obs$` memoization
+`Map<K, Observable<CacheState<V>>>` in `BrowseNamespace`, plus the
+per-source `withScope` memo.)
+
+### B5 — Fetch success updates the store atomically
+
+On successful fetch, the new value MUST be written in a single
+`BehaviorSubject.next(newMap)` transition. Observers see the old
+`ready` value, then the new one; never a transient `pending`.
+
+### B6 — Fetch failure leaves the previous state intact
+
+On failed fetch, the entry MUST NOT be cleared. If the entry was
+previously `fresh`, it remains `fresh` with the stale value
+(stale-beats-error). The `fetching*` guard MUST be released in all
+cases (success, failure, cancellation) via the `finally` block.
+
+Boundary: stale-beats-error presumes a stale value to serve. A
+previously-`empty` key stays `empty` through the B14 retry chain — but
+if that chain EXHAUSTS with the key still value-less, B15 applies: the
+terminal failure is surfaced to that key's observers as a `failed`
+EMISSION, not absorbed into eternal `pending`.
+
+### B7 — Invalidate is stale-while-revalidate
+
+`invalidate(key)` MUST:
+
+1. Clear the in-flight guard for `key` (so a previously-orphaned
+   fetch doesn't block the refetch — this is the fix from commit
+   845c6b24).
+2. Trigger a fresh fetch.
+3. NOT write to the store. The existing value (if any) remains
+   visible to observers until the refetch resolves.
+
+The result: observers keep seeing the stale value. When the refetch
+returns, observers see the new value (or keep the stale one if the
+refetch failed). Observers that check "is the value defined" see a
+stable `true` across the invalidate — which prevents the
+page-remount feedback loop documented above.
+
+### B8 — Invalidate of an empty key is valid
+
+`invalidate(key)` on an `empty` key is equivalent to first
+observation: triggers one fetch, observers see `pending` until it
+resolves. It is not an error.
+
+### B9 — Invalidate during in-flight fetch does NOT coalesce
+
+If `invalidate(key)` is called while a fetch for `key` is already in
+flight, the implementation MUST start a new fetch anyway (and must
+not short-circuit on the in-flight guard).
+
+Rationale: an in-flight fetch may be **orphaned** — its SSE response
+channel has been torn down (e.g. the reconnect that triggered the
+invalidation), so the fetch will never resolve. If invalidate
+coalesced with an orphaned fetch, the cache would be stuck with its
+old value until the busRequest's 30-second timeout fired. This was
+the "Loading resource…" that never resolves bug fixed in commit
+845c6b24. (Orphaned in-flight replies are far rarer since correlated-
+reply retention landed, 2026-07-29 — but the semantics
+here are unchanged: B9 is about not trusting an in-flight guard.)
+
+The cost is that two in-flight fetches for the same key can exist
+briefly. Semantics: whichever resolves first writes its result;
+whichever resolves second overwrites. "Last-write-wins" for two
+legitimate fetches, which is acceptable because either value is
+at least as fresh as what was cached before. In the orphaned case,
+only the second fetch resolves, and it writes the correct value.
+
+Implementation detail: this is why all `invalidate*` methods clear
+the `fetching*` guard before calling the fetch helper.
+
+### B10 — Multiple keys are independent
+
+Fetch, invalidate, and store operations on key A MUST NOT affect
+key B in the same cache. This is obviously true of Maps but stated
+explicitly because the reconnect gap-detection handler invalidates
+many keys in a loop and the independence matters (failure of one
+invalidate must not block others).
+
+### B11 — Per-cache observer observables live for the cache's lifetime
+
+The `*Obs$` memoization Map grows with the set of observed keys
+and does not shrink within a cache instance's lifetime. This is an
+accepted leak trade-off: the number of distinct keys observed in a
+session is bounded by user navigation, and the memory cost is
+minimal compared to the correctness benefit of stable observable
+identities.
+
+A future cache primitive may add subscriber ref-counting and GC.
+For now, the full cache lifetime matches a `SemiontClient`
+instance, which matches a browser tab or a CLI process — so the
+leak is strictly bounded.
+
+### B14 — SWR fetch failure retries once (anti-starvation)
+
+A fetch triggered by the **swallowed** paths — first observation (B1),
+`invalidate` (B7/B8), `invalidateAll` — that fails MUST be re-issued
+exactly once. If the retry also fails, the key goes idle (B6 state:
+empty or stale-fresh) until the next observe/invalidate acts.
+
+Rationale: the swallowed paths hide failures from subscribers by design
+(B6), which means a lost one-shot reply — e.g. a `busRequest` whose SSE
+result raced a connection swap and timed out
+(the 2026-07-05 concurrent-loaders starvation incident) — previously
+starved every subscriber of a never-loaded key **silently and
+permanently**: no retry, no failure signal, `pending` forever. One
+bounded retry converts "reply lost" from permanent starvation into one
+slow load, without a standing retry loop hammering a genuinely-down
+backend. (Since correlated-reply retention landed, 2026-07-29, a
+reply lost to a genuine disconnect replays on reconnect, so
+this retry should fire approximately never; it stays as defense in
+depth.)
+
+Boundaries:
+
+1. The `fetch(key)` await path NEVER auto-retries — its caller sees the
+   rejection and owns retry policy (unchanged).
+2. The retry joins any in-flight fetch another caller has started in the
+   meantime (B3 dedup); it never duplicates.
+3. An invalidate during a retry chain disowns it (B9) — the chain's
+   late success may still write (last-write-wins, same as B9).
+
+Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
+(`assertLivenessAxioms` from `@semiont/core/testing/axioms`) — L2's settlement bound on the swallowed
+paths is `timeoutMs × (1 + this retry)`, enforced against the real
+`BrowseNamespace` + cache + `busRequest` composition by the property
+suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts)).
+Changing the retry count is a policy change that must edit L2's budget
+visibly, not drift past it.
+
+### B15 — Terminal failure of a value-less key is a `failed` EMISSION
+
+When the B14 retry ALSO fails and the key holds **no cached value**, the
+key is marked failed and the failure MUST be delivered to that key's
+observers as a **`{ status: 'failed', error }` emission** — never
+`pending` forever, and never an RxJS error (the stream does not die):
+
+1. Subscribers attached at exhaustion time receive the `failed` state
+   (push). Their subscription stays alive — a later recovery on the
+   same key flows to them without resubscribing.
+2. A subscriber ARRIVING at a failed key runs RECOVERY, not replay
+   (D3): the subscribe-time decision clears the marker and starts a
+   fresh attempt chain — so a component remount recovers by
+   construction.
+3. The marker is also cleared by `invalidate`, `set`, `remove`, or any
+   fetch success. The failed state is always retriable; nothing is
+   latched.
+4. Keys WITH a cached value never come here — B6 stale-beats-error is
+   unchanged.
+
+Rationale: liveness axiom L1 — found by the property suite
+([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts))
+as the valueless-key starvation bug (2026-07-05).
+B14 converted "reply lost" into one slow load when the retry succeeds;
+B15 covers the remaining corner — retry ALSO fails — where "idle" was
+indistinguishable from the pre-B14 permanent silent starvation for
+value-less keys. Delivering failure as an emission rather than a stream
+error (2026-07-29) removed the dead-errored-observable hazard:
+consumers pattern-match three states on one subscription instead of
+wiring error callbacks whose streams then have to be re-created. The
+`[cache IDLE]` breadcrumb (L4) is unchanged.
+
+### B16 — Disposal is terminal and inert
+
+`dispose()` completes every per-key observable (subscribers receive
+`complete` and detach cleanly — `store$` AND `failure$`, the
+merge-completion edge), and stuns all later acts:
+
+1. Post-dispose `observe()` returns a stream that completes immediately
+   and issues NO fetch. `invalidate`/`invalidateAll`/`set`/`remove` are
+   no-ops. `fetch()` rejects (`Cache disposed`) without invoking the
+   fetch function — surfaced, not silent, since the await path's caller
+   owns retry policy (B14 boundary 1).
+2. A fetch/retry chain that STRADDLES disposal dies quietly at its next
+   resumption point: no B14 re-issue, no breadcrumb, no B15 push. The
+   `disposed` flag is checked at every async resumption, not just at
+   entry — and a late `failure$.next` would land on a completed subject
+   regardless (structural no-op, belt and braces).
+3. `dispose()` is idempotent.
+4. At the namespace level, `BrowseNamespace.dispose()` (called by
+   `SemiontClient.dispose()`) disposes all owned caches (A7-owned: it
+   constructed them) and detaches its bus-event subscriptions, so late
+   invalidation events cannot refetch into disposed caches.
+
+Rationale: a B14 retry straddling client teardown resolves `bus.closed`
+(`busRequest`'s disposed-bus path) — a teardown artifact, not a data
+failure. Pre-B16 the B15 push then errored observers at shutdown
+(disposal noise; it escaped as a flaky unhandled rejection in a
+make-meaning test — a 2026-07-05 CI escape). B16 makes the push structurally impossible after disposal
+instead of special-casing the `bus.closed` error code, which would have
+carved a silent exception into liveness axiom L1 (whose standing rule is:
+policy changes must edit the axiom visibly, not drift). L1 holds
+unconditionally: live client → terminal failures error observers (B15);
+disposed client → observers were completed at disposal, so none exist
+to starve.
+
+## Bus-event-driven invalidation
+
+Cache entries are also invalidated by incoming bus events. The
+behavior above (B7–B9) applies identically. The only additional
+constraint is:
+
+### B12 — Bus-event handlers must be additive
+
+Adding a new bus event → invalidation mapping MUST NOT change the
+effect of any existing mapping. This is a structural rule: each
+`bus.get('X').subscribe(...)` handler in the cache's
+`subscribeToEvents()` is independent. Debugging becomes tractable
+only if we can read one handler at a time and understand its full
+effect.
+
+### B13a — Remove is distinct from invalidate
+
+Some bus events signal that the underlying entity no longer exists
+(`mark:delete-ok`, `mark:removed`). For these, the cache entry
+should be **dropped**, not invalidated. Dropping means:
+
+1. Clear the in-flight guard.
+2. Delete the entry from the store (via copy-on-write; A3).
+3. Do NOT re-fetch.
+
+Conventional method name: `remove<Entity>(key)` (not `invalidate`).
+
+This is distinct from B7 (invalidate = SWR): invalidate keeps the
+value and refetches; remove drops the value and does not.
+
+Mixing the two was the original sin of the hand-rolled cache —
+`invalidateAnnotationDetail` deleted without refetching (which is
+the remove semantic) while being named `invalidate` (which suggests
+refetch). Consumers that assumed refetch broke; consumers that
+assumed removal worked by accident.
+
+### B13b — Update-in-place for entities whose new value is known
+
+Some bus events carry the full new entity in their payload
+(`mark:body-updated` with the annotation). For these, the cache
+should be updated with the known value directly — no fetch needed.
+
+Conventional method name: `update<Entity>InPlace(key, value)`.
+
+This satisfies B5 (atomic update, no transient `pending`) and
+avoids the roundtrip of an invalidate-triggered refetch. It also
+ensures both related caches stay in sync when a handler has reason
+to update more than one.
+
+### B13 — Reconnect gap-detection is server-driven, not edge-driven
+
+A bare `connected$: false → true` transition does NOT trigger cache
+invalidation. The server stamps every persisted event on
+`/bus/subscribe` with `id: p-<scope>-<seq>`; the client tracks a
+watermark PER SCOPE and sends each as `lastEventId` on that scope's
+entry in the subscribe-matrix body (multi-resource scope, 2026-07-29 — there is no
+`Last-Event-ID` header); the server replays each scope's persisted
+events missed during the gap. The usual reconnect path (mount-churn,
+scope-change, brief network blip) finishes with **zero events missed**
+— no cache invalidation needed.
+
+When the server can't cover a scope's gap — retention window exceeded,
+watermark unparseable, scope mismatch — it emits a scoped
+`bus:resume-gap` event. On that event, the cache MUST invalidate:
+
+- If `scope` is provided: every key related to that scope
+  (`annotationList[scope]`, `resourceDetail[scope]`,
+  `resourceEvents[scope]`, `referencedBy[scope]`) plus the KB-wide
+  `entityTypes`.
+- If `scope` is omitted: every live key in every cache (the
+  pre-resumption blanket behavior).
+
+The `entityTypes` singleton always refetches on any gap because the
+resumption protocol currently covers only resource-scoped events.
+
+With B7 (SWR), these invalidations are not destructive — observers
+keep seeing their stale data until the refetches return. Only
+network work is wasted, not UX.
+
+## Mapping: bus events → cache invalidations
+
+The current subscription table in `BrowseNamespace.subscribeToEvents()`.
+Updating this table is an API-impact change; keep it in sync with the
+code.
+
+| Bus event | Effect |
+|---|---|
+| `actor.connected$: false → true` | **no effect** — resumption handles the gap (B13) |
+| `bus:resume-gap` | scope-targeted invalidation (if `scope`) or full blanket (if not); always refetch `entityTypes` (B13) |
+| `mark:delete-ok` | **remove** `annotationDetail[annotationId]` (B13a — the entity is gone; drop the entry, don't refetch) |
+| `mark:added` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]` |
+| `mark:removed` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]`, `annotationDetail[annotationId]` |
+| `mark:body-updated` | in-place update (write-through, B13b) `annotationList` entry **and** `annotationDetail[annotationId]`, invalidate `resourceEvents[resourceId]` |
+| `mark:entity-tag-added` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
+| `mark:entity-tag-removed` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
+| `replay-window-exceeded` | invalidate `annotationList[resourceId]` |
+| `yield:create-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
+| `yield:update-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
+| `mark:archived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
+| `mark:unarchived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
+| `frame:entity-type-added` | invalidate `entityTypes` |
+| `frame:tag-schema-added` | invalidate `tagSchemas` |
+
+Observations from this table:
+
+- **`resourceList` (all filters)** is invalidated by wholesale
+  replacement (`resourceList$.next(new Map())`), not key-by-key.
+  This is because invalidation events don't know which filter
+  combinations would be affected. Trade-off: in-flight filter
+  variants are refetched lazily on next observation.
+- **No events invalidate `annotationList` by annotation-id alone.**
+  The only per-annotation cache is `annotationDetail`; changes to an
+  annotation always also invalidate the list that contains it. This
+  is B10-consistent.
+- **`yield:create-ok` invalidates** (it does not write-through). It shares the
+  `invalidateMutatedResource` path with `yield:update-ok` / `mark:archived` /
+  `mark:unarchived` — invalidate `resourceDetail[resourceId]` and the whole
+  `resourceList`. Because a just-created resource has nothing cached yet, the
+  `resourceDetail` invalidate is a no-op until it's first observed; the
+  `resourceList` invalidate is what surfaces the new resource to list views.
+
+## Required audits in the implementation
+
+The following audits are checkable against the code; running them
+is part of Phase 1's completion.
+
+### A1 — All invalidate* methods follow B7 (SWR)
+
+For each `invalidate*` method, confirm:
+
+1. The in-flight guard is cleared (satisfies the orphaned-fetch
+   recovery documented in B7 step 1).
+2. The store is NOT written with a deletion before the fetch
+   (satisfies B7 step 3 — don't flash empty).
+3. A fetch is issued (satisfies B7 step 2).
+
+`invalidateAnnotationDetail` is currently a naming violation: it
+implements B13a (remove) while named `invalidate`. Rename to
+`removeAnnotationDetail`. For its `mark:body-updated` caller,
+switch to a new `updateAnnotationDetailInPlace` (B13b) — the
+event payload contains the full annotation, so a refetch is
+wasteful.
+
+`invalidateResourceLists` wholesale-replaces the store with an
+empty Map. This violates B7: observers see `pending` until the
+next observation. The fix is per-key SWR: iterate the current
+filter keys, clear guards, issue refetches, keep values in the
+map until refetches return.
+
+### A2 — Every fetching* guard is cleared on all exit paths
+
+Every `fetch*` helper must have a `try/finally` that clears the
+guard. This was load-bearing for the 845c6b24 fix and remains
+required. Grep confirms all current fetchers have the `finally
+this.fetchingX.delete(key)` pattern — do not regress.
+
+### A3 — Every BehaviorSubject is updated via copy-on-write
+
+Writing `.next(newMap)` where `newMap = new Map(current)` is the
+ritual. Direct mutation of the existing Map and calling `.next(map)`
+on the same reference would not trigger `distinctUntilChanged`
+downstream and would silently skip updates. Confirm every
+`*$.next(...)` call uses a fresh Map.
+
+### A4 — Every cache Map has a matching `*Obs$` memo
+
+For every `Map<K, V>` stored in a `BehaviorSubject`, a matching
+`Map<K, Observable<CacheState<V>>>` memoizes the per-key observable.
+Without the memo, every live-query call creates a new observable,
+breaking B4.
+
+### A5 — Bus-event subscribers never `unsubscribe`
+
+The subscriptions in `subscribeToEvents()` are created once at
+construction and live for the cache's lifetime. There is no
+tear-down path. This is correct because the cache's lifetime
+matches the client's (see B11), but it means a bug that causes
+`subscribeToEvents()` to run twice would double every effect.
+The constructor is the only call site; audit that constructor runs
+once per `SemiontClient`.
+
+## Test-parity
+
+A `cache-semantics.test.ts` in `packages/sdk/src/namespaces/__tests__/`
+asserts each of B1–B16 against the current implementation. Adding a
+new behavior here must be accompanied by a new test case referencing
+its number (`// B7 — invalidate preserves stale value`). Removing or
+changing a behavior must update both this doc and the test.
+
+
+### B17 — Persistence is opt-in rehydration, reconciled by resumption
+
+An optional `CachePersister` on `createCache` (and the
+`sessionStoragePersister` adapter over the `SessionStorage` seam) gives a
+cache durable, per-KB rehydration:
+
+1. **Load-on-construct.** `persister.load()` seeds the store before the
+   first observation, so a rehydrated key serves **synchronously** — no
+   `pending` flash, no waiting on the wire to paint. (It does issue one
+   revalidation request; see B18.)
+2. **Rehydrated data is stale-until-reconciled**, and reconciliation is
+   **two independent layers** — neither sufficient alone:
+   - *Replay*, when it is available: the transport reconnects with each
+     scope's persisted watermark (`lastEventId` on that scope's
+     subscribe-matrix entry — persisted `p-*` ids only; ephemeral `e-*`
+     ids carry no replay meaning and are never saved), replayed events
+     invalidate through the normal handlers, and scoped `bus:resume-gap`
+     blanket-invalidates as always. The persisted watermark record is
+     COUPLED to the cache flush (`coupledLastEventId`): stashed per
+     event under its scope, written only alongside a cache-document
+     write, and **only while every persisted cache is quiescent**
+     (B17-Q's flush gate) — so the bookmark may lag the persisted caches
+     (harmless: replay re-invalidates idempotently) but can never lead
+     them and silently skip a reconciling event. Note the transport
+     stashes an id only AFTER the event has been applied to subscribers,
+     so an id is never flushable before its effects are pending.
+   - *Revalidation on rehydrate* (B18), which covers what replay cannot:
+     when NO watermark was persisted for a scope, that scope's entry
+     carries no `lastEventId` and the server replays **nothing** for it
+     — measured as the actual state at failure time in
+     the annotation-lost-on-immediate-reload incident (2026-07-24).
+3. **Settled values only.** The store never contains B15 failure markers,
+   so neither does the persisted document; a previously-failed key
+   rehydrates as absent and refetches on first observation.
+4. **Saves are debounced** (default 50 ms) and **`dispose()` flushes a
+   pending save synchronously before going inert** — the flush is part of
+   the disposal act, so a KB switch cannot lose the last write; nothing
+   may save after disposal (B16 extends to the persister).
+5. **Version-gated.** A stored document whose version doesn't match (or
+   that fails to parse) reads as empty — never an error into the cache.
+6. **Cross-context sync** rides the persister's `subscribe` (the
+   `SessionStorage.subscribe` seam): an external write replaces the store;
+   last writer wins.
+
+### B18 — A restored-from-disk value is revalidated on first observation
+
+A value loaded by `persister.load()` is **stale-until-revalidated**: unlike
+a value this session fetched, nothing guarantees it reflects server truth.
+The first `observe(key)` of such a key therefore:
+
+1. **serves the persisted value immediately** — it is already in the store,
+   so subscribers paint instantly (B17's actual win is preserved), and
+2. **starts one background revalidation** through the ordinary SWR path,
+   rendering the fresher value when it arrives.
+
+Boundaries:
+
+- **Once per key per session.** The mark is cleared as soon as a fetch is
+  under way from any path (`observe`'s revalidation, `invalidate`, or the
+  `fetch`/await path) and by `set`/`remove`, so a rehydrated key costs at
+  most one extra revalidation chain — one request, plus B14's single bounded
+  retry if it fails; afterwards B2 applies normally. Only keys that are
+  actually observed revalidate — rehydrating 200 entries and looking at one
+  costs one chain.
+- **Never worse than not revalidating.** A failed revalidation keeps the
+  persisted value visible (B6) after B14's bounded retry; B15 cannot fire
+  for these keys because the store holds a value.
+- **Why it is not redundant with replay.** Replay reconciles only when a
+  bookmark exists to resume from. It did not, in the measured failure — the
+  flush gate was correctly holding the id pending, so storage contained no
+  bookmark at all and the reconnect was live-only. B18 does not depend on
+  replay, on the bookmark, or on any timing argument.
+
+**Cost, honestly stated:** this gives back part of what B17 bought — a
+reload is no longer request-free. It is not a return to cold-start: the
+paint is still immediate and never blocks on the wire; what returns is the
+background request per observed key.
+
+## Revision log
+
+- 2026-04-19 — initial spec, written as part of CACHE-LIBRARY.md
+  Phase 1. Documents behavior as it exists after the
+  `invalidateResourceDetail` SWR fix (test 04).
+- 2026-07-05 — B14 added (bounded SWR retry); lifecycle consequence 3
+  amended ("a permanent fetch failure does not auto-retry" → one retry
+  per act). Part of the concurrent-browse-resource-starvation fix
+  (ask 3): a lost one-shot reply must not permanently starve
+  subscribers.
+- 2026-07-05 — B15 added (terminal failure of a value-less key errors
+  its observers, retriable); B6 narrowed to its true scope
+  (stale-beats-error requires a stale value). Driven by the
+  liveness property suite falsifying L1/L2 against the real
+  composition (the valueless-key starvation bug).
+- 2026-07-21 — B17 added (opt-in persistence: load-on-construct
+  rehydration reconciled by resumption; values-only; flush-then-inert
+  dispose; version-gated; cross-context via the SessionStorage seam).
+- 2026-07-24 — **B18 added, and B17.1/B17.2 corrected — a declared
+  behavior change.** B17 as written promised "a rehydrated key issues NO
+  fetch", resting reconciliation entirely on replay. Measurement
+  (the annotation-lost-on-immediate-reload incident) showed
+  that at failure time there is **no persisted bookmark at all**, so replay
+  is not merely late — it does not happen, and the stale document is served
+  forever. B18 makes rehydrated values revalidate on first observation
+  (instant paint kept, one background request per observed key). B17.2 now
+  states the two reconciliation layers and notes B17-Q's flush gate. Also
+  in this line of work: the flush gate itself (B17-Q, `persistencePending`/
+  `persistenceSettled`) and the transport's apply-before-stash ordering.
+  Three pins that encoded the old promise were updated deliberately
+  (`cache-persistence`, `cache-rehydration`, and the property teeth).
+- 2026-07-29 — **The `CacheState` era, and the doc body
+  rewritten in its vocabulary.** Emissions are `CacheState<V>` (`pending` /
+  `ready` / `failed`), never `V | undefined`; B15 reframed — terminal failure
+  is a `failed` EMISSION (streams never error/terminate) and a late subscriber
+  runs RECOVERY, not replay; one-shot reads are `.fresh()` (the thenable is
+  dead); accessors are lazy (calling is pure, the fetch decision runs per
+  subscribe — B1 restated). Same day: B13/B17 resumption wording moved to the
+  per-scope subscribe-matrix watermarks (multi-resource scope), and B9/B14
+  notes record that correlated-reply retention makes
+  the lost-reply paths defense-in-depth rather than the common case.

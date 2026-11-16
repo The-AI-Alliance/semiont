@@ -1,17 +1,19 @@
 name: "CodeQL Security Analysis"
 
-# Nightly on main and for a release, not on every push: eleven runner-minutes a
-# push bought findings a night later would equally have caught, and a release
-# cannot ship past one. GitHub's default-setup Code Quality analysis still runs
-# on pull requests; it is no file here.
 on:
-  # 08:17 UTC, with ci.yml's and Stack Smoke's nightlies. A scheduled run that
-  # fails mails whoever last changed this line.
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '.gitignore'
+      - 'LICENSE'
   schedule:
-    - cron: '17 8 * * *'
+    # Run CodeQL analysis every Monday at 6 AM UTC
+    - cron: '0 6 * * 1'
   workflow_dispatch:
-  # release.yml calls it on the commit it is about to tag.
-  workflow_call:
 
 jobs:
   analyze:
@@ -25,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'javascript-typescript', 'go', 'rust', 'python', 'java-kotlin', 'csharp' ]
+        language: [ 'javascript-typescript', 'go' ]
 
     steps:
     - name: Checkout repository
@@ -34,9 +36,8 @@ jobs:
     # Go must be installed BEFORE codeql-action/init: init injects a wrapper `go`
     # into PATH to trace the build, and a later setup-go would shadow it (CodeQL
     # warns "Expected `which go` to return .../codeql-action-go-tracing/bin/go").
-    # cache: false — setup-go's default lookup is for a go.sum at the root, and it
-    # warns when there is none: the modules are apps/launcher, packages/go/launcher
-    # and packages/go/sdk.
+    # cache: false — the launcher is stdlib-only (no go.sum), so there is nothing
+    # to cache, and setup-go's default lookup warns on the missing root go.mod.
     - name: Setup Go
       if: matrix.language == 'go'
       uses: actions/setup-go@v7.0.0
@@ -44,20 +45,10 @@ jobs:
         go-version-file: apps/launcher/go.mod
         cache: false
 
-    # The JDK the Kotlin SDK's .java-version names, for its build traced below.
-    - name: Setup Java
-      if: matrix.language == 'java-kotlin'
-      uses: actions/setup-java@v6.2.0
-      with:
-        distribution: temurin
-        java-version-file: packages/kotlin/sdk/.java-version
-
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4.39.3
+      uses: github/codeql-action/init@v4.37.7
       with:
         languages: ${{ matrix.language }}
-        # C# is extracted from source; its SDK is built and checked in ci.yml.
-        build-mode: ${{ matrix.language == 'csharp' && 'none' || '' }}
         # Override default CodeQL config with custom queries for better security coverage
         config-file: ./.github/codeql/codeql-config.yml
 
@@ -66,7 +57,7 @@ jobs:
       if: matrix.language == 'javascript-typescript'
       uses: actions/setup-node@v7
       with:
-        node-version-file: .node-version
+        node-version: '24'
         cache: 'npm'
 
     - name: Install all dependencies
@@ -75,26 +66,11 @@ jobs:
       continue-on-error: true
 
     # Go is a compiled language: the CodeQL extractor needs a real build to trace.
-    # Rust and Python are extracted from source, with no build.
-    # Each Go module is built: the launcher's build compiles only the packages of
-    # its libraries and of the Go SDK that it imports.
-    - name: Build the Go modules for CodeQL extraction
+    - name: Build launcher for CodeQL extraction
       if: matrix.language == 'go'
-      run: |
-        (cd apps/launcher && go build ./...)
-        (cd packages/go/launcher && go build ./...)
-        (cd packages/go/sdk && go build ./...)
-
-    # Kotlin is compiled, and its extractor reads the compiler's run, so the
-    # compiler runs in Gradle's own process: neither a Gradle daemon nor
-    # Kotlin's is one the trace reaches. The protocol's types are generated
-    # into build/, which the config leaves out of the results.
-    - name: Build the Kotlin SDK for CodeQL extraction
-      if: matrix.language == 'java-kotlin'
-      working-directory: packages/kotlin/sdk
-      run: ./gradlew --no-daemon --console=plain -Pkotlin.compiler.execution.strategy=in-process classes testClasses javaTestClasses
+      run: cd apps/launcher && go build ./...
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4.39.3
+      uses: github/codeql-action/analyze@v4.37.7
       with:
         category: "/language:${{matrix.language}}"

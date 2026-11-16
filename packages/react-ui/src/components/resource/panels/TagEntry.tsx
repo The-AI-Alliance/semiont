@@ -1,0 +1,87 @@
+'use client';
+
+import { useMemo } from 'react';
+import { isReady } from '@semiont/sdk';
+import type { Ref } from 'react';
+import type { Annotation } from '@semiont/core';
+import { getAnnotationExactText } from '@semiont/core';
+import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
+import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
+import { renderAgentLabel } from './agent-label';
+
+interface TagEntryProps {
+  /** Session for interaction routing (browse.click, tag schemas); the panel threads it. */
+  session: SemiontSession | null;
+  tag: Annotation;
+  isFocused: boolean;
+  isHovered?: boolean;
+  ref?: Ref<HTMLDivElement>;
+}
+
+export function TagEntry({
+  session,
+  tag,
+  isFocused,
+  isHovered = false,
+  ref,
+}: TagEntryProps) {
+  const hoverProps = useHoverEmitter(session, tag.id);
+
+  const selectedText = getAnnotationExactText(tag);
+  const category = getTagCategory(tag);
+  const schemaId = getTagSchemaId(tag);
+
+  // Resolve the schema's display name from the per-KB tag-schema registry.
+  // The registry is runtime-populated (frame.addTagSchema); during the
+  // initial fetch the observable yields `undefined`, which we treat as
+  // "no schema name available yet" — render the category badge alone
+  // until the registry resolves.
+  const tagSchemas$ = useMemo(
+    () => session?.client.browse.tagSchemas() ?? null,
+    [session],
+  );
+  const schemas = useObservable(tagSchemas$);
+  const schema =
+    schemaId && schemas && isReady(schemas)
+      ? schemas.value.find((s) => s.id === schemaId) ?? null
+      : null;
+
+  return (
+    <div
+      ref={ref}
+      onClick={() => {
+        session?.client.browse.click(tag.id);
+      }}
+      {...hoverProps}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
+      data-type="tag"
+      data-focused={isFocused ? 'true' : 'false'}
+    >
+      {/* Category badge */}
+      <div className="semiont-annotation-entry__header">
+        <span className="semiont-tag-badge" data-variant="tag">
+          {category}
+        </span>
+        {schema && (
+          <span className="semiont-annotation-entry__meta">
+            {schema.name}
+          </span>
+        )}
+      </div>
+
+      {/* Selected text */}
+      <div className="semiont-annotation-entry__quote" data-type="tag">
+        "{selectedText.substring(0, 150)}{selectedText.length > 150 ? '...' : ''}"
+      </div>
+      {tag.generator && (
+        <div className="semiont-annotation-entry__metadata">
+          Via {Array.isArray(tag.generator)
+            ? tag.generator.map(renderAgentLabel).join(', ')
+            : renderAgentLabel(tag.generator)}
+        </div>
+      )}
+    </div>
+  );
+}

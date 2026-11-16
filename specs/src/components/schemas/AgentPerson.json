@@ -1,0 +1,36 @@
+{
+  "description": "A human participant — the Person branch of Agent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "@type": {
+      "type": "string",
+      "const": "Person"
+    },
+    "@id": {
+      "type": "string",
+      "format": "uri",
+      "description": "DID-shaped identifier (e.g. did:web:host:users:email%40host)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name"
+    },
+    "nickname": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "email_sha1": {
+      "type": "string"
+    },
+    "homepage": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "@type",
+    "name"
+  ]
+}

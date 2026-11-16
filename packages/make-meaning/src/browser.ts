@@ -1,0 +1,596 @@
+/**
+ * Browser Actor
+ *
+ * Filesystem-shaped reads and KB graph reads for the Knowledge System.
+ * Merges live filesystem state with KB metadata for tracked resources.
+ *
+ * Handles:
+ * - browse:resource-requested — single resource metadata (materialized from events)
+ * - browse:resources-requested — list resources
+ * - browse:annotations-requested — all annotations for a resource
+ * - browse:annotation-requested — single annotation with resolved resource
+ * - browse:events-requested — resource event history
+ * - browse:annotation-history-requested — annotation event history
+ * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
+ * - browse:entity-types-requested — list entity types from the project projection
+ * - browse:tag-schemas-requested — list tag schemas from the project projection
+ * - browse:agents-requested — the collaborator directory: the KB's declared software
+ *   agents, derived from the workers + actors inference config (COLLABORATOR-DIRECTORY)
+ * - browse:directory-requested — list a project directory, merging fs + ViewStorage
+ */
+
+import { promises as fs, type Dirent } from 'fs';
+import * as path from 'path';
+import { Subscription, from, EMPTY } from 'rxjs';
+import { mergeMap, catchError } from 'rxjs/operators';
+import type { SemiontProject } from '@semiont/core/node';
+import type { EventMap, Logger, components } from '@semiont/core';
+import { EventBus, resourceId, annotationId, errField } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
+import { getExactText, getTargetSource, getTargetSelector, getBodySource } from '@semiont/core';
+import { EventQuery } from '@semiont/event-sourcing';
+import type { ViewStorage } from '@semiont/event-sourcing';
+import type { KnowledgeBase } from './knowledge-base';
+import { readAnchoredText } from './read-anchored-text';
+import { resourceWithViewGrace } from './graph-read-grace';
+import { readEntityTypesProjection } from './views/entity-types-reader';
+import { readTagSchemasProjection } from './views/tag-schemas-reader';
+import { AnnotationContext } from './annotation-context';
+import { ResourceContext } from './resource-context';
+import { assembleResourceGraph } from './resource-graph';
+import type { MakeMeaningConfig } from './config';
+import { deriveAgentRoster } from './agent-roster';
+import type { LimitsDiscovery } from './limits-discovery';
+import type { EmbeddingProvider } from '@semiont/vectors';
+
+type DirectoryEntry = components['schemas']['DirectoryEntry'];
+type FileEntry      = components['schemas']['FileEntry'];
+type DirEntry       = components['schemas']['DirEntry'];
+
+export class Browser {
+  private subscriptions: Subscription[] = [];
+  private readonly logger: Logger;
+
+  constructor(
+    private views: ViewStorage,
+    private kb: KnowledgeBase,
+    private eventBus: EventBus,
+    private project: SemiontProject,
+    private config: MakeMeaningConfig,
+    /** Discovered per-(provider, model) ceilings for the roster (INFERENCE-LIMITS-EXPOSURE P2). */
+    private limitsDiscovery: LimitsDiscovery,
+    /** For the semantic search fallback — mandatory (MANDATORY-EMBEDDING D0). */
+    private embeddingProvider: EmbeddingProvider,
+    logger: Logger,
+  ) {
+    this.logger = logger;
+  }
+
+  async initialize(): Promise<void> {
+    this.logger.info('Browser actor initialized');
+
+    const errorHandler = (err: unknown) =>
+      this.logger.error('Browser pipeline error', { error: err });
+
+    const pipe = <K extends keyof EventMap>(
+      name: K,
+      handler: (event: EventMap[K]) => Promise<void>,
+    ) => this.eventBus.get(name).pipe(
+      mergeMap((event) =>
+        from(withActorSpan('browser', name as string, () => handler(event))).pipe(
+          // Isolate per-event failures: a single handler throw must NOT tear down the
+          // channel subscription for every future request — that's the browse:entity-types
+          // wedge (.plans/bugs/browse-entity-types-never-responds.md). Handlers emit their
+          // own *-failed reply; this is the structural backstop for any throw that escapes a
+          // handler's try/catch — the channel survives, the offending request is logged.
+          // (A per-channel *-failed can't be emitted from this generic helper without the
+          // request→failure mapping — that's the Tier 1 operations registry.)
+          catchError((error) => {
+            this.logger.error(`browse handler threw on ${name as string}`, { error: errField(error) });
+            return EMPTY;
+          }),
+        ),
+      ),
+    );
+
+    this.subscriptions.push(
+      pipe('browse:resource-requested',          (e) => this.handleBrowseResource(e)).subscribe({ error: errorHandler }),
+      pipe('browse:anchored-text-requested',     (e) => this.handleAnchoredText(e)).subscribe({ error: errorHandler }),
+      pipe('browse:resources-requested',         (e) => this.handleBrowseResources(e)).subscribe({ error: errorHandler }),
+      pipe('browse:annotations-requested',       (e) => this.handleBrowseAnnotations(e)).subscribe({ error: errorHandler }),
+      pipe('browse:annotation-requested',        (e) => this.handleBrowseAnnotation(e)).subscribe({ error: errorHandler }),
+      pipe('browse:events-requested',            (e) => this.handleBrowseEvents(e)).subscribe({ error: errorHandler }),
+      pipe('browse:annotation-history-requested',(e) => this.handleBrowseAnnotationHistory(e)).subscribe({ error: errorHandler }),
+      pipe('browse:referenced-by-requested',     (e) => this.handleReferencedBy(e)).subscribe({ error: errorHandler }),
+      pipe('browse:entity-types-requested',      (e) => this.handleEntityTypes(e)).subscribe({ error: errorHandler }),
+      pipe('browse:tag-schemas-requested',       (e) => this.handleTagSchemas(e)).subscribe({ error: errorHandler }),
+      pipe('browse:agents-requested',            (e) => this.handleBrowseAgents(e)).subscribe({ error: errorHandler }),
+      pipe('browse:directory-requested',         (e) => this.handleBrowseDirectory(e)).subscribe({ error: errorHandler }),
+    );
+  }
+
+  // ========================================================================
+  // KB read handlers
+  // ========================================================================
+
+  /**
+   * Serve a resource's derived coordinate map (ANCHORED-TEXT-CACHE Lane 5).
+   *
+   * Read-your-writes on the same barrier `llm-context` uses for vectors: a
+   * caller may arrive before the Smelter has finished the resource it just
+   * uploaded, so a miss waits for that content generation to settle rather than
+   * reporting "no map" for a document that is merely still being read.
+   *
+   * **This path never invokes the engine.** The Smelter is the sole producer.
+   * A miss that survives the barrier answers `null`, and the caller degrades —
+   * for a PDF annotation that means geometry with no quoted text, which is what
+   * shipped before any of this existed. OCR in a request path is precisely what
+   * this design exists to avoid.
+   */
+  private async handleAnchoredText(event: EventMap['browse:anchored-text-requested']): Promise<void> {
+    try {
+      this.eventBus.get('browse:anchored-text-result').next({
+        correlationId: event.correlationId,
+        response: await readAnchoredText(this.kb, event.resourceId),
+      });
+    } catch (error) {
+      this.logger.error('Browse anchored text failed', { resourceId: event.resourceId, error: errField(error) });
+      this.eventBus.get('browse:anchored-text-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseResource(event: EventMap['browse:resource-requested']): Promise<void> {
+    try {
+      const response = await assembleResourceGraph(this.kb, resourceId(event.resourceId));
+
+      if (!response) {
+        this.eventBus.get('browse:resource-failed').next({
+          correlationId: event.correlationId,
+          message: 'Resource not found',
+        });
+        return;
+      }
+
+      this.eventBus.get('browse:resource-result').next({
+        correlationId: event.correlationId,
+        response,
+      });
+    } catch (error) {
+      this.logger.error('Browse resource failed', { resourceId: event.resourceId, error: errField(error) });
+      this.eventBus.get('browse:resource-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseResources(event: EventMap['browse:resources-requested']): Promise<void> {
+    try {
+      const offset = event.offset ?? 0;
+      const limit = event.limit ?? 50;
+
+      const result = await ResourceContext.listResources({
+        search: event.search,
+        archived: event.archived,
+        entityType: event.entityType,
+        offset,
+        limit,
+      }, this.kb, {
+        embeddingProvider: this.embeddingProvider,
+        semanticFloor: this.config.search.semanticFloor,
+        logger: this.logger,
+      });
+
+      // Add content previews for lexical search results. Semantic hits
+      // already carry `content` — the passage that actually matched — and
+      // a first-200-chars preview must not overwrite it (SEMANTIC-FALLBACK).
+      const formattedDocs = event.search && result.matchKind === 'lexical'
+        ? await ResourceContext.addContentPreviews(result.resources, this.kb)
+        : result.resources;
+
+      this.eventBus.get('browse:resources-result').next({
+        correlationId: event.correlationId,
+        response: {
+          resources: formattedDocs,
+          total: result.total,
+          offset,
+          limit,
+          // The producer of the answer labels it (P1b moved the label here
+          // from a hardcoded 'lexical' when the fallback landed).
+          matchKind: result.matchKind,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse resources failed', { error: errField(error) });
+      this.eventBus.get('browse:resources-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseAnnotations(event: EventMap['browse:annotations-requested']): Promise<void> {
+    try {
+      const annotations = await AnnotationContext.getAllAnnotations(resourceId(event.resourceId), this.kb);
+
+      this.eventBus.get('browse:annotations-result').next({
+        correlationId: event.correlationId,
+        response: {
+          annotations,
+          total: annotations.length,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error: errField(error) });
+      this.eventBus.get('browse:annotations-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseAnnotation(event: EventMap['browse:annotation-requested']): Promise<void> {
+    try {
+      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
+
+      if (!annotation) {
+        this.eventBus.get('browse:annotation-failed').next({
+          correlationId: event.correlationId,
+          message: 'Annotation not found',
+        });
+        return;
+      }
+
+      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.kb);
+
+      // Resolve linked resource if annotation body contains a link
+      let resolvedResource = null;
+      const bodySource = getBodySource(annotation.body);
+      if (bodySource) {
+        resolvedResource = await ResourceContext.getResourceMetadata(resourceId(bodySource), this.kb);
+      }
+
+      this.eventBus.get('browse:annotation-result').next({
+        correlationId: event.correlationId,
+        response: {
+          annotation,
+          resource,
+          resolvedResource,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
+      this.eventBus.get('browse:annotation-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseEvents(event: EventMap['browse:events-requested']): Promise<void> {
+    try {
+      const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
+      const filters: any = {
+        resourceId: resourceId(event.resourceId),
+      };
+
+      if (event.type) {
+        filters.eventTypes = [event.type];
+      }
+      if (event.userId) {
+        filters.userId = event.userId;
+      }
+      if (event.limit) {
+        filters.limit = event.limit;
+      }
+
+      const storedEvents = await eventQuery.queryEvents(filters);
+
+      this.eventBus.get('browse:events-result').next({
+        correlationId: event.correlationId,
+        response: {
+          events: storedEvents,
+          total: storedEvents.length,
+          resourceId: event.resourceId,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse events failed', { resourceId: event.resourceId, error: errField(error) });
+      this.eventBus.get('browse:events-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseAnnotationHistory(event: EventMap['browse:annotation-history-requested']): Promise<void> {
+    try {
+      // Verify annotation exists
+      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
+      if (!annotation) {
+        this.eventBus.get('browse:annotation-history-failed').next({
+          correlationId: event.correlationId,
+          message: 'Annotation not found',
+        });
+        return;
+      }
+
+      const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
+      const allEvents = await eventQuery.queryEvents({ resourceId: resourceId(event.resourceId) });
+
+      // Filter events related to this annotation
+      const annotationEvents = allEvents.filter((stored) => {
+        const p = stored.payload as any;
+        if (p?.highlightId === event.annotationId) return true;
+        if (p?.referenceId === event.annotationId) return true;
+        return false;
+      });
+
+      // Sort by sequence number
+      annotationEvents.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+
+      this.eventBus.get('browse:annotation-history-result').next({
+        correlationId: event.correlationId,
+        response: {
+          events: annotationEvents,
+          total: annotationEvents.length,
+          annotationId: event.annotationId,
+          resourceId: event.resourceId,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
+      this.eventBus.get('browse:annotation-history-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleReferencedBy(
+    event: EventMap['browse:referenced-by-requested'],
+  ): Promise<void> {
+    try {
+      this.logger.debug('Looking for annotations referencing resource', {
+        resourceId: event.resourceId,
+        motivation: event.motivation || 'all',
+      });
+
+      // The inbound edge query is eventually consistent BY DESIGN
+      // (graph-read-after-write-coverage.md, mechanism (d)): the racing
+      // write lives in the CITING resource's stream, so no per-resource
+      // wait key exists here — and every consumer sits behind the SDK's
+      // referencedBy cache, whose staleness window dwarfs the Weaver's
+      // ~tens-of-ms apply lag. A just-woven edge appears on the next read.
+      const references = await this.kb.graph.getResourceReferencedBy(resourceId(event.resourceId), event.motivation);
+
+      const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
+      // Citer hydration IS id-keyed: graph-first with view fallback
+      // (mechanism (b′)) — a woven edge whose endpoint isn't woven yet must
+      // not render "Untitled Resource"; the view holds the fresher descriptor.
+      const resolved = await Promise.all(
+        sourceIds.map(id => resourceWithViewGrace(this.kb, resourceId(id))),
+      );
+
+      const docMap = new Map(
+        resolved.filter(r => r.resource !== null).map(r => [r.resource!['@id'], r.resource!]),
+      );
+      for (let i = 0; i < sourceIds.length; i++) {
+        if (resolved[i].laggedBehindView) {
+          this.logger.info('[graph lag] citer hydrated from view', { resourceId: sourceIds[i] });
+        } else if (resolved[i].resource === null) {
+          this.logger.warn('Referenced resource not found in graph or view', { resourceId: sourceIds[i] });
+        }
+      }
+
+      const referencedBy = references.map(ref => {
+        const targetSource = getTargetSource(ref.target);
+        const targetSelector = getTargetSelector(ref.target);
+        const doc = targetSource ? docMap.get(resourceId(targetSource)) : undefined;
+        return {
+          id: ref.id,
+          resourceName: doc?.name || 'Untitled Resource',
+          target: {
+            source: targetSource,
+            selector: {
+              exact: targetSelector ? getExactText(targetSelector) : '',
+            },
+          },
+        };
+      });
+
+      this.eventBus.get('browse:referenced-by-result').next({
+        correlationId: event.correlationId,
+        response: { referencedBy },
+      });
+    } catch (error) {
+      this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error: errField(error) });
+      this.eventBus.get('browse:referenced-by-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleEntityTypes(event: EventMap['browse:entity-types-requested']): Promise<void> {
+    try {
+      const entityTypes = await readEntityTypesProjection(this.project);
+      this.eventBus.get('browse:entity-types-result').next({
+        correlationId: event.correlationId,
+        response: { entityTypes },
+      });
+    } catch (error) {
+      this.logger.error('Entity types read failed', { error: errField(error) });
+      this.eventBus.get('browse:entity-types-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleTagSchemas(event: EventMap['browse:tag-schemas-requested']): Promise<void> {
+    try {
+      const tagSchemas = await readTagSchemasProjection(this.project);
+      this.eventBus.get('browse:tag-schemas-result').next({
+        correlationId: event.correlationId,
+        response: { tagSchemas },
+      });
+    } catch (error) {
+      this.logger.error('Tag schemas read failed', { error: errField(error) });
+      this.eventBus.get('browse:tag-schemas-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseAgents(event: EventMap['browse:agents-requested']): Promise<void> {
+    try {
+      // Derived per request from the config sections that route work — the
+      // declared roster, cheap enough that no caching layer is warranted.
+      // Enrichment attaches discovered ceilings where the pool answers
+      // within its budget; every failure shape degrades to an entry
+      // without `limits` (D3) — the reply itself never fails or blocks
+      // on a provider.
+      const agents = await this.limitsDiscovery.enrich(deriveAgentRoster(this.config));
+      this.eventBus.get('browse:agents-result').next({
+        correlationId: event.correlationId,
+        response: { agents },
+      });
+    } catch (error) {
+      this.logger.error('Agent roster derivation failed', { error: errField(error) });
+      this.eventBus.get('browse:agents-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  // ========================================================================
+  // Filesystem read handler
+  // ========================================================================
+
+  private async handleBrowseDirectory(
+    event: EventMap['browse:directory-requested'],
+  ): Promise<void> {
+    const { correlationId, path: reqPath, sort = 'name' } = event;
+
+    // Resolve and validate path
+    const projectRoot = this.project.root;
+    const resolved = path.resolve(projectRoot, reqPath);
+
+    if (!resolved.startsWith(projectRoot + path.sep) && resolved !== projectRoot) {
+      this.eventBus.get('browse:directory-failed').next({
+        correlationId,
+        path: reqPath,
+        message: 'path escapes project root',
+      });
+      return;
+    }
+
+    let dirents: Dirent<string>[];
+    try {
+      dirents = await fs.readdir(resolved, { withFileTypes: true, encoding: 'utf8' });
+    } catch (err: any) {
+      const msg = err.code === 'ENOENT' ? 'path not found' : String(err);
+      this.eventBus.get('browse:directory-failed').next({
+        correlationId,
+        path: reqPath,
+        message: msg,
+      });
+      return;
+    }
+
+    // Exclude .semiont — internal infrastructure
+    const visible = dirents.filter((d) => d.name !== '.semiont' && !d.name.startsWith('.'));
+
+    // Build a map of storageUri → ResourceView for all tracked resources
+    // whose storageUri starts with the resolved directory prefix.
+    const allViews = await this.views.getAll();
+    const prefix = `file://${resolved}`;
+    const viewsByUri = new Map(
+      allViews
+        .filter((v) => v.resource.storageUri?.startsWith(prefix + '/') || v.resource.storageUri?.startsWith(prefix + path.sep))
+        .map((v) => [v.resource.storageUri!, v]),
+    );
+
+    // Build entries
+    const entries: DirectoryEntry[] = [];
+
+    for (const dirent of visible) {
+      const entryPath = path.join(resolved, dirent.name);
+      const relPath   = path.relative(projectRoot, entryPath);
+
+      if (dirent.isDirectory()) {
+        let mtime = new Date(0).toISOString();
+        try {
+          const stat = await fs.stat(entryPath);
+          mtime = stat.mtime.toISOString();
+        } catch { /* skip — entry may have disappeared */ }
+
+        const entry: DirEntry = { type: 'dir', name: dirent.name, path: relPath, mtime };
+        entries.push(entry);
+      } else if (dirent.isFile()) {
+        let size = 0;
+        let mtime = new Date(0).toISOString();
+        try {
+          const stat = await fs.stat(entryPath);
+          size  = stat.size;
+          mtime = stat.mtime.toISOString();
+        } catch { /* skip */ }
+
+        const storageUri = `file://${entryPath}`;
+        const view = viewsByUri.get(storageUri);
+
+        let entry: FileEntry;
+        if (view) {
+          const annotations = view.annotations.annotations ?? [];
+          entry = {
+            type:            'file',
+            name:            dirent.name,
+            path:            relPath,
+            size,
+            mtime,
+            tracked:         true,
+            resourceId:      view.resource['@id'],
+            entityTypes:     view.resource.entityTypes ?? [],
+            annotationCount: annotations.length,
+            creator:         (() => { const a = view.resource.wasAttributedTo; return Array.isArray(a) ? a[0]?.['@id'] : a?.['@id']; })(),
+          };
+        } else {
+          entry = { type: 'file', name: dirent.name, path: relPath, size, mtime, tracked: false };
+        }
+        entries.push(entry);
+      }
+    }
+
+    // Sort
+    entries.sort((a, b) => {
+      if (sort === 'mtime') {
+        return (b.mtime ?? '').localeCompare(a.mtime ?? '');
+      }
+      if (sort === 'annotationCount') {
+        const ac = (e: DirectoryEntry) => e.type === 'file' ? (e.annotationCount ?? 0) : 0;
+        return ac(b) - ac(a);
+      }
+      // default: name
+      return a.name.localeCompare(b.name);
+    });
+
+    this.eventBus.get('browse:directory-result').next({
+      correlationId,
+      response: { path: reqPath, entries },
+    });
+  }
+
+  async stop(): Promise<void> {
+    for (const sub of this.subscriptions) {
+      sub.unsubscribe();
+    }
+    this.subscriptions = [];
+    this.logger.info('Browser actor stopped');
+  }
+}

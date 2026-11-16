@@ -2,31 +2,17 @@ name: Publish Service Container Images
 
 run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-run)' || '' }}"
 
-# Builds and publishes the seven Semiont service images
-# (gateway · worker · smelter · weaver · archivist · librarian · dispatcher).
-# All seven are built from this checkout and report version.json's version:
-# the gateway, the dispatcher and the archivist compiled from images/gateway,
-# images/dispatcher and images/archivist, and the worker, the smelter, the weaver
-# and the librarian, the Python services of images/worker, images/smelter,
-# images/weaver and images/librarian, each installed with what its uv.lock pins.
-# Each is scanned, pushed for both platforms, and attested with its SBOM, and
-# passes a license-policy gate.
-# Config is runtime (bind-mount); the images ship config-free.
-#
-# The gateway, the dispatcher and the archivist compile Rust, and the gateway's
-# arm64 half takes over an hour under emulation, so each of their platforms
-# builds on a runner of its own architecture and pushes by digest, and the
-# manifest job joins the two under the tags. The other four compile nothing in
-# their images: the worker, the smelter, the weaver and the librarian install
-# wheels their lockfiles name for both platforms, the smelter with the
-# packages Alpine has for both. Emulation handles that in minutes, so each
-# publishes both platforms from one leg.
+# Builds and publishes the four backend-side service images
+# (backend · worker · smelter · weaver) from the published @semiont/* packages,
+# mirroring publish-frontend.yml's verify-npm → scan → multi-arch push → SBOM →
+# attest spine, with an added license-policy gate. Config is runtime (bind-mount);
+# the images ship config-free.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'The version to tag the images with (e.g. 0.5.13, 0.5.13-build.42)'
+        description: '@semiont/* version to bundle (e.g. 0.5.13, 0.5.13-build.42, latest)'
         required: true
         type: string
       dry_run:
@@ -48,126 +34,45 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
 
     strategy:
       # One service's failure must not cancel the others' publishes.
       fail-fast: false
       matrix:
         include:
-          # `runner`: the machine the leg runs on. `scan`: the platform its gates
-          # build and run, the runner's own. `platforms`: what it publishes.
-          # `arch`: a leg that publishes one architecture by digest, for
-          # the manifest job to join; a leg without one publishes tagged.
-          # `refusal`: what the image says, run bare, when it reaches its own
-          # configuration.
-          - service: gateway
-            arch: amd64
-            runner: ubuntu-latest
-            scan: linux/amd64
-            platforms: linux/amd64
-            dockerfile: images/gateway/Dockerfile
-            refusal: "Cannot read the gateway's configuration document"
-          - service: gateway
-            arch: arm64
-            runner: ubuntu-24.04-arm
-            scan: linux/arm64
-            platforms: linux/arm64
-            dockerfile: images/gateway/Dockerfile
-            refusal: "Cannot read the gateway's configuration document"
+          - service: backend
+            dockerfile: apps/backend/Dockerfile
+            verify_packages: '@semiont/backend'
           - service: worker
-            runner: ubuntu-latest
-            scan: linux/amd64
-            platforms: linux/amd64,linux/arm64
-            dockerfile: images/worker/Dockerfile
-            refusal: "Cannot read the worker's configuration document"
+            dockerfile: packages/jobs/Dockerfile
+            verify_packages: '@semiont/jobs'
           - service: smelter
-            runner: ubuntu-latest
-            scan: linux/amd64
-            platforms: linux/amd64,linux/arm64
-            dockerfile: images/smelter/Dockerfile
-            refusal: "Cannot read the smelter's configuration document"
+            dockerfile: packages/make-meaning/Dockerfile.smelter
+            verify_packages: '@semiont/make-meaning'
           - service: weaver
-            runner: ubuntu-latest
-            scan: linux/amd64
-            platforms: linux/amd64,linux/arm64
-            dockerfile: images/weaver/Dockerfile
-            refusal: "Cannot read the weaver's configuration document"
-          - service: archivist
-            arch: amd64
-            runner: ubuntu-latest
-            scan: linux/amd64
-            platforms: linux/amd64
-            dockerfile: images/archivist/Dockerfile
-            refusal: "Cannot read the archivist's configuration document"
-          - service: archivist
-            arch: arm64
-            runner: ubuntu-24.04-arm
-            scan: linux/arm64
-            platforms: linux/arm64
-            dockerfile: images/archivist/Dockerfile
-            refusal: "Cannot read the archivist's configuration document"
-          - service: librarian
-            runner: ubuntu-latest
-            scan: linux/amd64
-            platforms: linux/amd64,linux/arm64
-            dockerfile: images/librarian/Dockerfile
-            refusal: "Cannot read the librarian's configuration document"
-          - service: dispatcher
-            arch: amd64
-            runner: ubuntu-latest
-            scan: linux/amd64
-            platforms: linux/amd64
-            dockerfile: images/dispatcher/Dockerfile
-            refusal: "Cannot read the dispatcher's configuration document"
-          - service: dispatcher
-            arch: arm64
-            runner: ubuntu-24.04-arm
-            scan: linux/arm64
-            platforms: linux/arm64
-            dockerfile: images/dispatcher/Dockerfile
-            refusal: "Cannot read the dispatcher's configuration document"
+            dockerfile: packages/make-meaning/Dockerfile.weaver
+            verify_packages: '@semiont/make-meaning'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
-      # The license gate runs node; an arm64 runner's image need not carry it.
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-
-      # The gateway, the dispatcher and the archivist compile with the toolchain
-      # rust-toolchain.toml pins; the worker, the smelter, the weaver and the
-      # librarian run on the Python packages/python/sdk/pyproject.toml states as
-      # the oldest supported. The toolchain, or the Python, is read before
-      # anything is written, so a file that names none fails this step, and so
-      # does a service that is neither.
-      - name: Build arguments
-        id: args
+      - name: Verify packages exist on npm
         run: |
-          if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ] || [ "${{ matrix.service }}" = archivist ]; then
-            toolchain=$(packages/rust/scripts/rust-toolchain.sh)
-            argument="RUST_TOOLCHAIN=$toolchain"
-          elif [ "${{ matrix.service }}" = worker ] || [ "${{ matrix.service }}" = smelter ] || [ "${{ matrix.service }}" = weaver ] || [ "${{ matrix.service }}" = librarian ]; then
-            floor=$(packages/python/scripts/python-floor.sh)
-            argument="PYTHON_FLOOR=$floor"
-          else
-            echo "::error::${{ matrix.service }} is neither a Rust service nor a Python one: this step knows no build argument for it."
-            exit 1
-          fi
-          {
-            echo "args<<EOF"
-            echo "$argument"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          for pkg in ${{ matrix.verify_packages }}; do
+            npm view "${pkg}@${{ inputs.version }}" version || {
+              echo "❌ ${pkg}@${{ inputs.version }} not found on npm"
+              exit 1
+            }
+          done
+          echo "✅ ${{ matrix.service }} packages exist at ${{ inputs.version }}"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4.4.1
+        uses: docker/setup-buildx-action@v4.3.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4.7.0
+        uses: docker/login-action@v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -175,31 +80,38 @@ jobs:
 
       - name: Determine tags
         id: tags
-        run: images/scripts/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          IMAGE="ghcr.io/the-ai-alliance/semiont-${{ matrix.service }}"
+          TAGS="$IMAGE:${{ inputs.version }}"
+          TAGS="$TAGS,$IMAGE:sha-$COMMIT_SHA"
+          if [ "${{ inputs.tag_latest }}" = "true" ]; then
+            TAGS="$TAGS,$IMAGE:latest"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
 
-      # Single-platform build for scanning + SBOM, on the runner's own platform.
-      # For an emulated multi-arch leg, amd64 OS-package CVEs cover arm64 too
-      # since base layers share package versions, and OS/library licenses are
-      # platform-independent, so one build feeds both gates. Both builds share
-      # the GHA cache; the publishing build below is a near-instant cache hit on
-      # the scanned platform.
-      - name: Build image (${{ matrix.scan }}, for scan + SBOM)
+      # Single-platform build for scanning + SBOM. amd64 OS-package CVEs cover
+      # arm64 too since base layers share package versions, and OS/library
+      # licenses are platform-independent, so one build feeds both gates. Both
+      # builds share the GHA cache; the multi-arch rebuild below is a near-instant
+      # cache hit on amd64.
+      - name: Build image (amd64, for scan + SBOM)
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./${{ matrix.dockerfile }}
-          platforms: ${{ matrix.scan }}
+          platforms: linux/amd64
           load: true
           tags: semiont-${{ matrix.service }}:scan
-          build-args: ${{ steps.args.outputs.args }}
+          build-args: |
+            SEMIONT_VERSION=${{ inputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
-        env:
-          TRIVY_SECRET_CONFIG: .github/trivy-secret.yaml
-          TRIVY_IGNOREFILE: .github/trivyignore.yaml
         with:
           image-ref: semiont-${{ matrix.service }}:scan
           severity: HIGH,CRITICAL
@@ -216,138 +128,31 @@ jobs:
           format: spdx-json
           output: sbom.spdx.json
 
-      # License-policy gate: the license of every package the image installs
-      # from PyPI must be on the permissive allowlist, else the publish fails
-      # for a human review.
+      # License-policy gate: every bundled npm dependency's license must be on the
+      # permissive allowlist, else the publish fails for a human review.
       - name: License policy gate
         run: node .github/scripts/check-licenses.mjs sbom.spdx.json .github/licenses/allowlist.txt .github/licenses/exceptions.txt
 
-      # Boot smoke: run the image built above for the scan and require that it
-      # gets as far as CONFIG RESOLUTION. Every defect this catches dies in
-      # milliseconds, before any dependency matters — a missing entry
-      # point, an unresolved import, a native module absent for the platform —
-      # and every one of them would otherwise be published and only discovered
-      # when a stack refused to come up.
-      #
-      # Run BARE, with no config and no env, deliberately: the assertion is
-      # about how FAR the process gets, and inventing a config or an env set
-      # here would restate a contract the launcher owns (its args builders) in
-      # a place nothing keeps in sync. Reaching the service's own refusal is
-      # proof the entry point resolved and everything it imports to get there
-      # did — without standing up a single dependency. It is not proof for
-      # what a service imports later: the worker imports a provider's library
-      # when an agent is made for that provider, the weaver a database's
-      # client when its document names that database, the librarian both, and
-      # the smelter loads PDFium and runs the `tesseract` program once it has
-      # read its document, which a Python image's own check below holds.
-      #
-      # This is the cheap half. It does NOT prove the service reaches a healthy
-      # state with real config; that needs the launcher-derived env (and a
-      # --check-config entry point would make it exact).
-      - name: Boot smoke (reaches config resolution)
-        run: |
-          set +e
-          out=$(docker run --rm semiont-${{ matrix.service }}:scan 2>&1)
-          set -e
-          echo "$out"
-          # What Python says of a module it cannot load.
-          if echo "$out" | grep -qE "ModuleNotFoundError|ImportError|No module named"; then
-            echo "::error::${{ matrix.service }} image died at module load — the entry point or a dependency is missing from the image."
-            exit 1
-          fi
-          # The refusal each service raises when it has no document. A change
-          # to the message should fail here loudly rather than pass silently.
-          if ! echo "$out" | grep -qF "${{ matrix.refusal }}"; then
-            echo "::error::${{ matrix.service }} image did not reach config resolution. Expected \"${{ matrix.refusal }}\"; see the output above for where it stopped instead."
-            exit 1
-          fi
-          echo "${{ matrix.service }}: entry point and imports resolved, reached config resolution"
-
-      # The gateway image carries no source and starts within its bound.
-      - name: Check the gateway image
-        if: matrix.service == 'gateway'
-        run: images/scripts/check-gateway-image.sh semiont-${{ matrix.service }}:scan docker
-
-      # The dispatcher's and the archivist's images carry no source and no
-      # Node, and refuse at once without their document.
-      - name: Check the image of a service that only reads its document
-        if: matrix.service == 'dispatcher' || matrix.service == 'archivist'
-        run: images/scripts/check-document-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
-
-      # The image of a Python service carries every library it can be
-      # configured for, no installer and no Node, and refuses by name without
-      # its document. The smelter's reads a scanned page with no network.
-      - name: Check the image of a Python service
-        if: matrix.service == 'worker' || matrix.service == 'smelter' || matrix.service == 'weaver' || matrix.service == 'librarian'
-        run: images/scripts/check-python-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
-
       - name: Build and push Docker image
         id: build-push
-        if: ${{ !matrix.arch }}
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platforms }}
-          # `dry_run` is a boolean input. Comparing it to the STRING 'true' coerces
-          # both sides to numbers (true → 1, 'true' → NaN), so `!= 'true'` is true
-          # for every value and a dry run pushes, unattested. Negate the boolean,
-          # as the attest steps do.
-          push: ${{ !inputs.dry_run }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ inputs.dry_run != 'true' }}
           tags: ${{ steps.tags.outputs.tags }}
-          build-args: ${{ steps.args.outputs.args }}
+          build-args: |
+            SEMIONT_VERSION=${{ inputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # One architecture, untagged: the manifest job names it. The push rides
-      # the same negated boolean as the tagged build above.
-      - name: Build and push this architecture by digest
-        id: push-digest
-        if: ${{ matrix.arch }}
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platforms }}
-          outputs: type=image,name=${{ steps.tags.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ !inputs.dry_run }}
-          build-args: ${{ steps.args.outputs.args }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Record this architecture's digest
-        if: ${{ matrix.arch && !inputs.dry_run }}
-        run: |
-          mkdir -p digests
-          digest="${{ steps.push-digest.outputs.digest }}"
-          touch "digests/${digest#sha256:}"
-
-      - name: Hand the digest to the manifest job
-        if: ${{ matrix.arch && !inputs.dry_run }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.service }}-digest-${{ matrix.arch }}
-          path: digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-      # The joined image is attested with the amd64 SBOM, as a tagged multi-arch
-      # build is below.
-      - name: Hand the SBOM to the manifest job
-        if: ${{ matrix.arch == 'amd64' && !inputs.dry_run }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.service }}-sbom
-          path: sbom.spdx.json
-          if-no-files-found: error
-          retention-days: 1
 
       # SLSA build provenance via GitHub's OIDC + Sigstore, stored as an OCI
-      # attestation alongside the image in GHCR, signed by this workflow at
-      # the ref it runs at; the launcher runs the image only when that ref is
-      # a release tag. The Summary step prints the command that verifies it.
-      # A leg with an `arch` is attested once joined, by the manifest job.
+      # attestation alongside the image in GHCR. Verify with:
+      #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-<svc>:VERSION \
+      #     --owner The-AI-Alliance
       - name: Attest build provenance
-        if: ${{ !inputs.dry_run && !matrix.arch }}
+        if: ${{ !inputs.dry_run }}
         uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-name: ${{ steps.tags.outputs.image }}
@@ -355,7 +160,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest SBOM
-        if: ${{ !inputs.dry_run && !matrix.arch }}
+        if: ${{ !inputs.dry_run }}
         uses: actions/attest-sbom@v4
         with:
           subject-name: ${{ steps.tags.outputs.image }}
@@ -365,100 +170,19 @@ jobs:
 
       - name: Summary
         run: |
-          {
-            echo "## semiont-${{ matrix.service }} Container Image"
-            echo ""
-            echo "**Version:** ${{ inputs.version }} (built from this commit)"
-            echo "**Commit:** ${{ steps.tags.outputs.sha }}"
-            echo "**Dry run:** ${{ inputs.dry_run }}"
-            echo ""
-            echo "### Pull with:"
-            echo "\`\`\`bash"
-            echo "docker pull ${{ steps.tags.outputs.image }}:${{ inputs.version }}"
-            echo "\`\`\`"
-            echo ""
-            echo "### Verify supply-chain attestations:"
-            echo "\`\`\`bash"
-            echo "gh attestation verify oci://${{ steps.tags.outputs.image }}:${{ inputs.version }} \\"
-            echo "  --repo $GITHUB_REPOSITORY \\"
-            echo "  --cert-identity https://github.com/${GITHUB_WORKFLOW_REF%@*}@refs/tags/v${{ inputs.version }}"
-            echo "\`\`\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # A service's two architectures, each built on its own runner and pushed by
-  # digest, joined into one image under the tags, then attested.
-  manifest:
-    needs: publish
-    # Each leg of publish succeeds or fails alone (fail-fast is off), so a
-    # failure elsewhere must not hold a service back. A leg that failed leaves
-    # no digest, and its download below fails on it.
-    if: ${{ !cancelled() && !inputs.dry_run }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [gateway, dispatcher, archivist]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.1
-
-      - name: Determine tags
-        id: tags
-        run: images/scripts/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
-
-      - name: Collect the amd64 digest
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ matrix.service }}-digest-amd64
-          path: digests
-
-      - name: Collect the arm64 digest
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ matrix.service }}-digest-arm64
-          path: digests
-
-      - name: Collect the SBOM
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ matrix.service }}-sbom
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4.4.1
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Join the architectures under the tags
-        id: join
-        env:
-          IMAGE: ${{ steps.tags.outputs.image }}
-          TAGS: ${{ steps.tags.outputs.tags }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          tag_args=$(echo "$TAGS" | tr ',' '\n' | sed 's/^/-t /' | tr '\n' ' ')
-          sources=$(cd digests && for d in *; do printf '%s@sha256:%s ' "$IMAGE" "$d"; done)
-          # shellcheck disable=SC2086 # both lists split on spaces by design
-          docker buildx imagetools create $tag_args $sources
-          docker buildx imagetools inspect "$IMAGE:$VERSION"
-          echo "digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
-
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v4.2.2
-        with:
-          subject-name: ${{ steps.tags.outputs.image }}
-          subject-digest: ${{ steps.join.outputs.digest }}
-          push-to-registry: true
-
-      - name: Attest SBOM
-        uses: actions/attest-sbom@v4
-        with:
-          subject-name: ${{ steps.tags.outputs.image }}
-          subject-digest: ${{ steps.join.outputs.digest }}
-          sbom-path: sbom.spdx.json
-          push-to-registry: true
-
+          echo "## semiont-${{ matrix.service }} Container Image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Bundled @semiont/* version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ steps.tags.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.tags.outputs.image }}:${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verify supply-chain attestations:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "gh attestation verify oci://${{ steps.tags.outputs.image }}:${{ inputs.version }} \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --owner The-AI-Alliance" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

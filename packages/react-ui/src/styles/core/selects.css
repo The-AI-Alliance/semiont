@@ -1,0 +1,135 @@
+/* ============================================
+   Selects/Dropdowns - Core UI Element
+
+   This is the authoritative source for all select/dropdown styles.
+   Usage: Apply .semiont-select to <select> elements.
+
+   Available modifiers:
+   - .semiont-select--small (reduced padding)
+   - .semiont-select--large (increased padding)
+   ============================================ */
+
+/* Base Select Styling */
+.semiont-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  font-family: inherit;
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  padding-right: 2rem;
+}
+
+[data-theme="dark"] .semiont-select {
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-gray-700);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%9CA3AF' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+}
+
+/* Focus State - keyboard navigation */
+.semiont-select:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-select:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Remove default focus for mouse users */
+.semiont-select:focus:not(:focus-visible) {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-select:focus:not(:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .semiont-select:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+/* Invalid State */
+.semiont-select[aria-invalid="true"] {
+  border-color: var(--semiont-color-red-500);
+}
+
+[data-theme="dark"] .semiont-select[aria-invalid="true"] {
+  border-color: var(--semiont-color-red-400);
+}
+
+.semiont-select[aria-invalid="true"]:focus-visible {
+  outline: 2px solid var(--semiont-color-red-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-red-500);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="dark"] .semiont-select[aria-invalid="true"]:focus-visible {
+  outline-color: var(--semiont-color-red-400);
+  border-color: var(--semiont-color-red-400);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+/* Disabled State */
+.semiont-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-select:disabled {
+  background-color: var(--semiont-color-gray-800);
+}
+
+/* Option Styling */
+.semiont-select option {
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-select option:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+  background-color: var(--semiont-color-primary-50);
+}
+
+[data-theme="dark"] .semiont-select option {
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-select option:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  background-color: var(--semiont-color-primary-900);
+}
+
+/* Size Variants */
+.semiont-select--small {
+  padding: 0.375rem 1.75rem 0.375rem 0.5rem;
+  font-size: var(--semiont-text-xs);
+}
+
+.semiont-select--large {
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  font-size: var(--semiont-text-base);
+  background-position: right 1rem center;
+}

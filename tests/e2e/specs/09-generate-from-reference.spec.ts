@@ -1,0 +1,247 @@
+import { test, expect } from '../fixtures/auth';
+import { openResourceByName } from '../fixtures/discover';
+import { expectGeneratedAt } from '../fixtures/generated';
+
+/**
+ * Smoke test: the generate-from-unresolved-reference flow runs end-to-end
+ * through the worker pool and produces a `job:complete` (not `job:fail`)
+ * with the new resource id.
+ *
+ * The production chain is:
+ *
+ *   Annotate mode → References panel
+ *     → click ❓ on an unresolved reference
+ *     → ReferenceEntry: `client.bind.initiate({...})`
+ *     → bus `bind:initiate`
+ *     → resource-viewer page state unit opens the wizard
+ *     → user clicks "Generate" (gather step)
+ *     → wizard transitions to `configure-generation`
+ *     → user submits
+ *     → ResourceViewerPage `handleWizardGenerateSubmit`
+ *     → `client.yield.fromContext(context, options)` (ids derived from the focus)
+ *     → bus `job:create` (with jobType="generation")
+ *     → bus `job:created` (jobId)
+ *     → worker claims job, calls inference, uploads result via
+ *       `client.yield.resource(...)` (multipart POST /resources)
+ *     → bus `job:complete` (with `result.resourceId`)
+ *
+ * Why we wait for completion (not just dispatch):
+ *
+ * Spec 06 stops at `job:create` / `job:created` because reference
+ * detection is dispatch-shaped (the LLM round-trip happens out of
+ * band). For *generation*, the load-bearing failure modes are
+ * downstream of dispatch — at upload time, when the worker calls
+ * `client.yield.resource(...)`. A dispatch-only assertion misses the
+ * regression class where dispatch succeeds but the worker's upload
+ * path is broken (e.g. an XHR-only branch in HttpContentTransport
+ * that crashes in Node with "XMLHttpRequest is not defined"). We
+ * wait for `job:complete` (or `job:fail`, which fails the test with
+ * the actual error message).
+ *
+ * Cost: this test is slow because it waits for a real LLM round-trip
+ * plus an upload. Budget: 90s for the generation, 120s for the whole
+ * test. If the seeded KB's inference provider (gemma4:26b on Ollama
+ * by default) is unreachable or slow, this test will time out — but
+ * that's a real environmental break, not a flake.
+ *
+ * Requires the seeded KB to have:
+ *   - At least one resource with at least one *unresolved* reference
+ *     annotation (motivation `linking`, body lacking a SpecificResource).
+ *     The default seed has these on the Leland Stanford / Charles Crocker
+ *     fixtures.
+ *   - A working inference provider configured for the `generation`
+ *     job type.
+ */
+test.describe('generate from unresolved reference', () => {
+  test('clicking generate on an unresolved reference produces a job:complete with a new resourceId', async ({ signedInPage: page, bus }) => {
+    test.setTimeout(120_000);
+
+    // ── Find a resource that still has at least one unresolved reference ──
+    //
+    // This test CONSUMES an unresolved reference (it generates against one), so
+    // it needs a pool, and a rerun may find the first candidate already spent.
+    // Hence a list rather than a single target.
+    //
+    // The candidates are NAMED, and named on purpose. Two earlier revisions
+    // hunted Discover's card list instead, and both were coupled to KB
+    // composition rather than to anything this test is about:
+    //
+    //   - `firstCard` — broke as soon as a generated resource landed newest.
+    //   - "first 8 cards" — broke on 2026-08-07 with 59 resources in the KB:
+    //     the eight newest were an uploaded PDF and suite-generated resources,
+    //     so the seeds carrying ❓ had aged out of the newest-first window and
+    //     the hunt reported `checked 8 cards` with nothing found.
+    //
+    // These two seeds are where the unresolved references actually come from:
+    // spec 05 leaves a manual one on 'Quantum Computing Primer', spec 06 leaves
+    // assisted ones on 'Photosynthesis Overview'. Both run before this file
+    // under the suite's single worker. Searching by name reaches them however
+    // large the KB grows.
+    const CANDIDATES = ['Quantum Computing Primer', 'Photosynthesis Overview'];
+
+    let unresolvedFound = false;
+    for (const name of CANDIDATES) {
+      await openResourceByName(page, name);
+
+      // Enter annotate mode.
+      await page.getByRole('button', { name: /^mode$/i }).click();
+      await page.getByRole('menuitem', { name: /^annotate$/i }).click();
+
+      // Both candidates are text seeds, so CodeMirror is expected — but probe
+      // rather than assert, so a seed changing media type degrades to "try the
+      // next candidate" instead of failing in a way that reads as a product bug.
+      const mounted = await page.locator('.cm-content').first()
+        .waitFor({ state: 'visible', timeout: 8_000 })
+        .then(() => true, () => false);
+      if (!mounted) continue;
+
+      // Switch right sidebar to Annotations → References.
+      // The shell state unit persists the active panel across navigations, so
+      // the Annotations button may already be pressed from a previous
+      // iteration. Toggling it unconditionally would close the panel
+      // and hide the 🔵 References tab. Only click if not pressed.
+      const annotationsBtn = page.getByRole('button', { name: /^annotations$/i });
+      if ((await annotationsBtn.getAttribute('aria-pressed')) !== 'true') {
+        await annotationsBtn.click();
+      }
+      const referencesTab = page.getByRole('button', { name: '🔵', exact: true });
+      await expect(referencesTab).toBeVisible({ timeout: 10_000 });
+      if ((await referencesTab.getAttribute('aria-pressed')) !== 'true') {
+        await referencesTab.click();
+      }
+
+      // Resolved references render 🔗 (clickable to open the target);
+      // unresolved render ❓ (clickable in annotate mode to open the
+      // wizard).
+      const candidate = page.getByRole('main')
+        .locator('button.semiont-reference-icon')
+        .filter({ hasText: '❓' })
+        .first();
+
+      try {
+        await expect(candidate).toBeVisible({ timeout: 5_000 });
+        unresolvedFound = true;
+        bus.clear();
+        await candidate.click();
+        break;
+      } catch {
+        // No ❓ left on this seed — try the next candidate. `openResourceByName`
+        // navigates to Discover itself, so there is nothing to reset here.
+      }
+    }
+
+    expect(
+      unresolvedFound,
+      `no unresolved reference found on any of: ${CANDIDATES.join(', ')}. ` +
+      'These seeds get their ❓ from specs 05 (manual) and 06 (assisted), which run ' +
+      'earlier in the suite — if those failed or were filtered out, this will fail too.',
+    ).toBe(true);
+
+    // ── Wizard opens at the gather step; click Generate ────────────────
+    //
+    // HeadlessUI's `Dialog` wrapper renders with `data-headlessui-state`
+    // toggling between `closed`/`open`, but Playwright's `getByRole('dialog')`
+    // visibility check trips on the transition state. Scope to the
+    // wizard's panel class (`semiont-search-modal__panel`) which only
+    // mounts when the dialog content is fully rendered.
+    const wizard = page.locator('.semiont-search-modal__panel');
+    await expect(wizard).toBeAttached({ timeout: 10_000 });
+
+    // The gather step renders three options: "🔍 Search…", "✨ Generate…",
+    // "✍️ Compose". Match by substring — the emoji prefix and ellipsis
+    // suffix vary per locale.
+    //
+    // These options only render once the backend `gather` flow returns a
+    // GatheredContext (GatherContextStep gates all three on `context`).
+    // Gather makes an LLM call (the inferred-relationship summary), so on a
+    // slow inference provider it can take well over the default 10s action
+    // timeout. Wait for the button explicitly with a gather-appropriate
+    // budget before clicking — otherwise the click races a still-loading
+    // gather and times out at 10s with the button absent.
+    const generateOption = wizard.getByRole('button', { name: /generate/i });
+    await expect(generateOption).toBeVisible({ timeout: 60_000 });
+    await generateOption.click();
+
+    // ── Configure-generation step: fill required fields, submit ────────
+    //
+    // The configure step has two HTML5-required fields:
+    //   - `wizard-title` (pre-filled from the selected text — but we
+    //     overwrite with a unique per-run value so successive test
+    //     runs don't accumulate same-named generated resources at the
+    //     top of Discover, which collides with spec 03's
+    //     "first-two-cards-have-distinct-names" assertion)
+    //   - `wizard-storagePath` (empty by default — we MUST fill this
+    //     or the form won't submit)
+    // Plus optional prompt / language / temperature / maxTokens.
+
+    const runId = Date.now();
+    const title = `e2e-spec-09-${runId}`;
+    const storagePath = `generated/e2e-${runId}.md`;
+    const titleInput = wizard.locator('#wizard-title');
+    await expect(titleInput).toBeAttached({ timeout: 5_000 });
+    await titleInput.fill(title);
+
+    const storagePathInput = wizard.locator('#wizard-storagePath');
+    await storagePathInput.fill(storagePath);
+
+    // Submit. The button label is "✨ Generate" on this step.
+    await wizard.getByRole('button', { name: /generate/i }).last().click();
+
+    // ── Protocol assertions ─────────────────────────────────────────────
+    //
+    // Dispatch: `job:create` was emitted and the backend acked.
+    const { request: createReq } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
+    expect(createReq.cid, 'job:create must carry a correlationId').toBeTruthy();
+
+    // Completion: `job:complete` (not `job:fail`) arrives within the
+    // generation timeout. We race the two so a failure surfaces with
+    // the actual error message rather than as a generic "timeout
+    // waiting for job:complete".
+    const completeOrFail = await Promise.race([
+      bus.waitForRecv('job:complete', { timeout: 90_000 }).then((e) => ({ kind: 'complete' as const, entry: e })),
+      bus.waitForRecv('job:fail', { timeout: 90_000 }).then((e) => ({ kind: 'fail' as const, entry: e })),
+    ]);
+
+    if (completeOrFail.kind === 'fail') {
+      // The bus-log capture only records a prefix of the payload, so the
+      // detailed error is in the raw text. Surface it for diagnostic
+      // value — combined with the jaeger-window-traces.json attachment
+      // (auto-generated by the jaeger fixture), this gives the developer
+      // both the wire-level and span-level view of the failure.
+      throw new Error(
+        `Expected job:complete, got job:fail. Recent bus entries:\n` +
+        bus.entries.slice(-15).map((e) => `  [${e.op}] ${e.channel} ${e.raw}`).join('\n'),
+      );
+    }
+
+    // ── Sanity: the auto-bind side-effect arrives ──────────────────────
+    //
+    // The generation flow auto-binds the unresolved reference to the
+    // newly-created resource via Stower's `yield:create` handler when
+    // `generatedFrom.annotationId` is present. The visible signal of
+    // success (beyond the bare `job:complete`) is a `mark:body-updated`
+    // domain event that flips the reference from ❓ to 🔗.
+    //
+    // `mark:body-updated` is a broadcast domain event, not a
+    // request/response — it does NOT carry a correlationId. Asserting
+    // its arrival is the right shape; asserting on `.cid` would fail
+    // by construction.
+    //
+    // Soft assertion: `job:complete` above is the ground truth. If the
+    // body-update is delayed past the timeout, don't fail the test —
+    // surface a console warning instead so a Stower-side projection
+    // bug shows up in test logs without flaking the regression target.
+    const bodyUpdated = await bus.waitForRecv('mark:body-updated', { timeout: 10_000 }).catch(() => null);
+    if (!bodyUpdated) {
+      // eslint-disable-next-line no-console
+      console.warn('[spec 09] job:complete arrived but mark:body-updated did not — possible Stower projection bug');
+    }
+
+    // ── D6: the artifact landed where the form said ────────────────────────
+    // Not a soft assertion. `wizard-storagePath` is filled above only because
+    // the form refuses to submit without it — which means a worker that
+    // ignored the value (as it did before GENERATION-OUTPUT-FORMAT P0) would
+    // pass every other assertion in this file.
+    await expectGeneratedAt(title, storagePath, 'text/markdown');
+  });
+});

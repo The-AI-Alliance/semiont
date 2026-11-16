@@ -1,24 +1,8 @@
 version: 2
 updates:
-  # All npm dependencies — root + every workspace (apps/*, images/*, packages/typescript/*) in one pass.
+  # All npm dependencies — root + every workspace (apps/*, packages/*) in one pass.
   # A single "/" entry traverses all npm workspaces, so per-workspace entries are
   # redundant. Groups below match by package name across every workspace.
-  #
-  # Every entry ends in a group that takes whatever its earlier groups did not,
-  # so an ecosystem's updates arrive as one pull request a week and one run of
-  # CI, not one of each per package: a Monday once opened ten of them at once on
-  # a pool of twenty jobs, and they were closed unmerged behind a batch. The
-  # rust-toolchain entry moves one file and needs no group.
-  #
-  # The root's @opencode-ai/models is the models.dev catalogue, pinned to one
-  # version. A model catalogue file is generated from it: the file an image
-  # carries for the Python inference drivers, and the one copy the repository
-  # keeps, the fixture of the Python inference package's tests
-  # (packages/python/inference/tests/catalogue). The package is published every
-  # day: this entry's weekly schedule is what keeps it to one bump a week. A
-  # bump comes with the fixture regenerated (`npm run generate:model-catalogue`):
-  # CI's drift job fails until it is, and the diff is the models whose facts
-  # moved, to be read.
   - package-ecosystem: "npm"
     directory: "/"
     versioning-strategy: increase-if-necessary
@@ -35,13 +19,10 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 20
-    # TypeScript 7 is held, here and in the two test suites' entries below.
-    # Remove all three to take it.
-    ignore:
-      - dependency-name: "typescript"
-        versions: [">=7"]
+    reviewers:
+      - "The-AI-Alliance/maintainers"
     labels:
-      - "kind:dependencies"
+      - "dependencies"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -69,21 +50,20 @@ updates:
           - "@tailwindcss/*"
           - "lightningcss"
           - "lightningcss-*"
-      # The @opentelemetry SDK packages share a version line, and each line
-      # requires the API minor it was released with: they move together.
+      # @opentelemetry packages share a version line and root package.json overrides
       opentelemetry:
         patterns:
           - "@opentelemetry/*"
-      # Everything else in one pull request. A dependency goes in the first
-      # group it matches, so the lockstep groups above keep their own.
-      npm:
+      # prisma CLI, @prisma/client, and driver adapters must share a version
+      prisma:
         patterns:
-          - "*"
+          - "prisma"
+          - "@prisma/*"
 
   # E2E test suite — tests/ is NOT in the root workspaces[], so "/" does not reach it;
   # it needs its own entry.
   - package-ecosystem: "npm"
-    directory: "/images/e2e"
+    directory: "/tests/e2e"
     versioning-strategy: increase-if-necessary
     cooldown:
       default-days: 5
@@ -95,55 +75,18 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    # TypeScript 7 is held, as in the root entry.
-    ignore:
-      - dependency-name: "typescript"
-        versions: [">=7"]
+    reviewers:
+      - "The-AI-Alliance/maintainers"
     labels:
-      - "kind:dependencies"
-      - "tests:e2e"
-    groups:
-      e2e:
-        patterns:
-          - "*"
+      - "dependencies"
+      - "tests"
     commit-message:
       prefix: "tests"
       include: "scope"
 
-  # Gateway conformance suite — outside workspaces[] like images/e2e, so it
-  # needs its own entry.
-  - package-ecosystem: "npm"
-    directory: "/protocol/conformance"
-    versioning-strategy: increase-if-necessary
-    cooldown:
-      default-days: 5
-      semver-patch-days: 3
-      semver-minor-days: 5
-      semver-major-days: 14
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    # TypeScript 7 is held, as in the root entry.
-    ignore:
-      - dependency-name: "typescript"
-        versions: [">=7"]
-    labels:
-      - "kind:dependencies"
-      - "tests:conformance"
-    groups:
-      conformance:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "tests"
-      include: "scope"
-
-  # The launcher's program (apps/launcher): the MCP go-sdk and go.yaml.in/yaml,
-  # and packages/go/launcher and packages/go/sdk through replace directives,
-  # plus the `go` directive/toolchain. Reachability-aware stdlib CVE scanning
-  # is handled by govulncheck in ci.yml.
+  # Go launcher (apps/launcher). Stdlib-only today — no third-party module deps —
+  # so this mainly covers the `go` directive/toolchain and anything added later.
+  # Reachability-aware stdlib CVE scanning is handled by govulncheck in ci.yml.
   # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
   - package-ecosystem: "gomod"
     directory: "/apps/launcher"
@@ -154,233 +97,13 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
     labels:
-      - "kind:dependencies"
-      - "app:launcher"
-    groups:
-      launcher:
-        patterns:
-          - "*"
+      - "dependencies"
+      - "launcher"
     commit-message:
       prefix: "launcher"
-      include: "scope"
-
-  # The launcher's libraries (packages/go/launcher): go.yaml.in/yaml,
-  # santhosh-tekuri/jsonschema, sigstore-go, the MCP go-sdk, and
-  # packages/go/sdk through a replace directive, plus the `go`
-  # directive/toolchain.
-  # nats-server is a requirement of the libraries' tests, which read the
-  # broker's config with the parser of the image the launcher runs. Its
-  # version moves with that image's tag (descriptors.go): a bump here alone
-  # fails TestBrokerPairIsReadByTheLaunchedBrokersParser. It is also the
-  # version of the broker CI's conformance jobs install
-  # (.github/scripts/install-nats-server.sh), so a bump here runs every suite
-  # against the new broker.
-  # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
-  - package-ecosystem: "gomod"
-    directory: "/packages/go/launcher"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "app:launcher"
-    groups:
-      # Alone, as the paragraph above says: its bump runs every suite against
-      # the new broker, and the launcher's tests fail until the image moves.
-      nats-server:
-        patterns:
-          - "github.com/nats-io/nats-server/v2"
-      launcher-libraries:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "launcher"
-      include: "scope"
-
-  # Go SDK (packages/go/sdk). Its OWN entry because gomod is not
-  # workspace-aware: this is a separate module, and the launcher's two entries
-  # above update the launcher's go.mod files only.
-  #
-  # Without it this go.mod's requirements drift unseen. The launcher's modules
-  # `replace` this one and MVS resolves the HIGHER requirement, so every build
-  # and govulncheck in the repository see the launcher's version, however far
-  # behind this go.mod's minimum is. That minimum is what a module requiring
-  # the SDK by its path, with no replace, resolves.
-  - package-ecosystem: "gomod"
-    directory: "/packages/go/sdk"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "sdk:go"
-    groups:
-      sdk-go:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "sdk-go"
-      include: "scope"
-
-  # The Go SDK's conformance drivers (packages/go/sdk/conformance): a module of
-  # their own, so that what only a driver takes (an OTLP exporter) reaches no
-  # other module. gomod is not workspace-aware, so it has its own entry.
-  - package-ecosystem: "gomod"
-    directory: "/packages/go/sdk/conformance"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "sdk:go"
-    groups:
-      sdk-go-conformance:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "sdk-go"
-      include: "scope"
-
-  # The Kotlin SDK (packages/kotlin/sdk): a Gradle build whose version catalog
-  # states Kotlin and every dependency, whose lockfiles pin what they resolve
-  # to, and whose wrapper names the Gradle it runs. Dependabot updates all
-  # three. A bump of Kotlin past what CodeQL's extractor reads fails the
-  # nightly analysis (libs.versions.toml says which Kotlin that is).
-  - package-ecosystem: "gradle"
-    directory: "/packages/kotlin/sdk"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "sdk:kotlin"
-    groups:
-      sdk-kotlin:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "sdk-kotlin"
-      include: "scope"
-
-  # The Python projects: the SDK, the inference drivers, the graph stores, the
-  # vector stores and the service package Semiont's Python services are built
-  # from, and the four services themselves, the Worker (images/worker), the
-  # Weaver (images/weaver), the Smelter (images/smelter) and the Librarian
-  # (images/librarian). Their
-  # runtime dependencies, and the tools their gates are made of. The type
-  # checkers, the formatter and the SDK's model generator are pinned to a
-  # version each, because what they say of a package, and what the generator
-  # writes, is held by CI: a bump of one is a change to read, and for the
-  # generator or the formatter it comes with a regenerated types.py. A bump of
-  # Anthropic's library is a change to read too: anthropic.py lists what the
-  # driver leans on in it. So is one of PDFium's binding: pdfium.py lists what
-  # the Smelter's reader leans on in it.
-  # One entry for them all, and a group for each tool they all pin: every
-  # project's tests but the SDK's hold its pins to the SDK's,
-  # so a tool moves in every manifest in one PR, and a gate that goes red
-  # names the tool.
-  - package-ecosystem: "uv"
-    directories:
-      - "/packages/python/sdk"
-      - "/packages/python/inference"
-      - "/packages/python/graph"
-      - "/packages/python/vectors"
-      - "/packages/python/service"
-      - "/images/worker"
-      - "/images/weaver"
-      - "/images/smelter"
-      - "/images/librarian"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    # together 3 is held: it drops /v1 from the client's base URL and moves chat
-    # completions to another host, and the Together driver's model discovery
-    # fails under it. The inference package's extra caps it too (<3).
-    ignore:
-      - dependency-name: "together"
-        versions: [">=3"]
-    groups:
-      mypy:
-        patterns: ["mypy"]
-      pyright:
-        patterns: ["pyright"]
-      ruff:
-        patterns: ["ruff"]
-      pytest:
-        patterns: ["pytest"]
-      # Everything else in one pull request; the tools above are matched first.
-      python:
-        patterns: ["*"]
-    labels:
-      - "kind:dependencies"
-    commit-message:
-      prefix: "python"
-      include: "scope"
-
-  # The Rust workspace's crates (Cargo.toml at the root: the gateway, the
-  # dispatcher and the crates they share), one lockfile for all of them. One grouped PR:
-  # the crates move together (the OpenTelemetry and hyper families
-  # especially), and every bump runs the conformance suites and the crate
-  # licence gate.
-  - package-ecosystem: "cargo"
-    directory: "/packages/rust"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-    groups:
-      gateway-crates:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "gateway"
-      include: "scope"
-
-  # The repository's Rust toolchain (rust-toolchain.toml), which every Rust
-  # build uses. Its channel is also the tag of every Rust image: the service
-  # images' builder stage (rust:<channel>-alpine). local-build.sh,
-  # publish-service-images.yml and build-images.js ask
-  # packages/rust/scripts/rust-toolchain.sh for it, so one bump moves the compiler
-  # everywhere; the cooldown gives the official images time to be published.
-  - package-ecosystem: "rust-toolchain"
-    directory: "/packages/rust"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-    commit-message:
-      prefix: "gateway"
       include: "scope"
 
   # GitHub Actions dependencies
@@ -396,158 +119,48 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
     labels:
-      - "kind:dependencies"
-    groups:
-      actions:
-        patterns:
-          - "*"
+      - "dependencies"
+      - "github-actions"
     commit-message:
       prefix: "actions"
       include: "scope"
 
-  # Browser Docker base image (images/browser/Dockerfile) — docker is not
+  # Frontend Docker base image (apps/frontend/Dockerfile) — docker is not
   # workspace-aware, so each Dockerfile keeps its own entry.
   - package-ecosystem: "docker"
-    directory: "/images/browser"
+    directory: "/apps/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
     labels:
-      - "kind:dependencies"
-      - "image:browser"
-    groups:
-      browser-image:
-        patterns:
-          - "*"
+      - "dependencies"
+      - "frontend"
+      - "docker"
     commit-message:
-      prefix: "browser-docker"
+      prefix: "frontend-docker"
       include: "scope"
 
-  # Service image base images (images/<svc>/Dockerfile). Grouped into one PR:
-  # the gateway's, the dispatcher's and the archivist's runtime base is one
-  # alpine, so an ungrouped bump opens several PRs for one upgrade. Their
-  # builder's Rust tag comes from rust-toolchain.toml, which the rust-toolchain
-  # entry updates. images/browser is Node, and has its own entry. images/worker,
-  # images/smelter, images/weaver and images/librarian are Python, and have their
-  # own too.
+  # Desktop builder Docker base image (apps/desktop/Dockerfile.builder)
   - package-ecosystem: "docker"
-    directories:
-      - "/images/gateway"
-      - "/images/archivist"
-      - "/images/dispatcher"
+    directory: "/apps/desktop"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
     labels:
-      - "kind:dependencies"
-    groups:
-      service-base-images:
-        patterns:
-          - "*"
+      - "dependencies"
+      - "desktop"
+      - "docker"
     commit-message:
-      prefix: "service-docker"
+      prefix: "desktop-docker"
       include: "scope"
-
-  - package-ecosystem: "docker"
-    directory: "/packages/haskell/probes"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 1
-    labels:
-      - "kind:dependencies"
-    groups:
-      haskell-build-images:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "haskell-build-image"
-      include: "scope"
-
-  # The images of the Python services (images/worker/Dockerfile,
-  # images/weaver/Dockerfile, images/smelter/Dockerfile,
-  # images/librarian/Dockerfile). Their Python base is no
-  # tag this entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
-  # packages/python/sdk/pyproject.toml states, which a person moves. What each
-  # file's FROM lines write out, and this entry moves, is the uv that makes
-  # the image's environment, in all four at once. Outside the service group,
-  # whose base is Alpine.
-  - package-ecosystem: "docker"
-    directories:
-      - "/images/worker"
-      - "/images/weaver"
-      - "/images/smelter"
-      - "/images/librarian"
-    # uv makes each image's environment: let a release age before adopting it.
-    # The base-image entries above wait for nothing, so that an image's OS
-    # patches are not held back.
-    # NB: docker cooldown supports only default-days, not the semver tiers.
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-    groups:
-      python-service-images:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "service-docker"
-      include: "scope"
-
-  # The C# solution and the SDK version its global.json pins.
-  - package-ecosystem: "nuget"
-    directory: "/packages/csharp/sdk"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "sdk:csharp"
-    groups:
-      sdk-csharp:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "sdk-csharp"
-      include: "scope"
-  - package-ecosystem: "dotnet-sdk"
-    directory: "/packages/csharp/sdk"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "sdk:csharp"
-    commit-message:
-      prefix: "sdk-csharp"
-      include: "scope"
-  - package-ecosystem: "swift"
-    directory: "/packages/swift/sdk"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "kind:dependencies"
-      - "sdk:swift"
-    groups:
-      sdk-swift:
-        patterns:
-          - "*"

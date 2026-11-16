@@ -1,0 +1,154 @@
+/* ============================================
+   ReferencesPanel Component
+   Reference management panel styles
+   ============================================ */
+
+.semiont-references-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.semiont-references-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-references-panel__item {
+  padding: var(--semiont-panel-padding-md);
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-references-panel__item {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-references-panel__item:hover {
+  border-color: var(--semiont-color-primary-300);
+}
+
+.semiont-references-panel__title {
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+  margin-bottom: var(--semiont-panel-header-margin-bottom);
+}
+
+.semiont-references-panel__path {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-tertiary);
+  margin-top: var(--semiont-panel-padding-xs);
+}
+
+.semiont-references-panel__count {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-tertiary);
+  margin-top: var(--semiont-panel-padding-xs);
+}
+
+/* Reference Icon Group — status icon + hover-reveal unlink */
+.semiont-reference-icon-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.semiont-reference-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  border-radius: var(--semiont-radius-md);
+  border: 1px solid var(--semiont-color-gray-300);
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-secondary);
+  transition: all 0.15s ease;
+}
+
+[data-theme="dark"] .semiont-reference-icon {
+  border-color: var(--semiont-color-gray-600);
+  background: var(--semiont-color-gray-700);
+}
+
+.semiont-reference-icon--clickable {
+  cursor: pointer;
+}
+
+.semiont-reference-icon--clickable:hover {
+  background: var(--semiont-gradient-primary);
+  border-color: var(--semiont-color-primary-300);
+  transform: scale(1.1);
+}
+
+[data-theme="dark"] .semiont-reference-icon--clickable:hover {
+  background: var(--semiont-gradient-primary-dark);
+  border-color: var(--semiont-color-primary-500);
+}
+
+.semiont-reference-icon--clickable:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-reference-icon--clickable:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Generating state pulse on stub icon */
+.semiont-reference-icon[data-generating="true"] {
+  animation: semiont-icon-pulse 1.5s ease-in-out infinite;
+}
+
+[data-theme="dark"] .semiont-reference-icon[data-generating="true"] {
+  animation: semiont-icon-pulse-dark 1.5s ease-in-out infinite;
+}
+
+@keyframes semiont-icon-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.5); }
+  50% { transform: scale(1.2); box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.8); }
+}
+
+@keyframes semiont-icon-pulse-dark {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px 2px rgba(96, 165, 250, 0.6); }
+  50% { transform: scale(1.2); box-shadow: 0 0 16px 4px rgba(96, 165, 250, 0.9); }
+}
+
+/* Hover-reveal unlink button */
+.semiont-reference-unlink {
+  position: absolute;
+  right: -1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.semiont-annotation-entry:hover .semiont-reference-unlink {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.semiont-reference-unlink:hover {
+  transform: translateY(-50%) scale(1.2);
+}
+
+.semiont-reference-unlink:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

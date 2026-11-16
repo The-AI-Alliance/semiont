@@ -1,5 +1,0 @@
-{
-  "type": "object",
-  "description": "Void success reply emitted on the bind:body-updated channel after bind:update-body has been applied, matched to the originating command by correlationId.",
-  "properties": {}
-}

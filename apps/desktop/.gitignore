@@ -1,5 +1,2 @@
-out/
-release/
-.build/
-config.toml
-*.local
+src-tauri/target/
+node_modules/

@@ -14,7 +14,7 @@ To enforce coverage requirements, configure the following in GitHub:
 4. Add these status checks:
    - `codecov/project` - Overall project coverage
    - `codecov/patch` - Coverage for changed code
-   - `Continuous Integration / Test <package_name>` - Individual package tests
+   - `Package Tests / Test <package_name>` - Individual package tests
 
 ### Coverage Requirements
 
@@ -32,20 +32,13 @@ From `codecov.yml`:
 
 To test coverage locally:
 
-Each language measures it as its CI job does, in the package's directory:
-
 ```bash
-# TypeScript: packages/typescript/<name>, and images/browser
-npm run test:coverage && open coverage/index.html
+# For a specific package
+cd packages/<package-name>
+npm run test:coverage
 
-# Python: packages/python/<name>, and the Python images, images/<name>
-uv run pytest --cov --cov-report=html && open htmlcov/index.html
-
-# Rust: packages/rust, the whole workspace, the Rust images' crates among it
-cargo llvm-cov --workspace --open
-
-# Go: packages/go/<name>
-go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out
+# View coverage report
+open coverage/index.html
 ```
 
 ## Codecov Dashboard
@@ -72,6 +65,6 @@ https://app.codecov.io/gh/The-AI-Alliance/semiont
 The following are excluded from coverage:
 - Test files (`*.test.ts`, `*.spec.ts`)
 - Configuration files (`*.config.ts`)
-- Generated files (`types.ts` in core, every `generated/` directory, and Go's `*_gen.go`)
+- Generated files (`types.ts` in core)
 - Build artifacts (`dist/`, `build/`)
 - Examples and demos

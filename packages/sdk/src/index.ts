@@ -1,0 +1,188 @@
+/**
+ * @semiont/sdk
+ *
+ * The Semiont SDK — `SemiontClient`, the verb-oriented namespaces, the
+ * per-tab session layer, the flow state machines and worker adapters,
+ * and the supporting helpers (`bus-request`, `cache`).
+ *
+ * Transport-agnostic: `SemiontClient` consumes the `ITransport` /
+ * `IContentTransport` contracts from `@semiont/core`. The HTTP adapters
+ * (`HttpTransport`, `HttpContentTransport`) are re-exported here for
+ * convenience so the common case is a single import; non-HTTP transports
+ * (e.g. `LocalTransport` from `@semiont/make-meaning`) are constructed
+ * by the caller from their own package.
+ *
+ * Transport-specific error classes (`APIError` from `@semiont/http-transport`)
+ * are NOT re-exported. Catch on `SemiontError` (exported below) and route
+ * on `err.code`; reach for the transport-specific class only when you're
+ * already in HTTP-aware code and import it from `@semiont/http-transport`
+ * directly.
+ *
+ * ```ts
+ * import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
+ * import { baseUrl } from '@semiont/core';
+ *
+ * const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
+ * // HttpTransport implements both ITransport and IBackendOperations;
+ * // passing it as the third arg wires `client.auth` and `client.admin`.
+ * const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
+ * ```
+ */
+
+// SemiontClient + the convenience HTTP-adapter re-exports.
+export * from './client';
+
+// Thenable Observable subclasses — let scripts `await` namespace-method
+// results directly without `lastValueFrom`/`firstValueFrom` wrappers.
+export { StreamObservable, CacheObservable, UploadObservable, type UploadProgress } from './awaitable';
+
+// The SWR cache primitive behind every `browse.*` live query. Exported so
+// consumers of its observables (react-ui's `trackList`) can be tested against
+// the REAL B14/B15 semantics instead of mock subjects — mock-only coverage is
+// how a two-state consumer of a three-outcome cache shipped twice.
+export { createCache, isReady, readyValue, type CacheState, type Cache } from './cache';
+
+// `busRequest` / `BusRequestPrimitive` live in @semiont/core (next to the bus
+// protocol they're coupled to) — import those from there. `BusRequestError` (and
+// its `BusRequestErrorCode`) are re-exported below for catch-convenience, so
+// consumers catch every SDK error from one package.
+
+// Verb-oriented namespace API. Frame is the schema-layer flow's surface;
+// the others are content-layer flows + job/auth/admin.
+export { FrameNamespace } from './namespaces/frame';
+export { BrowseNamespace } from './namespaces/browse';
+export { MarkNamespace } from './namespaces/mark';
+export { BindNamespace } from './namespaces/bind';
+export { GatherNamespace } from './namespaces/gather';
+export { MatchNamespace } from './namespaces/match';
+export { YieldNamespace } from './namespaces/yield';
+export {
+  GenerationStallError,
+  deriveStallDeadlineMs,
+  GENERATION_STALL_FLOOR_MS,
+  GENERATION_STALL_MS_PER_TOKEN,
+  GENERATION_STALL_ASSUMED_MAX_TOKENS,
+} from './namespaces/generation-stall';
+export { BeckonNamespace } from './namespaces/beckon';
+export { JobNamespace } from './namespaces/job';
+export { AuthNamespace } from './namespaces/auth';
+export { AdminNamespace } from './namespaces/admin';
+export type * from './namespaces/types';
+
+// Re-exports from @semiont/core for one-import convenience. The principled
+// boundary still holds — sdk depends on core, never the reverse — but most
+// consumers don't care about the layering and importing branded IDs from
+// the same package as `SemiontClient` is the ergonomic default.
+export type {
+  Logger,
+  // Branded ID + URL + token types
+  AccessToken,
+  AnnotationId,
+  BaseUrl,
+  JobId,
+  RefreshToken,
+  ResourceId,
+  UserDID,
+  UserId,
+  // Verb / shape types
+  Annotation,
+  BodyItem,
+  BodyOperation,
+  EntityType,
+  EventMap,
+  GatheredContext,
+  Motivation,
+  ResourceDescriptor,
+  TagCategory,
+  TagSchema,
+  // Transport contracts
+  ConnectionState,
+  IContentTransport,
+  ITransport,
+  // The state-unit contract — the pattern every layer's factories implement
+  // (docs/STATE-UNITS.md); it lives in core so layers below the sdk share it.
+  StateUnit,
+  // Transport-neutral error-code vocabulary (route on `error.code`).
+  TransportErrorCode,
+  BusRequestErrorCode,
+} from '@semiont/core';
+export {
+  // Brand-cast functions
+  accessToken,
+  annotationId,
+  baseUrl,
+  entityType,
+  jobId,
+  refreshToken,
+  resourceId,
+  userDID,
+  userId,
+  // Unified error base — every Semiont-thrown error extends this.
+  SemiontError,
+  // Bus-mediated command error — re-exported for catch-convenience (defined in
+  // @semiont/core next to busRequest; busRequest itself stays core-only).
+  BusRequestError,
+} from '@semiont/core';
+
+// Session layer — per-KB sessions, app-level browser, storage adapter,
+// error surface, notify module for out-of-React callers.
+export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
+export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
+export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
+export { createHttpSessionFactory } from './session/http-session-factory';
+export { SessionSignals } from './session/session-signals';
+export { SemiontSessionError, type SemiontSessionErrorCode } from './session/errors';
+export { getBrowser, type GetBrowserOptions } from './session/registry';
+export {
+  type SessionStorage,
+  InMemorySessionStorage,
+} from './session/session-storage';
+export {
+  type KnowledgeBase,
+  type KbTarget,
+  type KbEndpoint,
+  type HttpEndpoint,
+  type LocalEndpoint,
+  type NewKnowledgeBase,
+  type KbSessionStatus,
+  httpKb,
+} from './session/knowledge-base';
+export { type OpenResource } from './session/open-resource';
+export {
+  defaultProtocol,
+  isValidHostname,
+  kbBackendUrl,
+  setStoredSession,
+  type StoredSession,
+} from './session/storage';
+
+// State units — flow state machines, worker adapters, RxJS substrate.
+// None presume a UI: they're consumed by browser apps, terminals,
+// daemons, and AI agents alike. See packages/sdk/docs/STATE-UNITS.md.
+export * from './state';
+
+// RxJS bridges — re-exported so consumers can unwrap our Observables to
+// Promises without a separate `import { firstValueFrom } from 'rxjs'`.
+// `mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`
+// all return Observables that consumers typically `lastValueFrom` to await
+// the final value, or `firstValueFrom` to grab the first non-undefined emit.
+export { firstValueFrom, lastValueFrom } from 'rxjs';
+
+// Browser ↔ launcher KB discovery (BROWSER-KB-DISCOVERY P3): the domain
+// layer over the launcher's published export view — one validator, typed
+// absent-vs-managed state, and the poll/diff subscription. IO-abstracted:
+// httpDiscovery for the served mount, textDiscovery for any consumer-owned
+// byte source (no fs in the sdk).
+export {
+  parseDiscoveryDocument,
+  httpDiscovery,
+  textDiscovery,
+  subscribeDiscovery,
+} from './discovery';
+export type {
+  DiscoveryState,
+  DiscoveryReadResult,
+  DiscoveryTransport,
+  DiscoveryDiff,
+  DiscoveryAbsentReason,
+} from './discovery';

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and publishes through the content transport, never over this channel.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "correlationId",
+    "resourceId"
+  ]
+}

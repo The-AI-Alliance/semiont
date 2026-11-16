@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "description": "Result of browsing tag schemas",
+  "properties": {
+    "correlationId": { "type": "string" },
+    "response": { "$ref": "./GetTagSchemasResponse.json" }
+  },
+  "required": ["correlationId", "response"]
+}

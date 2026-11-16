@@ -1,0 +1,1029 @@
+/**
+ * Smelter Tests
+ *
+ * Tests the Smelter worker pipeline:
+ * - Resource embedding and indexing (via embedBatch) on yield:created
+ * - Re-embedding on yield:updated / yield:representation-added
+ * - Annotation embedding and indexing on mark:added
+ * - Deletion handling (mark:archived, mark:removed)
+ * - Burst batching: same-type runs share one embedBatch() call
+ * - Mixed-type bursts partitioned into ordered runs
+ * - Startup reconciliation against a fake KS catalog
+ *
+ * Drives the pipeline with a plain RxJS Subject standing in for the
+ * SmelterActorStateUnit's events$, a mock IContentTransport standing in
+ * for the content store, and a fake bus serving the browse RPC channels.
+ * Uses MemoryVectorStore and a mock EmbeddingProvider.
+ */
+
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
+import type { ExtractionOutcome, EventMap, components } from '@semiont/core';
+import { resourceId as makeResourceId, chunkText } from '@semiont/core';
+import { calculateChecksum, extractPdfTextLayer, EXTRACTORS } from '@semiont/content';
+
+vi.mock('@semiont/content', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/content')>();
+  return {
+    ...actual,
+    EXTRACTORS: {
+      ...actual.EXTRACTORS,
+      // Spread the real extractor so its declared properties (e.g. geometry
+      // capability) survive the spy — only `extract` is wrapped.
+      'pdf-text-layer': { ...actual.EXTRACTORS['pdf-text-layer']!, extract: vi.fn(actual.EXTRACTORS['pdf-text-layer']!.extract) },
+    },
+  };
+});
+import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { MemoryVectorStore } from '@semiont/vectors';
+import type { EmbeddingProvider } from '@semiont/vectors';
+import type { BusRequestPrimitive, ConnectionState } from '@semiont/core';
+import { Smelter } from '../smelter';
+import type { SmelterEvent } from '../smelter-actor-state-unit';
+import {
+  mockLogger,
+  deterministicEmbed,
+  createMockEmbeddingProvider,
+  makeAnnotation,
+  annotationEvent,
+  resourceDescriptor,
+  createMockContentTransport,
+  createContentTransport,
+  createFakeKsBus,
+} from './helpers/smelter-harness';
+import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
+
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
+const tick = (ms = 400) => new Promise(resolve => setTimeout(resolve, ms));
+
+describe('Smelter', () => {
+  let events$: Subject<SmelterEvent>;
+  let vectorStore: MemoryVectorStore;
+  let embeddingProvider: EmbeddingProvider;
+  let contentByResourceId: Map<string, string>;
+  let smelter: Smelter;
+
+  beforeEach(async () => {
+    events$ = new Subject<SmelterEvent>();
+    vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    embeddingProvider = createMockEmbeddingProvider();
+    contentByResourceId = new Map();
+
+    smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(contentByResourceId),
+      createFakeKsBus([]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+  });
+
+  afterEach(() => {
+    smelter.stop();
+  });
+
+  it('initializes without error', () => {
+    expect(smelter).toBeDefined();
+  });
+
+  it('indexes resource vectors on yield:created', async () => {
+    contentByResourceId.set('res-fox', 'The quick brown fox jumps over the lazy dog.');
+
+    events$.next({ type: 'yield:created', resourceId: 'res-fox', payload: {} });
+    await tick();
+
+    expect(embeddingProvider.embedBatch).toHaveBeenCalled();
+    const queryVec = deterministicEmbed('quick brown fox');
+    const results = await vectorStore.searchResources(queryVec, { limit: 5 });
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].resourceId).toBe('res-fox');
+  });
+
+  it('skips resources whose content cannot be fetched', async () => {
+    events$.next({ type: 'yield:created', resourceId: 'res-missing', payload: {} });
+    await tick();
+
+    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+  });
+
+  it('re-embeds resource when yield:updated fires', async () => {
+    contentByResourceId.set('res-updated', 'Initial content for update test.');
+    events$.next({ type: 'yield:created', resourceId: 'res-updated', payload: {} });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    contentByResourceId.set('res-updated', 'Replaced content after update event.');
+    events$.next({ type: 'yield:updated', resourceId: 'res-updated', payload: {} });
+    await tick();
+
+    const callsAfterUpdate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterUpdate).toBeGreaterThan(callsAfterCreate);
+    expect(embeddingProvider.embedBatch).toHaveBeenLastCalledWith(
+      expect.arrayContaining([expect.stringContaining('Replaced content')]),
+    );
+  });
+
+  it('re-embeds resource when yield:representation-added fires', async () => {
+    contentByResourceId.set('res-repr', 'Resource with a new representation.');
+    events$.next({ type: 'yield:created', resourceId: 'res-repr', payload: {} });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    events$.next({ type: 'yield:representation-added', resourceId: 'res-repr', payload: {} });
+    await tick();
+
+    const callsAfterRepr = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterRepr).toBeGreaterThan(callsAfterCreate);
+  });
+
+  it('indexes annotation text on mark:added', async () => {
+    events$.next(annotationEvent('res-1', 'ann-1', 'Lincoln was a great leader'));
+    await tick();
+
+    expect(embeddingProvider.embed).toHaveBeenCalledWith('Lincoln was a great leader');
+    const queryVec = deterministicEmbed('Lincoln was a great leader');
+    const results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
+    expect(results.length).toBeGreaterThan(0);
+  });
+
+  it('deletes resource vectors on mark:archived', async () => {
+    contentByResourceId.set('res-archive', 'Content to be archived.');
+    events$.next({ type: 'yield:created', resourceId: 'res-archive', payload: {} });
+    await tick();
+
+    const queryVec = deterministicEmbed('Content to be archived');
+    let results = await vectorStore.searchResources(queryVec, { limit: 5 });
+    expect(results.length).toBeGreaterThan(0);
+
+    events$.next({ type: 'mark:archived', resourceId: 'res-archive', payload: {} });
+    await tick();
+
+    results = await vectorStore.searchResources(queryVec, { limit: 5 });
+    expect(results.length).toBe(0);
+  });
+
+  it('deletes annotation vector on mark:removed', async () => {
+    events$.next(annotationEvent('res-1', 'ann-removed', 'Soon to be removed'));
+    await tick();
+
+    const queryVec = deterministicEmbed('Soon to be removed');
+    let results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
+    expect(results.length).toBeGreaterThan(0);
+
+    events$.next({ type: 'mark:removed', resourceId: 'res-1', payload: { annotationId: 'ann-removed' } });
+    await tick();
+
+    results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
+    expect(results.length).toBe(0);
+  });
+
+  it('batches a burst of yield:created events after the leading edge', async () => {
+    contentByResourceId.set('res-burst', 'Burst content for batch embedding.');
+
+    // burstBuffer is leading-edge: the first event passes through solo, the
+    // next two accumulate into one batch → one embedBatch call covering both.
+    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
+    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
+    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
+    await tick();
+
+    expect(embeddingProvider.embedBatch).toHaveBeenCalledTimes(2);
+    const lastCall = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.lastCall;
+    expect(lastCall![0]).toHaveLength(2);
+  });
+
+  it('processes mixed-type bursts as ordered same-type runs', async () => {
+    contentByResourceId.set('res-mixed', 'Mixed burst resource content.');
+
+    events$.next({ type: 'yield:created', resourceId: 'res-mixed', payload: {} });
+    events$.next(annotationEvent('res-mixed', 'ann-mixed', 'mixed burst annotation'));
+    await tick();
+
+    expect(embeddingProvider.embedBatch).toHaveBeenCalled();
+    expect(embeddingProvider.embed).toHaveBeenCalledWith('mixed burst annotation');
+    const results = await vectorStore.searchAnnotations(deterministicEmbed('mixed burst annotation'), { limit: 5 });
+    expect(results.length).toBeGreaterThan(0);
+  });
+
+  it('counts processed events for the health endpoint', async () => {
+    contentByResourceId.set('res-count', 'Counted content.');
+    events$.next({ type: 'yield:created', resourceId: 'res-count', payload: {} });
+    await tick();
+
+    expect(smelter.eventsProcessed).toBeGreaterThan(0);
+  });
+
+  it('stops cleanly', () => {
+    smelter.stop();
+  });
+});
+
+describe('Smelter mark:unarchived', () => {
+  // bugs/smelter-misses-unarchive.md — the live path must agree with what a
+  // restart's reconcile() would rebuild: unarchive restores the resource's
+  // vectors AND its current exact-text annotations' vectors.
+  it('re-embeds the resource and its current annotations after archive→unarchive', async () => {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const text = 'Content that survives an archive cycle.';
+    const contentByResourceId = new Map([['res-cycle', text]]);
+    const smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(contentByResourceId),
+      createFakeKsBus(
+        [resourceDescriptor('res-cycle', 'text/plain', calculateChecksum(text))],
+        new Map([['res-cycle', [makeAnnotation('res-cycle', 'ann-cycle', 'exact text that returns')]]]),
+      ),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    try {
+      events$.next({ type: 'yield:created', resourceId: 'res-cycle', payload: {} });
+      events$.next(annotationEvent('res-cycle', 'ann-cycle', 'exact text that returns'));
+      await tick();
+      expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(true);
+      expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(true);
+
+      // Archive deletes both — pins existing behavior.
+      events$.next({ type: 'mark:archived', resourceId: 'res-cycle', payload: {} });
+      await tick();
+      expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(false);
+      expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(false);
+
+      // Unarchive must bring both back without waiting for a restart.
+      events$.next({ type: 'mark:unarchived', resourceId: 'res-cycle', payload: {} });
+      await tick();
+      expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(true);
+      expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(true);
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
+describe('Smelter smelt:settled signal', () => {
+  // SMELTER-INDEX-SYNC P1 — the settled signal is a decision report at
+  // existing decision points: 'indexed' after upsert, 'skipped' at the media
+  // gate / empty text, and NOTHING on transient failures (an error is not a
+  // decision — A2). Keyed by the checksum of the bytes inspected (D2).
+  function settledSignals(bus: { emitted: Array<{ channel: string; payload: Record<string, unknown> }> }) {
+    return bus.emitted.filter((e) => e.channel === 'smelt:settled').map((e) => e.payload);
+  }
+
+  async function harness(content: Map<string, string>, contentType = 'text/plain') {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const bus = createFakeKsBus([...content.keys()].map((rid) => resourceDescriptor(rid, contentType)));
+    const smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(content, contentType),
+      bus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    return { events$, smelter, bus, embeddingProvider };
+  }
+
+  it('emits indexed with the content checksum after embedding', async () => {
+    const text = 'Content whose settlement is announced.';
+    const h = await harness(new Map([['res-sig', text]]));
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-sig', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-sig', contentChecksum: calculateChecksum(text), outcome: 'indexed' },
+      ]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('emits skipped (with checksum) at the media gate, without an embedding call', async () => {
+    const bytes = 'not really a zip, but gated by media type';
+    const h = await harness(new Map([['res-zip', bytes]]), 'application/zip');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-zip', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-zip', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'no-extractor' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('never settles on transient failures — an error is not a decision', async () => {
+    const h = await harness(new Map());
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-unreachable', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  // SMELTER-MEDIA-TYPES: skips name their reason — the decline vocabulary
+  // rides the settled signal (D3 as amended), never a second channel.
+  // 'no-extractor' = no registry slot for the strategy (the zip test above);
+  // extractor declines carry their class ('corrupt' here — truncated bytes
+  // under a pdf media type); 'empty' = extraction yielded nothing embeddable.
+  it("skips with the extractor's class reason when extraction fails — 'corrupt'", async () => {
+    const bytes = '%PDF-1.7 pretend PDF bytes';
+    const h = await harness(new Map([['res-pdf', bytes]]), 'application/pdf');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-pdf', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-pdf', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'corrupt' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it("skips with reason 'empty' when extraction yields no embeddable text", async () => {
+    const blank = '   \n  \t ';
+    const h = await harness(new Map([['res-blank', blank]]));
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-blank', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-blank', contentChecksum: calculateChecksum(blank), outcome: 'skipped', reason: 'empty' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  // Phase 0 pin — zero behavior change for text: same chunks reach the
+  // embedder, same checksum stamp, and the indexed signal carries no reason
+  // (a reason names a decline; an index is not a decline). Green before and
+  // after the registry refactor — this is the byte-identity proof.
+  it('pin: markdown passthrough is unchanged — chunks, checksum, reason-less indexed signal', async () => {
+    const text = '# Title\n\n' + 'A paragraph of body prose, repeated to force chunking. '.repeat(40);
+    const h = await harness(new Map([['res-md', text]]), 'text/markdown');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-md', payload: {} });
+      await tick();
+      const expectedChunks = chunkText(text, { chunkSize: 512, overlap: 64 });
+      expect(expectedChunks.length).toBeGreaterThan(1);
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledTimes(1);
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledWith(expectedChunks);
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-md', contentChecksum: calculateChecksum(text), outcome: 'indexed' },
+      ]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+});
+
+describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
+  function settled(bus: { emitted: Array<{ channel: string; payload: Record<string, unknown> }> }) {
+    return bus.emitted.filter((e) => e.channel === 'smelt:settled').map((e) => e.payload);
+  }
+
+  async function pdfHarness(entries: Record<string, Uint8Array>) {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const bus = createFakeKsBus(Object.keys(entries).map((rid) => resourceDescriptor(rid, 'application/pdf')));
+    const smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => (entries[rid] ? { bytes: entries[rid], mediaType: 'application/pdf' } : undefined),
+      }),
+      bus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    return { events$, smelter, bus, embeddingProvider, vectorStore };
+  }
+
+  it('class A: a native PDF embeds — chunks from the text layer, stamp from the raw bytes', async () => {
+    const h = await pdfHarness({ 'res-native': NATIVE_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-native', payload: {} });
+      await tick();
+      const layer = await extractPdfTextLayer(NATIVE_PDF);
+      const expectedChunks = chunkText(layer!.text, { chunkSize: 512, overlap: 64 });
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledWith(expectedChunks);
+      // S12/S14 do not move: the stamp and the settled key are the checksum
+      // of the raw stored bytes — never a hash of the extracted text.
+      const rawChecksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+      expect(settled(h.bus)).toEqual([
+        { resourceId: 'res-native', contentChecksum: rawChecksum, outcome: 'indexed' },
+      ]);
+      expect((await h.vectorStore.listResourceStamps()).get('res-native')?.contentChecksum).toBe(rawChecksum);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('stamps machine-read provenance on vectors whose text came from OCR', async () => {
+    // The chunk reaches its consumers — today, LLM prompts — with no document
+    // attached, and nothing downstream can recompute how the text was
+    // obtained. So the projection that carries the text carries the fact.
+    const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
+    vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+      kind: 'extracted',
+      text: 'recovered from a scan',
+      items: [],
+      method: 'ocr',
+      pdfClass: 'B',
+    });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
+      await tick();
+      const [result] = await h.vectorStore.searchResources(deterministicEmbed('recovered from a scan'), { limit: 5 });
+      expect(result!.resourceId).toBe('res-scan');
+      expect(result!.machineRead).toBe(true);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('an annotation on a machine-read resource inherits the stamp', async () => {
+    // Annotation-focus gather searches annotation vectors, so a passage that
+    // came from OCR has to say so here too — otherwise half the gather paths
+    // lose the provenance the other half carries.
+    const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
+    vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+      kind: 'extracted', text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
+    });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
+      await tick();
+      h.events$.next(annotationEvent('res-scan', 'ann-scan', 'recovered from a scan'));
+      await tick();
+
+      const [result] = await h.vectorStore.searchAnnotations(deterministicEmbed('recovered from a scan'), { limit: 5 });
+      expect(result!.annotationId).toBe('ann-scan');
+      expect(result!.machineRead).toBe(true);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('leaves the stamp off a PDF read directly from its text layer', async () => {
+    const h = await pdfHarness({ 'res-native': NATIVE_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-native', payload: {} });
+      await tick();
+      const results = await h.vectorStore.searchResources(deterministicEmbed('anything'), { limit: 5 });
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]!.machineRead).toBeUndefined();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('class D: a tabular PDF embeds row-coherent chunks', async () => {
+    // Phase 2 (#745): the embedded text a row's cells land in must keep them
+    // together — the whole point of shaping before the shared chunker.
+    const h = await pdfHarness({ 'res-table': TABLE_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-table', payload: {} });
+      await tick();
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledTimes(1);
+      const chunks = vi.mocked(h.embeddingProvider.embedBatch).mock.calls[0]![0];
+      const rowChunk = chunks.find((c) => c.includes('Drug A'));
+      expect(rowChunk).toBeDefined();
+      expect(rowChunk).toContain('| Drug A | 12% | 0.03 |');
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it("class B: a scanned PDF declines — skipped, reason 'no-text-layer', no vectors", async () => {
+    const h = await pdfHarness({ 'res-scanned': SCANNED_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-scanned', payload: {} });
+      await tick();
+      expect(settled(h.bus)).toEqual([
+        { resourceId: 'res-scanned', contentChecksum: calculateChecksum(Buffer.from(SCANNED_PDF)), outcome: 'skipped', reason: 'no-text-layer' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+      expect((await h.vectorStore.listResourceStamps()).size).toBe(0);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+});
+
+describe('Smelter entity-tag stamps', () => {
+  // bugs/smelter-stale-entity-type-stamps.md — tag edits must reach the
+  // vector stamps without re-embedding: the stamp is the discriminator
+  // `searchResources` filters on (EXCLUDE-VECTORS), and embedding calls are
+  // the expensive external resource a tag edit must never trigger.
+  it('updates the entityTypes stamp on mark:entity-tag-added / -removed without re-embedding', async () => {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const text = 'Tagged content to restamp.';
+    const descriptor = resourceDescriptor('res-tags', 'text/plain', calculateChecksum(text));
+    const smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(new Map([['res-tags', text]])),
+      createFakeKsBus([descriptor]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    try {
+      events$.next({ type: 'yield:created', resourceId: 'res-tags', payload: {} });
+      await tick();
+      const queryVec = deterministicEmbed(text);
+      expect((await vectorStore.searchResources(queryVec, { limit: 5 })).length).toBeGreaterThan(0);
+      const embedCallsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      // The catalog moves on: the resource is tagged Question…
+      descriptor.entityTypes = ['Question'];
+      events$.next({ type: 'mark:entity-tag-added', resourceId: 'res-tags', payload: { entityType: 'Question' } });
+      await tick();
+
+      // …and the stamp must follow: question-exclusion recall drops it,
+      expect(await vectorStore.searchResources(queryVec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).toEqual([]);
+      // without an embedding call (restamp ≠ re-embed).
+      expect((embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(embedCallsAfterCreate);
+
+      // Tag removed: the stamp follows back.
+      descriptor.entityTypes = [];
+      events$.next({ type: 'mark:entity-tag-removed', resourceId: 'res-tags', payload: { entityType: 'Question' } });
+      await tick();
+      expect((await vectorStore.searchResources(queryVec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).length).toBeGreaterThan(0);
+      expect((embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(embedCallsAfterCreate);
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
+describe('Smelter.reconcile', () => {
+  let vectorStore: MemoryVectorStore;
+  let embeddingProvider: EmbeddingProvider;
+  let contentByResourceId: Map<string, string>;
+  let smelters: Smelter[];
+
+  beforeEach(async () => {
+    vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    embeddingProvider = createMockEmbeddingProvider();
+    contentByResourceId = new Map();
+    smelters = [];
+  });
+
+  afterEach(() => {
+    for (const smelter of smelters) smelter.stop();
+  });
+
+  // reconcile() drains its work items through the pipeline, so the smelter
+  // must be initialized — same contract as smelter-main.
+  function createSmelter(resources: ResourceDescriptor[]): Smelter {
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(contentByResourceId),
+      createFakeKsBus(resources),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    smelters.push(smelter);
+    return smelter;
+  }
+
+  // Convergence from arbitrary divergence is the S11 axiom property
+  // (smelter-axioms.test.ts). These examples pin what S11's id-set
+  // equality cannot: no wasted re-embedding, the catalog page boundary,
+  // and the failure state machine.
+
+  it('stamps a resource\'s entityTypes (read from the descriptor) onto its vectors', async () => {
+    const text = 'What is the capital of France?';
+    const checksum = calculateChecksum(text);
+    contentByResourceId.set('res-q', text);
+
+    // entityTypes live on the descriptor (the catalog), not the event payload —
+    // the smelter reads the authoritative current state, so reconcile stamps them.
+    const smelter = createSmelter([resourceDescriptor('res-q', 'text/plain', checksum, ['Question'])]);
+    await smelter.reconcile();
+
+    const queryVec = deterministicEmbed('capital of France');
+    const all = await vectorStore.searchResources(queryVec, { limit: 5 });
+    expect(all.find((r) => r.resourceId === 'res-q')?.entityTypes).toEqual(['Question']);
+
+    // And the discriminator is usable: excludeEntityTypes drops it from recall.
+    const excluded = await vectorStore.searchResources(queryVec, {
+      limit: 5,
+      filter: { excludeEntityTypes: ['Question'] },
+    });
+    expect(excluded.some((r) => r.resourceId === 'res-q')).toBe(false);
+  });
+
+  it('restamps entity types that changed while the worker was down (content unchanged)', async () => {
+    const text = 'Stamped content, tags changed offline.';
+    const checksum = calculateChecksum(text);
+    contentByResourceId.set('res-restamp', text);
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-restamp'),
+      [{ chunkIndex: 0, text, embedding: deterministicEmbed(text) }],
+      checksum,
+      ['OldTag'],
+    );
+
+    const smelter = createSmelter([resourceDescriptor('res-restamp', 'text/plain', checksum, ['Question'])]);
+    await smelter.reconcile();
+
+    const queryVec = deterministicEmbed(text);
+    // The stamp must now say Question: question-exclusion recall drops it…
+    expect(await vectorStore.searchResources(queryVec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).toEqual([]);
+    // …and content didn't change, so nothing re-embeds (restamp ≠ re-embed).
+    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+  });
+
+  it('leaves already-indexed resources alone', async () => {
+    const text = 'Already indexed.';
+    const checksum = calculateChecksum(text);
+    contentByResourceId.set('res-indexed', text);
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-indexed'),
+      [{ chunkIndex: 0, text, embedding: deterministicEmbed(text) }],
+      checksum,
+      [],
+    );
+
+    const smelter = createSmelter([resourceDescriptor('res-indexed', 'text/plain', checksum)]);
+    const summary = await smelter.reconcile();
+
+    expect(summary.resourcesEmbedded).toBe(0);
+    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    expect(smelter.reconcileState).toEqual({ phase: 'done', summary });
+  });
+
+  it('pages through catalogs larger than one page', async () => {
+    const resources: ResourceDescriptor[] = [];
+    for (let i = 0; i < 250; i++) {
+      const id = `res-page-${i}`;
+      resources.push(resourceDescriptor(id));
+      contentByResourceId.set(id, `Content ${i}.`);
+    }
+
+    const smelter = createSmelter(resources);
+    const summary = await smelter.reconcile();
+
+    expect(summary.resourcesEmbedded).toBe(250);
+    expect((await vectorStore.listResourceStamps()).size).toBe(250);
+  });
+
+  it('reports extraction coverage in the summary — eligible vs indexed, declines are the gap', async () => {
+    // Phase 1 (#744): eligibility counts extractor existence (md + pdf; zip
+    // has no extractor), indexed counts what actually embedded (the scanned
+    // pdf declines) — extraction-coverage = indexed/eligible = 1/2 here.
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) =>
+          rid === 'res-cov-md' ? { text: 'Covered content.', mediaType: 'text/markdown' }
+          : rid === 'res-cov-pdf' ? { bytes: SCANNED_PDF, mediaType: 'application/pdf' }
+          : undefined,
+      }),
+      createFakeKsBus([
+        resourceDescriptor('res-cov-md', 'text/markdown'),
+        resourceDescriptor('res-cov-pdf', 'application/pdf'),
+        resourceDescriptor('res-cov-zip', 'application/zip'),
+      ]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    smelters.push(smelter);
+
+    const summary = await smelter.reconcile();
+    expect(summary.resourcesEligible).toBe(2);
+    expect(summary.resourcesIndexed).toBe(1);
+  });
+
+  it('records failure state when the catalog is unreachable', async () => {
+    const deadBus: BusRequestPrimitive = {
+      async emit() {
+        throw new Error('bus down');
+      },
+      stream<K extends keyof EventMap>(): Observable<EventMap[K]> {
+        return new Subject<EventMap[K]>();
+      },
+      // 'open' so the attach gate lets the emit proceed — this fixture's
+      // failure mode is the emit itself throwing, not a detached stream.
+      state$: new BehaviorSubject<ConnectionState>('open'),
+    };
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(contentByResourceId),
+      deadBus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    smelters.push(smelter);
+
+    await expect(smelter.reconcile()).rejects.toThrow('bus down');
+    expect(smelter.reconcileState).toEqual({ phase: 'failed', error: 'bus down' });
+  });
+});
+
+describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)', () => {
+  // The third drift class: the resource is indexed, its checksum is current,
+  // its extractor derives geometry — and no artifact exists. That is a LOST
+  // map (the store is container-transient today; a publish can also fail
+  // silently), and before this class existed nothing ever re-derived it:
+  // reconcile's checksum diff saw matching stamps and planned no work, so a
+  // scanned PDF's annotations lost their quoted text on the first restart,
+  // permanently (PERSIST-ANCHORS problem 1).
+
+  // The artifact's key is the content checksum (P1b) — of NATIVE_PDF here.
+  const LOSTMAP_CHECKSUM = calculateChecksum(Buffer.from(NATIVE_PDF));
+
+  async function reanchorHarness(anchored: Map<string, ExtractionOutcome>) {
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const checksum = LOSTMAP_CHECKSUM;
+    // Indexed at the catalog's current checksum — the stamp diff (S12) and
+    // the tag diff (S13) both see nothing to do.
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-lostmap'),
+      [{ chunkIndex: 0, text: 'native pdf text', embedding: deterministicEmbed('native pdf text') }],
+      checksum,
+      [],
+    );
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => (rid === 'res-lostmap' ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
+        anchored,
+      }),
+      createFakeKsBus([resourceDescriptor('res-lostmap', 'application/pdf', checksum)]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    return { smelter, embeddingProvider, anchored };
+  }
+
+  it('re-derives a lost artifact: indexed, checksum unchanged, artifact absent — zero embedding calls', async () => {
+    const anchored = new Map<string, ExtractionOutcome>();
+    const { smelter, embeddingProvider } = await reanchorHarness(anchored);
+    try {
+      const summary = await smelter.reconcile();
+
+      expect(summary.resourcesReanchored).toBe(1);
+      // The artifact is back — re-extracted from the current bytes, filed
+      // under their checksum (P1b).
+      const restored = anchored.get(LOSTMAP_CHECKSUM);
+      expect(restored).toBeDefined();
+      if (!restored || restored.kind === 'declined') throw new Error('expected a restored success outcome');
+      expect(restored.items.length).toBeGreaterThan(0);
+      // Re-anchoring re-runs EXTRACTION, never embedding: the vectors are
+      // already correct and only the map was missing (the S13 discipline —
+      // name the work for what it does, and spend only what it needs).
+      expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+      expect(embeddingProvider.embed).not.toHaveBeenCalled();
+    } finally {
+      smelter.stop();
+    }
+  });
+
+  it('plans nothing when the artifact is present (do-not-cry-wolf)', async () => {
+    const anchored = new Map<string, ExtractionOutcome>();
+    anchored.set(LOSTMAP_CHECKSUM, { kind: 'extracted', text: 'already here', items: [], method: 'ocr' });
+    const { smelter, embeddingProvider } = await reanchorHarness(anchored);
+    try {
+      await smelter.reconcile();
+
+      // The seeded artifact was not overwritten and nothing embedded — a
+      // present artifact under a current checksum is a healthy resource.
+      expect(anchored.get(LOSTMAP_CHECKSUM)).toEqual({ kind: 'extracted', text: 'already here', items: [], method: 'ocr' });
+      expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
+describe('Smelter embed consults the artifact store before extracting (PERSIST-ANCHORS P2c)', () => {
+  // Decision C, wired: the smelter passes ExtractionCache { key, store } to
+  // extract(), so a representation whose outcome is already stored embeds
+  // from the STORED text without the seam running its pipeline. Observable
+  // end to end: seed the store under checksum(NATIVE_PDF), embed, and the
+  // chunks handed to the embedding provider are the stored text's — not the
+  // PDF's own text layer.
+  it('embeds the stored outcome on a cache hit', async () => {
+    const checksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+    const stored = {
+      kind: 'extracted' as const,
+      text: 'stored text from the artifact cache',
+      items: [{ start: 0, end: 6, page: 1, x: 72, y: 720, width: 40, height: 12 }],
+      method: 'ocr' as const,
+    };
+    const anchored = new Map<string, ExtractionOutcome>();
+    anchored.set(checksum, stored);
+
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => (rid === 'res-cachehit' ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
+        anchored,
+      }),
+      createFakeKsBus([resourceDescriptor('res-cachehit', 'application/pdf', checksum)]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    try {
+      events$.next({ type: 'yield:created', resourceId: 'res-cachehit', payload: {} });
+      await tick();
+
+      expect(embeddingProvider.embedBatch).toHaveBeenCalledWith(
+        chunkText(stored.text, { chunkSize: 512, overlap: 64 }),
+      );
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
+describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHORS P0)', () => {
+  // Shaped after weave:rebuild: optionally scoped, serialized, correlated
+  // replies, partial completion FAILS. Never destructive — nothing is
+  // deleted first; stale entries are simply overwritten.
+  //
+  // Artifacts are checksum-keyed (P1b), so the two resources need DISTINCT
+  // bytes: with identical bytes they would correctly share one artifact
+  // (content addressing dedupes) and "exactly the named resource" would be
+  // unobservable.
+  let PDF_A: Uint8Array;
+  let PDF_B: Uint8Array;
+  let CS_A: string;
+  let CS_B: string;
+
+  beforeAll(async () => {
+    const build = async (text: string): Promise<Uint8Array> => {
+      const doc = await PDFDocument.create();
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      doc.addPage([612, 792]).drawText(text, { x: 72, y: 720, size: 12, font });
+      return doc.save();
+    };
+    PDF_A = await build('alpha document');
+    PDF_B = await build('bravo document');
+    CS_A = calculateChecksum(Buffer.from(PDF_A));
+    CS_B = calculateChecksum(Buffer.from(PDF_B));
+  });
+
+  async function rebuildHarness(reads: Record<string, Uint8Array | 'fail'>) {
+    const anchored = new Map<string, ExtractionOutcome>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const rebuilds$ = new Subject<EventMap['smelt:rebuild-anchors']>();
+    const bus = createFakeKsBus(
+      Object.keys(reads).map((rid) => resourceDescriptor(rid, 'application/pdf')),
+    );
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      rebuilds$,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => {
+          const entry = reads[rid];
+          if (entry === undefined) return undefined;
+          return entry === 'fail' ? 'fail' : { bytes: entry, mediaType: 'application/pdf' };
+        },
+        anchored,
+      }),
+      bus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 5, maxBatchSize: 100, idleTimeoutMs: 20 },
+      mockLogger,
+    );
+    smelter.initialize();
+
+    const reply = async (correlationId: string) => {
+      for (let i = 0; i < 200; i++) {
+        const hit = bus.emitted.find(
+          (e) => (e.channel === 'smelt:rebuild-anchors-ok' || e.channel === 'smelt:rebuild-anchors-failed')
+            && e.payload.correlationId === correlationId,
+        );
+        if (hit) return hit;
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      throw new Error(`no rebuild reply for ${correlationId}`);
+    };
+
+    return { smelter, rebuilds$, anchored, embeddingProvider, reply };
+  }
+
+  it('full rebuild re-derives every geometry-capable resource and replies ok — zero embedding calls', async () => {
+    const h = await rebuildHarness({ 'res-a': PDF_A, 'res-b': PDF_B });
+    try {
+      h.rebuilds$.next({ correlationId: 'c-full' });
+      const reply = await h.reply('c-full');
+
+      expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
+      expect([...h.anchored.keys()].sort()).toEqual([CS_A, CS_B].sort());
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+      expect(h.embeddingProvider.embed).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('scoped rebuild re-derives exactly the named resource', async () => {
+    const h = await rebuildHarness({ 'res-a': PDF_A, 'res-b': PDF_B });
+    try {
+      h.rebuilds$.next({ correlationId: 'c-scoped', resourceId: 'res-a' });
+      const reply = await h.reply('c-scoped');
+
+      expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
+      expect([...h.anchored.keys()]).toEqual([CS_A]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('partial completion FAILS, with counts — and the healthy resource is still re-anchored', async () => {
+    const h = await rebuildHarness({ 'res-ok': PDF_A, 'res-broken': 'fail' });
+    try {
+      h.rebuilds$.next({ correlationId: 'c-partial' });
+      const reply = await h.reply('c-partial');
+
+      // A rebuild that quietly skipped a resource would present exactly like
+      // a document with no text — so it must not claim success.
+      expect(reply.channel).toBe('smelt:rebuild-anchors-failed');
+      expect(String(reply.payload.message)).toMatch(/1 of 2/);
+      expect([...h.anchored.keys()]).toEqual([CS_A]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+});

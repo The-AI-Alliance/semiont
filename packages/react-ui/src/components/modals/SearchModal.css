@@ -1,0 +1,971 @@
+/* Search Modal Styles */
+
+/* Modal container */
+.semiont-search-modal {
+  position: relative;
+  z-index: 1000;
+}
+
+/* Backdrop */
+.semiont-search-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+}
+
+[data-theme="dark"] .semiont-search-modal__backdrop {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* Content wrapper */
+.semiont-search-modal__wrapper {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+}
+
+.semiont-search-modal__centering {
+  display: flex;
+  min-height: 100%;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  padding-top: 10vh;
+}
+
+/* Dialog panel */
+.semiont-search-modal__panel {
+  width: 100%;
+  max-width: 42rem;
+  transform: translateZ(0);
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background-color: var(--semiont-color-white);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s;
+}
+
+[data-theme="dark"] .semiont-search-modal__panel {
+  background-color: var(--semiont-color-gray-800);
+}
+
+/* Search Input Section */
+.semiont-search-modal__input-container {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+.semiont-search-modal__input-container:focus-within {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+}
+
+[data-theme="dark"] .semiont-search-modal__input-container {
+  border-bottom-color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-search-modal__input-container:focus-within {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-search-modal__search-icon-wrapper {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem;
+}
+
+.semiont-search-modal__search-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-search-modal__search-icon {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-search-modal__input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background-color: transparent;
+  color: var(--semiont-color-gray-900);
+}
+
+.semiont-search-modal__input:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-search-modal__input {
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-search-modal__input:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-search-modal__esc-wrapper {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem;
+}
+
+/* Keyboard shortcuts (kbd) */
+.semiont-search-modal__kbd {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-500);
+  background-color: var(--semiont-color-gray-100);
+  border-radius: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-search-modal__kbd {
+  color: var(--semiont-color-gray-400);
+  background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-search-modal__kbd--small {
+  padding: 0.125rem 0.375rem;
+}
+
+/* Results Section */
+.semiont-search-modal__results {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Empty states */
+.semiont-search-modal__empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-search-modal__empty {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Results list */
+.semiont-search-modal__results-list {
+  padding: 0.5rem 0;
+}
+
+/* Result item */
+.semiont-search-modal__result {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  transition: background-color 0.2s;
+}
+
+.semiont-search-modal__result:hover {
+  background-color: var(--semiont-color-gray-50);
+}
+
+[data-theme="dark"] .semiont-search-modal__result:hover {
+  background-color: rgba(55, 65, 81, 0.5);
+}
+
+.semiont-search-modal__result--selected {
+  background-color: var(--semiont-color-gray-50);
+}
+
+.semiont-search-modal__result--selected:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-search-modal__result--selected {
+  background-color: rgba(55, 65, 81, 0.5);
+}
+
+[data-theme="dark"] .semiont-search-modal__result--selected:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Result icon */
+.semiont-search-modal__result-icon-wrapper {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.semiont-search-modal__result-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.semiont-search-modal__result-icon--resource {
+  color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-search-modal__result-icon--resource {
+  color: var(--semiont-color-primary-400);
+}
+
+.semiont-search-modal__result-icon--entity {
+  color: var(--semiont-color-green-500);
+}
+
+[data-theme="dark"] .semiont-search-modal__result-icon--entity {
+  color: var(--semiont-color-green-400);
+}
+
+/* Result content */
+.semiont-search-modal__result-content {
+  flex: 1;
+  text-align: left;
+}
+
+.semiont-search-modal__result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-search-modal__result-name {
+  font-weight: 500;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-search-modal__result-name {
+  color: var(--semiont-color-white);
+}
+
+.semiont-search-modal__result-badge {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  background-color: var(--semiont-color-green-100);
+  color: var(--semiont-color-green-700);
+}
+
+[data-theme="dark"] .semiont-search-modal__result-badge {
+  background-color: rgba(34, 197, 94, 0.3);
+  color: var(--semiont-color-green-300);
+}
+
+.semiont-search-modal__result-description {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+  margin-top: 0.25rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .semiont-search-modal__result-description {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Result action */
+.semiont-search-modal__result-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Help section */
+.semiont-search-modal__help {
+  padding: 2rem 1rem;
+}
+
+.semiont-search-modal__help-text {
+  text-align: center;
+  color: var(--semiont-color-gray-500);
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-search-modal__help-text {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-search-modal__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.semiont-search-modal__shortcut {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-search-modal__shortcut {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Centering variant - center items vertically */
+.semiont-search-modal__centering--center {
+  align-items: center;
+}
+
+/* Panel variant - with border and padding */
+.semiont-search-modal__panel--with-border {
+  border: 1px solid var(--semiont-color-gray-200);
+  padding: 1.5rem;
+  max-width: 600px;
+}
+
+[data-theme="dark"] .semiont-search-modal__panel--with-border {
+  border-color: var(--semiont-color-gray-700);
+}
+
+/* Header for ResourceSearchModal */
+.semiont-search-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+/* Title */
+.semiont-search-modal__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-search-modal__title {
+  color: var(--semiont-color-white);
+}
+
+/* Close button */
+.semiont-search-modal__close-button {
+  color: var(--semiont-color-gray-600);
+}
+
+.semiont-search-modal__close-button:hover {
+  color: var(--semiont-color-gray-900);
+}
+
+.semiont-search-modal__close-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-search-modal__close-button {
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-search-modal__close-button:hover {
+  color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-search-modal__close-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Search input */
+.semiont-search-modal__search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: 0.5rem;
+  color: var(--semiont-color-gray-900);
+}
+
+.semiont-search-modal__search-input:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-search-modal__search-input {
+  border-color: var(--semiont-color-gray-600);
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-search-modal__search-input:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Wide panel variant for two-pane layouts */
+.semiont-search-modal__panel--wide {
+  max-width: 1100px;
+}
+
+/* Gather-context step. Width comes from `--wide` (GEP D2: the family's own
+   1100px precedent), applied alongside at both call sites — this class owns
+   only the gather-specific flex/height shape. */
+.semiont-search-modal__panel--gather {
+  max-height: min(92vh, 860px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Outer flex column: source strip + two-column body */
+.semiont-gather__outer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+/* Loading state */
+.semiont-gather__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex: 1;
+  padding: 2rem 0;
+}
+
+/* The gather skeleton: the loading screen is the loaded screen minus the
+   data — known annotation facts up top, pane headers in place, shimmer bars
+   where the gather's answers will land. */
+.semiont-gather__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+}
+
+.semiont-gather__skeleton-source {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-gather__skeleton-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.semiont-gather__skeleton-exact {
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-gather__skeleton-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.semiont-gather__skeleton-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* One small dots animation per zone, sitting exactly where that zone's
+   content will land. Reuses the loading-dot spans (same animation). */
+.semiont-gather__skeleton-dots {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.375rem 0;
+}
+
+.semiont-gather__loading-text {
+  font-size: 1.125rem;
+  color: var(--semiont-text-secondary);
+  font-weight: 500;
+}
+
+.semiont-gather__loading-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background-color: var(--semiont-color-primary-500);
+  animation: semiont-gather-pulse 1.2s ease-in-out infinite;
+}
+
+[data-theme="dark"] .semiont-gather__loading-dot {
+  background-color: var(--semiont-color-primary-400);
+}
+
+.semiont-gather__loading-dot:nth-child(1) { animation-delay: 0s; }
+.semiont-gather__loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.semiont-gather__loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes semiont-gather-pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
+
+/* Full-width source context strip */
+.semiont-gather__source-strip {
+  flex-shrink: 0;
+  padding-top: 0.25rem;
+}
+
+/* GEP P2: the evidence panes — quiet lists under small-cap headers (D1/D3/D4). */
+.semiont-gather-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow-y: auto; /* a pane scrolls inside itself; the panel never grows */
+}
+
+.semiont-gather-pane__title {
+  font-size: var(--semiont-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-gather-pane__summary {
+  margin: 0;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-gather-pane__empty {
+  margin: 0;
+  font-size: var(--semiont-text-sm);
+  font-style: italic;
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-corpus__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.semiont-corpus__card {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: 0.375rem;
+}
+
+.semiont-corpus__card-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.semiont-corpus__source {
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+.semiont-corpus__score {
+  margin-left: auto;
+  font-size: var(--semiont-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-corpus__snippet {
+  margin: 0.25rem 0 0;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-corpus__receipt {
+  margin: 0;
+  font-size: var(--semiont-text-xs);
+  font-style: italic;
+  color: var(--semiont-text-tertiary);
+}
+
+/* GEP P4 (D3): the graph pane's body — a deterministic, hand-rolled SVG. */
+.semiont-graph {
+  width: 100%;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.semiont-graph__node rect {
+  fill: var(--semiont-bg-secondary);
+  stroke: var(--semiont-border-primary);
+  stroke-width: 1;
+}
+
+.semiont-graph__node text {
+  font-size: 11px;
+  fill: var(--semiont-text-primary);
+}
+
+.semiont-graph__node--focal rect {
+  fill: var(--semiont-color-primary-100);
+  stroke: var(--semiont-color-primary-600);
+  stroke-width: 2;
+}
+
+.semiont-graph__node--annotation rect {
+  fill: var(--semiont-bg-primary);
+  stroke-dasharray: 4 3;
+}
+
+.semiont-graph__edge line {
+  stroke: var(--semiont-border-primary);
+  stroke-width: 1.5;
+}
+
+.semiont-graph__edge--cites line {
+  stroke: var(--semiont-color-primary-600);
+}
+
+.semiont-graph__edge--annotation-of line {
+  stroke-dasharray: 4 3;
+}
+
+[data-theme="dark"] .semiont-graph__node--focal rect {
+  fill: var(--semiont-color-primary-900);
+  stroke: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-graph__edge--cites line {
+  stroke: var(--semiont-color-primary-400);
+}
+
+/* Recall chips: the exclusion picker inverted — every entity type starts
+   INCLUDED, wearing the app's token look (the semiont-tag tint), and a click
+   crosses one off the recall: outline, tertiary text, struck through. The
+   wire still carries the exclude list; only the presentation inverted. */
+.semiont-form__recall-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.semiont-form__recall-chip {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--semiont-radius-full);
+  font-size: var(--semiont-text-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-700);
+}
+
+[data-theme="dark"] .semiont-form__recall-chip {
+  background: var(--semiont-color-primary-900);
+  color: var(--semiont-color-primary-300);
+}
+
+.semiont-form__recall-chip[data-included="false"] {
+  background: none;
+  border-color: var(--semiont-border-primary);
+  color: var(--semiont-text-tertiary);
+  text-decoration: line-through;
+}
+
+.semiont-form__recall-chip:hover {
+  opacity: 0.85;
+}
+
+.semiont-form__recall-chip:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 1px;
+}
+
+/* Post-gather receipt: the spent controls' compact echo — what THIS gather
+   asked for, and the way back to the full form. Same vocabulary as the
+   corpus pane's exclusion receipt and the wizard's strategy band: a choice
+   made upstream, echoed compactly. Dashed like the graph's annotation
+   nodes — a stand-in for something expandable. */
+.semiont-gather-receipt {
+  display: block;
+  width: 100%;
+  flex-shrink: 0;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+  background: none;
+  border: 1px dashed var(--semiont-border-primary);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.semiont-gather-receipt:hover {
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-primary-600);
+}
+
+/* GEP D5: the hint on its own full-width row, input-then-act above the footer. */
+.semiont-gather__hint-row {
+  flex-shrink: 0;
+  padding-top: 0.5rem;
+}
+
+.semiont-gather__hint-effect {
+  font-weight: 400;
+  color: var(--semiont-text-tertiary);
+}
+
+/* GEP D8: the gather step's hint stays visible while being steered by. */
+.semiont-wizard__hint-echo {
+  margin: 0 0 0.5rem;
+  font-size: var(--semiont-text-xs);
+  font-style: italic;
+  color: var(--semiont-text-secondary);
+}
+
+/* Suggested references are prose (D3) — sentences, listed, not chipped. */
+.semiont-gather__suggested {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-gather__suggested li {
+  margin-bottom: 0.25rem;
+}
+
+/* Two-column body below the strip */
+.semiont-gather__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.semiont-gather__left {
+  flex: 0 0 55%;
+  overflow-y: auto;
+  padding-right: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-right: 1px solid var(--semiont-border-primary);
+}
+
+[data-theme="dark"] .semiont-gather__left {
+  border-right-color: var(--semiont-border-primary);
+}
+
+.semiont-gather__right {
+  flex: 0 0 45%;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+}
+
+.semiont-gather__right .semiont-form__field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.semiont-gather__hint-textarea {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.semiont-gather__hint-textarea:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 0;
+}
+
+.semiont-gather__footer {
+  flex-shrink: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--semiont-border-primary);
+}
+
+.semiont-gather__footer-label {
+  font-size: var(--semiont-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--semiont-text-tertiary);
+  margin-bottom: 0.5rem;
+}
+
+/* The chosen strategy on a strategy step — the chooser band collapsed to its
+   selection: a passive echo on the label's own line (--echo). Sized like the
+   form's text and in the TEXT color: blue is reserved for controls, and this
+   is never a control — the emoji carries the strategy's identity. */
+.semiont-gather__footer--echo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.semiont-gather__footer--echo .semiont-gather__footer-label {
+  margin-bottom: 0;
+}
+
+.semiont-gather__chosen-strategy {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-gather__actions {
+  display: flex;
+  flex-flow: row nowrap;
+  gap: 0.5rem;
+}
+
+/* Source context collapsible */
+.semiont-gather__source-box {
+  padding: 0.75rem;
+  background-color: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  border: 1px solid var(--semiont-border-primary);
+  position: relative;
+}
+
+[data-theme="dark"] .semiont-gather__source-box {
+  background-color: var(--semiont-bg-secondary);
+}
+
+.semiont-gather__source-box::after {
+  content: '';
+  position: absolute;
+  bottom: 2rem; /* above the expand button */
+  left: 0;
+  right: 0;
+  height: 2rem;
+  background: linear-gradient(to bottom, transparent, var(--semiont-bg-secondary));
+  pointer-events: none;
+  border-radius: 0 0 var(--semiont-radius-md) var(--semiont-radius-md);
+  transition: opacity 0.15s ease;
+}
+
+.semiont-gather__source-box--expanded::after {
+  opacity: 0;
+}
+
+.semiont-gather__source-context {
+  max-height: 8rem;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.semiont-gather__source-box--expanded .semiont-gather__source-context {
+  max-height: 16rem;
+}
+
+.semiont-gather__expand-btn {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.125rem 0;
+  margin-top: 0.25rem;
+  text-decoration: none;
+  outline: none;
+}
+
+.semiont-gather__expand-btn:hover {
+  color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-gather__expand-btn:hover {
+  color: var(--semiont-color-primary-400);
+}
+
+/* Narrow screens: stack vertically */
+@media (max-width: 640px) {
+  .semiont-search-modal__panel--gather {
+    max-width: 100%;
+    max-height: 100dvh;
+  }
+
+  .semiont-gather__outer {
+    overflow-y: auto;
+  }
+
+  .semiont-gather__body {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .semiont-gather__left {
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid var(--semiont-border-primary);
+    padding-right: 0;
+    padding-bottom: 0.75rem;
+  }
+
+  .semiont-gather__right {
+    flex: none;
+    padding-left: 0;
+    padding-top: 0.75rem;
+  }
+
+  .semiont-gather__actions {
+    flex-flow: row wrap;
+  }
+}
+
+/* D4 discard guard: inline prompt raised when dismissal would destroy a
+   non-empty compose draft. Never window.confirm; the footer stays
+   dismissal-free (A4) — this band owns the decision. */
+.semiont-wizard__discard-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-red-600);
+  border-radius: var(--semiont-radius-md);
+}
+
+.semiont-wizard__discard-prompt-text {
+  flex: 1;
+  font-weight: var(--semiont-font-semibold);
+}
+
+/* The strategy steps' single scroll pane: evidence + step content scroll
+   TOGETHER inside the clipped gather panel. The hosts start it scrolled to
+   the bottom on entry, so the step's own content shows in full and the
+   evidence tucks up under the modal top. */
+.semiont-wizard__step-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inside the single pane the display flows at natural height — the gather
+   step's clip-and-scroll flex (outer/body/panes each scrolling internally)
+   would otherwise compress the evidence AND nest scrollbars. One scrollbar
+   governs the whole step. */
+.semiont-wizard__step-scroll .semiont-gather__outer,
+.semiont-wizard__step-scroll .semiont-gather__body {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+
+.semiont-wizard__step-scroll .semiont-gather__left,
+.semiont-wizard__step-scroll .semiont-gather__right,
+.semiont-wizard__step-scroll .semiont-gather-pane {
+  min-height: auto;
+  overflow-y: visible;
+}
+
+/* Narrow screens */
+@media (max-width: 640px) {
+  .semiont-search-modal__panel--wide {
+    max-width: 100%;
+  }
+}

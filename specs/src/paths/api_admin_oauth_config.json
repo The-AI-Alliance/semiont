@@ -1,0 +1,46 @@
+{
+  "get": {
+    "summary": "Get OAuth Configuration",
+    "description": "Get OAuth provider configuration (admin only, read-only)",
+    "tags": [
+      "Admin"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "OAuth configuration",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/OAuthConfigResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Forbidden - Admin access required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

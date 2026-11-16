@@ -1,0 +1,85 @@
+/* ============================================
+   Tier 3: Layout Components
+   ============================================ */
+
+/* PageLayout Component */
+.semiont-page-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Page wrapper for standalone pages (auth, etc) */
+.semiont-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--semiont-bg-primary);
+}
+
+[data-theme="dark"] .semiont-page-wrapper {
+  background: var(--semiont-bg-primary);
+}
+
+/* Auth-specific page layout modifier */
+.semiont-page-layout--auth {
+  background: var(--semiont-color-gray-50);
+}
+
+[data-theme="dark"] .semiont-page-layout--auth {
+  background: var(--semiont-color-gray-900);
+}
+
+.semiont-page-layout__header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.semiont-page-layout__header-container {
+  width: 100%;
+  background: var(--semiont-bg-primary);
+  border-bottom: 1px solid var(--semiont-border-primary);
+}
+
+.semiont-page-layout__main {
+  flex: 1;
+}
+
+/* App Layout for Document/Knowledge Views */
+.semiont-app-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Layout with footer */
+.semiont-layout-with-footer {
+  /* Footer participates in flex layout flow. Content areas are scrollable within their flex boundaries. */
+}
+
+.semiont-app-layout__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Allow content to shrink */
+  overflow: hidden;
+}
+
+.semiont-app-layout__sidebar {
+  display: flex;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.semiont-app-layout__toolbar-panel {
+  width: 20rem;
+  height: 100%;
+  background: var(--semiont-bg-primary);
+  border-left: 1px solid var(--semiont-border-primary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

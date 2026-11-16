@@ -1,0 +1,103 @@
+{
+  "name": "@semiont/core",
+  "version": "0.5.29",
+  "description": "Core types and domain logic for Semiont - Resource, Annotation, and Graph models",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/config/node-config-loader.d.ts",
+      "import": "./dist/config/node-config-loader.js",
+      "default": "./dist/config/node-config-loader.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
+    },
+    "./testing/axioms": {
+      "types": "./dist/testing/axioms.d.ts",
+      "import": "./dist/testing/axioms.js",
+      "default": "./dist/testing/axioms.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi.d.ts",
+      "import": "./dist/openapi.js",
+      "default": "./dist/openapi.js"
+    }
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/core"
+  },
+  "scripts": {
+    "bundle-spec": "cd ../.. && npm run openapi:bundle",
+    "copy-spec": "cp ../../specs/openapi.json openapi.json",
+    "generate:openapi": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
+    "generate:types": "tsx scripts/generate-types.ts",
+    "prebuild": "npm run generate:openapi && npm run generate:types && npm run generate:validators",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist *.tsbuildinfo src/types.ts src/generated openapi.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "generate:validators": "node ../../scripts/spec/generate-validators.mjs"
+  },
+  "keywords": [
+    "types",
+    "domain",
+    "resource",
+    "annotation",
+    "graph",
+    "semiont"
+  ],
+  "author": "Semiont Team",
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "fast-check": "^4.9.0",
+    "json-schema-to-typescript": "^15.0.2",
+    "openapi-typescript": "^7.10.1",
+    "rollup": "^4.62.5",
+    "rollup-plugin-dts": "^6.4.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.12",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "rxjs": "^7.8.1",
+    "smol-toml": "^1.8.0"
+  },
+  "peerDependencies": {
+    "fast-check": "^4.8.0"
+  },
+  "peerDependenciesMeta": {
+    "fast-check": {
+      "optional": true
+    }
+  }
+}

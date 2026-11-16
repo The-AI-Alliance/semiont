@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "description": "Command to report progress on a job",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Lets the UI attach progress visuals to a specific annotation (e.g. a reference whose generation is running)."
+    },
+    "percentage": {
+      "type": "number"
+    },
+    "progress": {
+      "$ref": "./JobProgress.json"
+    }
+  },
+  "required": [
+    "resourceId",
+    "jobId",
+    "jobType",
+    "percentage"
+  ]
+}

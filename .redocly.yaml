@@ -1,0 +1,29 @@
+# Redocly configuration for Semiont OpenAPI specification
+# https://redocly.com/docs/cli/configuration/
+
+apis:
+  semiont@v1:
+    root: specs/src/openapi.json
+
+lint:
+  extends:
+    - recommended
+  rules:
+    # Enforce operation IDs and descriptions
+    operation-operationId: error
+    operation-summary: error
+    operation-description: warn
+
+    # Path validation
+    no-ambiguous-paths: error
+    path-not-include-query: error
+
+    # Security
+    operation-security-defined: error
+
+bundle:
+  output: specs/openapi.json
+
+  # Do not inline any schemas - keep all $ref references
+  # This prevents Redocly from removing "unused" schemas that are actually used by backend code
+  dereferenceInlineSchemas: false

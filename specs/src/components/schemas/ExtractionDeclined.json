@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "description": "A named decline: extraction ran and yielded nothing, by class. A first-class, cacheable outcome — 'we ran and there was nothing' costs a full recognition pass to discover.",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "declined"
+      ],
+      "description": "Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `declined`)."
+    },
+    "declined": {
+      "type": "string",
+      "enum": [
+        "no-text-layer",
+        "encrypted",
+        "corrupt",
+        "too-large"
+      ],
+      "description": "Why extraction yielded nothing, by class."
+    }
+  },
+  "required": [
+    "kind",
+    "declined"
+  ]
+}

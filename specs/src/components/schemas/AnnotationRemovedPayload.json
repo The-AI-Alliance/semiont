@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "description": "Payload for mark:removed domain event",
+  "properties": {
+    "annotationId": { "type": "string" }
+  },
+  "required": ["annotationId"]
+}

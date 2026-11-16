@@ -1,0 +1,40 @@
+{
+  "post": {
+    "summary": "Generate Media Token",
+    "description": "Generate a short-lived, resource-scoped media token for use as a ?token= query parameter on binary resource URLs (images, PDFs). Requires session authentication.",
+    "tags": ["Authentication"],
+    "security": [{ "bearerAuth": [] }],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/MediaTokenRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Media token generated",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/MediaTokenResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

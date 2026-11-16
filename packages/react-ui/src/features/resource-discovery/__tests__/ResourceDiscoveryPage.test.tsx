@@ -1,0 +1,414 @@
+/**
+ * Tests for ResourceDiscoveryPage component
+ *
+ * Tests the main resource discovery UI component.
+ * No Next.js mocking required - all dependencies passed as props!
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
+import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
+import { createTestSemiontWrapper } from '../../../test-utils';
+import { resourceId } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
+
+const createMockResource = (id: string, name: string, entityTypes: string[] = []): ResourceDescriptor => ({
+  '@context': 'https://www.w3.org/ns/anno.jsonld',
+  '@id': resourceId(id),
+  '@type': 'schema:DigitalDocument',
+  name,
+  description: `Description for ${name}`,
+  entityTypes,
+  archived: false,
+  dateCreated: '2024-01-15T10:00:00Z',
+  representations: [],
+});
+
+const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): ResourceDiscoveryPageProps => ({
+  recentDocuments: [],
+  searchDocuments: [],
+  entityTypes: [],
+  isLoadingRecent: false,
+  isSearching: false,
+  searchQuery: '',
+  onSearchQueryChange: vi.fn(),
+  selectedEntityType: '',
+  onSelectedEntityTypeChange: vi.fn(),
+  theme: 'light',
+  activePanel: null,
+  onNavigateToResource: vi.fn(),
+  onNavigateToCompose: vi.fn(),
+  translations: {
+    title: 'Discover Resources',
+    subtitle: 'Search and browse available resources',
+    searchPlaceholder: 'Search resources...',
+    searchButton: 'Search',
+    searching: 'Searching...',
+    semanticFallbackNotice: 'No title matches — showing related documents.',
+    filterByEntityType: 'Filter by type',
+    all: 'All',
+    recentResources: 'Recent Resources',
+    searchResults: (count: number) => `${count} results found`,
+    documentsTaggedWith: (entityType: string) => `Documents tagged with ${entityType}`,
+    noResultsFound: (query: string) => `No results found for "${query}"`,
+    noResourcesAvailable: 'No resources available',
+    composeFirstResource: 'Compose First Resource',
+    archived: 'Archived',
+    created: 'Created:',
+    recentFailed: 'Could not load resources.',
+  retry: 'Try again',
+  loadingKnowledgeBase: 'Loading knowledge base...',
+  },
+  ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
+  ...overrides,
+});
+
+// Helper to render with SemiontProvider (gives components access to session.emit)
+const renderWithProviders = (ui: React.ReactElement) => {
+  const { SemiontWrapper } = createTestSemiontWrapper();
+  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
+};
+
+describe('ResourceDiscoveryPage', () => {
+  // SEMANTIC-FALLBACK P3b / S11. The distinction is asserted through a stable
+  // hook, never the sentence: decision 3 set the wording and it will be revised
+  // from use, so a copy-pinned test would rot on the first edit and teach the
+  // next reader to weaken it.
+  describe('semantic fallback notice', () => {
+    const NOTICE = 'semiont-semantic-match-notice';
+
+    it('marks a semantic result set as distinct from a lexical one', () => {
+      const props = createMockProps({
+        searchQuery: 'kitten',
+        searchDocuments: [createMockResource('r1', 'All about cats')],
+        searchMatchKind: 'semantic',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByTestId(NOTICE)).toBeTruthy();
+    });
+
+    it('says nothing when the answer was lexical', () => {
+      const props = createMockProps({
+        searchQuery: 'cats',
+        searchDocuments: [createMockResource('r1', 'All about cats')],
+        searchMatchKind: 'lexical',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByTestId(NOTICE)).toBeNull();
+    });
+
+    it('does not carry a stale label onto the no-query view', () => {
+      // Clearing the box returns to "recent", which no label describes; a
+      // leftover `semantic` must not annotate that list.
+      const props = createMockProps({
+        searchQuery: '',
+        searchDocuments: [],
+        searchMatchKind: 'semantic',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByTestId(NOTICE)).toBeNull();
+    });
+
+    it('renders exactly as today when the prop is absent', () => {
+      const props = createMockProps({
+        searchQuery: 'cats',
+        searchDocuments: [createMockResource('r1', 'All about cats')],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByTestId(NOTICE)).toBeNull();
+    });
+  });
+
+
+  beforeEach(() => {
+  });
+
+  describe('Basic Rendering', () => {
+    it('renders without crashing', () => {
+      const props = createMockProps();
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Discover Resources')).toBeInTheDocument();
+    });
+
+    it('displays page title and subtitle', () => {
+      const props = createMockProps();
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Discover Resources')).toBeInTheDocument();
+      expect(screen.getByText('Search and browse available resources')).toBeInTheDocument();
+    });
+
+    it('renders search input', () => {
+      const props = createMockProps();
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByPlaceholderText('Search resources...')).toBeInTheDocument();
+    });
+
+    it('renders toolbar component', () => {
+      const props = createMockProps();
+      const { container } = renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      // Toolbar renders with context="simple" - check for toolbar element
+      const toolbar = container.querySelector('.semiont-toolbar[data-context="simple"]');
+      expect(toolbar).toBeInTheDocument();
+    });
+  });
+
+  describe('Loading State', () => {
+    it('shows loading message when isLoadingRecent is true', () => {
+      const props = createMockProps({ isLoadingRecent: true });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Loading knowledge base...')).toBeInTheDocument();
+    });
+
+    it('does not show main content when loading', () => {
+      const props = createMockProps({ isLoadingRecent: true });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByText('Discover Resources')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Recent Documents Display', () => {
+    it('displays recent documents', () => {
+      const recentDocuments = [
+        createMockResource('1', 'Document 1'),
+        createMockResource('2', 'Document 2'),
+        createMockResource('3', 'Document 3'),
+      ];
+
+      const props = createMockProps({ recentDocuments });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Document 1')).toBeInTheDocument();
+      expect(screen.getByText('Document 2')).toBeInTheDocument();
+      expect(screen.getByText('Document 3')).toBeInTheDocument();
+    });
+
+    it('shows "Recent Resources" heading when no search', () => {
+      const props = createMockProps({
+        recentDocuments: [createMockResource('1', 'Document 1')],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Recent Resources')).toBeInTheDocument();
+    });
+
+    it('shows empty state when no documents', () => {
+      const props = createMockProps({ recentDocuments: [] });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('No resources available')).toBeInTheDocument();
+    });
+
+    it('shows compose button in empty state', () => {
+      const props = createMockProps({ recentDocuments: [] });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByRole('button', { name: 'Compose First Resource' })).toBeInTheDocument();
+    });
+
+    it('calls onNavigateToCompose when compose button clicked', () => {
+      const props = createMockProps({ recentDocuments: [] });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      const button = screen.getByRole('button', { name: 'Compose First Resource' });
+      fireEvent.click(button);
+
+      expect(props.onNavigateToCompose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Search Functionality', () => {
+    it('reflects controlled searchQuery prop in the input', () => {
+      const props = createMockProps({ searchQuery: 'hello' });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      const input = screen.getByPlaceholderText('Search resources...') as HTMLInputElement;
+      expect(input.value).toBe('hello');
+    });
+
+    it('calls onSearchQueryChange on every keystroke', () => {
+      const onSearchQueryChange = vi.fn();
+      const props = createMockProps({ onSearchQueryChange });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      const input = screen.getByPlaceholderText('Search resources...');
+      fireEvent.change(input, { target: { value: 'a' } });
+      fireEvent.change(input, { target: { value: 'ab' } });
+      fireEvent.change(input, { target: { value: 'abc' } });
+
+      expect(onSearchQueryChange).toHaveBeenCalledTimes(3);
+      expect(onSearchQueryChange).toHaveBeenNthCalledWith(1, 'a');
+      expect(onSearchQueryChange).toHaveBeenNthCalledWith(2, 'ab');
+      expect(onSearchQueryChange).toHaveBeenNthCalledWith(3, 'abc');
+    });
+
+    it('shows the searching indicator when isSearching is true', () => {
+      const props = createMockProps({ isSearching: true, searchQuery: 'foo' });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Searching...')).toBeInTheDocument();
+    });
+
+    it('renders searchDocuments when searchQuery is non-empty', () => {
+      const props = createMockProps({
+        searchQuery: 'res',
+        searchDocuments: [
+          createMockResource('1', 'Search Result 1'),
+          createMockResource('2', 'Search Result 2'),
+        ],
+        recentDocuments: [createMockResource('99', 'Recent Doc')],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Search Result 1')).toBeInTheDocument();
+      expect(screen.getByText('Search Result 2')).toBeInTheDocument();
+      expect(screen.queryByText('Recent Doc')).not.toBeInTheDocument();
+      expect(screen.getByText('2 results found')).toBeInTheDocument();
+    });
+
+    it('shows no-results warning when searchQuery is non-empty, results empty, and not searching', () => {
+      const props = createMockProps({
+        searchQuery: 'nonexistent',
+        searchDocuments: [],
+        isSearching: false,
+        recentDocuments: [createMockResource('1', 'Recent Doc')],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('No results found for "nonexistent"')).toBeInTheDocument();
+    });
+
+    it('does not show no-results warning while still searching', () => {
+      const props = createMockProps({
+        searchQuery: 'foo',
+        searchDocuments: [],
+        isSearching: true,
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByText(/No results found/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Entity Type Filtering', () => {
+    it('renders entity type filter buttons', () => {
+      const props = createMockProps({
+        entityTypes: ['Document', 'Article', 'Report'],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Filter by type')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Document' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Article' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Report' })).toBeInTheDocument();
+    });
+
+    it('calls onSelectedEntityTypeChange when a filter chip is clicked', () => {
+      const onSelectedEntityTypeChange = vi.fn();
+      const props = createMockProps({
+        entityTypes: ['Document', 'Article'],
+        onSelectedEntityTypeChange,
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Document' }));
+      expect(onSelectedEntityTypeChange).toHaveBeenCalledWith('Document');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Article' }));
+      expect(onSelectedEntityTypeChange).toHaveBeenCalledWith('Article');
+    });
+
+    it('shows filtered heading when selectedEntityType prop is set', () => {
+      const props = createMockProps({
+        recentDocuments: [createMockResource('1', 'Doc 1', ['Document'])],
+        entityTypes: ['Document'],
+        selectedEntityType: 'Document',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Documents tagged with Document')).toBeInTheDocument();
+    });
+
+    it('calls onSelectedEntityTypeChange with empty string when "All" is clicked', () => {
+      const onSelectedEntityTypeChange = vi.fn();
+      const props = createMockProps({
+        entityTypes: ['Document', 'Article'],
+        selectedEntityType: 'Document',
+        onSelectedEntityTypeChange,
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'All' }));
+      expect(onSelectedEntityTypeChange).toHaveBeenCalledWith('');
+    });
+
+    it('renders the recentDocuments prop as-is without applying any post-filter', () => {
+      // The component is now controlled — backend filtering means
+      // `recentDocuments` already contains only the resources matching the
+      // active `selectedEntityType`. The component must not re-filter.
+      const props = createMockProps({
+        recentDocuments: [
+          createMockResource('1', 'Doc 1', ['Document']),
+          createMockResource('2', 'Doc 2', ['Article']),
+        ],
+        entityTypes: ['Document', 'Article'],
+        selectedEntityType: 'Document',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Doc 1')).toBeInTheDocument();
+      expect(screen.getByText('Doc 2')).toBeInTheDocument();
+    });
+  });
+
+  describe('Resource Navigation', () => {
+    it('calls onNavigateToResource when resource card clicked', () => {
+      const props = createMockProps({
+        recentDocuments: [createMockResource('test-123', 'Test Document')],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      const card = screen.getByRole('button', { name: /Open resource: Test Document/ });
+      fireEvent.click(card);
+
+      expect(props.onNavigateToResource).toHaveBeenCalledWith('test-123');
+    });
+  });
+
+  describe('Toolbar Integration', () => {
+    it('renders ToolbarPanels component', () => {
+      const props = createMockProps();
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByTestId('toolbar-panels')).toBeInTheDocument();
+    });
+
+    it('passes theme props to ToolbarPanels', () => {
+      const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
+      const props = createMockProps({
+        theme: 'dark',
+        ToolbarPanels,
+      });
+
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(ToolbarPanels).toHaveBeenCalledWith(
+        expect.objectContaining({
+          theme: 'dark',
+        }),
+        undefined,
+      );
+    });
+  });
+});

@@ -1,0 +1,761 @@
+// ⚠ GENERATED FILE — do not edit.
+//
+// Authority:   specs/src/bus/registry.json  (channels, payloads, operations)
+// Regenerate:  node scripts/bus/generate-ts.mjs
+// Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
+//
+// Payload schemas themselves live in the OpenAPI components; the registry
+// names which one each channel carries. Add or change a channel THERE.
+
+/**
+ * Bus Protocol
+ *
+ * The complete EventMap for the RxJS EventBus. Every channel name and
+ * its payload type is defined here — domain events, commands, reads,
+ * results, SSE stream payloads, and frontend UI events.
+ *
+ * Identifier discipline: where a payload carries an annotation or
+ * resource id, the TypeScript layer narrows the OpenAPI `string` to the
+ * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime
+ * wire shape is unchanged (brands have no runtime representation);
+ * what this buys us is that command handlers don't have to re-brand
+ * at every seam. Brand once at the entry boundary (HTTP route handler,
+ * DOM attribute read, URL param parse), not at every bus hop in
+ * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.
+ *
+ * Organized by flow (verb), then by category within each flow.
+ */
+
+import type { components } from './types';
+import type { AnnotationId, ResourceId } from './identifiers';
+import type { Annotation } from './annotation-types';
+import type { ResourceDescriptor } from './graph';
+import type { StoredEvent } from './event-base';
+import type { EventOfType } from './persisted-events';
+import type { AnchorRect } from './bus-ui-types';
+
+// Branded overrides for OpenAPI command payloads that carry identifier
+// fields. Narrows `string` → branded at the TypeScript layer.
+//
+// `_userId` is the gateway-injected authenticated DID (string at the
+// schema layer); handlers that need a `UserId` brand it locally.
+type MarkDeleteCommand =
+  components['schemas']['MarkDeleteCommand'] & {
+    annotationId: AnnotationId;
+    resourceId?: ResourceId;
+  };
+type MarkUpdateBodyCommand =
+  components['schemas']['MarkUpdateBodyCommand'] & {
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
+  };
+type BindInitiateCommand =
+  components['schemas']['BindInitiateCommand'] & {
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
+  };
+type BindUpdateBodyCommand =
+  components['schemas']['BindUpdateBodyCommand'] & {
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
+  };
+
+/**
+ * The unified EventMap — every channel on the EventBus.
+ *
+ * Convention:
+ * - Domain events (past tense): StoredEvent<Interface> — branded types
+ * - Commands/reads/results/UI: OpenAPI schema refs — plain strings
+ * - void: UI-only signals with no payload
+ */
+
+
+export type EventMap = {
+
+  // ========================================================================
+  // YIELD FLOW — resource creation, update, move, clone
+  // ========================================================================
+
+  // Domain events (branded — system of record)
+  'yield:created': StoredEvent<EventOfType<'yield:created'>>;
+  'yield:cloned': StoredEvent<EventOfType<'yield:cloned'>>;
+  'yield:updated': StoredEvent<EventOfType<'yield:updated'>>;
+  'yield:moved': StoredEvent<EventOfType<'yield:moved'>>;
+  'yield:representation-added': StoredEvent<EventOfType<'yield:representation-added'>>;
+  'yield:representation-removed': StoredEvent<EventOfType<'yield:representation-removed'>>;
+
+  // Generation lifecycle flows through the unified job:* family
+  // (job:start, job:report-progress, job:complete, job:fail). The
+  // pre-unification `yield:progress`/`yield:finished`/`yield:failed`
+  // channels were removed on the lifecycle-unification.
+
+  // Commands
+  'yield:create': components['schemas']['YieldCreateCommand'];
+  'yield:update': components['schemas']['YieldUpdateCommand'];
+  'yield:mv': components['schemas']['YieldMvCommand'];
+  'yield:clone': void;
+  'yield:clone-token-requested': components['schemas']['YieldCloneTokenRequest'];
+  'yield:clone-resource-requested': components['schemas']['YieldCloneResourceRequest'];
+  'yield:clone-create': components['schemas']['YieldCloneCreateCommand'];
+
+  // Command results
+  'yield:create-ok': components['schemas']['YieldCreateOk'];
+  'yield:create-failed': components['schemas']['CommandError'];
+  'yield:update-ok': components['schemas']['YieldUpdateOk'];
+  'yield:update-failed': components['schemas']['CommandError'];
+  'yield:move-failed': { fromUri: string } & components['schemas']['CommandError'];
+  'yield:clone-token-generated': { correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] };
+  'yield:clone-token-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'yield:clone-resource-result': { correlationId: string; response: components['schemas']['GetResourceByTokenResponse'] };
+  'yield:clone-resource-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'yield:clone-created': components['schemas']['YieldCloneCreated'];
+  'yield:clone-create-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  // ========================================================================
+  // MARK FLOW — annotation CRUD, AI assist, resource lifecycle
+  // ========================================================================
+
+  // Domain events (branded — system of record)
+  'mark:added': StoredEvent<EventOfType<'mark:added'>>;
+  'mark:removed': StoredEvent<EventOfType<'mark:removed'>>;
+  'mark:body-updated': StoredEvent<EventOfType<'mark:body-updated'>>;
+  'mark:entity-tag-added': StoredEvent<EventOfType<'mark:entity-tag-added'>>;
+  'mark:entity-tag-removed': StoredEvent<EventOfType<'mark:entity-tag-removed'>>;
+  'mark:archived': StoredEvent<EventOfType<'mark:archived'>>;
+  'mark:unarchived': StoredEvent<EventOfType<'mark:unarchived'>>;
+
+  // Annotation-job lifecycle flows through the unified job:* family
+  // (job:start, job:report-progress, job:complete, job:fail). UI
+  // consumers filter by jobType. The pre-unification channels
+  // `mark:progress`/`mark:assist-finished`/`mark:assist-failed` were
+  // removed on the lifecycle-unification.
+
+  // Commands
+  'mark:create-request': components['schemas']['MarkCreateRequest'];
+  'mark:create': components['schemas']['MarkCreateCommand'];
+  'mark:delete': MarkDeleteCommand;
+  'mark:update-body': MarkUpdateBodyCommand;
+  'mark:archive': components['schemas']['MarkArchiveCommand'];
+  'mark:unarchive': components['schemas']['MarkUnarchiveCommand'];
+  'mark:update-entity-types': components['schemas']['MarkUpdateEntityTypesCommand'];
+
+  // Command results
+  'mark:create-ok': components['schemas']['MarkCreateOk'];
+  'mark:create-failed': components['schemas']['CommandError'];
+  'mark:delete-ok': components['schemas']['MarkDeleteOk'];
+  'mark:delete-failed': components['schemas']['CommandError'];
+  // archive/unarchive confirmed-write replies (bridged) — correlation-keyed
+  // acks the SDK's busRequest awaits. Failure routes the real outcome back
+  // instead of the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
+  'mark:archive-ok': { correlationId?: string };
+  'mark:archive-failed': components['schemas']['CommandError'];
+  'mark:unarchive-ok': { correlationId?: string };
+  'mark:unarchive-failed': components['schemas']['CommandError'];
+  // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack
+  // the SDK's busRequest awaits; failure routes the real outcome back rather than
+  // the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
+  'mark:update-entity-types-ok': { correlationId?: string };
+  'mark:update-entity-types-failed': components['schemas']['CommandError'];
+  'mark:body-update-failed': components['schemas']['CommandError'];
+
+  // UI events
+  'mark:select-comment': components['schemas']['SelectionData'];
+  'mark:select-tag': components['schemas']['SelectionData'];
+  'mark:select-assessment': components['schemas']['SelectionData'];
+  'mark:select-reference': components['schemas']['SelectionData'];
+  'mark:requested': components['schemas']['MarkRequestedEvent'];
+  'mark:cancel-pending': void;
+  'mark:submit': components['schemas']['MarkSubmitEvent'];
+  'mark:assist-request': components['schemas']['MarkAssistRequestEvent'];
+  'mark:progress-dismiss': void;
+  // Client-local: the assist Observable went silent past its deadline (no
+  // progress, no completion, no job:fail). Emitted by mark-state-unit so the
+  // outcome-notification layer can tell the user; a real job failure arrives
+  // as job:fail instead and never produces this.
+  'mark:assist-timeout': { resourceId: string; motivation: components['schemas']['Motivation'] };
+  // Client-local UI notifications for annotation command failures, emitted by
+  // the awaiting catch (mark-state-unit), which inherently knows whose command
+  // failed on which resource. Distinct from the `mark:create-failed` /
+  // `mark:delete-failed` wire replies above: those are busRequest correlation
+  // plumbing (CommandError, matched by correlationId, bridged to every
+  // client) and are NOT for UI consumption — subscribing to them raw
+  // double-toasts the requester and leaks other users' failures.
+  'mark:create-error': { resourceId: string; message: string };
+  'mark:delete-error': { resourceId: string; message: string };
+  // Same pattern for bind body updates initiated by callers that cannot toast
+  // directly (e.g. ReferenceEntry's unlink); awaiting callers with their own
+  // toast surface (the reference wizard) surface failures themselves instead.
+  'bind:body-error': { resourceId: string; message: string };
+
+  // ========================================================================
+  // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,
+  // relation/predicate types, ontology import). The eighth flow.
+  // ========================================================================
+
+  // Domain events (branded — system of record). System-level: no resourceId.
+  'frame:entity-type-added': StoredEvent<EventOfType<'frame:entity-type-added'>>;
+  'frame:tag-schema-added': StoredEvent<EventOfType<'frame:tag-schema-added'>>;
+
+  // Commands
+  'frame:add-entity-type': components['schemas']['FrameAddEntityTypeCommand'];
+  'frame:add-tag-schema': components['schemas']['FrameAddTagSchemaCommand'];
+
+  // Command results — `*-add-ok` / `*-add-failed` are correlation-keyed replies
+  // for the SDK's confirmed `busRequest` writes (both bridged). In-process callers
+  // (bootstrap/replay/import) instead race the `frame:*-added` domain event and
+  // don't await `*-add-ok`, so its correlationId is optional.
+  'frame:entity-type-add-ok': { correlationId?: string };
+  'frame:entity-type-add-failed': components['schemas']['CommandError'];
+  'frame:tag-schema-add-ok': { correlationId?: string };
+  'frame:tag-schema-add-failed': components['schemas']['CommandError'];
+
+  // ========================================================================
+  // BIND FLOW — reference linking
+  // ========================================================================
+
+  'bind:initiate': BindInitiateCommand;
+  'bind:update-body': BindUpdateBodyCommand;
+  'bind:body-updated': components['schemas']['BindBodyUpdated'];
+  'bind:body-update-failed': components['schemas']['CommandError'];
+
+  // ========================================================================
+  // MATCH FLOW — search
+  // ========================================================================
+
+  'match:search-requested': components['schemas']['MatchSearchRequest'];
+  'match:search-results': components['schemas']['MatchSearchResult'];
+  'match:search-failed': components['schemas']['MatchSearchFailed'];
+
+  // ========================================================================
+  // GATHER FLOW — context gathering
+  // ========================================================================
+
+  'gather:requested': components['schemas']['GatherAnnotationRequest'];
+  'gather:complete': components['schemas']['GatherAnnotationComplete'];
+  'gather:failed': { correlationId: string; annotationId: string } & components['schemas']['CommandError'];
+  'gather:resource-requested': components['schemas']['GatherResourceRequest'];
+  'gather:resource-complete': components['schemas']['GatherResourceComplete'];
+  'gather:resource-failed': { correlationId: string; resourceId: string } & components['schemas']['CommandError'];
+
+  'gather:summary-requested': components['schemas']['GatherSummaryRequest'];
+  'gather:summary-result': { correlationId: string; response: Record<string, unknown> };
+  'gather:summary-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  // SSE stream payloads
+  'gather:annotation-progress': components['schemas']['GatherProgress'];
+
+  // ========================================================================
+  // BROWSE FLOW — knowledge base reads + UI navigation
+  // ========================================================================
+
+  // Reads.
+  //
+  // Reply `response` payloads carry DOMAIN-flavored documents: the KS serves
+  // real, validated ids, so these declare the branded `Annotation` /
+  // `ResourceDescriptor` (annotation-types.ts / graph.ts) rather than the raw
+  // OpenAPI flavors — consumers must never need to re-brand (`as Annotation[]`)
+  // what the protocol already guarantees. Field overrides via Omit +
+  // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md.
+  'browse:resource-requested': components['schemas']['BrowseResourceRequest'];
+  'browse:resource-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {
+      resource: ResourceDescriptor;
+      annotations: Annotation[];
+      entityReferences: Annotation[];
+    };
+  };
+  'browse:resource-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  // A resource's derived coordinate map — the text recovered from its bytes
+  // plus the geometry that indexes it (ANCHORED-TEXT-CACHE Lane 5).
+  //
+  // Read-only over the wire: the Smelter is the sole producer and publishes
+  // through `IContentTransport`, never over this channel. `null` in the reply
+  // means no map has been derived, which is the common case and not an error.
+  'browse:anchored-text-requested': components['schemas']['BrowseAnchoredTextRequest'];
+  'browse:anchored-text-result': { correlationId: string; response: components['schemas']['ExtractionOutcome'] | null };
+  'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
+  'browse:resources-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+      resources: ResourceDescriptor[];
+    };
+  };
+  'browse:resources-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:annotations-requested': components['schemas']['BrowseAnnotationsRequest'];
+  'browse:annotations-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {
+      annotations: Annotation[];
+    };
+  };
+  'browse:annotations-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:annotation-requested': components['schemas']['BrowseAnnotationRequest'];
+  'browse:annotation-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {
+      annotation: Annotation;
+      resource: ResourceDescriptor | null;
+      resolvedResource: ResourceDescriptor | null;
+    };
+  };
+  'browse:annotation-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:events-requested': components['schemas']['BrowseEventsRequest'];
+  'browse:events-result': components['schemas']['BrowseEventsResult'];
+  'browse:events-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:annotation-history-requested': components['schemas']['BrowseAnnotationHistoryRequest'];
+  'browse:annotation-history-result': components['schemas']['BrowseAnnotationHistoryResult'];
+  'browse:annotation-history-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:annotation-context-requested': components['schemas']['BrowseAnnotationContextRequest'];
+  'browse:annotation-context-result': { correlationId: string; response: Record<string, unknown> };
+  'browse:annotation-context-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:referenced-by-requested': components['schemas']['BrowseReferencedByRequest'];
+  'browse:referenced-by-result': components['schemas']['BrowseReferencedByResult'];
+  'browse:referenced-by-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:entity-types-requested': components['schemas']['BrowseEntityTypesRequest'];
+  'browse:entity-types-result': components['schemas']['BrowseEntityTypesResult'];
+  'browse:entity-types-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:tag-schemas-requested': components['schemas']['BrowseTagSchemasRequest'];
+  'browse:tag-schemas-result': components['schemas']['BrowseTagSchemasResult'];
+  'browse:tag-schemas-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:agents-requested': components['schemas']['BrowseAgentsRequest'];
+  'browse:agents-result': components['schemas']['BrowseAgentsResult'];
+  'browse:agents-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:directory-requested': components['schemas']['BrowseDirectoryRequest'];
+  'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
+  'browse:directory-failed': { correlationId: string; path: string } & components['schemas']['CommandError'];
+
+  // UI events (session-scoped — fire on the client bus, tied to a KB)
+  'browse:click': components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect };
+  'browse:resource-open': components['schemas']['BrowseResourceOpenEvent'];
+  'browse:resource-viewed': components['schemas']['BrowseResourceViewedEvent'];
+  'browse:entity-type-clicked': components['schemas']['BrowseEntityTypeClickedEvent'];
+
+  // ========================================================================
+  // SHELL — app-scoped UI events (fire on SemiontBrowser's bus, not the
+  // per-session client bus). These must work regardless of whether a
+  // KB session is active: panel toggles, sidebar, tab bar, routing.
+  // ========================================================================
+
+  'panel:toggle': components['schemas']['BrowsePanelToggleEvent'];
+  'panel:open': components['schemas']['BrowsePanelOpenEvent'] & { anchorRect?: AnchorRect };
+  'panel:close': void;
+  'shell:sidebar-toggle': void;
+  'tabs:close': components['schemas']['BrowseResourceCloseEvent'];
+  'tabs:reorder': components['schemas']['BrowseResourceReorderEvent'];
+  'nav:link-clicked': components['schemas']['BrowseLinkClickedEvent'];
+  'nav:push': components['schemas']['BrowseRouterPushEvent'];
+  'nav:external': components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void };
+
+  // ========================================================================
+  // BECKON FLOW — annotation attention
+  // ========================================================================
+
+  'beckon:hover': components['schemas']['BeckonHoverEvent'];
+  'beckon:focus': components['schemas']['BeckonFocusEvent'];
+  'beckon:sparkle': components['schemas']['BeckonSparkleEvent'];
+
+  // ========================================================================
+  // JOB FLOW — worker commands + domain events
+  // ========================================================================
+
+  // Domain events (branded — system of record)
+  'job:started': StoredEvent<EventOfType<'job:started'>>;
+  'job:completed': StoredEvent<EventOfType<'job:completed'>>;
+  'job:failed': StoredEvent<EventOfType<'job:failed'>>;
+
+  // Commands
+  'job:start': components['schemas']['JobStartCommand'];
+  'job:report-progress': components['schemas']['JobReportProgressCommand'];
+  'job:complete': components['schemas']['JobCompleteCommand'];
+  'job:fail': components['schemas']['JobFailCommand'];
+  'job:queued': components['schemas']['JobQueuedEvent'];
+  'job:cancel-requested': components['schemas']['JobCancelRequest'];
+  'job:status-requested': components['schemas']['JobStatusRequest'];
+  'job:create': components['schemas']['JobCreateCommand'];
+  'job:claim': components['schemas']['JobClaimCommand'];
+
+  // Results
+  'job:status-result': components['schemas']['JobStatusResult'];
+  'job:status-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:created': components['schemas']['JobCreatedResult'];
+  'job:create-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:claimed': { correlationId: string; response: Record<string, unknown> };
+  'job:claim-failed': { correlationId: string } & components['schemas']['CommandError'];
+  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
+  // (running jobs finish — there's no worker-kill channel). Failure surfaces a
+  // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md).
+  'job:cancel-ok': { correlationId?: string; response: { cancelled: number } };
+  'job:cancel-failed': components['schemas']['CommandError'];
+
+  // ========================================================================
+  // WEAVE FLOW — graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)
+  // ========================================================================
+
+  /**
+   * Emitted by the Weaver after applying an event (or a batch's last event)
+   * for a resource to the graph. `sequenceNumber` is the resource-stream
+   * sequence of the last applied event. Folded by `WeaveProgress`
+   * (make-meaning) into the backend-local applied map that the
+   * `whenApplied` barrier awaits. In-process signal today; crosses the
+   * bus gateway after WEAVER-ISOLATION.
+   */
+  'weave:applied': { resourceId: string; sequenceNumber: number };
+
+  // Signal — the vector projection's per-resource decision report: emitted
+  // by the Smelter after indexing a resource's content ('indexed') or after
+  // deciding not to ('skipped', with a `reason` naming the decline — the
+  // SMELTER-MEDIA-TYPES telemetry vocabulary: 'no-extractor' | 'empty' today,
+  // the PDF decline classes when extraction lands). Keyed by the
+  // checksum of the bytes inspected — "settled at C" is read-your-writes for
+  // exactly that content. NEVER emitted on transient failures: an error is not
+  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the backend-local
+  // `SmeltProgress` fold behind the gather-side barrier. This is the
+  // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended).
+  'smelt:settled': { resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped'; reason?: 'no-extractor' | 'empty' | 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large' };
+
+  // Command — rebuild the graph projection from the event log (full when
+  // resourceId is absent, one resource when present). Served by the Weaver;
+  // replaces direct `rebuildAll()`/`rebuildResource()` access, which does
+  // not survive the container split (WEAVER-ISOLATION D3). Correlated
+  // request/reply via the BUS_OPERATIONS registry.
+  'weave:rebuild': components['schemas']['WeaveRebuildCommand'];
+  'weave:rebuild-ok': { correlationId?: string };
+  'weave:rebuild-failed': { correlationId?: string; message: string };
+
+  // Command — rebuild anchored-text artifacts by re-running extraction
+  // (every geometry-capable resource when resourceId is absent, one when
+  // present). Served by the Smelter, serialized, never destructive, and
+  // with ZERO embedding calls — only the derived map is re-made
+  // (PERSIST-ANCHORS P0). Correlated request/reply via BUS_OPERATIONS.
+  'smelt:rebuild-anchors': components['schemas']['SmeltRebuildAnchorsCommand'];
+  'smelt:rebuild-anchors-ok': { correlationId?: string };
+  'smelt:rebuild-anchors-failed': { correlationId?: string; message: string };
+
+  // ========================================================================
+  // SETTINGS (frontend-only)
+  // ========================================================================
+
+  'settings:theme-changed': components['schemas']['SettingsThemeChangedEvent'];
+  'settings:line-numbers-toggled': void;
+  'settings:locale-changed': components['schemas']['SettingsLocaleChangedEvent'];
+  'settings:hover-delay-changed': components['schemas']['SettingsHoverDelayChangedEvent'];
+
+  // ========================================================================
+  // SSE infrastructure
+  // ========================================================================
+
+  'stream-connected': Record<string, never>;
+  'replay-window-exceeded': { resourceId?: string; lastEventId: number; missedCount: number; cap: number; message: string };
+  /**
+   * Emitted by the `/bus/subscribe` handler when a client reconnected
+   * with `Last-Event-ID: p-<scope>-<seq>` but the server could not
+   * replay all missed persisted events for that scope (retention
+   * window exceeded, scope unknown, or request unparseable). The
+   * client should treat this as a signal to fall back to the pre-
+   * resumption contract: invalidate caches for the affected scope
+   * and re-read from scratch. Analogous to `replay-window-exceeded`
+   * but scoped to the bus gateway rather than the per-resource
+   * events stream.
+   *
+   * `scope` is the scope string the client asked about (omitted for
+   * global-persisted resumption gaps, if that path ever exists).
+   * `reason` is human-readable, for logging.
+   */
+  'bus:resume-gap': { scope?: string; lastSeenId?: string; reason: string };
+  'session:joined': components['schemas']['SessionJoinedEvent'];
+  'session:left': components['schemas']['SessionLeftEvent'];
+};
+
+export type { AnchorRect } from './bus-ui-types';
+
+/**
+ * Any valid channel name on the EventBus — `keyof EventMap`, the root channel
+ * type. Two subsets matter, and confusing them is a silent-failure trap:
+ *
+ * - `EmittableChannel` (below) — channels with a non-null `CHANNEL_SCHEMAS`
+ *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).
+ * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the
+ *   only channels a client can SUBSCRIBE to over a concrete transport.
+ *
+ * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on
+ * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT
+ * in `BRIDGED_CHANNELS` is never delivered → the request times out with no
+ * compile or runtime error (see
+ * `.plans/bugs/gather-resource-complete-not-bridged.md`). `busRequest` now types
+ * its reply params `BridgedChannel` so that omission is a compile error.
+ */
+export type EventName = keyof EventMap;
+
+/**
+ * Genuine resource-bound broadcast event types.
+ *
+ * Publishers emit these on the scoped EventBus (`eventBus.scope(resourceId)`)
+ * because every participant viewing the resource should receive them — not
+ * just the caller who triggered the originating action. Examples: resource
+ * generation progress, which multiple viewers of a generating resource all
+ * want to see.
+ *
+ * Non-broadcast progress (AI-assist progress for one user, search results
+ * for one caller) does NOT belong here. Those are per-caller correlation-ID
+ * responses and publish globally — the caller filters by `correlationId`.
+ *
+ * The SDK's resource-scoped `browse.*` live queries wire these channels —
+ * subscribing acquires the scope via the transport's `subscribeToResource`
+ * (`scope=id&scoped=<channel>`) so the SSE route delivers them to that
+ * participant (freshness follows observation; #847). WorkerStateUnit uses this
+ * list to decide which emitted events to scope to their resource.
+ */
+export const RESOURCE_BROADCAST_TYPES = [
+  // Currently empty. `job:complete` / `job:fail` were moved to GLOBAL,
+  // `jobId`-keyed correlation delivery (#847): the dispatching caller
+  // filters by `jobId`, and resource viewers filter the same global stream
+  // by `resourceId` — no resource-scoped copy, so a client that is both
+  // dispatcher and viewer no longer receives it twice. This set remains as
+  // the extension point for *genuine* resource-bound broadcasts — events
+  // every viewer of a resource should see and no single caller owns (e.g.
+  // resource-generation progress for multiple viewers).
+] as const satisfies readonly EventName[];
+
+export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];
+
+/**
+ * Authoritative map from bus channel to OpenAPI schema name.
+ *
+ * Every {@link EventName} must appear. The `satisfies` clause below
+ * enforces completeness at compile time — adding a channel to
+ * {@link EventMap} without adding an entry here is a build error.
+ *
+ * Values:
+ *   - `<SchemaName>`: payload validates against `components['schemas'][SchemaName]`.
+ *   - `null`: no single-schema validation. Used for branded
+ *     `StoredEvent` wrappers, `void` UI signals, and compound inline
+ *     types (e.g. `{ correlationId } & CommandError`). These are not
+ *     validated by `/bus/emit`.
+ *
+ * The `/bus/emit` route reads this map to validate incoming payloads.
+ * Consumers can also use it to do client-side pre-flight validation
+ * before emitting.
+ */
+export const CHANNEL_SCHEMAS = {
+  // ── YIELD FLOW ──────────────────────────────────────────────────
+  'yield:created':                    null, // StoredEvent
+  'yield:cloned':                     null,
+  'yield:updated':                    null,
+  'yield:moved':                      null,
+  'yield:representation-added':       null,
+  'yield:representation-removed':     null,
+  'yield:create':                     'YieldCreateCommand',
+  'yield:update':                     'YieldUpdateCommand',
+  'yield:mv':                         'YieldMvCommand',
+  'yield:clone':                      null, // void
+  'yield:clone-token-requested':      'YieldCloneTokenRequest',
+  'yield:clone-resource-requested':   'YieldCloneResourceRequest',
+  'yield:clone-create':               'YieldCloneCreateCommand',
+  'yield:create-ok':                  'YieldCreateOk',
+  'yield:create-failed':              'CommandError',
+  'yield:update-ok':                  'YieldUpdateOk',
+  'yield:update-failed':              null, // { correlationId } & CommandError
+  'yield:move-failed':                null, // { fromUri } & CommandError
+  'yield:clone-token-generated':      null, // { correlationId; response: CloneResourceWithTokenResponse }
+  'yield:clone-token-failed':         null, // { correlationId } & CommandError
+  'yield:clone-resource-result':      null, // { correlationId; response: GetResourceByTokenResponse }
+  'yield:clone-resource-failed':      null, // { correlationId } & CommandError
+  'yield:clone-created':              'YieldCloneCreated',
+  'yield:clone-create-failed':        null, // { correlationId } & CommandError
+
+  // ── MARK FLOW ───────────────────────────────────────────────────
+  'mark:added':                       null, // StoredEvent
+  'mark:removed':                     null,
+  'mark:body-updated':                null,
+  'mark:entity-tag-added':            null,
+  'mark:entity-tag-removed':          null,
+  'frame:entity-type-added':          null,
+  'frame:tag-schema-added':           null,
+  'mark:archived':                    null,
+  'mark:unarchived':                  null,
+  'mark:create-request':              'MarkCreateRequest',
+  'mark:create':                      'MarkCreateCommand',
+  'mark:delete':                      'MarkDeleteCommand',
+  'mark:update-body':                 'MarkUpdateBodyCommand',
+  'mark:archive':                     'MarkArchiveCommand',
+  'mark:unarchive':                   'MarkUnarchiveCommand',
+  'mark:update-entity-types':         'MarkUpdateEntityTypesCommand',
+  'frame:add-entity-type':            'FrameAddEntityTypeCommand',
+  'frame:add-tag-schema':             'FrameAddTagSchemaCommand',
+  'mark:create-ok':                   'MarkCreateOk',
+  'mark:create-failed':               'CommandError',
+  'mark:delete-ok':                   'MarkDeleteOk',
+  'mark:delete-failed':               'CommandError',
+  'mark:archive-ok':                  null,
+  'mark:archive-failed':              'CommandError',
+  'mark:unarchive-ok':                null,
+  'mark:unarchive-failed':            'CommandError',
+  'mark:update-entity-types-ok':      null,
+  'mark:update-entity-types-failed':  'CommandError',
+  'mark:body-update-failed':          'CommandError',
+  'frame:entity-type-add-ok':         null,
+  'frame:entity-type-add-failed':     'CommandError',
+  'frame:tag-schema-add-ok':          null,
+  'frame:tag-schema-add-failed':      'CommandError',
+  'mark:select-comment':              'SelectionData',
+  'mark:select-tag':                  'SelectionData',
+  'mark:select-assessment':           'SelectionData',
+  'mark:select-reference':            'SelectionData',
+  'mark:requested':                   'MarkRequestedEvent',
+  'mark:cancel-pending':              null, // void
+  'mark:submit':                      'MarkSubmitEvent',
+  'mark:assist-request':              'MarkAssistRequestEvent',
+  'mark:progress-dismiss':            null, // void
+  'mark:assist-timeout':              null, // { resourceId; motivation } — client-local UI signal
+  'mark:create-error':                null, // { resourceId; message } — client-local UI signal
+  'mark:delete-error':                null, // { resourceId; message } — client-local UI signal
+  'bind:body-error':                  null, // { resourceId; message } — client-local UI signal
+
+  // ── BIND FLOW ───────────────────────────────────────────────────
+  'bind:initiate':                    'BindInitiateCommand',
+  'bind:update-body':                 'BindUpdateBodyCommand',
+  'bind:body-updated':                'BindBodyUpdated',
+  'bind:body-update-failed':          'CommandError',
+
+  // ── MATCH FLOW ──────────────────────────────────────────────────
+  'match:search-requested':           'MatchSearchRequest',
+  'match:search-results':             'MatchSearchResult',
+  'match:search-failed':              'MatchSearchFailed',
+
+  // ── GATHER FLOW ─────────────────────────────────────────────────
+  'gather:requested':                 'GatherAnnotationRequest',
+  'gather:complete':                  'GatherAnnotationComplete',
+  'gather:failed':                    null, // { correlationId; annotationId } & CommandError
+  'gather:resource-requested':        'GatherResourceRequest',
+  'gather:resource-complete':         'GatherResourceComplete',
+  'gather:resource-failed':           null, // { correlationId; resourceId } & CommandError
+  'gather:summary-requested':         'GatherSummaryRequest',
+  'gather:summary-result':            null, // { correlationId; response: Record<string, unknown> }
+  'gather:summary-failed':            null, // { correlationId } & CommandError
+  'gather:annotation-progress':       'GatherProgress',
+
+  // ── BROWSE FLOW ─────────────────────────────────────────────────
+  'browse:resource-requested':        'BrowseResourceRequest',
+  'browse:resource-result':           'BrowseResourceResult',
+  'browse:resource-failed':           null, // { correlationId } & CommandError
+  'browse:anchored-text-requested':   'BrowseAnchoredTextRequest',
+  'browse:anchored-text-result':      'BrowseAnchoredTextResult',
+  'browse:anchored-text-failed':      null, // { correlationId } & CommandError
+  'browse:resources-requested':       'BrowseResourcesRequest',
+  'browse:resources-result':          'BrowseResourcesResult',
+  'browse:resources-failed':          null,
+  'browse:annotations-requested':     'BrowseAnnotationsRequest',
+  'browse:annotations-result':        'BrowseAnnotationsResult',
+  'browse:annotations-failed':        null,
+  'browse:annotation-requested':      'BrowseAnnotationRequest',
+  'browse:annotation-result':         'BrowseAnnotationResult',
+  'browse:annotation-failed':         null,
+  'browse:events-requested':          'BrowseEventsRequest',
+  'browse:events-result':             'BrowseEventsResult',
+  'browse:events-failed':             null,
+  'browse:annotation-history-requested': 'BrowseAnnotationHistoryRequest',
+  'browse:annotation-history-result': 'BrowseAnnotationHistoryResult',
+  'browse:annotation-history-failed': null,
+  'browse:annotation-context-requested': 'BrowseAnnotationContextRequest',
+  'browse:annotation-context-result': null, // { correlationId; response: Record<string, unknown> }
+  'browse:annotation-context-failed': null,
+  'browse:referenced-by-requested':   'BrowseReferencedByRequest',
+  'browse:referenced-by-result':      'BrowseReferencedByResult',
+  'browse:referenced-by-failed':      null,
+  'browse:entity-types-requested':    'BrowseEntityTypesRequest',
+  'browse:entity-types-result':       'BrowseEntityTypesResult',
+  'browse:entity-types-failed':       null,
+  'browse:tag-schemas-requested':     'BrowseTagSchemasRequest',
+  'browse:tag-schemas-result':        'BrowseTagSchemasResult',
+  'browse:tag-schemas-failed':        null,
+  'browse:agents-requested':          'BrowseAgentsRequest',
+  'browse:agents-result':             'BrowseAgentsResult',
+  'browse:agents-failed':             null,
+  'browse:directory-requested':       'BrowseDirectoryRequest',
+  'browse:directory-result':          'BrowseDirectoryResult',
+  'browse:directory-failed':          null, // { correlationId; path } & CommandError
+  'browse:click':                     'BrowseClickEvent', // includes runtime `anchorRect?: AnchorRect`
+  'browse:resource-open':             'BrowseResourceOpenEvent',
+  'browse:resource-viewed':           'BrowseResourceViewedEvent',
+  'browse:entity-type-clicked':       'BrowseEntityTypeClickedEvent',
+
+  // ── SHELL (app-scoped UI events, fire on SemiontBrowser bus) ────
+  'panel:toggle':                     'BrowsePanelToggleEvent',
+  'panel:open':                       null, // includes runtime `anchorRect?: AnchorRect`
+  'panel:close':                      null, // void
+  'shell:sidebar-toggle':             null, // void
+  'tabs:close':                       'BrowseResourceCloseEvent',
+  'tabs:reorder':                     'BrowseResourceReorderEvent',
+  'nav:link-clicked':                 'BrowseLinkClickedEvent',
+  'nav:push':                         'BrowseRouterPushEvent',
+  'nav:external':                     null, // includes runtime `cancelFallback: () => void`
+
+  // ── BECKON FLOW ─────────────────────────────────────────────────
+  'beckon:hover':                     'BeckonHoverEvent',
+  'beckon:focus':                     'BeckonFocusEvent',
+  'beckon:sparkle':                   'BeckonSparkleEvent',
+
+  // ── JOB FLOW ────────────────────────────────────────────────────
+  'job:started':                      null, // StoredEvent
+  'job:completed':                    null,
+  'job:failed':                       null,
+  'job:start':                        'JobStartCommand',
+  'job:report-progress':              'JobReportProgressCommand',
+  'job:complete':                     'JobCompleteCommand',
+  'job:fail':                         'JobFailCommand',
+  'job:queued':                       'JobQueuedEvent',
+  'job:cancel-requested':             'JobCancelRequest',
+  'job:status-requested':             'JobStatusRequest',
+  'job:create':                       'JobCreateCommand',
+  'job:claim':                        'JobClaimCommand',
+  'job:status-result':                'JobStatusResult',
+  'job:status-failed':                null, // { correlationId } & CommandError
+  'job:created':                      'JobCreatedResult',
+  'job:create-failed':                null,
+  'job:claimed':                      null, // { correlationId; response: Record<string, unknown> }
+  'job:claim-failed':                 null,
+  'job:cancel-ok':                    null,
+  'job:cancel-failed':                'CommandError',
+
+  // ── SETTINGS (frontend-only) ────────────────────────────────────
+  'settings:theme-changed':           'SettingsThemeChangedEvent',
+  'settings:line-numbers-toggled':    null, // void
+  'settings:locale-changed':          'SettingsLocaleChangedEvent',
+  'settings:hover-delay-changed':     'SettingsHoverDelayChangedEvent',
+
+  // ── WEAVE FLOW ──────────────────────────────────────────────────
+  'weave:applied':                    null, // { resourceId; sequenceNumber }
+  'smelt:settled':                    null, // { resourceId; contentChecksum; outcome; reason? }
+  'weave:rebuild':                    'WeaveRebuildCommand',
+  'weave:rebuild-ok':                 null, // { correlationId }
+  'weave:rebuild-failed':             null, // { correlationId; message }
+  'smelt:rebuild-anchors':            'SmeltRebuildAnchorsCommand',
+  'smelt:rebuild-anchors-ok':         null, // { correlationId }
+  'smelt:rebuild-anchors-failed':     null, // { correlationId; message }
+
+  // ── SSE infrastructure ──────────────────────────────────────────
+  'stream-connected':                 null, // Record<string, never>
+  'replay-window-exceeded':           null, // inline payload
+  'bus:resume-gap':                   null, // inline payload
+  'session:joined':                   'SessionJoinedEvent',
+  'session:left':                     'SessionLeftEvent',
+} as const satisfies Record<EventName, keyof components['schemas'] | null>;
+
+/** Channels where `/bus/emit` validates the payload (non-null schema). */
+export type EmittableChannel = {
+  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K
+}[EventName];

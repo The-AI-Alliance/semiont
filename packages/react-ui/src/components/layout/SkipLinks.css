@@ -1,0 +1,101 @@
+/**
+ * Skip Links Component
+ *
+ * Accessibility feature for keyboard navigation
+ * Links are visually hidden but become visible when focused
+ */
+
+.semiont-skip-links {
+  position: relative;
+  z-index: 9999; /* Ensure skip links are always on top */
+}
+
+.semiont-skip-links-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none; /* Allow clicks to pass through when not focused */
+}
+
+.semiont-skip-link {
+  /* Hidden by default */
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+
+  /* Styling */
+  padding: 0.75rem 1.5rem;
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.875rem;
+  border-radius: 0 0 var(--semiont-radius-md) var(--semiont-radius-md);
+  box-shadow: var(--semiont-shadow-lg);
+  white-space: nowrap;
+
+  /* Animation */
+  transition: all var(--semiont-duration-base);
+  pointer-events: auto; /* Re-enable pointer events for the link itself */
+}
+
+/* Visible when focused */
+.semiont-skip-link:focus,
+.semiont-skip-link:focus-visible {
+  position: relative;
+  left: auto;
+  top: 0;
+  outline: 2px solid var(--semiont-color-primary-300);
+  outline-offset: 2px;
+}
+
+/* Hover state (when visible) */
+.semiont-skip-link:focus:hover,
+.semiont-skip-link:focus-visible:hover {
+  background: var(--semiont-color-primary-700);
+  transform: translateY(2px);
+}
+
+/* Spacing between skip links when visible */
+.semiont-skip-link:focus + .semiont-skip-link,
+.semiont-skip-link:focus-visible + .semiont-skip-link {
+  margin-left: 0.5rem;
+}
+
+/* First and last link special styling */
+.semiont-skip-link-first:focus,
+.semiont-skip-link-first:focus-visible {
+  border-radius: 0 0 var(--semiont-radius-md) 0;
+}
+
+.semiont-skip-link-last:focus,
+.semiont-skip-link-last:focus-visible {
+  border-radius: 0 0 0 var(--semiont-radius-md);
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .semiont-skip-link {
+  background: var(--semiont-color-primary-500);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-skip-link:focus,
+[data-theme="dark"] .semiont-skip-link:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-skip-link:focus:hover,
+[data-theme="dark"] .semiont-skip-link:focus-visible:hover {
+  background: var(--semiont-color-primary-600);
+}
+
+/* Ensure links work well with reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .semiont-skip-link {
+    transition: none;
+  }
+}

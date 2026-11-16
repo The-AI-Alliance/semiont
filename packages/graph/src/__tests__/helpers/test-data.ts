@@ -1,0 +1,142 @@
+/**
+ * Test data helpers for graph database tests
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import type { CreateAnnotationInternal, ResourceDescriptor } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
+
+/**
+ * Create a test resource with sensible defaults
+ */
+export function createTestResource(overrides: Partial<ResourceDescriptor> = {}): ResourceDescriptor {
+  const id = (overrides as any)['@id'] || overrides.id || uuidv4();
+
+  return {
+    '@context': 'https://www.w3.org/ns/ldp',
+    '@id': resourceId(id),
+    type: 'ldp:RDFSource',
+    name: 'Test Resource',
+    entityTypes: ['Person'],
+    representations: [
+      {
+        id: uuidv4(),
+        mediaType: 'text/plain',
+        content: { value: 'test content' },
+      },
+    ],
+    dateCreated: new Date().toISOString(),
+    ...overrides,
+  } as ResourceDescriptor;
+}
+
+/**
+ * Create a test annotation with highlighting motivation
+ */
+export function createTestHighlight(
+  resourceId: string,
+  overrides: Partial<CreateAnnotationInternal> = {}
+): CreateAnnotationInternal {
+  return {
+    id: annotationId(uuidv4()),
+    motivation: 'highlighting',
+    target: {
+      source: resourceId,
+      selector: {
+        type: 'TextQuoteSelector',
+        exact: 'test highlight',
+        prefix: '',
+        suffix: '',
+      },
+    },
+    body: {
+      type: 'TextualBody',
+      value: 'This is a highlight',
+      format: 'text/plain',
+      purpose: 'highlighting',
+    },
+    creator: {
+      '@type': 'Person' as const,
+      name: `User ${uuidv4()}`,
+    },
+    ...overrides,
+  };
+}
+
+/**
+ * Create a test annotation with linking motivation (stub reference)
+ */
+export function createTestReference(
+  targetResourceId: string,
+  overrides: Partial<CreateAnnotationInternal> = {}
+): CreateAnnotationInternal {
+  return {
+    id: annotationId(uuidv4()),
+    motivation: 'linking',
+    target: {
+      source: targetResourceId,
+      selector: {
+        type: 'TextQuoteSelector',
+        exact: 'reference text',
+        prefix: '',
+        suffix: '',
+      },
+    },
+    body: [{ type: 'TextualBody', value: 'StubEntityType', purpose: 'tagging' }],
+    creator: {
+      '@type': 'Person' as const,
+      name: `User ${uuidv4()}`,
+    },
+    ...overrides,
+  };
+}
+
+/**
+ * Create a test entity reference annotation
+ */
+export function createTestEntityReference(
+  targetResourceId: string,
+  sourceResourceId: string,
+  entityTypes: string[] = ['Person'],
+  overrides: Partial<CreateAnnotationInternal> = {}
+): CreateAnnotationInternal {
+  return {
+    id: annotationId(uuidv4()),
+    motivation: 'linking',
+    target: {
+      source: targetResourceId,
+      selector: {
+        type: 'TextQuoteSelector',
+        exact: 'entity text',
+        prefix: '',
+        suffix: '',
+      },
+    },
+    // Entity types are tagging bodies beside the linking one — no store has
+    // ever persisted an `entityTypes` property on a SpecificResource, which
+    // is why this fixture needed a cast to compile.
+    body: [
+      ...entityTypes.map(value => ({ type: 'TextualBody' as const, value, purpose: 'tagging' as const })),
+      { type: 'SpecificResource' as const, source: sourceResourceId, purpose: 'linking' as const },
+    ],
+    creator: {
+      '@type': 'Person' as const,
+      name: `User ${uuidv4()}`,
+    },
+    ...overrides,
+  };
+}
+
+/**
+ * Generate a unique resource ID
+ */
+export function generateResourceId(): string {
+  return uuidv4();
+}
+
+/**
+ * Generate a unique annotation ID
+ */
+export function generateAnnotationId(): string {
+  return uuidv4().replace(/-/g, '').substring(0, 12);
+}

@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "description": "One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.",
+  "properties": {
+    "start": { "type": "number", "description": "Char offset into AnchoredText.text, inclusive." },
+    "end": { "type": "number", "description": "Char offset into AnchoredText.text, exclusive." },
+    "page": { "type": "number", "description": "1-indexed page number." },
+    "x": { "type": "number" },
+    "y": { "type": "number" },
+    "width": { "type": "number" },
+    "height": { "type": "number" }
+  },
+  "required": ["start", "end", "page", "x", "y", "width", "height"]
+}

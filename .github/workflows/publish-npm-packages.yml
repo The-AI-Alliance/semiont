@@ -22,8 +22,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    outputs:
-      version: ${{ steps.version.outputs.publish }}
 
     steps:
       - name: Checkout repository
@@ -32,11 +30,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version-file: .node-version
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Build
-        # Browser memory note: with `VITE_OTEL_OTLP_ENDPOINT` set at
+        # Frontend memory note: with `VITE_OTEL_OTLP_ENDPOINT` set at
         # build time the OTel web SDK is bundled into the SPA, and
         # vite's chunking step needs ~2GB of Node heap. Default
         # `ubuntu-latest` runners have ~7GB RAM and Node's default
@@ -44,18 +42,19 @@ jobs:
         # `Reached heap limit Allocation failed - JavaScript heap out
         # of memory` here, set
         # `NODE_OPTIONS=--max-old-space-size=2560` on this step.
-        # With the env var unset (the default), the SDK is dynamic-
+        # With the env var unset (current default), the SDK is dynamic-
         # imported and dropped from the bundle entirely, so the build
         # is comfortably within memory.
-        run: ./packages/typescript/scripts/build.sh
+        run: ./scripts/ci/build.sh
 
       - name: Verify NodeNext resolution
         # Pre-publish gate: every @semiont/* package's dist must
         # resolve cleanly under `tsc --moduleResolution NodeNext` from
-        # an external consumer's perspective. Catches an asymmetric
-        # dist (bundled .js with per-file .d.ts shards) before it
-        # ships to npm.
-        run: ./packages/typescript/scripts/verify-nodenext-resolution.sh
+        # an external consumer's perspective. Catches the asymmetric-
+        # dist regression class (bundled .js with per-file .d.ts
+        # shards) before it ships to npm. See `.plans/CLEANUP-SDK.md`
+        # item 1 for the failure mode that motivated this gate.
+        run: ./scripts/ci/verify-nodenext-resolution.sh
 
       - name: Determine version
         id: version
@@ -75,7 +74,7 @@ jobs:
       - name: Publish
         if: inputs.dry_run != true
         run: |
-          ./packages/typescript/scripts/publish.sh \
+          ./scripts/ci/publish.sh \
             --version "${{ steps.version.outputs.publish }}" \
             --tag "${{ steps.version.outputs.tag }}"
 
@@ -86,8 +85,8 @@ jobs:
 
           # Pull the published-package list from version.json (the
           # workspace's single source of truth). Library packages live
-          # under `packages/`; the published app (browser) publishes from
-          # `.npm-stage/` via the `stage` field.
+          # under `packages/`; both published apps (backend, frontend)
+          # publish from `.npm-stage/` via the `stage` field.
           MANIFEST=$(node -e "
             const v = JSON.parse(require('fs').readFileSync('version.json', 'utf-8'));
             for (const [name, pkg] of Object.entries(v.packages)) {
@@ -123,32 +122,3 @@ jobs:
             done <<< "$MANIFEST"
             echo '```'
           } >> $GITHUB_STEP_SUMMARY
-
-  # The images bundle the packages this workflow just published, so this is the
-  # only place that knows they are ready. Dispatching from here leaves no
-  # hand-run step in which `tag_latest` can be forgotten, which would leave every
-  # image's :latest on the previous release and no fleet KB able to run this one.
-  trigger-images:
-    name: Trigger image publishes (runs separately)
-    needs: publish
-    if: inputs.stable_release == true && inputs.dry_run != true
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - name: Trigger browser and service image workflows
-        # The images are built from the ref this run was started on: the
-        # release's tag when release.yml started it, and the branch when it was
-        # started by hand on one. Seven of the eight images are built from the
-        # repository's own source, so a run with no ref would build whatever
-        # main is when it starts.
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.publish.outputs.version }}
-          REF: ${{ github.ref_name }}
-        run: |
-          for wf in publish-browser.yml publish-service-images.yml; do
-            gh workflow run "$wf" --ref "$REF" --field version="$VERSION" --field tag_latest=true
-            echo "Triggered $wf @ $VERSION at $REF (tag_latest=true)"
-          done

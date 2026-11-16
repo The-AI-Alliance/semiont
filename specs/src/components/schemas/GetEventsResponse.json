@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": { "$ref": "StoredEventResponse.json" }
+    },
+    "total": {
+      "type": "number"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "events",
+    "total",
+    "resourceId"
+  ]
+}

@@ -1,0 +1,190 @@
+/**
+ * Test Environment Setup Utilities
+ *
+ * Creates a minimal EnvironmentConfig and MakeMeaningConfig in memory
+ * for backend integration tests.
+ */
+
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import type { EnvironmentConfig } from '@semiont/core';
+
+const MINIMAL_SEMIONTCONFIG = `
+[environments.integration]
+[environments.integration.backend]
+platform = "posix"
+port = 4000
+publicURL = "http://localhost:4000"
+
+[environments.integration.make-meaning.graph]
+type = "memory"
+
+# Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both, nothing is
+# defaulted. This TOML is written to disk and parsed by the real loader, so it
+# needs the sections in their own right: the EnvironmentConfig object further
+# down is a separate surface, and having only that one is what left the
+# integration suite failing at loadEnvironmentConfig.
+[environments.integration.vectors]
+type = "memory"
+
+[environments.integration.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+
+[environments.integration.make-meaning.actors.gatherer.inference]
+type = "ollama"
+model = "llama3"
+
+[environments.integration.make-meaning.actors.matcher.inference]
+type = "ollama"
+model = "llama3"
+
+[environments.integration.workers.default.inference]
+type = "ollama"
+model = "llama3"
+
+[environments.integration.site]
+domain = "test.local"
+siteName = "Test"
+adminEmail = "admin@test.local"
+oauthAllowedDomains = ["test.local"]
+
+[environments.unit]
+[environments.unit.backend]
+platform = "posix"
+port = 4000
+publicURL = "http://localhost:4000"
+
+[environments.unit.make-meaning.graph]
+type = "memory"
+
+[environments.unit.make-meaning.actors.gatherer.inference]
+type = "ollama"
+model = "llama3"
+
+[environments.unit.make-meaning.actors.matcher.inference]
+type = "ollama"
+model = "llama3"
+
+[environments.unit.workers.default.inference]
+type = "ollama"
+model = "llama3"
+
+[environments.unit.site]
+domain = "test.local"
+siteName = "Test"
+adminEmail = "admin@test.local"
+oauthAllowedDomains = ["test.local"]
+`;
+
+export interface TestEnvironmentConfig {
+  config: EnvironmentConfig;
+  dataPath: string;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Create a test environment with:
+ * - Temporary directory for event store data
+ * - In-memory EnvironmentConfig (no filesystem config files)
+ * - SEMIONT_ROOT set in process.env; the environment selected by `[defaults]`
+ *   in the generated .semiontconfig (as a real KB does)
+ *
+ * @param envName - Optional environment name (defaults to 'unit')
+ */
+export async function setupTestEnvironment(envName?: string): Promise<TestEnvironmentConfig> {
+  const environment = envName ?? 'unit';
+
+  // mkdtemp, not Date.now(): parallel test files calling this in the same
+  // millisecond must not share (and mutually clobber) one directory.
+  const testDir = await fs.mkdtemp(join(tmpdir(), 'semiont-backend-test-'));
+
+  const dataPath = join(testDir, 'data');
+  await fs.mkdir(dataPath, { recursive: true });
+
+  // Write a minimal .semiontconfig so loadEnvironmentConfig works without a real user home dir.
+  // Set HOME to testDir so os.homedir() returns it.
+  //
+  // `[defaults] environment` is prepended rather than baked into the constant because the
+  // constant declares BOTH sections and the caller picks one. This is how a real KB selects
+  // its environment, so the fixture selects it the same way — no ambient SEMIONT_ENV.
+  const originalHome = process.env.HOME;
+  await fs.writeFile(
+    join(testDir, '.semiontconfig'),
+    `[defaults]\nenvironment = "${environment}"\n${MINIMAL_SEMIONTCONFIG}`,
+    'utf-8',
+  );
+  process.env.HOME = testDir;
+
+  // The KB's OWN committed config. Distinct from `.semiontconfig` above (that
+  // is the environment/machine config): `[site] domain` here is the KB's
+  // permanent identity, which boot now requires — a knowledge base declares
+  // its identity or does not run (KB-IDENTITY-VS-ADDRESS decision 8). A
+  // fixture without it is not a valid KB, so writing it is a correction, not
+  // an accommodation. The domain matches the environment's on purpose: these
+  // fixtures should represent the ordinary, non-diverged case and stay silent
+  // (a mismatch warns — decision 10).
+  await fs.mkdir(join(testDir, '.semiont'), { recursive: true });
+  await fs.writeFile(
+    join(testDir, '.semiont', 'config'),
+    '[project]\nname = "semiont-backend-test"\n\n[site]\ndomain = "test.local"\n',
+    'utf-8',
+  );
+
+  process.env.SEMIONT_ROOT = testDir;
+  // Beside SEMIONT_ROOT because it is the same kind of thing: a deployment
+  // fact index.ts reads and refuses to boot without. Set HERE rather than in a
+  // suite's setup file because this helper is what both suites share — the
+  // unit setup, the integration setup, and the test files that call it
+  // directly. A suite-level copy covers one of those.
+  process.env.SEMIONT_ANCHORED_TEXT_DIR = join(testDir, 'anchored-text');
+
+  const config: EnvironmentConfig = {
+    services: {
+      backend: {
+        platform: { type: 'posix' },
+        port: 4000,
+        publicURL: 'http://localhost:4000',
+      },
+      graph: {
+        platform: { type: 'posix' },
+        type: 'memory',
+      },
+      // Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both.
+      vectors: {
+        platform: { type: 'external' },
+        type: 'memory',
+      },
+      embedding: {
+        platform: { type: 'external' },
+        type: 'ollama',
+        model: 'nomic-embed-text',
+      },
+    },
+    site: {
+      domain: 'test.local',
+      siteName: 'Test',
+      adminEmail: 'admin@test.local',
+      oauthAllowedDomains: ['test.local'],
+    },
+    _metadata: {
+      environment,
+      projectRoot: testDir,
+    },
+  };
+
+  return {
+    config,
+    dataPath,
+    cleanup: async () => {
+      if (originalHome !== undefined) {
+        process.env.HOME = originalHome;
+      } else {
+        delete process.env.HOME;
+      }
+      delete process.env.SEMIONT_ROOT;
+      await fs.rm(testDir, { recursive: true, force: true });
+    },
+  };
+}

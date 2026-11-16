@@ -1,0 +1,398 @@
+/**
+ * Qdrant VectorStore Implementation
+ *
+ * Uses the Qdrant REST API via @qdrant/js-client-rest.
+ * Manages two collections: 'resources' and 'annotations'.
+ */
+
+import { createHash } from 'crypto';
+import type { QdrantClient, Schemas } from '@qdrant/js-client-rest';
+import type { ResourceId, AnnotationId } from '@semiont/core';
+import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
+import { mergeByResource } from './merge';
+
+/**
+ * Generate a deterministic UUID v5-style ID from an arbitrary string.
+ * Qdrant requires point IDs to be UUIDs or unsigned integers.
+ */
+function toQdrantId(input: string): string {
+  const hex = createHash('md5').update(input).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+/**
+ * Map a scored point to the store-agnostic result shape. Shared by every read
+ * path so the payload→result contract (including `machineRead`) has one home.
+ */
+function toSearchResult(point: Schemas['ScoredPoint']): VectorSearchResult {
+  const payload = point.payload ?? {};
+  return {
+    id: String(point.id),
+    score: point.score,
+    resourceId: payload.resourceId as ResourceId,
+    annotationId: payload.annotationId as AnnotationId | undefined,
+    text: payload.text as string,
+    entityTypes: payload.entityTypes as string[] | undefined,
+    ...(payload.machineRead ? { machineRead: true } : {}),
+  };
+}
+
+export interface QdrantConfig {
+  host: string;
+  port: number;
+  /** Resolves the embedding dimensionality; called only when creating a collection. */
+  dimensions: () => Promise<number>;
+}
+
+/** The payload fields a stamp is read from — one list for the scroll and the
+ *  targeted read, so the two cannot drift. */
+const STAMP_FIELDS = ['resourceId', 'contentChecksum', 'entityTypes', 'machineRead'];
+
+function toStamp(payload: Record<string, unknown> | null | undefined): ResourceStamp {
+  const checksum = payload?.contentChecksum;
+  const entityTypes = payload?.entityTypes;
+  return {
+    contentChecksum: typeof checksum === 'string' ? checksum : undefined,
+    entityTypes: Array.isArray(entityTypes)
+      ? entityTypes.filter((t): t is string => typeof t === 'string')
+      : [],
+    ...(payload?.machineRead ? { machineRead: true } : {}),
+  };
+}
+
+export class QdrantVectorStore implements VectorStore {
+  /**
+   * Per-batch point over-fetch for `searchByResource`. The batch limit caps
+   * points while the caller wants resources, so multi-chunk targets would
+   * otherwise crowd the top-K. See the call site.
+   */
+  private static readonly SEARCH_BY_RESOURCE_OVER_FETCH = 4;
+
+  private client: QdrantClient | null = null;
+  private config: QdrantConfig;
+
+  constructor(config: QdrantConfig) {
+    this.config = config;
+  }
+
+  private get qdrant(): QdrantClient {
+    if (!this.client) throw new Error('QdrantVectorStore is not connected');
+    return this.client;
+  }
+
+  async connect(): Promise<void> {
+    const { QdrantClient } = await import('@qdrant/js-client-rest');
+    this.client = new QdrantClient({
+      host: this.config.host,
+      port: this.config.port,
+    });
+
+    // Ensure collections exist
+    await this.ensureCollection('resources');
+    await this.ensureCollection('annotations');
+    // Payload indexes so filtered operations scale:
+    //  - entityTypes: the excludeEntityTypes recall filter.
+    //  - resourceId: searchByResource's by-resource scroll + self-exclusion, and
+    //    the per-resource delete paths (deleteResourceVectors /
+    //    deleteAnnotationVectorsForResource).
+    await this.ensurePayloadIndex('resources', 'entityTypes');
+    await this.ensurePayloadIndex('resources', 'resourceId');
+    await this.ensurePayloadIndex('annotations', 'resourceId');
+  }
+
+  async disconnect(): Promise<void> {
+    this.client = null;
+  }
+
+  async clearAll(): Promise<void> {
+    try { await this.qdrant.deleteCollection('resources'); } catch { /* may not exist */ }
+    try { await this.qdrant.deleteCollection('annotations'); } catch { /* may not exist */ }
+    await this.ensureCollection('resources');
+    await this.ensureCollection('annotations');
+  }
+
+  isConnected(): boolean {
+    return this.client !== null;
+  }
+
+  private async ensureCollection(name: string): Promise<void> {
+    try {
+      await this.qdrant.getCollection(name);
+      return;
+    } catch { /* absent — create it below, which is the only path needing the size */ }
+
+    // The dimensionality is discovered from the embedding provider, so it is
+    // resolved HERE and nowhere else: an existing collection already encodes
+    // its vector size, and consulting the provider to re-derive a number we
+    // would not use is exactly the eager-probe coupling this avoids.
+    await this.qdrant.createCollection(name, {
+      vectors: { size: await this.config.dimensions(), distance: 'Cosine' },
+    });
+  }
+
+  /**
+   * Idempotently create a keyword payload index. Qdrant accepts a repeat call
+   * for an already-indexed field, so this runs safely on every connect and
+   * back-fills the index on collections created before the field was indexed.
+   */
+  private async ensurePayloadIndex(collection: string, field: string): Promise<void> {
+    try {
+      await this.qdrant.createPayloadIndex(collection, { field_name: field, field_schema: 'keyword' });
+    } catch { /* already indexed, or created concurrently */ }
+  }
+
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void> {
+    // Replace semantics: purge existing chunks first, or a resource that
+    // shrinks leaves orphan points at the higher chunk indices.
+    await this.deleteResourceVectors(resourceId);
+    if (chunks.length === 0) return;
+
+    const points = chunks.map((chunk) => ({
+      id: toQdrantId(`${resourceId}-${chunk.chunkIndex}`),
+      vector: chunk.embedding,
+      payload: {
+        resourceId: String(resourceId),
+        chunkIndex: chunk.chunkIndex,
+        text: chunk.text,
+        contentChecksum,
+        entityTypes,
+        // Only stamped when true: absence is the common case and carries no
+        // claim, so a native extraction stores nothing extra.
+        ...(machineRead ? { machineRead: true } : {}),
+      },
+    }));
+
+    await this.qdrant.upsert('resources', { points });
+  }
+
+  async upsertAnnotationVector(
+    annotationId: AnnotationId,
+    embedding: number[],
+    payload: AnnotationPayload
+  ): Promise<void> {
+    await this.qdrant.upsert('annotations', {
+      points: [{
+        id: toQdrantId(String(annotationId)),
+        vector: embedding,
+        payload: {
+          annotationId: String(payload.annotationId),
+          resourceId: String(payload.resourceId),
+          motivation: payload.motivation,
+          entityTypes: payload.entityTypes,
+          text: payload.exactText,
+          ...(payload.machineRead ? { machineRead: true } : {}),
+        },
+      }],
+    });
+  }
+
+  async deleteResourceVectors(resourceId: ResourceId): Promise<void> {
+    await this.qdrant.delete('resources', {
+      filter: {
+        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
+      },
+    });
+  }
+
+  async deleteAnnotationVector(annotationId: AnnotationId): Promise<void> {
+    await this.qdrant.delete('annotations', {
+      points: [toQdrantId(String(annotationId))],
+    });
+  }
+
+  async deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void> {
+    await this.qdrant.delete('annotations', {
+      filter: {
+        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
+      },
+    });
+  }
+
+  async count(): Promise<number> {
+    const [resources, annotations] = await Promise.all([
+      this.qdrant.count('resources', { exact: true }),
+      this.qdrant.count('annotations', { exact: true }),
+    ]);
+    return resources.count + annotations.count;
+  }
+
+  async updateResourceEntityTypes(resourceId: ResourceId, entityTypes: string[]): Promise<void> {
+    // Payload-only rewrite across the resource's points — no vectors touched,
+    // no embedding involved (S13). Qdrant set_payload with a filter is a
+    // no-op when the resource has no points.
+    await this.qdrant.setPayload('resources', {
+      payload: { entityTypes },
+      filter: {
+        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
+      },
+    });
+  }
+
+  async getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined> {
+    const page = await this.qdrant.scroll('resources', {
+      limit: 1,
+      filter: { must: [{ key: 'resourceId', match: { value: String(resourceId) } }] },
+      with_payload: STAMP_FIELDS,
+      with_vector: false,
+    });
+    const point = page.points[0];
+    return point ? toStamp(point.payload) : undefined;
+  }
+
+  async listResourceStamps(): Promise<Map<string, ResourceStamp>> {
+    const stamps = new Map<string, ResourceStamp>();
+    let offset: Schemas['ScrollRequest']['offset'] = undefined;
+    do {
+      const page = await this.qdrant.scroll('resources', {
+        limit: 1000,
+        offset,
+        with_payload: STAMP_FIELDS,
+        with_vector: false,
+      });
+      for (const point of page.points) {
+        const rid = point.payload?.resourceId;
+        if (typeof rid !== 'string' || stamps.has(rid)) continue;
+        stamps.set(rid, toStamp(point.payload));
+      }
+      offset = page.next_page_offset ?? undefined;
+    } while (offset !== undefined && offset !== null);
+    return stamps;
+  }
+
+  async listAnnotationIds(): Promise<Set<string>> {
+    return this.scrollPayloadField('annotations', 'annotationId');
+  }
+
+  /** Collect the distinct values of one payload field across a collection. */
+  private async scrollPayloadField(collection: string, field: string): Promise<Set<string>> {
+    const values = new Set<string>();
+    let offset: Schemas['ScrollRequest']['offset'] = undefined;
+    do {
+      const page = await this.qdrant.scroll(collection, {
+        limit: 1000,
+        offset,
+        with_payload: [field],
+        with_vector: false,
+      });
+      for (const point of page.points) {
+        const value = point.payload?.[field];
+        if (typeof value === 'string') values.add(value);
+      }
+      offset = page.next_page_offset ?? undefined;
+    } while (offset !== undefined && offset !== null);
+    return values;
+  }
+
+  async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
+    return this.search('resources', embedding, opts);
+  }
+
+  async searchAnnotations(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
+    return this.search('annotations', embedding, opts);
+  }
+
+  async searchByResource(resourceId: ResourceId, opts: SearchOptions): Promise<VectorSearchResult[]> {
+    // Fetch the resource's stored chunk vectors (page through all of them so a
+    // long resource isn't silently truncated).
+    const queryVectors: number[][] = [];
+    let offset: Schemas['ScrollRequest']['offset'] = undefined;
+    do {
+      const page = await this.qdrant.scroll('resources', {
+        filter: { must: [{ key: 'resourceId', match: { value: String(resourceId) } }] },
+        with_vector: true,
+        with_payload: false,
+        limit: 256,
+        offset,
+      });
+      for (const point of page.points) {
+        if (Array.isArray(point.vector)) queryVectors.push(point.vector as number[]);
+      }
+      offset = page.next_page_offset ?? undefined;
+    } while (offset !== undefined && offset !== null);
+
+    if (queryVectors.length === 0) return [];
+
+    // Self-exclude the source; carry the caller's filter (e.g. excludeEntityTypes).
+    const filter = this.buildFilter({ ...opts.filter, excludeResourceId: resourceId });
+
+    // One batched query per source chunk (single round-trip). Each batch's
+    // `limit` caps POINTS, but the merge below yields RESOURCES — so a target
+    // with many chunks can fill several point-slots and crowd out resources
+    // that belong in the top-`limit` after folding. Over-fetch per batch to
+    // leave the merge material to work with; the memory store scores every
+    // candidate exhaustively, and without this the two backends disagree on
+    // recall. Headroom, not a guarantee: a resource whose chunks are all
+    // outranked by OVER_FETCH×limit points in every batch is still missed.
+    // Qdrant's group-by would make it exact, but only via the `search`-family
+    // endpoints 1.19.0 removed (see qdrant-query-api.test.ts).
+    const searches = queryVectors.map((vector) => ({
+      query: vector,
+      limit: opts.limit * QdrantVectorStore.SEARCH_BY_RESOURCE_OVER_FETCH,
+      score_threshold: opts.scoreThreshold,
+      filter: filter ?? undefined,
+      with_payload: true,
+    }));
+    const batches = await this.qdrant.queryBatch('resources', { searches });
+
+    // Normalise to VectorSearchResult, then fold chunk hits to one entry per
+    // resource (max-sim) via the shared merge; slice to the caller's limit.
+    const hits = batches.flatMap((batch) => batch.points.map((r) => toSearchResult(r)));
+    return mergeByResource(hits).slice(0, opts.limit);
+  }
+
+  private async search(collection: string, embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
+    const filter = this.buildFilter(opts.filter);
+
+    // `query`, not `search`: the REST client dropped `search`/`searchBatch` in
+    // 1.19.0 in favour of the universal query endpoint. Same request but the
+    // vector moves to `query`, and the response is wrapped in `{ points }`.
+    const { points } = await this.qdrant.query(collection, {
+      query: embedding,
+      limit: opts.limit,
+      score_threshold: opts.scoreThreshold,
+      filter: filter ?? undefined,
+      with_payload: true,
+    });
+
+    return points.map((r) => toSearchResult(r));
+  }
+
+  private buildFilter(filter?: SearchOptions['filter']): Schemas['Filter'] | null {
+    if (!filter) return null;
+
+    const must: Schemas['FieldCondition'][] = [];
+
+    if (filter.entityTypes && filter.entityTypes.length > 0) {
+      // any-of: match payloads whose `entityTypes` array contains at least one
+      // of the requested types. Matches the memory store's `some(t => ...)`
+      // semantics; pushing one `must` clause per type would mean all-of.
+      must.push({ key: 'entityTypes', match: { any: filter.entityTypes } });
+    }
+
+    if (filter.resourceId) {
+      must.push({ key: 'resourceId', match: { value: String(filter.resourceId) } });
+    }
+
+    if (filter.motivation) {
+      must.push({ key: 'motivation', match: { value: filter.motivation } });
+    }
+
+    const must_not: Schemas['FieldCondition'][] = [];
+
+    if (filter.excludeResourceId) {
+      must_not.push({ key: 'resourceId', match: { value: String(filter.excludeResourceId) } });
+    }
+
+    if (filter.excludeEntityTypes && filter.excludeEntityTypes.length > 0) {
+      // any-of exclusion: drop points whose entityTypes contain any of these.
+      must_not.push({ key: 'entityTypes', match: { any: filter.excludeEntityTypes } });
+    }
+
+    if (must.length === 0 && must_not.length === 0) return null;
+
+    return {
+      ...(must.length > 0 ? { must } : {}),
+      ...(must_not.length > 0 ? { must_not } : {}),
+    };
+  }
+}

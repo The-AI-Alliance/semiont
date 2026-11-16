@@ -1,5 +1,0 @@
-{
-  "type": "object",
-  "description": "Request to browse available entity types",
-  "properties": {}
-}

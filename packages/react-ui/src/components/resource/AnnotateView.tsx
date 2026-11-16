@@ -1,0 +1,280 @@
+'use client';
+
+import { useRef, useEffect, useCallback } from 'react';
+import { capabilitiesOf, resourceId as toResourceId } from '@semiont/core';
+import { ANNOTATORS } from '../../lib/annotation-registry';
+import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
+import { defaultAnnotateRenderers, type AnnotateMediaRenderers } from './annotate-renderers';
+import { DownloadFileLink } from './DownloadFileLink';
+import type { EditorView } from '@codemirror/view';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
+import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
+
+// Type augmentation for custom DOM properties
+interface EnrichedHTMLElement extends HTMLElement {
+  __cmView?: EditorView;
+}
+import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
+import type { AnnotationsCollection, AnnotationUIState } from '../../types/annotation-props';
+
+// Re-export for convenience
+export type { SelectionMotivation, ClickAction, ShapeType };
+
+interface Props {
+  content: string;
+  mimeType?: string;
+  /** The '@id' of the shown resource — stamped as `source` on mark:requested (multi-viewer routing). */
+  resourceUri: string;
+  annotations: AnnotationsCollection;
+  uiState: AnnotationUIState;
+  onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
+  editable?: boolean;
+  enableWidgets?: boolean;
+  getTargetResourceName?: (resourceId: string) => string | undefined;
+  generatingReferenceId?: string | null;
+  showLineNumbers?: boolean;
+  hoverDelayMs?: number;
+  annotateMode: boolean;
+  /** Session for the shown resource — its client emits mark:* / mark.request; its bus feeds toolbar + beckon events. */
+  session: SemiontSession | null;
+  /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
+  sparkleAnnotationIds?: Set<string>;
+  /** The bar's Mode control reports the chosen mode here (the owner applies it). */
+  onModeChange?: (mode: boolean) => void;
+  /** Render the built-in bar (default). false → no bar; selection capture and drawing stay live. */
+  showToolbar?: boolean;
+  /** Override the annotating media renderers (render mode → renderer); merged over the defaults. */
+  renderers?: AnnotateMediaRenderers;
+}
+
+/**
+ * View component for annotating resources with text selection and drawing
+ *
+ * @emits mark:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
+ * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
+ * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource (D7). Payload: { annotationId: string, resourceId?: string }
+ */
+export function AnnotateView({
+  content,
+  mimeType = 'text/plain',
+  resourceUri,
+  annotations,
+  uiState,
+  onUIStateChange,
+  enableWidgets = false,
+  getTargetResourceName,
+  generatingReferenceId,
+  showLineNumbers = false,
+  hoverDelayMs = 150,
+  annotateMode,
+  session,
+  sparkleAnnotationIds,
+  onModeChange,
+  showToolbar = true,
+  renderers,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const render = capabilitiesOf(mimeType)?.render ?? 'none';
+
+  const { highlights, references, assessments, comments, tags } = annotations;
+
+  const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+
+  // Extract UI state
+  const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, scrollToAnnotationId } = uiState;
+
+  // Store onUIStateChange in ref to avoid dependency issues
+  const onUIStateChangeRef = useRef(onUIStateChange);
+  onUIStateChangeRef.current = onUIStateChange;
+
+  // Toolbar callbacks: the presentational bar reports chosen values; route them up
+  // through the existing onUIStateChange path (the owner applies them).
+  const handleToolbarSelectionChange = useCallback((motivation: SelectionMotivation | null) => {
+    onUIStateChangeRef.current?.({ selectedMotivation: motivation });
+  }, []);
+
+  const handleToolbarClickActionChange = useCallback((action: ClickAction) => {
+    onUIStateChangeRef.current?.({ selectedClick: action });
+  }, []);
+
+  const handleToolbarShapeChange = useCallback((shape: ShapeType) => {
+    onUIStateChangeRef.current?.({ selectedShape: shape });
+  }, []);
+
+  const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    onUIStateChangeRef.current?.({ hoveredAnnotationId: annotationId });
+  }, []);
+
+  // "Scroll to and highlight this annotation" — the same contract BrowseView
+  // serves, so the behaviour no longer depends on which view mode is active.
+  // The `scrollToAnnotationId` prop path (uiState → renderer) stays as the
+  // host-facing capability it is; this is the in-app producer's route.
+  // `resourceId` is a GUARD, not navigation (GUIDED-TOUR D7): it names the
+  // resource this focus applies to, and a viewer showing a different one
+  // ignores it. Absent means unscoped — the in-app emitters (history panel,
+  // annotation list) omit it because they are already scoped to the open
+  // resource, so treating absence as "not mine" would silence all of them.
+  // Focus never navigates; driving the Browser to a resource is
+  // `browse:resource-open`'s job.
+  const handleAnnotationFocus = useCallback(
+    ({ annotationId, resourceId }: { annotationId?: string | null; resourceId?: string }) => {
+      if (resourceId && resourceId !== resourceUri) return;
+      if (!containerRef.current) return;
+      scrollAnnotationIntoView(annotationId ?? null, containerRef.current, { pulse: true });
+    },
+    [resourceUri],
+  );
+
+  // Annotation hover (session-scoped). Toolbar preference changes flow through
+  // props/callbacks, not the bus (TOOLBAR-PREFS-AS-PROPS).
+  useSessionEventSubscriptions(session, {
+    'beckon:hover': handleAnnotationHover,
+    'beckon:focus': handleAnnotationFocus,
+  });
+
+  // Handle text annotation with sparkle or immediate creation
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let clickedOnAnnotation = false;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Check if mousedown was on an existing annotation
+      const target = e.target as Element;
+      clickedOnAnnotation = !!target.closest('[data-annotation-id]');
+
+      if (!target.closest('[data-annotation-ui]')) {
+        // Removed unused selection state
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // Skip if the mouseUp came from PDF or image canvas
+      // (those components handle their own mark:requested events)
+      const target = e.target as Element;
+      if (target.closest('.semiont-pdf-annotation-canvas') ||
+          target.closest('.semiont-svg-drawing-canvas')) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString()) {
+        clickedOnAnnotation = false;
+        return;
+      }
+
+      // If mousedown was on an existing annotation, don't trigger creation
+      // The annotation's click handler will take care of it
+      if (clickedOnAnnotation) {
+        clickedOnAnnotation = false;
+        return;
+      }
+      clickedOnAnnotation = false;
+
+      const range = selection.getRangeAt(0);
+      const text = selection.toString();
+
+      // Get the CodeMirror EditorView instance stored on the CodeMirror container
+      const cmContainer = container.querySelector('.codemirror-renderer');
+      const view = (cmContainer as EnrichedHTMLElement | null)?.__cmView;
+
+      let start: number;
+      let end: number;
+
+      if (!view || !view.posAtDOM) {
+        // Fallback: try to find text in source (won't work for duplicates)
+        const pos = fallbackTextPosition(content, text);
+        if (!pos) return;
+        start = pos.start;
+        end = pos.end;
+      } else {
+        // CodeMirror's posAtDOM gives us the position in the document from a DOM node/offset
+        start = view.posAtDOM(range.startContainer, range.startOffset);
+        end = start + text.length;
+      }
+
+      if (start >= 0 && selectedMotivation) {
+        const selectors = buildTextSelectors(content, text, start, end);
+        if (!selectors) return;
+
+        session?.client.mark.request(toResourceId(resourceUri), selectors, selectedMotivation);
+
+        // Clear selection after creating annotation
+        selection.removeAllRanges();
+      }
+    };
+
+    container.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      container.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [selectedMotivation, content, resourceUri]);
+
+  // One shell for every render mode; the registry supplies the content.
+  // Previously a three-way `switch` that repeated this wrapper, the toolbar
+  // block and the content div verbatim in each branch — any toolbar prop
+  // change had to be made three times and stayed correct only by vigilance.
+  // See .plans/ANNOTATE-RENDERER-REGISTRY.md
+  const mediaRenderers: AnnotateMediaRenderers = { ...defaultAnnotateRenderers, ...renderers };
+  const Renderer = mediaRenderers[render];
+
+  // D4: a registry MISS is explicit here, unlike the browse side where it
+  // falls through to text harmlessly. Annotating an unknown type is not
+  // harmless, and the toolbar is deliberately absent in this branch.
+  if (!Renderer) {
+    return (
+      <div ref={containerRef} className="semiont-annotate-view semiont-annotate-view--unsupported" data-mime-type="unsupported">
+        <div className="semiont-annotate-view__empty">
+          <p className="semiont-annotate-view__empty-message">
+            Annotation not supported for {mimeType}
+          </p>
+          <DownloadFileLink resourceUri={resourceUri} session={session} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="semiont-annotate-view" data-mime-type={render} ref={containerRef}>
+      {showToolbar && (
+        <AnnotateToolbar
+          selectedMotivation={selectedMotivation}
+          selectedClick={selectedClick}
+          selectedShape={selectedShape}
+          mediaType={mimeType}
+          annotateMode={annotateMode}
+          annotators={ANNOTATORS}
+          onModeChange={onModeChange}
+          onClickActionChange={handleToolbarClickActionChange}
+          onSelectionChange={handleToolbarSelectionChange}
+          onShapeChange={handleToolbarShapeChange}
+        />
+      )}
+      <div className="semiont-annotate-view__content">
+        <Renderer
+          content={content}
+          mimeType={mimeType}
+          resourceUri={resourceUri}
+          annotations={allAnnotations}
+          session={session}
+          drawingMode={selectedMotivation ? selectedShape : null}
+          selectedMotivation={selectedMotivation}
+          hoveredAnnotationId={hoveredAnnotationId}
+          hoverDelayMs={hoverDelayMs}
+          sparkleAnnotationIds={sparkleAnnotationIds}
+          scrollToAnnotationId={scrollToAnnotationId}
+          showLineNumbers={showLineNumbers}
+          enableWidgets={enableWidgets}
+          {...(getTargetResourceName && { getTargetResourceName })}
+          generatingReferenceId={generatingReferenceId}
+        />
+      </div>
+    </div>
+  );
+}

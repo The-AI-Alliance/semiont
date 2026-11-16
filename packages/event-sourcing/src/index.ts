@@ -1,0 +1,49 @@
+/**
+ * @semiont/event-sourcing
+ *
+ * Event sourcing infrastructure for Semiont
+ *
+ * Provides:
+ * - EventStore: Orchestration layer for event sourcing
+ * - EventLog: Event persistence (append, retrieve, query)
+ * - ViewManager: View materialization (resource and system)
+ * - ViewStorage: Interface and filesystem implementation for materialized views
+ */
+
+// Core event sourcing components
+export { EventStore, type EnrichEvent } from './event-store';
+export { createEventStore } from './event-store-factory';
+export { EventLog, type EventLogConfig } from './event-log';
+export { ViewManager, type ViewManagerConfig } from './view-manager';
+
+// Storage
+export { type EventStorageConfig } from './storage/event-storage';
+export { EventStorage } from './storage/event-storage';
+export {
+  type ViewStorage,
+  type ResourceView,
+  FilesystemViewStorage,
+} from './storage/view-storage';
+export {
+  resolveStorageUri,
+  writeStorageUriEntry,
+  removeStorageUriEntry,
+  listStorageUriEntries,
+  ResourceNotFoundError,
+  type StorageUriEntry,
+} from './storage/storage-uri-index';
+
+
+// Query
+export { EventQuery } from './query/event-query';
+
+// Views
+export { ViewMaterializer } from './views/view-materializer';
+export {
+  applyEntityTypeAdded,
+  applyTagSchemaAdded,
+  type ApplyTagSchemaAddedResult,
+} from './views/projection-reducers';
+
+// Identifier utilities
+export { generateAnnotationId } from './identifier-utils';

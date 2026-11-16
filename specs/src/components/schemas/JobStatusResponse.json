@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "type": "string"
+    },
+    "type": { "$ref": "./JobType.json" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "complete",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "userId": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string"
+    },
+    "startedAt": {
+      "type": "string"
+    },
+    "completedAt": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    },
+    "progress": {},
+    "result": { "$ref": "./JobResult.json" }
+  },
+  "required": [
+    "jobId",
+    "type",
+    "status",
+    "userId",
+    "created"
+  ]
+}

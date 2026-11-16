@@ -1,0 +1,199 @@
+/**
+ * Table Component Styles
+ *
+ * Styles for data tables including:
+ * - Basic table structure
+ * - Headers and cells
+ * - Action buttons
+ * - User info displays
+ */
+
+/* ============================================
+   Table Container & Structure
+   ============================================ */
+
+.semiont-table-container {
+  overflow-x: auto;
+}
+
+.semiont-table {
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+/* ============================================
+   Table Header
+   ============================================ */
+
+.semiont-table__head {
+  background-color: var(--semiont-bg-secondary);
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-table__head {
+  background-color: var(--semiont-bg-inverse);
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-table__header {
+  padding: 0.75rem 1.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-table__header {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-table__header--actions {
+  text-align: right;
+}
+
+/* ============================================
+   Table Body & Rows
+   ============================================ */
+
+.semiont-table__body {
+  background-color: var(--semiont-bg-primary);
+}
+
+[data-theme="dark"] .semiont-table__body {
+  background-color: var(--semiont-bg-secondary);
+}
+
+.semiont-table__row {
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+  transition: background-color 0.15s ease;
+}
+
+[data-theme="dark"] .semiont-table__row {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-table__row:hover {
+  background-color: var(--semiont-bg-secondary);
+}
+
+[data-theme="dark"] .semiont-table__row:hover {
+  background-color: var(--semiont-color-gray-700);
+}
+
+/* ============================================
+   Table Cells
+   ============================================ */
+
+.semiont-table__cell {
+  padding: 1rem 1.5rem;
+  white-space: nowrap;
+}
+
+.semiont-table__cell--actions {
+  text-align: right;
+}
+
+.semiont-table__text--secondary {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-table__text--secondary {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-table__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* ============================================
+   Action Buttons
+   ============================================ */
+
+.semiont-action-button {
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+/* Focus styles for keyboard navigation */
+.semiont-action-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+[data-theme="dark"] .semiont-action-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Remove focus for mouse users */
+.semiont-action-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-action-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+.semiont-action-button__icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.semiont-action-button--info {
+  color: var(--semiont-color-blue-600);
+}
+
+.semiont-action-button--info:hover {
+  color: var(--semiont-color-blue-700);
+}
+
+[data-theme="dark"] .semiont-action-button--info {
+  color: var(--semiont-color-blue-400);
+}
+
+[data-theme="dark"] .semiont-action-button--info:hover {
+  color: var(--semiont-color-blue-300);
+}
+
+.semiont-action-button--warning {
+  color: var(--semiont-color-yellow-600);
+}
+
+.semiont-action-button--warning:hover {
+  color: var(--semiont-color-yellow-700);
+}
+
+[data-theme="dark"] .semiont-action-button--warning {
+  color: var(--semiont-color-yellow-400);
+}
+
+[data-theme="dark"] .semiont-action-button--warning:hover {
+  color: var(--semiont-color-yellow-300);
+}
+
+.semiont-action-button--danger {
+  color: var(--semiont-color-red-600);
+}
+
+.semiont-action-button--danger:hover {
+  color: var(--semiont-color-red-700);
+}
+
+[data-theme="dark"] .semiont-action-button--danger {
+  color: var(--semiont-color-red-400);
+}
+
+[data-theme="dark"] .semiont-action-button--danger:hover {
+  color: var(--semiont-color-red-300);
+}

@@ -1,0 +1,115 @@
+import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig } from '@semiont/core';
+
+/**
+ * Inference configuration for a single actor or worker.
+ */
+export interface InferenceConfig {
+  type: 'anthropic' | 'ollama';
+  model: string;
+  maxTokens?: number;
+  apiKey?: string;
+  endpoint?: string;
+  baseURL?: string;
+}
+
+/**
+ * Per-actor inference overrides.
+ * Stower never calls an LLM, so it has no entry here.
+ */
+export interface ActorInferenceConfig {
+  gatherer?: InferenceConfig;
+  matcher?: InferenceConfig;
+}
+
+/**
+ * Per-worker-type inference overrides.
+ * Falls back to `workers.default` if a specific worker is not listed.
+ */
+export interface WorkerInferenceConfig {
+  default?: InferenceConfig;
+  'reference-annotation'?: InferenceConfig;
+  'highlight-annotation'?: InferenceConfig;
+  'assessment-annotation'?: InferenceConfig;
+  'comment-annotation'?: InferenceConfig;
+  'tag-annotation'?: InferenceConfig;
+  'generation'?: InferenceConfig;
+}
+
+/** Narrow config type — only the fields make-meaning actually reads */
+export interface MakeMeaningConfig {
+  /**
+   * Resource-gather policy. `settleTimeoutMs` bounds the semanticContext
+   * read-your-writes barrier (SMELTER-INDEX-SYNC D3/D5) — REQUIRED: the TOML
+   * loader owns the one default (15s at `[environments.<env>.make-meaning.gather]`);
+   * hand-built configs (scripts, tests) state their policy explicitly. Must
+   * nest inside downstream watchdogs (A4).
+   */
+  gather: { settleTimeoutMs: number };
+  /**
+   * Search policy. `semanticFloor` is the minimum cosine score a vector hit
+   * needs to appear in the semantic fallback (SEMANTIC-FALLBACK decision #1)
+   * — REQUIRED: the TOML loader owns the one default (0.6 at
+   * `[environments.<env>.make-meaning.search]`); hand-built configs
+   * (scripts, tests) state their policy explicitly.
+   */
+  search: { semanticFloor: number };
+  services: {
+    graph?: GraphServiceConfig;
+    /** REQUIRED (MANDATORY-EMBEDDING D0+D1, type-level per the 2026-08-12
+     *  ruling): the config NAMES its store — `memory` is a first-class
+     *  explicit choice, never a fallback. The TOML loader refuses configs
+     *  without it; the type makes hand-built configs state their choice. */
+    vectors: VectorsServiceConfig;
+    /** REQUIRED (same ruling): the embedding provider is the KB's semantic
+     *  identity — always named, never detected or defaulted. */
+    embedding: EmbeddingServiceConfig;
+  };
+  /**
+   * The KB's canonical identity domain — the SAME value `/api/tokens/agent`
+   * mints agent DIDs from (backend `site.domain`). The agent roster consumes
+   * it verbatim, so directory DIDs and work-stamped `generator` DIDs are
+   * equal by construction; it is never derived from service topology
+   * (.plans/bugs/agent-did-host-skew.md).
+   */
+  site?: { domain: string };
+  /** Per-actor inference config */
+  actors?: ActorInferenceConfig;
+  /** Per-worker-type inference config */
+  workers?: WorkerInferenceConfig;
+}
+
+/**
+ * Resolve inference config for a named actor.
+ */
+export function resolveActorInference(
+  config: MakeMeaningConfig,
+  actor: 'gatherer' | 'matcher'
+): InferenceConfig {
+  const specific = config.actors?.[actor];
+  if (specific) return specific;
+
+  throw new Error(
+    `No inference config found for actor '${actor}'. ` +
+    `Set actors.${actor}.inference in your config.`
+  );
+}
+
+/**
+ * Resolve inference config for a named worker type.
+ * Falls back to workers.default if a specific worker is not listed.
+ */
+export function resolveWorkerInference(
+  config: MakeMeaningConfig,
+  workerType: keyof Omit<WorkerInferenceConfig, 'default'>
+): InferenceConfig {
+  const specific = config.workers?.[workerType];
+  if (specific) return specific;
+
+  const defaultWorker = config.workers?.default;
+  if (defaultWorker) return defaultWorker;
+
+  throw new Error(
+    `No inference config found for worker '${workerType}'. ` +
+    `Set workers.${workerType}.inference or workers.default.inference in your config.`
+  );
+}

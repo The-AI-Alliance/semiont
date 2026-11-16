@@ -1,0 +1,293 @@
+/**
+ * Admin Features Styles
+ *
+ * Consolidated styles for admin pages including:
+ * - Admin dashboard components
+ * - User management
+ * - Security configuration
+ * - DevOps monitoring
+ */
+
+/* ================================ */
+/* Consolidated Admin Styles */
+/* ================================ */
+
+/* Admin Stats Grid */
+.semiont-admin__stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Admin Filters Card */
+.semiont-admin__filters-card {
+  background-color: var(--semiont-bg-primary);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  border: 1px solid var(--semiont-color-gray-200);
+  margin-bottom: 2rem;
+}
+
+[data-theme="dark"] .semiont-admin__filters-card {
+  background-color: var(--semiont-bg-secondary);
+  border-color: var(--semiont-color-gray-700);
+}
+
+/* Admin Filters Grid */
+.semiont-admin__filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Admin Table Card */
+.semiont-admin__table-card {
+  background-color: var(--semiont-bg-primary);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-admin__table-card {
+  background-color: var(--semiont-bg-secondary);
+  border-color: var(--semiont-color-gray-700);
+}
+
+/* Admin Card */
+.semiont-admin__card {
+  background-color: var(--semiont-bg-primary);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  border: 1px solid var(--semiont-color-gray-200);
+  margin-bottom: 1.5rem;
+}
+
+[data-theme="dark"] .semiont-admin__card {
+  background-color: var(--semiont-bg-secondary);
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-admin__card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.semiont-admin__card-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.75rem;
+}
+
+.semiont-admin__card-icon--primary {
+  color: var(--semiont-color-blue-600);
+}
+
+[data-theme="dark"] .semiont-admin__card-icon--primary {
+  color: var(--semiont-color-blue-400);
+}
+
+.semiont-admin__card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-admin__card-title {
+  color: var(--semiont-color-white);
+}
+
+.semiont-admin__card-description {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-admin__card-description {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Admin Info Box */
+.semiont-admin__info-box {
+  background-color: var(--semiont-color-blue-100);
+  border: 1px solid var(--semiont-color-blue-300);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+[data-theme="dark"] .semiont-admin__info-box {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: var(--semiont-color-blue-500);
+}
+
+/* Provider List */
+.semiont-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-provider-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background-color: var(--semiont-bg-secondary);
+  border-radius: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-provider-item {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+.semiont-provider-item__info {
+  display: flex;
+  align-items: center;
+}
+
+.semiont-provider-item__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.5rem;
+}
+
+.semiont-provider-item__icon--success {
+  color: var(--semiont-color-green-500);
+}
+
+[data-theme="dark"] .semiont-provider-item__icon--success {
+  color: var(--semiont-color-green-400);
+}
+
+.semiont-provider-item__name {
+  font-weight: 500;
+  color: var(--semiont-color-gray-900);
+  text-transform: capitalize;
+}
+
+[data-theme="dark"] .semiont-provider-item__name {
+  color: var(--semiont-color-white);
+}
+
+.semiont-provider-item__client-id {
+  margin-left: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  font-family: monospace;
+}
+
+[data-theme="dark"] .semiont-provider-item__client-id {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Domain List */
+.semiont-domain-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Empty Message */
+.semiont-empty-message {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-empty-message {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Skeleton Group */
+.semiont-skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-skeleton--bar {
+  height: 3rem;
+  width: 100%;
+}
+
+.semiont-skeleton--chip {
+  height: 2rem;
+  width: 8rem;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+.semiont-skeleton--chip-lg {
+  width: 10rem;
+}
+
+/* Info Box - Consolidated with other definitions */
+
+.semiont-info-box__content {
+  display: flex;
+}
+
+.semiont-info-box__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--semiont-color-blue-600);
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .semiont-info-box__icon {
+  color: var(--semiont-color-blue-400);
+}
+
+.semiont-info-box__text {
+  margin-left: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.semiont-info-box__title {
+  font-weight: 500;
+  color: var(--semiont-color-blue-800);
+  margin-bottom: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-info-box__title {
+  color: var(--semiont-color-blue-300);
+}
+
+.semiont-info-box__description {
+  color: var(--semiont-color-blue-700);
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-info-box__description {
+  color: var(--semiont-color-blue-400);
+}
+
+.semiont-info-box__list {
+  list-style-type: disc;
+  list-style-position: inside;
+  color: var(--semiont-color-blue-700);
+  margin-top: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-info-box__list {
+  color: var(--semiont-color-blue-400);
+}
+
+.semiont-info-box__list li {
+  margin-bottom: 0.25rem;
+}
+
+/* Code Inline */
+.semiont-code-inline {
+  padding: 0.125rem 0.25rem;
+  background-color: var(--semiont-color-blue-100);
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .semiont-code-inline {
+  background-color: var(--semiont-color-blue-800);
+}

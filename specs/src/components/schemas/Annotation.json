@@ -1,0 +1,83 @@
+{
+  "type": "object",
+  "properties": {
+    "@context": {
+      "type": "string",
+      "enum": ["http://www.w3.org/ns/anno.jsonld"],
+      "default": "http://www.w3.org/ns/anno.jsonld",
+      "description": "W3C Web Annotation JSON-LD context"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["Annotation"],
+      "default": "Annotation",
+      "description": "W3C Annotation type"
+    },
+    "id": {
+      "type": "string"
+    },
+    "motivation": {
+      "$ref": "./Motivation.json"
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "IRI of the entire resource being annotated"
+        },
+        {
+          "$ref": "./AnnotationTarget.json"
+        }
+      ],
+      "description": "W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)"
+    },
+    "body": {
+      "oneOf": [
+        {
+          "$ref": "./AnnotationBody.json",
+          "description": "Single body (TextualBody or SpecificResource)"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./AnnotationBody.json"
+          },
+          "minItems": 1,
+          "description": "Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
+        }
+      ],
+      "description": "W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug)."
+    },
+    "creator": {
+      "$ref": "./Agent.json",
+      "description": "Web Annotation creator — the entity that initiated the annotation. For human-driven work this is a Person; for autonomous-agent work this is a Software peer."
+    },
+    "created": {
+      "type": "string"
+    },
+    "modified": {
+      "type": "string"
+    },
+    "generator": {
+      "oneOf": [
+        { "$ref": "./Agent.json" },
+        { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
+      ],
+      "description": "Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers."
+    },
+    "wasAttributedTo": {
+      "oneOf": [
+        { "$ref": "./Agent.json" },
+        { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
+      ],
+      "description": "PROV-O wasAttributedTo — all parties responsible for this annotation. For human-prompted AI work this combines `creator` (the Person) and `generator` (the Software). For purely manual annotations it equals `[creator]`; for autonomous-agent work it equals `[generator]` (and `creator` may be the same Software)."
+    }
+  },
+  "required": [
+    "@context",
+    "type",
+    "id",
+    "motivation",
+    "target"
+  ]
+}

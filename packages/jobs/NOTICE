@@ -1,0 +1,34 @@
+Semiont
+Copyright 2025-2026 The AI Alliance
+
+This product is licensed under the Apache License, Version 2.0.
+
+This product includes software developed by The AI Alliance
+(https://thealliance.ai/).
+
+This container image (semiont-worker) includes the following third-party
+components:
+
+  Alpine Linux - MIT License
+  Node.js - MIT License
+
+  Typst (typesetting compiler, v0.15.1) - Apache-2.0 License
+    The Typst Project Developers - https://github.com/typst/typst
+    Copied as a static binary from ghcr.io/typst/typst:0.15.1.
+    The binary embeds its default fonts, each under its own license. The
+    fonts' full copyright and license notices are retained verbatim inside
+    the font files embedded in the binary; the copyright notices are also
+    reproduced here:
+      Libertinus - SIL Open Font License 1.1
+      New Computer Modern - GUST Font License
+      DejaVu - Bitstream Vera Fonts License
+        Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.
+        Bitstream Vera is a trademark of Bitstream, Inc.
+        DejaVu changes are in the public domain.
+
+  npm dependencies (installed at build time from https://registry.npmjs.org):
+    @semiont/jobs - Apache-2.0 License (The AI Alliance)
+
+Each npm dependency's full license text is available in its respective
+node_modules/<package>/LICENSE file within the image, under
+/usr/local/lib/node_modules.

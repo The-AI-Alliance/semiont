@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "Bus command to rebuild the graph projection from the event log — the whole graph when resourceId is absent, one resource when present. Served by the Weaver; replaces direct rebuild access, which does not survive the Weaver's container split.",
+  "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id for request/reply matching, set by busRequest so the ok/failed reply routes back."
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "When present, rebuild only this resource; otherwise clear and rebuild the entire graph."
+    },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    }
+  }
+}
